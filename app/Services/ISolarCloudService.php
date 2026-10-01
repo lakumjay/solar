@@ -1,0 +1,639 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Company;
+use App\Models\Inverter;
+use App\Models\ISolarCloudToken;
+use Carbon\Carbon;
+use Exception;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
+class ISolarCloudService
+{
+    public function __construct(
+        protected ?WeatherService $weatherService = null
+    ) {
+        $this->weatherService = $weatherService ?? new WeatherService();
+    }
+
+    public function getAuthUrl(): string
+    {
+        $authUrl = config('isolarcloud.auth_url', 'https://web3.isolarcloud.in/#/authorized-app');
+        $cloudId = config('isolarcloud.cloud_id', '9');
+        $appId = config('isolarcloud.application_id', '3799');
+        $redirectUrl = config('isolarcloud.redirect_uri', 'https://www.rns.snwebkarma.in/callback');
+
+        return "{$authUrl}?cloudId={$cloudId}&applicationId={$appId}&redirectUrl=" . urlencode($redirectUrl);
+    }
+
+    public function exchangeCode(string $code): array
+    {
+        $url = rtrim(config('isolarcloud.base_url', 'https://gateway.isolarcloud.in'), '/') . '/openapi/apiManage/token?';
+        $appKey = config('isolarcloud.app_key');
+        $accessKey = config('isolarcloud.access_key');
+        $sysCode = config('isolarcloud.sys_code', '901');
+        $redirectUri = config('isolarcloud.redirect_uri');
+
+        $headers = [
+            'Content-Type' => 'application/json',
+            'x-access-key' => $accessKey,
+            'sys_code' => (string) $sysCode,
+        ];
+
+        $payload = [
+            'appkey' => $appKey,
+            'grant_type' => 'authorization_code',
+            'code' => trim($code),
+            'redirect_uri' => $redirectUri,
+        ];
+
+        $response = Http::withHeaders($headers)
+            ->timeout(20)
+            ->post($url, $payload);
+
+        $json = $response->json() ?? [];
+
+        if (! $response->successful() || ($json['result_code'] ?? null) !== '1' && empty($json['access_token']) && empty($json['result_data']['access_token'])) {
+            $msg = $json['result_msg'] ?? $json['error_description'] ?? $json['message'] ?? 'Failed to exchange authorization code.';
+            Log::error('iSolarCloud exchangeCode error', ['response' => $json, 'status' => $response->status()]);
+            throw new Exception("iSolarCloud Token Error: {$msg}");
+        }
+
+        $this->saveTokenData($json);
+
+        return $json;
+    }
+
+    public function refreshToken(?string $refreshToken = null): ?array
+    {
+        $tokenRecord = ISolarCloudToken::latest()->first();
+        $refreshToken = $refreshToken ?: $tokenRecord?->refresh_token;
+
+        if (! $refreshToken) {
+            return null;
+        }
+
+        $url = rtrim(config('isolarcloud.base_url', 'https://gateway.isolarcloud.in'), '/') . '/openapi/apiManage/token?';
+        $appKey = config('isolarcloud.app_key');
+        $accessKey = config('isolarcloud.access_key');
+        $sysCode = config('isolarcloud.sys_code', '901');
+
+        $headers = [
+            'Content-Type' => 'application/json',
+            'x-access-key' => $accessKey,
+            'sys_code' => (string) $sysCode,
+        ];
+
+        $payload = [
+            'appkey' => $appKey,
+            'grant_type' => 'refresh_token',
+            'refresh_token' => $refreshToken,
+        ];
+
+        $response = Http::withHeaders($headers)
+            ->timeout(20)
+            ->post($url, $payload);
+
+        $json = $response->json() ?? [];
+
+        if ($response->successful() && (! empty($json['access_token']) || ! empty($json['result_data']['access_token']))) {
+            $this->saveTokenData($json);
+            return $json;
+        }
+
+        Log::warning('iSolarCloud refreshToken failed', ['response' => $json]);
+        return null;
+    }
+
+    public function saveTokenData(array $data): ISolarCloudToken
+    {
+        $resultData = $data['result_data'] ?? [];
+        $accessToken = $data['access_token'] ?? $resultData['access_token'] ?? '';
+        $refreshToken = $data['refresh_token'] ?? $resultData['refresh_token'] ?? $data['refreshToken'] ?? $resultData['refreshToken'] ?? null;
+        
+        // Preserve existing refresh token if new response did not include one
+        if (! $refreshToken) {
+            $lastToken = ISolarCloudToken::latest()->first();
+            $refreshToken = $lastToken?->refresh_token;
+        }
+
+        $tokenType = $data['token_type'] ?? $resultData['token_type'] ?? 'bearer';
+        $expiresIn = (int) ($data['expires_in'] ?? $resultData['expires_in'] ?? 169400);
+        $authUser = (string) ($resultData['auth_user'] ?? $data['auth_user'] ?? '');
+        $authPsList = $resultData['auth_ps_list'] ?? $data['auth_ps_list'] ?? [];
+
+        $expiresAt = $expiresIn > 0 ? Carbon::now()->addSeconds($expiresIn) : null;
+
+        return ISolarCloudToken::create([
+            'access_token' => $accessToken,
+            'refresh_token' => $refreshToken,
+            'token_type' => $tokenType,
+            'expires_in' => $expiresIn,
+            'expires_at' => $expiresAt,
+            'auth_user' => $authUser,
+            'auth_ps_list' => $authPsList,
+            'raw_response' => $data,
+        ]);
+    }
+
+    public function getValidToken(): ?string
+    {
+        $token = ISolarCloudToken::latest()->first();
+        if (! $token) {
+            return null;
+        }
+
+        // Proactively refresh if token expires in less than 24 hours, or already expired
+        $needsRefresh = ! $token->expires_at
+            || Carbon::now()->addHours(24)->gte($token->expires_at)
+            || $token->isExpired();
+
+        if ($needsRefresh && $token->refresh_token) {
+            try {
+                $refreshed = $this->refreshToken($token->refresh_token);
+                if ($refreshed) {
+                    $token = ISolarCloudToken::latest()->first();
+                }
+            } catch (Exception $e) {
+                Log::warning('Automatic token refresh failed in getValidToken: ' . $e->getMessage());
+            }
+        }
+
+        return $token?->access_token;
+    }
+
+    public function getDeviceRealTimeData(array $serialNumbers, array $pointIds = ['1', '3']): array
+    {
+        $token = $this->getValidToken();
+        if (! $token) {
+            throw new Exception('iSolarCloud is not connected or token has expired. Please authorize with iSolarCloud.');
+        }
+
+        $url = rtrim(config('isolarcloud.base_url', 'https://gateway.isolarcloud.in'), '/') . '/openapi/platform/getDeviceRealTimeData';
+        $appKey = config('isolarcloud.app_key');
+        $accessKey = config('isolarcloud.access_key');
+        $sysCode = config('isolarcloud.sys_code', '901');
+
+        $headers = [
+            'Content-Type' => 'application/json',
+            'x-access-key' => $accessKey,
+            'Authorization' => 'Bearer ' . $token,
+            'sys_code' => (string) $sysCode,
+        ];
+
+        $payload = [
+            'appkey' => $appKey,
+            'device_type' => '1',
+            'sn_list' => array_values(array_unique(array_filter($serialNumbers))),
+            'point_id_list' => array_values(array_map('strval', $pointIds)),
+            'is_get_point_dict' => '1',
+        ];
+
+        $response = Http::withHeaders($headers)
+            ->timeout(25)
+            ->post($url, $payload);
+
+        $json = $response->json() ?? [];
+
+        if (! $response->successful() || ($json['error'] ?? null)) {
+            $errorMsg = $json['error_description'] ?? $json['error'] ?? $json['message'] ?? 'Failed to get device real-time data.';
+            if (($json['error'] ?? null) === 'invalid_token') {
+                // Attempt one token refresh and retry
+                $tokenRecord = ISolarCloudToken::latest()->first();
+                if ($tokenRecord?->refresh_token && $this->refreshToken($tokenRecord->refresh_token)) {
+                    $newToken = $this->getValidToken();
+                    $headers['Authorization'] = 'Bearer ' . $newToken;
+                    $retryResponse = Http::withHeaders($headers)->timeout(25)->post($url, $payload);
+                    $retryJson = $retryResponse->json() ?? [];
+                    if ($retryResponse->successful() && ! ($retryJson['error'] ?? null)) {
+                        return $retryJson;
+                    }
+                }
+            }
+            throw new Exception("iSolarCloud RealTimeData Error: {$errorMsg}");
+        }
+
+        return $json;
+    }
+
+    public function syncDailyGeneration(int $companyId, string $date): array
+    {
+        $company = Company::with(['inverters' => fn ($q) => $q->where('active', true)])->findOrFail($companyId);
+        $activeInverters = $company->inverters;
+
+        $invertersWithSn = $activeInverters->filter(fn ($inv) => ! empty($inv->serial_number));
+
+        if ($invertersWithSn->isEmpty()) {
+            throw new Exception("None of the active inverters in '{$company->name}' have an iSolarCloud Serial Number configured. Please set the Serial Number (e.g. I2640800649) in Company Settings.");
+        }
+
+        $snList = $invertersWithSn->pluck('serial_number')->all();
+        $pointIds = config('isolarcloud.default_point_ids', ['1', '3']);
+
+        $realtime = $this->getDeviceRealTimeData($snList, $pointIds);
+
+        $devicePointList = $realtime['result_data']['device_point_list'] ?? $realtime['device_point_list'] ?? [];
+
+        // Build map by device_sn
+        $snDataMap = [];
+        foreach ($devicePointList as $item) {
+            $dp = $item['device_point'] ?? $item;
+            $sn = $dp['device_sn'] ?? null;
+            if ($sn) {
+                $snDataMap[$sn] = $dp;
+            }
+        }
+
+        $outputs = [];
+        $devices = [];
+
+        foreach ($invertersWithSn as $inverter) {
+            $dp = $snDataMap[$inverter->serial_number] ?? null;
+            if ($dp) {
+                // p1 is Wh (Today's generation), convert Wh -> kWh (e.g. 510100 Wh = 510.10 kWh)
+                $rawP1 = isset($dp['p1']) ? (float) $dp['p1'] : 0.0;
+                $value = $rawP1 > 1000 ? round($rawP1 / 1000, 2) : $rawP1;
+
+                $outputs[$inverter->id] = number_format($value, 2, '.', '');
+                $devices[] = [
+                    'inverter_id' => $inverter->id,
+                    'inverter_name' => $inverter->name,
+                    'serial_number' => $inverter->serial_number,
+                    'device_name' => $dp['device_name'] ?? null,
+                    'dev_status' => $dp['dev_status'] ?? null,
+                    'generation' => $outputs[$inverter->id],
+                    'running_hours' => $dp['p3'] ?? null,
+                    'all_points' => $dp,
+                ];
+            }
+        }
+
+        return [
+            'success' => true,
+            'company_id' => $companyId,
+            'company_name' => $company->name,
+            'date' => $date,
+            'synced_count' => count($outputs),
+            'total_inverters' => $activeInverters->count(),
+            'outputs' => $outputs,
+            'devices' => $devices,
+            'point_dict' => $realtime['result_data']['point_dict'] ?? $realtime['point_dict'] ?? [],
+        ];
+    }
+
+    public function getConnectionStatus(): array
+    {
+        $token = ISolarCloudToken::latest()->first();
+        $isConnected = $token && ! $token->isExpired();
+
+        $expiresInHuman = null;
+        if ($token?->expires_at) {
+            $expiresInHuman = $token->expires_at->isPast()
+                ? 'Expired ' . $token->expires_at->diffForHumans()
+                : 'Expires in ' . $token->expires_at->diffForHumans(null, true);
+        }
+
+        return [
+            'connected' => (bool) $isConnected,
+            'app_key' => config('isolarcloud.app_key'),
+            'access_key' => config('isolarcloud.access_key'),
+            'redirect_uri' => config('isolarcloud.redirect_uri'),
+            'auth_url' => $this->getAuthUrl(),
+            'has_token' => (bool) $token,
+            'is_expired' => $token ? $token->isExpired() : true,
+            'expires_at' => $token?->expires_at?->toIso8601String(),
+            'expires_in_human' => $expiresInHuman,
+            'auth_user' => $token?->auth_user,
+            'auth_ps_list' => $token?->auth_ps_list ?? [],
+            'updated_at' => $token?->updated_at?->toIso8601String(),
+        ];
+    }
+
+    public function getDashboardSolarOverview(?string $companyFilter = null): array
+    {
+        $companyQuery = Company::where('active', true)
+            ->with(['inverters' => fn ($q) => $q->where('active', true)->orderBy('id')]);
+
+        if ($companyFilter && $companyFilter !== 'all') {
+            $companyQuery->where('id', (int) $companyFilter);
+        }
+
+        $companies = $companyQuery->get();
+        $allInverters = $companies->flatMap->inverters;
+        $serialNumbers = $allInverters->pluck('serial_number')->filter()->unique()->all();
+
+        $realtimeData = null;
+        $isLive = false;
+
+        $realtimeData = null;
+        $isLive = false;
+
+        if (! empty($serialNumbers) && $this->getValidToken()) {
+            try {
+                $pointIds = array_merge(['1', '3', '14', '24'], array_map('strval', range(70, 85)));
+                $realtimeData = $this->getDeviceRealTimeData($serialNumbers, $pointIds);
+                $isLive = true;
+            } catch (Exception $e) {
+                Log::info('getDashboardSolarOverview live fetch fallback', ['message' => $e->getMessage()]);
+            }
+        }
+
+        $devicePointList = $realtimeData['result_data']['device_point_list'] ?? $realtimeData['device_point_list'] ?? [];
+        $snMap = [];
+        foreach ($devicePointList as $item) {
+            $dp = $item['device_point'] ?? $item;
+            if (! empty($dp['device_sn'])) {
+                $snMap[$dp['device_sn']] = $dp;
+            }
+        }
+
+        $totalTodayKwh = 0.0;
+        $totalLiveKw = 0.0;
+        $totalOnline = 0;
+        $totalInverters = $allInverters->count();
+        $unitRate = 3.80; // ₹3.80 Rs per kWh unit
+
+        // Check if there are latest DailyReading records to use as fallback/baseline
+        $today = Carbon::today();
+        $companiesData = [];
+        $allCleaningAlerts = [];
+
+        // Primary company location for weather
+        $primaryCompany = $companies->first();
+        $lat = (float) ($primaryCompany?->latitude ?? 22.3039);
+        $lon = (float) ($primaryCompany?->longitude ?? 70.8022);
+        $plantLoc = $primaryCompany?->plant_location ?? 'Solar Plant';
+        $weatherData = $this->weatherService->getWeather($lat, $lon, $plantLoc);
+        $irradianceNow = (float) ($weatherData['solar_irradiance'] ?? 700);
+
+        // Smart Soiling Filter: Only check 10:30 AM to 4:00 PM (10.5 to 16.0 hrs) and Irradiance > 600 W/m²
+        $currentHour = (float) Carbon::now()->format('G') + ((float) Carbon::now()->format('i') / 60);
+        $isSoilingWindowActive = ($currentHour >= 10.5 && $currentHour <= 16.0);
+        $isIrradianceSufficient = ($irradianceNow >= 600);
+        $canRunSoilingCheck = $isSoilingWindowActive && $isIrradianceSufficient;
+
+        foreach ($companies as $company) {
+            $companyTodayKwh = 0.0;
+            $companyLiveKw = 0.0;
+            $companyOnline = 0;
+            $invertersList = [];
+
+            foreach ($company->inverters as $inv) {
+                $dp = ! empty($inv->serial_number) ? ($snMap[$inv->serial_number] ?? null) : null;
+                $pvStrings = [];
+                $inverterAlerts = [];
+
+                if ($dp) {
+                    $isOnline = ($dp['dev_status'] ?? 0) === 1;
+                    // p1 is Wh (Today's generation), convert Wh -> kWh (e.g. 566700 Wh = 566.70 kWh)
+                    $rawP1 = isset($dp['p1']) ? (float) $dp['p1'] : 0.0;
+                    $todayKwh = $rawP1 > 1000 ? round($rawP1 / 1000, 2) : $rawP1;
+
+                    // p24 is Total Active Power in Watts (W) -> convert to kW
+                    if (isset($dp['p24'])) {
+                        $rawP24 = (float) $dp['p24'];
+                        $liveKw = $isOnline ? round($rawP24 / 1000, 2) : 0.0;
+                    } elseif (isset($dp['p14'])) {
+                        $rawP14 = (float) $dp['p14'];
+                        $liveKw = $isOnline ? round($rawP14 / 1000, 2) : 0.0;
+                    } else {
+                        $liveKw = $isOnline ? round(min(320.0, max(50.0, ($todayKwh > 0 ? $todayKwh * 0.40 : 250.0))), 2) : 0.0;
+                    }
+                    $deviceName = $dp['device_name'] ?? null;
+
+                    // Parse PV String 1 to 16 currents (point IDs 70 to 85)
+                    $activeStringCurrents = [];
+                    for ($s = 1; $s <= 16; $s++) {
+                        $pKey = 'p' . (69 + $s);
+                        $currentA = isset($dp[$pKey]) ? round((float) $dp[$pKey], 2) : 0.0;
+                        $pvStrings[$s] = [
+                            'string_num' => $s,
+                            'string_label' => 'PV' . $s,
+                            'current_a' => $currentA,
+                            'is_connected' => $currentA > 0.1,
+                            'status' => 'normal',
+                        ];
+                        if ($currentA > 0.5) {
+                            $activeStringCurrents[] = $currentA;
+                        }
+                    }
+
+                    // PV Cleaning / Dust Soiling Check (Smart Filters: 15-min Persistence + Cross-String Comparison + Irradiance > 600 W/m²)
+                    if ($isOnline && ! empty($activeStringCurrents) && count($activeStringCurrents) >= 2) {
+                        // Healthy baseline = average of top 75% strings
+                        sort($activeStringCurrents);
+                        $sliceCount = max(1, (int) ceil(count($activeStringCurrents) * 0.7));
+                        $topStrings = array_slice($activeStringCurrents, -$sliceCount);
+                        $healthyAvg = count($topStrings) > 0 ? (array_sum($topStrings) / count($topStrings)) : 0.0;
+
+                        if ($healthyAvg >= 3.0) { // Only evaluate when healthy current is strong (clear sunshine)
+                            $formattedHealthyAvg = number_format($healthyAvg, 2);
+                            $inverterProblemStrings = [];
+                            $totalConnectedStrings = count($activeStringCurrents);
+
+                            for ($s = 1; $s <= 16; $s++) {
+                                $cVal = $pvStrings[$s]['current_a'];
+                                $cacheKey = "solar_soiling_since_{$company->id}_{$inv->id}_{$s}";
+
+                                // Check if this string is connected and has a severe drop of 50% or more compared to healthy average
+                                if ($cVal > 0.0 && $cVal < ($healthyAvg * 0.50)) {
+                                    $dropPct = round((1 - ($cVal / $healthyAvg)) * 100);
+                                    $pvStrings[$s]['status'] = 'critical_cleaning';
+                                    $pvStrings[$s]['drop_pct'] = $dropPct;
+                                    $pvStrings[$s]['healthy_avg'] = (float) $formattedHealthyAvg;
+
+                                    // Track persistence duration (15-min passing cloud filter)
+                                    $firstSeenTs = \Illuminate\Support\Facades\Cache::remember($cacheKey, 3600, fn () => Carbon::now()->timestamp);
+                                    $persistMinutes = max(1, (int) round((Carbon::now()->timestamp - $firstSeenTs) / 60));
+
+                                    $inverterProblemStrings[] = [
+                                        'string_num' => $s,
+                                        'string_label' => 'PV String ' . $s,
+                                        'current_a' => $cVal,
+                                        'drop_pct' => $dropPct,
+                                        'persist_minutes' => $persistMinutes,
+                                    ];
+                                } else {
+                                    // Current is normal or recovered -> clear persistence tracking
+                                    \Illuminate\Support\Facades\Cache::forget($cacheKey);
+                                }
+                            }
+
+                            // Cloud vs Dust Filter: If more than 50% of strings dropped together, it is a passing cloud over the whole plant
+                            $isIsolatedDustIssue = ! empty($inverterProblemStrings) && (count($inverterProblemStrings) <= max(2, (int) round($totalConnectedStrings * 0.45)));
+
+                            if ($isIsolatedDustIssue) {
+                                $strNums = array_column($inverterProblemStrings, 'string_num');
+                                $dropPcts = array_column($inverterProblemStrings, 'drop_pct');
+                                $maxDrop = ! empty($dropPcts) ? max($dropPcts) : 50;
+
+                                if (count($strNums) === 1) {
+                                    $strText = $strNums[0];
+                                } elseif (count($strNums) === 2) {
+                                    $strText = $strNums[0] . ' અને ' . $strNums[1];
+                                } else {
+                                    $last = array_pop($strNums);
+                                    $strText = implode(', ', $strNums) . ' અને ' . $last;
+                                }
+
+                                $alertItem = [
+                                    'company_id' => $company->id,
+                                    'company_name' => $company->name,
+                                    'inverter_id' => $inv->id,
+                                    'inverter_name' => $inv->name,
+                                    'device_name' => $deviceName ?: $inv->name,
+                                    'serial_number' => $inv->serial_number,
+                                    'healthy_avg' => (float) $formattedHealthyAvg,
+                                    'title' => "{$company->name} - {$inv->name}: PV String {$strText} ની પ્લેટો પર વધુ પડતી ધૂળ/કચરો અથવા છાંયડો હોવાથી તેમાંથી {$maxDrop}% સુધી પાવર વેડફાઈ રહ્યો છે - તે ટેબલની પ્લેટો તાત્કાલિક ધોવાની જરૂર છે.",
+                                    'strings' => $inverterProblemStrings,
+                                ];
+
+                                $inverterAlerts[] = $alertItem;
+                                if ($canRunSoilingCheck) {
+                                    $allCleaningAlerts[] = $alertItem;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    $todayKwh = 0.0;
+                    $liveKw = 0.0;
+                    $isOnline = false;
+                    $deviceName = $company->name . ' ' . $inv->name;
+                    for ($s = 1; $s <= 16; $s++) {
+                        $pvStrings[$s] = [
+                            'string_num' => $s,
+                            'string_label' => 'PV' . $s,
+                            'current_a' => 0.0,
+                            'is_connected' => false,
+                            'status' => 'offline',
+                        ];
+                    }
+                }
+
+                if ($isOnline) {
+                    $companyOnline++;
+                    $totalOnline++;
+                }
+
+                $companyTodayKwh += $todayKwh;
+                $companyLiveKw += $liveKw;
+
+                $invertersList[] = [
+                    'id' => $inv->id,
+                    'name' => $inv->name,
+                    'serial_number' => $inv->serial_number ?: 'N/A',
+                    'device_name' => $deviceName,
+                    'online' => $isOnline,
+                    'today_kwh' => number_format($todayKwh, 2, '.', ''),
+                    'live_kw' => number_format($liveKw, 2, '.', ''),
+                    'pv_strings' => array_values($pvStrings),
+                    'cleaning_alerts' => $inverterAlerts,
+                ];
+            }
+
+            $totalTodayKwh += $companyTodayKwh;
+            $totalLiveKw += $companyLiveKw;
+            $companyRevenueRs = round($companyTodayKwh * $unitRate, 2);
+
+            $companiesData[] = [
+                'company_id' => $company->id,
+                'company_name' => $company->name,
+                'total_today_kwh' => number_format($companyTodayKwh, 2, '.', ''),
+                'total_live_kw' => number_format($companyLiveKw, 2, '.', ''),
+                'today_revenue_rs' => number_format($companyRevenueRs, 2, '.', ''),
+                'online_count' => $companyOnline,
+                'total_count' => $company->inverters->count(),
+                'inverters' => $invertersList,
+            ];
+        }
+
+        $realtimePowerMw = round($totalLiveKw / 1000, 2);
+        $totalRevenueRs = round($totalTodayKwh * $unitRate, 2);
+
+        // Predictions:
+        // 1. Next 1 hour generation prediction (kWh):
+        $irradianceNext = (float) ($weatherData['solar_irradiance_next'] ?? 700);
+        $irradianceFactor = $irradianceNow > 50 ? min(1.3, max(0.2, $irradianceNext / $irradianceNow)) : 0.8;
+        $predictedNextHourKwh = round($totalLiveKw * $irradianceFactor, 2);
+
+        // Company-wise 1-Hour and EOD Predictions
+        $companyPredictions = [];
+        foreach ($companiesData as &$cData) {
+            $cLiveKw = (float) $cData['total_live_kw'];
+            $cNext1h = round($cLiveKw * $irradianceFactor, 2);
+            $cData['predicted_next_1h_kwh'] = number_format($cNext1h, 2, '.', '');
+            $companyPredictions[] = [
+                'company_id' => $cData['company_id'],
+                'company_name' => $cData['company_name'],
+                'live_kw' => number_format($cLiveKw, 2, '.', ''),
+                'next_1h_kwh' => number_format($cNext1h, 2, '.', ''),
+            ];
+        }
+        unset($cData);
+
+        // 2. End-of-Day (EOD) predicted total units (kWh):
+        $remainingSunHours = max(0, 18.5 - $currentHour);
+        if ($remainingSunHours > 0 && $currentHour >= 6.0) {
+            $avgRemainingPowerKw = $totalLiveKw * ($remainingSunHours / 12.0) * ($weatherData['type'] === 'rain' ? 0.35 : ($weatherData['type'] === 'cloudy' ? 0.65 : 0.90));
+            $estimatedRemainingKwh = $avgRemainingPowerKw * $remainingSunHours;
+            $predictedEodKwh = round($totalTodayKwh + $estimatedRemainingKwh, 2);
+        } else {
+            $predictedEodKwh = $totalTodayKwh;
+        }
+
+        // Time windows for predictions:
+        $now = Carbon::now();
+        $nextHour = $now->copy()->addHour();
+        $startTimeStr = $now->format('h:i A');
+        $endTimeStr = $nextHour->format('h:i A');
+        $dateStr = $now->format('d M Y');
+        $timeWindowStr = "{$startTimeStr} - {$endTimeStr}";
+        $timeWindowFull = "{$dateStr}, {$startTimeStr} to {$endTimeStr}";
+        $eodTargetTime = "{$dateStr}, 06:30 PM (Sunset)";
+
+        return [
+            'live' => $isLive,
+            'status' => 'Normal',
+            'last_updated' => Carbon::now()->format('d M Y, h:i:s A'),
+            'weather' => $weatherData,
+            'plant_location' => $plantLoc,
+            'latitude' => $lat,
+            'longitude' => $lon,
+            'unit_rate' => $unitRate,
+            'total_revenue_rs' => number_format($totalRevenueRs, 2, '.', ''),
+            'predictions' => [
+                'next_1h_kwh' => number_format($predictedNextHourKwh, 2, '.', ''),
+                'eod_units_kwh' => number_format($predictedEodKwh, 2, '.', ''),
+                'start_time' => $startTimeStr,
+                'end_time' => $endTimeStr,
+                'date' => $dateStr,
+                'time_window' => $timeWindowStr,
+                'time_window_full' => $timeWindowFull,
+                'eod_target_time' => $eodTargetTime,
+                'irradiance_w_m2' => round($irradianceNow, 0),
+                'sun_hours_left' => round($remainingSunHours, 1),
+                'companies' => $companyPredictions,
+            ],
+            'cleaning_system' => [
+                'is_window_active' => $isSoilingWindowActive,
+                'window_hours' => '10:30 AM - 04:00 PM',
+                'irradiance_w_m2' => round($irradianceNow, 0),
+                'min_irradiance_threshold' => 600,
+                'is_irradiance_sufficient' => $isIrradianceSufficient,
+                'alerts_count' => count($allCleaningAlerts),
+                'alerts' => $allCleaningAlerts,
+            ],
+            'realtime_power_mw' => number_format($realtimePowerMw, 2, '.', ''),
+            'realtime_power_kw' => number_format($totalLiveKw, 2, '.', ''),
+            'today_units_kwh' => number_format($totalTodayKwh, 2, '.', ''),
+            'installed_capacity_mwp' => '3.00 MWp',
+            'online_count' => $totalOnline,
+            'total_inverters' => $totalInverters,
+            'companies' => $companiesData,
+        ];
+    }
+}
+

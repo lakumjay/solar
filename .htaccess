@@ -1,0 +1,11 @@
+    <IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    RewriteRule ^public(?:/|$) - [L]
+
+    RewriteRule ^(?:app|bootstrap|config|database|resources|routes|storage|vendor)(?:/|$) - [F,L,NC]
+
+    RewriteRule ^(.*)$ public/$1 [L]
+    </IfModule>
+
+    Options -Indexes

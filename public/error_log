@@ -1,0 +1,28 @@
+[20-Sep-2026 09:01:18 UTC] PHP Warning:  include(/home3/snweba2e/rns.snwebkarma.in/vendor/composer/../sebastian/version/src/Version.php): Failed to open stream: No such file or directory in /home3/snweba2e/rns.snwebkarma.in/vendor/composer/ClassLoader.php on line 576
+[20-Sep-2026 09:01:18 UTC] PHP Warning:  include(): Failed opening '/home3/snweba2e/rns.snwebkarma.in/vendor/composer/../sebastian/version/src/Version.php' for inclusion (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/snweba2e/rns.snwebkarma.in/vendor/composer/ClassLoader.php on line 576
+[20-Sep-2026 09:01:18 UTC] PHP Fatal error:  Uncaught Error: Class "SebastianBergmann\Version" not found in /home3/snweba2e/rns.snwebkarma.in/vendor/phpunit/phpunit/src/Runner/Version.php:37
+Stack trace:
+#0 /home3/snweba2e/rns.snwebkarma.in/vendor/phpunit/phpunit/src/Runner/Version.php(48): PHPUnit\Runner\Version::id()
+#1 /home3/snweba2e/rns.snwebkarma.in/vendor/nunomaduro/collision/src/Adapters/Phpunit/Autoload.php(10): PHPUnit\Runner\Version::series()
+#2 /home3/snweba2e/rns.snwebkarma.in/vendor/composer/autoload_real.php(41): require('/home3/snweba2e...')
+#3 /home3/snweba2e/rns.snwebkarma.in/vendor/composer/autoload_real.php(45): {closure}('a1cfe24d14977df...', '/home3/snweba2e...')
+#4 /home3/snweba2e/rns.snwebkarma.in/vendor/autoload.php(22): ComposerAutoloaderInit53b5d56b3b7e3cbac1713e68c8850f6c::getLoader()
+#5 /home3/snweba2e/rns.snwebkarma.in/public/index.php(14): require('/home3/snweba2e...')
+#6 {main}
+  thrown in /home3/snweba2e/rns.snwebkarma.in/vendor/phpunit/phpunit/src/Runner/Version.php on line 37
+[20-Sep-2026 09:01:22 UTC] PHP Warning:  require(/home3/snweba2e/rns.snwebkarma.in/vendor/composer/../myclabs/deep-copy/src/DeepCopy/deep_copy.php): Failed to open stream: No such file or directory in /home3/snweba2e/rns.snwebkarma.in/vendor/composer/autoload_real.php on line 41
+[20-Sep-2026 09:01:22 UTC] PHP Fatal error:  Uncaught Error: Failed opening required '/home3/snweba2e/rns.snwebkarma.in/vendor/composer/../myclabs/deep-copy/src/DeepCopy/deep_copy.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/snweba2e/rns.snwebkarma.in/vendor/composer/autoload_real.php:41
+Stack trace:
+#0 /home3/snweba2e/rns.snwebkarma.in/vendor/composer/autoload_real.php(45): {closure}('6124b4c8570aa39...', '/home3/snweba2e...')
+#1 /home3/snweba2e/rns.snwebkarma.in/vendor/autoload.php(22): ComposerAutoloaderInit53b5d56b3b7e3cbac1713e68c8850f6c::getLoader()
+#2 /home3/snweba2e/rns.snwebkarma.in/public/index.php(14): require('/home3/snweba2e...')
+#3 {main}
+  thrown in /home3/snweba2e/rns.snwebkarma.in/vendor/composer/autoload_real.php on line 41
+[20-Sep-2026 09:01:26 UTC] PHP Warning:  require(/home3/snweba2e/rns.snwebkarma.in/vendor/composer/../myclabs/deep-copy/src/DeepCopy/deep_copy.php): Failed to open stream: No such file or directory in /home3/snweba2e/rns.snwebkarma.in/vendor/composer/autoload_real.php on line 41
+[20-Sep-2026 09:01:26 UTC] PHP Fatal error:  Uncaught Error: Failed opening required '/home3/snweba2e/rns.snwebkarma.in/vendor/composer/../myclabs/deep-copy/src/DeepCopy/deep_copy.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/snweba2e/rns.snwebkarma.in/vendor/composer/autoload_real.php:41
+Stack trace:
+#0 /home3/snweba2e/rns.snwebkarma.in/vendor/composer/autoload_real.php(45): {closure}('6124b4c8570aa39...', '/home3/snweba2e...')
+#1 /home3/snweba2e/rns.snwebkarma.in/vendor/autoload.php(22): ComposerAutoloaderInit53b5d56b3b7e3cbac1713e68c8850f6c::getLoader()
+#2 /home3/snweba2e/rns.snwebkarma.in/public/index.php(14): require('/home3/snweba2e...')
+#3 {main}
+  thrown in /home3/snweba2e/rns.snwebkarma.in/vendor/composer/autoload_real.php on line 41
