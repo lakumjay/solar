@@ -105,7 +105,9 @@ export default function LoginPage({onLogin}) {
                             Email address
                         </label>
                         <div className="login-input-wrap">
-                            <Mail size={18} className="login-input-icon"/>
+                            <span className="login-input-icon-box">
+                                <Mail size={18}/>
+                            </span>
                             <input
                                 id="login-email"
                                 type="email"
@@ -115,6 +117,7 @@ export default function LoginPage({onLogin}) {
                                 autoComplete="username"
                                 required
                                 autoFocus
+                                className="login-text-input"
                             />
                         </div>
                     </div>
@@ -124,7 +127,9 @@ export default function LoginPage({onLogin}) {
                             Password
                         </label>
                         <div className="login-input-wrap">
-                            <LockKeyhole size={18} className="login-input-icon"/>
+                            <span className="login-input-icon-box">
+                                <LockKeyhole size={18}/>
+                            </span>
                             <input
                                 id="login-password"
                                 type={showPassword ? 'text' : 'password'}
@@ -133,6 +138,7 @@ export default function LoginPage({onLogin}) {
                                 placeholder="Enter your password"
                                 autoComplete="current-password"
                                 required
+                                className="login-text-input"
                             />
                             <button
                                 type="button"
