@@ -59,7 +59,7 @@ function SelfieModal({mode, onClose, onDone}) {
         } catch (failure) { setError(failure.message); setBusy(false); }
     };
 
-    return <div className="modal-backdrop"><div className="modal camera-modal"><div className="panel-head"><div><h2>{isTimeIn ? 'Time In verification' : 'Break Out verification'}</h2><p>{isTimeIn ? 'Front-camera selfie and live GPS are compulsory.' : 'Capture a fresh front-camera selfie before returning to work.'}</p></div><button className="icon-button ghost" onClick={onClose}><X/></button></div>
+    return <div className="modal-backdrop"><div className="modal camera-modal"><div className="panel-head"><div><h2>{isTimeIn ? 'Time In verification' : 'Break Out verification'}</h2><p>{isTimeIn ? 'Front-camera selfie is required to verify your attendance.' : 'Capture a fresh front-camera selfie before returning to work.'}</p></div><button className="icon-button ghost" onClick={onClose}><X/></button></div>
         <div className="camera-frame">{preview ? <img src={preview} alt="Captured selfie"/> : <video ref={videoRef} playsInline muted/>}<span><Camera size={18}/> Keep your full face inside the frame</span></div>
         {error && <div className={error.includes('Getting') ? 'info-banner' : 'error'}>{error}</div>}
         <div className="camera-actions">{preview ? <button className="secondary" onClick={() => {URL.revokeObjectURL(preview); setPhoto(null); setPreview(''); setCameraKey(value => value + 1);}}><RefreshCw size={16}/> Retake</button> : <button className="secondary" onClick={capture}><Camera size={16}/> Capture selfie</button>}<button className="primary" disabled={!photo || busy} onClick={submit}>{isTimeIn ? <MapPin size={16}/> : <Camera size={16}/>} {isTimeIn ? 'Confirm location & time in' : 'Confirm selfie & break out'}</button></div>
@@ -201,7 +201,7 @@ export default function MyAttendancePage() {
                                 <span>📸</span> Today's Plant Photo Inspection Tasks
                             </h2>
                             <p style={{color: '#166534'}}>
-                                Live back-camera photos with GPS coordinates (10-day retention).
+                                Scheduled plant inspection and maintenance photos.
                             </p>
                         </div>
                         <span style={{
@@ -381,7 +381,7 @@ export default function MyAttendancePage() {
                     </Field>
 
                     <div className="form-actions">
-                        <span>No photo is taken at final Time Out (GPS location is recorded).</span>
+                        <span>No photo is taken at final Time Out.</span>
                         <button className="primary" disabled={busy || Boolean(activeBreak) || !isTimeOutUnlocked} title={!isTimeOutUnlocked ? `Time Out available after ${earliestOutHuman}` : 'Confirm Time Out'}>
                             {!isTimeOutUnlocked && <Lock size={14}/>}
                             <MapPin size={16}/> Final Time Out ({earliestOutHuman})
@@ -523,7 +523,7 @@ export default function MyAttendancePage() {
                     task={selectedTaskForPhoto}
                     onClose={() => setCameraModalOpen(false)}
                     onUploaded={async () => {
-                        setMessage('Plant photo captured successfully with GPS location (10-day retention).');
+                        setMessage('Plant photo uploaded successfully.');
                         await load();
                     }}
                 />

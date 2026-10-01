@@ -308,7 +308,7 @@ export default function LiveBackCameraModal({task, onClose, onUploaded}) {
                                     }}
                                 >
                                     {uploading ? <RefreshCw size={15} className="spin"/> : <CheckCircle size={15}/>}
-                                    <span>{uploading ? 'Saving...' : 'Upload & Save (10-Day Retention)'}</span>
+                                    <span>{uploading ? 'Saving...' : 'Upload & Save Photo'}</span>
                                 </button>
                             </>
                         )}

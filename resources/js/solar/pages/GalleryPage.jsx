@@ -120,7 +120,7 @@ export default function GalleryPage({currentUser, companyId}) {
                             <span>📸</span> Plant Photo Gallery & Inspection Log
                         </h2>
                         <p style={{margin: '2px 0 0', fontSize: '11.5px', color: '#64748b'}}>
-                            Daily scheduled plant inspection photos with live GPS, timestamps, and 10-day retention.
+                            Daily scheduled plant inspection records and photo log.
                         </p>
                     </div>
 

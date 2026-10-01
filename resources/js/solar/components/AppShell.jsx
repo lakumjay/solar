@@ -59,7 +59,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         dashboard: ['Live Solar Generation & Real-Time Flow', companyId === 'all' ? 'All Companies Live Sync' : activeCompany?.name],
         entry: ['Daily reading entry', activeCompany?.name],
         reports: ['Reports', companyId === 'all' ? 'All companies combined' : activeCompany?.name],
-        gallery: ['Plant Photo Gallery', 'Daily scheduled inspection photos with GPS & 10-day retention'],
+        gallery: ['Plant Photo Gallery', 'Daily scheduled inspection records and photo log'],
         expenses: ['Shared expenses', 'Company-wise balances and settlements'],
         companies: ['Company configuration', 'Multipliers and inverters'],
         users: ['Users & access', 'Roles and custom permissions'],

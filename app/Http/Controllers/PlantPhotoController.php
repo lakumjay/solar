@@ -150,7 +150,7 @@ class PlantPhotoController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Plant photo captured and compressed successfully (10-day retention active).',
+                'message' => 'Plant photo captured and uploaded successfully.',
                 'photo' => [
                     'id' => $photo->id,
                     'photo_url' => route('plant-photos.image', $photo->id),
