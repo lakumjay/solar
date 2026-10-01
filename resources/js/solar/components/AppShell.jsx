@@ -2,6 +2,7 @@ import React, {useEffect, useState} from 'react';
 import {Activity, BarChart3, Boxes, Building2, CalendarCheck2, ChevronRight, ClipboardPlus, Clock3, CloudSun, Gauge, IndianRupee, LogOut, Menu, Sun, UserCheck, Users, WalletCards, X} from 'lucide-react';
 import {api} from '../api';
 import MobileAppView from './MobileAppView';
+import NotificationPermissionModal from './NotificationPermissionModal';
 
 export default function AppShell({user, page, setPage, companies, companyId, setCompanyId, children}) {
     const [menuOpen, setMenuOpen] = useState(false);
@@ -122,5 +123,6 @@ export default function AppShell({user, page, setPage, companies, companyId, set
             </header>
             {children({can, activeCompany})}
         </main>
+        <NotificationPermissionModal />
     </div>;
 }

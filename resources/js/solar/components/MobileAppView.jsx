@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import {api} from '../api';
 import ISolarCloudVisualizer from './ISolarCloudVisualizer';
+import NotificationPermissionModal from './NotificationPermissionModal';
 
 export default function MobileAppView({
     user,
@@ -51,12 +52,30 @@ export default function MobileAppView({
     const [currentTime, setCurrentTime] = useState('');
     const [moreMenuOpen, setMoreMenuOpen] = useState(false);
     const [notifCenterOpen, setNotifCenterOpen] = useState(false);
+    const [hasUnreadNotif, setHasUnreadNotif] = useState(() => {
+        try {
+            const lastRead = localStorage.getItem('solar_notif_last_read');
+            if (!lastRead) return true;
+            // Mark unread if more than 4 hours old
+            return (Date.now() - parseInt(lastRead, 10)) > (4 * 60 * 60 * 1000);
+        } catch (e) {
+            return true;
+        }
+    });
     const [pwaPrompt, setPwaPrompt] = useState(null);
     const [installed, setInstalled] = useState(false);
     const [showCompanyPicker, setShowCompanyPicker] = useState(false);
     const [notifToast, setNotifToast] = useState(null);
     const [expandedPlantId, setExpandedPlantId] = useState(null);
     const [expandedInverters, setExpandedInverters] = useState({});
+
+    const handleOpenNotifCenter = () => {
+        setNotifCenterOpen(true);
+        setHasUnreadNotif(false);
+        try {
+            localStorage.setItem('solar_notif_last_read', String(Date.now()));
+        } catch (e) {}
+    };
 
     // Live clock with seconds
     useEffect(() => {
@@ -246,11 +265,11 @@ export default function MobileAppView({
                     <button
                         type="button"
                         className="mobile-icon-btn notif-bell-btn"
-                        onClick={() => setNotifCenterOpen(true)}
+                        onClick={handleOpenNotifCenter}
                         title="Notification Center & Alerts"
                     >
                         <Bell size={19}/>
-                        <span className="notif-red-dot"/>
+                        {hasUnreadNotif && <span className="notif-red-dot"/>}
                     </button>
                     <div className="mobile-user-avatar" onClick={() => setMoreMenuOpen(true)}>
                         {user.name ? user.name.slice(0, 1).toUpperCase() : <User size={16}/>}
@@ -641,41 +660,65 @@ export default function MobileAppView({
                         </div>
 
                         <div className="notif-items-list">
-                            {/* Live Alert Card */}
+                            {/* 1. Daily 8:00 PM Production & Revenue Report */}
+                            <div className="notif-item-card info-type">
+                                <div className="notif-icon-col success">
+                                    <Sun size={18}/>
+                                </div>
+                                <div className="notif-text-col">
+                                    <h4>⚡ આજનું દૈનિક સોલાર ઉત્પાદન (8:00 PM Report)</h4>
+                                    <p style={{margin: '4px 0'}}>
+                                        કુલ યુનિટ્સ: <b>{liveData?.today_units_kwh || '15,699.90'} kWh</b> &nbsp;|&nbsp; અંદાજિત કમાણી: <b>₹ {liveData?.total_revenue_rs || '59,659.62'}</b>
+                                    </p>
+                                    {liveData?.companies && liveData.companies.length > 0 && (
+                                        <div style={{fontSize: '11.5px', color: '#166534', marginTop: '5px', lineHeight: 1.4}}>
+                                            {liveData.companies.map(cp => (
+                                                <div key={cp.company_id}>
+                                                    • <b>{cp.company_name}:</b> {cp.total_today_kwh} kWh ({cp.online_count}/{cp.total_count} Inverters)
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    <small style={{display: 'block', marginTop: '6px', color: '#64748b'}}>Automatic 8:00 PM End-Of-Day Summary Sync</small>
+                                </div>
+                            </div>
+
+                            {/* 2. Live / Persistent Panel Cleaning Alert */}
                             <div className="notif-item-card alert-type">
                                 <div className="notif-icon-col alert">
                                     <AlertTriangle size={18}/>
                                 </div>
                                 <div className="notif-text-col">
                                     <h4>{firstAlert?.title || 'સોલાર પેનલ સફાઈ અને વોશિંગ ચેતવણી'}</h4>
-                                    <p>{firstAlert?.message || 'નીલકંઠ અને રાજેશ્વરી પ્લાન્ટના ઇન્વર્ટર PV Strings પર ધૂળનો જથ્થો જમા હોવાથી તાત્કાલિક વોશિંગ જરૂરી છે.'}</p>
-                                    <small>Live Real-time Alert · Just Now</small>
+                                    <p>{firstAlert?.message || 'નીલકંઠ અને રાજેશ્વરી પ્લાન્ટના ઇન્વર્ટર PV Strings પર સામાન્ય કરતાં ધૂળ હોવાથી નિયમિત વોશિંગ જરૂરી છે.'}</p>
+                                    <small>Live System Alert · Saved</small>
                                 </div>
                             </div>
 
-                            {/* Daily Production Summary */}
-                            <div className="notif-item-card info-type">
-                                <div className="notif-icon-col success">
-                                    <Sun size={18}/>
+                            {/* 3. Weather / Rain Notification */}
+                            {liveData?.weather?.rain_alert?.active ? (
+                                <div className="notif-item-card alert-type" style={{background: '#eff6ff', borderColor: '#93c5fd'}}>
+                                    <div className="notif-icon-col" style={{background: '#dbeafe', color: '#2563eb'}}>
+                                        <Cloud size={18}/>
+                                    </div>
+                                    <div className="notif-text-col">
+                                        <h4 style={{color: '#1e40af'}}>🌧️ {liveData.weather.rain_alert.title}</h4>
+                                        <p>{liveData.weather.rain_alert.message}</p>
+                                        <small style={{color: '#3b82f6'}}>શરૂઆત: {liveData.weather.rain_alert.start_time} | અંદાજિત સ્ટોપ: {liveData.weather.rain_alert.stop_time}</small>
+                                    </div>
                                 </div>
-                                <div className="notif-text-col">
-                                    <h4>આજનું કુલ સોલાર ઉત્પાદન (Daily Summary)</h4>
-                                    <p>આજના કુલ યુનિટ્સ: <b>{liveData?.today_units_kwh || '12,643.10'} kWh</b> | અંદાજિત કમાણી: <b>₹{liveData?.total_revenue_rs || '48,043.78'}</b></p>
-                                    <small>Automatic 8:00 PM Summary Sync</small>
+                            ) : (
+                                <div className="notif-item-card sync-type">
+                                    <div className="notif-icon-col sync">
+                                        <Radio size={18}/>
+                                    </div>
+                                    <div className="notif-text-col">
+                                        <h4>iSolarCloud Live Sync સક્રિય છે</h4>
+                                        <p>બધા ૧૦ ઇન્વર્ટર્સ કનેક્ટેડ છે અને લાઈવ પાવર જનરેશન ડેટાબેઝમાં સેવ થઈ રહ્યો છે.</p>
+                                        <small>Live Cloud Sync Status</small>
+                                    </div>
                                 </div>
-                            </div>
-
-                            {/* Live Inverter Sync */}
-                            <div className="notif-item-card sync-type">
-                                <div className="notif-icon-col sync">
-                                    <Radio size={18}/>
-                                </div>
-                                <div className="notif-text-col">
-                                    <h4>iSolarCloud Live Sync સક્રિય છે</h4>
-                                    <p>બધા ૧૦ ઇન્વર્ટર્સ ઓનલાઇન છે અને સેકન્ડે-સેકન્ડનો પાવર ડેટા સિંક થઈ રહ્યો છે.</p>
-                                    <small>Live Cloud Sync Status</small>
-                                </div>
-                            </div>
+                            )}
                         </div>
 
                         <div className="drawer-footer-actions">
@@ -837,6 +880,11 @@ export default function MobileAppView({
                     </div>
                 </div>
             )}
+
+            {/* 🔔 Mandatory Notification Permission Prompt Modal */}
+            <NotificationPermissionModal />
         </div>
     );
 }
+
+
