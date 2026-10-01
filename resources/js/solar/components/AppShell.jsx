@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {Activity, BarChart3, Boxes, Building2, CalendarCheck2, ChevronRight, ClipboardPlus, Clock3, CloudSun, Gauge, IndianRupee, LogOut, Menu, Sun, UserCheck, Users, WalletCards, X} from 'lucide-react';
+import {Activity, BarChart3, Boxes, Building2, CalendarCheck2, Camera, ChevronRight, ClipboardPlus, Clock3, CloudSun, Gauge, IndianRupee, LogOut, Menu, Sun, UserCheck, Users, WalletCards, X} from 'lucide-react';
 import {api} from '../api';
 import MobileAppView from './MobileAppView';
 import NotificationPermissionModal from './NotificationPermissionModal';
@@ -41,6 +41,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         can('view_dashboard') && ['dashboard', 'Dashboard', Gauge],
         can('enter_readings') && ['entry', 'Daily Entry', ClipboardPlus],
         can('view_reports') && ['reports', 'Reports', BarChart3],
+        ['gallery', 'Gallery', Camera],
         ['expenses', 'Expenses', IndianRupee],
         user.role === 'super_admin' && ['companies', 'Companies', Building2],
         (user.role === 'super_admin' || can('manage_company_users')) && ['users', 'Users & Access', Users],
@@ -58,6 +59,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         dashboard: ['Live Solar Generation & Real-Time Flow', companyId === 'all' ? 'All Companies Live Sync' : activeCompany?.name],
         entry: ['Daily reading entry', activeCompany?.name],
         reports: ['Reports', companyId === 'all' ? 'All companies combined' : activeCompany?.name],
+        gallery: ['Plant Photo Gallery', 'Daily scheduled inspection photos with GPS & 10-day retention'],
         expenses: ['Shared expenses', 'Company-wise balances and settlements'],
         companies: ['Company configuration', 'Multipliers and inverters'],
         users: ['Users & access', 'Roles and custom permissions'],

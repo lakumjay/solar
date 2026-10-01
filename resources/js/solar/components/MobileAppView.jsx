@@ -31,7 +31,8 @@ import {
     Volume2,
     WalletCards,
     X,
-    Zap
+    Zap,
+    Camera
 } from 'lucide-react';
 import {api} from '../api';
 import ISolarCloudVisualizer from './ISolarCloudVisualizer';
@@ -771,6 +772,15 @@ export default function MobileAppView({
                         </div>
 
                         <div className="drawer-menu-grid">
+                            <button
+                                type="button"
+                                className="dmenu-item"
+                                onClick={() => { setPage('gallery'); setMoreMenuOpen(false); }}
+                            >
+                                <Camera size={18}/>
+                                <span>Gallery (પ્લાન્ટ ફોટા)</span>
+                            </button>
+
                             <button
                                 type="button"
                                 className="dmenu-item"

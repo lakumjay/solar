@@ -91,8 +91,30 @@ class AttendanceService
             throw ValidationException::withMessages(['attendance' => 'End your active break before Time Out.']);
         }
 
+        $now = now();
+        $todayDate = $now->toDateString();
+        $currentTime = $now->format('H:i:s');
+
+        // Check if employee has an approved half-day leave for today
+        $hasApprovedHalfDay = LeaveRequest::where('employee_id', $employee->id)
+            ->where('status', 'approved')
+            ->whereDate('date_from', '<=', $todayDate)
+            ->whereDate('date_to', '>=', $todayDate)
+            ->whereIn('day_part', ['first_half', 'second_half'])
+            ->exists();
+
+        $earliestTime = $hasApprovedHalfDay ? '13:00:00' : '18:00:00';
+        $humanTime = $hasApprovedHalfDay ? '01:00 PM' : '06:00 PM';
+
+        if ($currentTime < $earliestTime) {
+            $msg = $hasApprovedHalfDay
+                ? "હાફ-ડે ટાઈમ આઉટ ફક્ત બપોરે {$humanTime} પછી જ શક્ય છે."
+                : "ફૂલ-ડે ટાઈમ આઉટ ફક્ત સાંજે {$humanTime} પછી જ શક્ય છે. (જો હાફ-ડે રજા મંજૂર હોય તો બપોરે 01:00 PM પછી ટાઈમ આઉટ કરી શકાય છે).";
+            throw ValidationException::withMessages(['attendance' => $msg]);
+        }
+
         $record->fill([
-            'clock_out_at' => now(),
+            'clock_out_at' => $now,
             'clock_out_latitude' => $data['latitude'],
             'clock_out_longitude' => $data['longitude'],
             'clock_out_accuracy' => $data['accuracy'] ?? null,
@@ -277,8 +299,22 @@ class AttendanceService
     public function today(Employee $employee): array
     {
         $today = now()->startOfDay();
+        $todayDate = $today->toDateString();
+        $currentTime = now()->format('H:i:s');
         $context = $this->dayContext($employee, $today);
         $record = AttendanceRecord::with('breaks')->where('employee_id', $employee->id)->whereDate('attendance_date', $today)->first();
+
+        // Check if employee has an approved half-day leave for today
+        $hasApprovedHalfDay = LeaveRequest::where('employee_id', $employee->id)
+            ->where('status', 'approved')
+            ->whereDate('date_from', '<=', $todayDate)
+            ->whereDate('date_to', '>=', $todayDate)
+            ->whereIn('day_part', ['first_half', 'second_half'])
+            ->exists();
+
+        $earliestTime = $hasApprovedHalfDay ? '13:00:00' : '18:00:00';
+        $humanTime = $hasApprovedHalfDay ? '01:00 PM' : '06:00 PM';
+        $isTimeReached = ($currentTime >= $earliestTime);
 
         return [
             'date' => $today->toDateString(),
@@ -288,8 +324,13 @@ class AttendanceService
             'leave' => $context['leave'],
             'weekly_off' => $context['weeklyOff'],
             'manager_attendance_only' => $employee->manager_attendance_only,
+            'has_approved_half_day' => $hasApprovedHalfDay,
+            'earliest_clock_out_time' => $earliestTime,
+            'earliest_clock_out_human' => $humanTime,
+            'is_clock_out_time_reached' => $isTimeReached,
             'can_clock_in' => ! $employee->manager_attendance_only && ! $record && ! $context['weeklyOff'] && $context['holiday']?->type !== 'full_day' && $context['leave']?->day_part !== 'full_day',
-            'can_clock_out' => ! $employee->manager_attendance_only && (bool) ($record && ! $record->clock_out_at),
+            'can_clock_out' => ! $employee->manager_attendance_only && (bool) ($record && ! $record->clock_out_at) && $isTimeReached,
+            'is_clocked_in_waiting' => ! $employee->manager_attendance_only && (bool) ($record && ! $record->clock_out_at) && ! $isTimeReached,
         ];
     }
 

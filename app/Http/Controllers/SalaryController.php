@@ -8,11 +8,9 @@ use App\Http\Requests\SaveSalaryRateRequest;
 use App\Models\Employee;
 use App\Models\EmployeeSalaryRate;
 use App\Models\SalaryAdjustment;
-use App\Models\SharedExpense;
 use App\Services\ActivityLogger;
 use App\Services\SalaryCalculationService;
 use App\Services\SalaryExcelExporter;
-use App\Services\SharedExpenseService;
 use App\Services\SolarAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +22,6 @@ class SalaryController extends Controller
         private readonly SolarAccessService $access,
         private readonly SalaryCalculationService $salaries,
         private readonly SalaryExcelExporter $excel,
-        private readonly SharedExpenseService $sharedExpenses,
         private readonly ActivityLogger $activity,
     ) {}
 
@@ -112,31 +109,10 @@ class SalaryController extends Controller
             SalaryAdjustment::where('employee_id', $employee->id)->whereDate('salary_month', $month)->lockForUpdate()->get();
             $this->validateAdjustment($employee, $month->format('Y-m'), $data['type'], (float) $data['amount']);
 
-            $sharedExpenseId = null;
-            if (! empty($data['add_to_shared_expenses']) && $data['type'] === 'addition') {
-                $payerCompanyId = ! empty($data['company_id']) ? (int) $data['company_id'] : null;
-                $expenseData = [
-                    'expense_date' => $data['work_date'] ?? now()->toDateString(),
-                    'purchaser_name' => $request->user()->name,
-                    'description' => "Employee Extra Work: {$employee->name} ({$data['reason']})",
-                    'amount' => $data['amount'],
-                    'notes' => "Auto-created from Salary Extra Work addition for employee {$employee->name} ({$employee->employee_code})",
-                    'allocation_scope' => ! empty($data['company_id']) ? 'single' : 'all',
-                    'beneficiary_company_ids' => ! empty($data['company_id']) ? [(int) $data['company_id']] : [],
-                    'payer_company_id' => $payerCompanyId,
-                ];
-                $sharedExpense = $this->sharedExpenses->createExpense($expenseData, null, $request->user());
-                $sharedExpenseId = $sharedExpense->id;
-            }
-
             return SalaryAdjustment::create([
                 'employee_id' => $employee->id,
                 'salary_month' => $month->toDateString(),
                 'type' => $data['type'],
-                'work_date' => $data['work_date'] ?? null,
-                'company_id' => $data['company_id'] ?? null,
-                'add_to_shared_expenses' => ! empty($data['add_to_shared_expenses']),
-                'shared_expense_id' => $sharedExpenseId,
                 'amount' => $data['amount'],
                 'reason' => $data['reason'],
                 'created_by' => $request->user()->id,
@@ -145,18 +121,10 @@ class SalaryController extends Controller
         $this->activity->log(
             $request->user(), null, 'created', 'salary_adjustment', $adjustment->id,
             ucfirst($adjustment->type)." recorded for {$employee->employee_code}",
-            [
-                'salary_month' => $month->format('Y-m'),
-                'type' => $adjustment->type,
-                'amount' => $adjustment->amount,
-                'reason' => $adjustment->reason,
-                'work_date' => $adjustment->work_date?->toDateString(),
-                'company_id' => $adjustment->company_id,
-                'add_to_shared_expenses' => $adjustment->add_to_shared_expenses,
-            ],
+            ['salary_month' => $month->format('Y-m'), 'type' => $adjustment->type, 'amount' => $adjustment->amount, 'reason' => $adjustment->reason],
         );
 
-        return response()->json($adjustment->load(['creator:id,name', 'company:id,name']), 201);
+        return response()->json($adjustment->load('creator:id,name'), 201);
     }
 
     public function cancelAdjustment(CancelSalaryAdjustmentRequest $request, SalaryAdjustment $adjustment)
@@ -173,13 +141,6 @@ class SalaryController extends Controller
                 'cancelled_by' => $request->user()->id,
                 'cancellation_reason' => $data['correction_reason'],
             ]);
-
-            if ($adjustment->shared_expense_id) {
-                $linkedExpense = SharedExpense::find($adjustment->shared_expense_id);
-                if ($linkedExpense && $linkedExpense->status === 'active') {
-                    $this->sharedExpenses->cancelExpense($linkedExpense, $request->user());
-                }
-            }
 
             if (empty($data['replacement_type'])) {
                 return null;

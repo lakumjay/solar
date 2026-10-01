@@ -20,6 +20,7 @@ import SalaryPage from './pages/SalaryPage';
 import StockPage from './pages/StockPage';
 import UsersPage from './pages/UsersPage';
 import ISolarCloudPage from './pages/ISolarCloudPage';
+import GalleryPage from './pages/GalleryPage';
 
 export default function App() {
     const [user, setUser] = useState(undefined);
@@ -32,7 +33,7 @@ export default function App() {
             const rows = await api('companies');
             setCompanies(rows);
             setCompanyId(rows[0] ? String(rows[0].id) : 'all');
-            setPage(['entry', 'stock', 'my-attendance', 'my-salary'].includes(preferredPage) ? preferredPage : 'my-attendance');
+            setPage(['entry', 'stock', 'gallery', 'my-attendance', 'my-salary'].includes(preferredPage) ? preferredPage : 'my-attendance');
             return rows;
         }
         const rows = await api('companies');
@@ -70,6 +71,7 @@ export default function App() {
             {page === 'dashboard' && <DashboardPage companyId={companyId} currentUser={user}/>}
             {page === 'entry' && <DailyEntryPage company={activeCompany} canEdit={user.role !== 'employee' && can('edit_readings')}/>}
             {page === 'reports' && <ReportsPage companyId={companyId} companies={companies}/>}
+            {page === 'gallery' && <GalleryPage companyId={companyId} currentUser={user}/>}
             {page === 'isolarcloud' && <ISolarCloudPage company={activeCompany} companies={companies} user={user}/>}
             {page === 'companies' && <CompaniesPage companies={companies} refresh={() => loadCompanies(user)}/>}
             {page === 'import' && <ExcelImportPage/>}

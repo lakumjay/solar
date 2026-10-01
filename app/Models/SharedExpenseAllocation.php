@@ -11,7 +11,6 @@ class SharedExpenseAllocation extends Model
     protected $casts = [
         'percentage' => 'decimal:2',
         'share_amount' => 'decimal:2',
-        'amount_paid' => 'decimal:2',
     ];
 
     public function expense()

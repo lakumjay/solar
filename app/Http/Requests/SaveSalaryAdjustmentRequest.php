@@ -17,13 +17,9 @@ class SaveSalaryAdjustmentRequest extends FormRequest
         return [
             'employee_id' => ['required', 'integer', 'exists:employees,id'],
             'salary_month' => ['required', 'date_format:Y-m'],
-            'work_date' => ['nullable', 'date'],
-            'type' => ['required', Rule::in(['addition', 'deduction', 'bonus', 'advance', 'overtime'])],
+            'type' => ['required', Rule::in(['addition', 'deduction'])],
             'amount' => ['required', 'numeric', 'min:0.01', 'max:9999999999.99'],
             'reason' => ['required', 'string', 'max:1000'],
-            'company_id' => ['nullable', 'integer', 'exists:companies,id'],
-            'add_to_shared_expenses' => ['nullable', 'boolean'],
         ];
     }
 }
-

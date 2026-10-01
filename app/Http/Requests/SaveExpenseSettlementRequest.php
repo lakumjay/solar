@@ -18,10 +18,7 @@ class SaveExpenseSettlementRequest extends FormRequest
             'from_company_id' => ['required', 'integer', 'exists:companies,id', 'different:to_company_id'],
             'to_company_id' => ['required', 'integer', 'exists:companies,id'],
             'amount' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:9999999999999.99'],
-            'settlement_type' => ['nullable', 'string', 'in:full,partial'],
-            'payment_mode' => ['nullable', 'string', 'max:50'],
             'notes' => ['nullable', 'string', 'max:5000'],
         ];
     }
 }
-
