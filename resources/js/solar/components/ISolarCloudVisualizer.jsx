@@ -2,18 +2,17 @@ import React, {useState} from 'react';
 import {CheckCircle, Clock, HelpCircle, Sun, Cloud, CloudRain, CloudLightning, Wind, AlertTriangle} from 'lucide-react';
 
 export default function ISolarCloudVisualizer({data, weather, isEmployee}) {
-    // Interactive weather mode for live testing (Sunny / Rain / Storm)
-    const [selectedWeather, setSelectedWeather] = useState(weather.type || 'sunny');
+    const selectedWeather = weather?.type || 'sunny';
 
-    const realtimeMw = data.realtime_power_mw || '1.41';
-    const realtimeKw = data.realtime_power_kw || '1410.41';
-    const todayKwh = data.today_units_kwh || '13980.10';
+    const realtimeMw = data.realtime_power_mw || '0.00';
+    const realtimeKw = data.realtime_power_kw || '0.00';
+    const todayKwh = data.today_units_kwh || '0.00';
     const installedMwp = data.installed_capacity_mwp || '3.00';
-    const revenueRs = data.total_revenue_rs || '53124.38';
-    const onlineCount = data.online_count ?? 9;
+    const revenueRs = data.total_revenue_rs || '0.00';
+    const onlineCount = data.online_count ?? 0;
     const totalInverters = data.total_inverters ?? 10;
 
-    const weatherTemp = selectedWeather === 'storm' ? '24.5°C' : selectedWeather === 'rain' ? '26.8°C' : (weather.temp || '32.9°C');
+    const weatherTemp = weather?.temp || '28.1°C';
 
     return (
         <section className={`isolar-app-card weather-mode-${selectedWeather}`}>
@@ -34,37 +33,24 @@ export default function ISolarCloudVisualizer({data, weather, isEmployee}) {
                     </span>
                 </div>
 
-                {/* Weather Test Simulator Buttons (☀️ Sunny | 🌧️ Rain | ⛈️ Tufan) */}
-                <div className="isolar-weather-simulator-tabs">
-                    <button
-                        type="button"
-                        className={`weather-sim-btn ${selectedWeather === 'sunny' ? 'active sun-active' : ''}`}
-                        onClick={() => setSelectedWeather('sunny')}
-                        title="Normal Sunny Clear Weather"
-                    >
-                        <Sun size={12}/>
-                        <span>Sun</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        className={`weather-sim-btn ${selectedWeather === 'rain' ? 'active rain-active' : ''}`}
-                        onClick={() => setSelectedWeather('rain')}
-                        title="Test Rain (વરસાદ) Animation"
-                    >
-                        <CloudRain size={12}/>
-                        <span>Rain</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        className={`weather-sim-btn ${selectedWeather === 'storm' ? 'active storm-active' : ''}`}
-                        onClick={() => setSelectedWeather('storm')}
-                        title="Test Tufan / Storm (વાવાઝોડું/તોફાન) Animation"
-                    >
-                        <CloudLightning size={12}/>
-                        <span>Tufan</span>
-                    </button>
+                {/* Clean Live Weather Badge in Header Right */}
+                <div className="isolar-header-right" style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                    <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        background: '#f1f5f9',
+                        color: '#334155',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        padding: '4px 10px',
+                        borderRadius: '20px',
+                        border: '1px solid #e2e8f0'
+                    }}>
+                        {selectedWeather === 'rain' ? <CloudRain size={13} style={{color: '#2563eb'}}/> : selectedWeather === 'storm' ? <CloudLightning size={13} style={{color: '#9333ea'}}/> : <Sun size={13} style={{color: '#ea580c'}}/>}
+                        <span>{weatherTemp}</span>
+                        <span style={{color: '#64748b', fontSize: '11px', fontWeight: 600}}>({weather?.condition || 'Clear'})</span>
+                    </span>
                 </div>
             </div>
 

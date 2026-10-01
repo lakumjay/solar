@@ -445,7 +445,7 @@ export default function DashboardPage({companyId, currentUser}) {
                         </div>
                     </div>
                     <div className="prediction-chip-val">
-                        {predictions.irradiance_w_m2 || 700} <span>W/m²</span>
+                        {predictions.irradiance_w_m2 !== undefined && predictions.irradiance_w_m2 !== null ? predictions.irradiance_w_m2 : 0} <span>W/m²</span>
                     </div>
                 </div>
             </div>
