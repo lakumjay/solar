@@ -114,16 +114,16 @@
 .login-heading small{display:block;margin-top:8px;color:#6b8276;font-size:13px;line-height:1.5}
 .login-field-group{display:flex;flex-direction:column;gap:7px;margin-top:16px;text-align:left}
 .login-field-label{font-size:12px;font-weight:700;color:#2d5041;letter-spacing:.015em;user-select:none}
-.login-input-wrap{position:relative;display:flex;align-items:center;width:100%}
-.login-input-icon-box{position:absolute;left:14px;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;color:#789388;pointer-events:none;transition:color .2s ease;z-index:5}
-.login-text-input,.login-input-wrap input{width:100%!important;height:50px!important;min-height:50px!important;padding:0 48px 0 46px!important;border:1.5px solid #cadcd1!important;border-radius:12px!important;background:#fbfdfb!important;color:#15372c!important;font-size:14px!important;font-weight:500!important;outline:0!important;box-sizing:border-box!important;transition:border-color .2s,box-shadow .2s,background .2s!important}
-.login-text-input::placeholder,.login-input-wrap input::placeholder{color:#9aa9a2;font-weight:400}
-.login-text-input:focus,.login-input-wrap input:focus{border-color:#206b4d!important;background:#fff!important;box-shadow:0 0 0 4px #24735218!important}
-.login-text-input:-webkit-autofill,.login-text-input:-webkit-autofill:hover,.login-text-input:-webkit-autofill:focus{padding:0 48px 0 46px!important;-webkit-box-shadow:0 0 0 1000px #edf6f0 inset!important;-webkit-text-fill-color:#15372c!important}
-.login-input-wrap:focus-within .login-input-icon-box{color:#206b4d}
-.login-eye-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:36px;height:36px;border:0;border-radius:8px;display:flex;align-items:center;justify-content:center;background:transparent;color:#768d83;cursor:pointer;transition:background .2s,color .2s;z-index:5}
-.login-eye-btn:hover{background:#ecf4ef;color:#1b6346}
-.login-eye-btn:focus-visible{outline:2px solid #206b4d;outline-offset:1px}
+.login-input-container{display:flex!important;align-items:center!important;width:100%!important;height:50px!important;background:#ffffff!important;border:1.5px solid #cadcd1!important;border-radius:12px!important;overflow:hidden!important;box-sizing:border-box!important;transition:border-color .2s,box-shadow .2s!important}
+.login-input-container:hover{border-color:#8cb7a2!important}
+.login-input-container:focus-within{border-color:#1e7354!important;background:#ffffff!important;box-shadow:0 0 0 3.5px #1f755620!important}
+.login-input-addon{width:44px!important;height:100%!important;display:flex!important;align-items:center!important;justify-content:center!important;color:#789388!important;flex-shrink:0!important;pointer-events:none!important;transition:color .2s ease!important}
+.login-input-container:focus-within .login-input-addon{color:#1e7354!important}
+.login-input-core{flex:1!important;min-width:0!important;height:100%!important;border:none!important;outline:none!important;background:transparent!important;padding:0 12px 0 0!important;font-size:14px!important;font-weight:500!important;color:#15372c!important;box-shadow:none!important;-webkit-appearance:none!important}
+.login-input-core::placeholder{color:#9aa9a2!important;font-weight:400!important}
+.login-input-core:-webkit-autofill,.login-input-core:-webkit-autofill:hover,.login-input-core:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 1000px #edf6f0 inset!important;-webkit-text-fill-color:#15372c!important}
+.login-input-addon-btn{width:44px!important;height:100%!important;display:flex!important;align-items:center!important;justify-content:center!important;border:none!important;background:transparent!important;color:#789087!important;cursor:pointer!important;flex-shrink:0!important;padding:0!important;margin:0!important;transition:color .2s ease!important}
+.login-input-addon-btn:hover{color:#1e7354!important}
 .login-error{margin:14px 0 0}
 .login-submit{width:100%;min-height:50px;margin-top:22px;padding:0 16px;border:0;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(135deg,#1b6b4d,#15523e);color:#fff;font-weight:750;font-size:14px;box-shadow:0 10px 24px #15523e33;cursor:pointer;transition:transform .2s,box-shadow .2s,opacity .2s}
 .login-submit:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 14px 30px #15523e3d}
