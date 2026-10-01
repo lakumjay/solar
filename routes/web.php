@@ -10,10 +10,10 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\InverterController;
+use App\Http\Controllers\ISolarCloudController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\ReadingController;
 use App\Http\Controllers\ReportController;
-use App\Http\Controllers\ISolarCloudController;
 use App\Http\Controllers\SalaryController;
 use App\Http\Controllers\SharedExpenseController;
 use App\Http\Controllers\StockBorrowingController;
@@ -25,18 +25,18 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::get('/login', function () {
-    return redirect('/');
-})->name('login');
-
-
-Route::match(['get', 'post'], 'callback', [ISolarCloudController::class, 'callback'])->name('isolarcloud.callback');
-
 Route::prefix('api')->group(function () {
+    Route::get('isolarcloud/callback', [ISolarCloudController::class, 'callback']);
     Route::post('login', [AuthController::class, 'login']);
     Route::middleware('auth')->group(function () {
         Route::get('me', [AuthController::class, 'me']);
         Route::post('logout', [AuthController::class, 'logout']);
+        Route::get('dashboard/live-solar', [ISolarCloudController::class, 'liveDashboard']);
+        Route::post('plant-location', [ISolarCloudController::class, 'updatePlantLocation']);
+        Route::get('isolarcloud/status', [ISolarCloudController::class, 'status']);
+        Route::get('isolarcloud/auth-url', [ISolarCloudController::class, 'authUrl']);
+        Route::post('isolarcloud/manual-token', [ISolarCloudController::class, 'manualToken']);
+        Route::post('isolarcloud/sync-daily', [ISolarCloudController::class, 'syncGeneration']);
         Route::get('companies', [CompanyController::class, 'index']);
         Route::post('companies', [CompanyController::class, 'store']);
         Route::get('companies/{company}/logo', [CompanyController::class, 'logo'])->name('companies.logo');
@@ -101,13 +101,5 @@ Route::prefix('api')->group(function () {
         Route::post('expenses/{expense}/reverse', [SharedExpenseController::class, 'reverse']);
         Route::post('expense-settlements', [SharedExpenseController::class, 'settle']);
         Route::get('expenses/{expense}/receipt', [SharedExpenseController::class, 'receipt'])->name('expenses.receipt');
-
-        Route::get('isolarcloud/status', [ISolarCloudController::class, 'status']);
-        Route::get('isolarcloud/auth-url', [ISolarCloudController::class, 'authUrl']);
-        Route::post('isolarcloud/manual-token', [ISolarCloudController::class, 'manualToken']);
-        Route::get('isolarcloud/live', [ISolarCloudController::class, 'liveData']);
-        Route::post('isolarcloud/sync', [ISolarCloudController::class, 'sync']);
-        Route::get('dashboard/live-solar', [ISolarCloudController::class, 'liveDashboard']);
-        Route::post('dashboard/plant-location', [ISolarCloudController::class, 'updatePlantLocation']);
     });
 });
