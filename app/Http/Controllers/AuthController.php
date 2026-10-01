@@ -40,8 +40,11 @@ class AuthController extends Controller
     {
         $user = $request->user();
 
+        $user?->load('employee:id,user_id,employee_code,designation,department,active');
+
         return response()->json($user ? [
             ...$user->only('id', 'name', 'email', 'company_id', 'role'),
+            'employee' => $user->employee,
             'permissions' => $this->access->effectivePermissions($user),
             'csrf_token' => csrf_token(),
         ] : null);

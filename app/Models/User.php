@@ -53,9 +53,11 @@ class User extends Authenticatable
             return true;
         }
         $defaults = [
-            'company_admin' => ['view_dashboard', 'enter_readings', 'edit_readings', 'view_reports', 'manage_company_users'],
-            'data_entry' => ['view_dashboard', 'enter_readings', 'edit_readings', 'view_reports'],
-            'viewer' => ['view_dashboard', 'view_reports'],
+            'company_admin' => ['view_dashboard', 'enter_readings', 'edit_readings', 'view_reports', 'manage_company_users', 'view_employees', 'manage_employees', 'view_attendance', 'approve_leaves', 'manage_attendance_settings', 'view_attendance_reports', 'record_employee_attendance', 'view_stock', 'manage_stock', 'issue_stock', 'return_stock', 'view_expenses'],
+            'manager' => ['view_employees', 'view_attendance', 'approve_leaves', 'view_attendance_reports', 'record_employee_attendance', 'view_stock', 'manage_stock', 'issue_stock', 'return_stock', 'view_expenses'],
+            'employee' => ['clock_attendance', 'enter_readings', 'view_stock', 'manage_stock', 'issue_stock', 'return_stock'],
+            'data_entry' => ['view_dashboard', 'enter_readings', 'edit_readings', 'view_reports', 'view_expenses'],
+            'viewer' => ['view_dashboard', 'view_reports', 'view_expenses'],
         ];
 
         return in_array($permission, $this->permissions ?? ($defaults[$this->role] ?? []), true);
@@ -64,5 +66,10 @@ class User extends Authenticatable
     public function company()
     {
         return $this->belongsTo(Company::class);
+    }
+
+    public function employee()
+    {
+        return $this->hasOne(Employee::class);
     }
 }

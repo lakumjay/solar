@@ -10,10 +10,12 @@ class Company extends Model
 
     protected $casts = [
         'active' => 'boolean',
+        'is_ss_reference' => 'boolean',
         'plant_import_multiplier' => 'decimal:2',
         'plant_export_multiplier' => 'decimal:2',
         'sub_import_multiplier' => 'decimal:2',
         'sub_export_multiplier' => 'decimal:2',
+        'expense_percentage' => 'decimal:2',
     ];
 
     public function inverters()

@@ -4,6 +4,18 @@ export const PERMISSIONS = [
     ['edit_readings', 'Edit previous readings'],
     ['view_reports', 'View reports'],
     ['manage_company_users', 'Manage company users'],
+    ['view_employees', 'View common employees'],
+    ['manage_employees', 'Manage common employees'],
+    ['view_attendance', 'View common attendance'],
+    ['approve_leaves', 'Approve employee leave'],
+    ['manage_attendance_settings', 'Manage holidays and attendance settings'],
+    ['view_attendance_reports', 'View attendance reports'],
+    ['record_employee_attendance', 'Record employee attendance'],
+    ['view_stock', 'View common stock'],
+    ['manage_stock', 'Manage stock items and quantity'],
+    ['issue_stock', 'Give stock to borrowers'],
+    ['return_stock', 'Receive returned stock'],
+    ['view_expenses', 'View company expenses and balances'],
 ];
 
 export const METERS = [
