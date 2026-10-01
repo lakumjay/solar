@@ -19,6 +19,15 @@ class ExcelReportExporter
         $sheet->setCellValue('A1', 'SolarFlow '.ucfirst($data['period']).' Report');
         $sheet->setCellValue('A2', 'Period');
         $sheet->setCellValue('B2', $data['from'].' to '.$data['to']);
+        if ($data['is_combined'] && $data['ss_reference']) {
+            $sheet->setCellValue('D2', 'Daily SS reference company');
+            $sheet->setCellValue('E2', $data['ss_reference']['company']);
+            $sheet->setCellValue('A3', 'Missing reference dates');
+            $sheet->mergeCells('B3:F3');
+            $sheet->setCellValue('B3', $data['ss_reference']['missing_dates']
+                ? implode(', ', $data['ss_reference']['missing_dates'])
+                : 'None');
+        }
         $headers = ['Period', 'All Inverter Total (kWh)', 'Plant Import Unit', 'Plant Export Unit', '66kV Sub Import Unit', '66kV Sub Export Unit'];
         $sheet->fromArray($headers, null, 'A4');
         $rowNumber = 5;

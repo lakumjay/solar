@@ -1,0 +1,30 @@
+{
+  "resources/css/app.css": {
+    "file": "assets/app-Bfn2dYp8.css",
+    "src": "resources/css/app.css",
+    "isEntry": true,
+    "name": "app",
+    "names": [
+      "app.css"
+    ]
+  },
+  "resources/js/app.js": {
+    "file": "assets/app-KLmXgjtq.js",
+    "name": "app",
+    "src": "resources/js/app.js",
+    "isEntry": true,
+    "dynamicImports": [
+      "resources/js/solar/notifications.js",
+      "resources/js/solar/notifications.js"
+    ]
+  },
+  "resources/js/solar/notifications.js": {
+    "file": "assets/notifications-DvkzG59q.js",
+    "name": "notifications",
+    "src": "resources/js/solar/notifications.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ]
+  }
+}

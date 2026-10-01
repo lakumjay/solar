@@ -23,12 +23,14 @@ class DashboardController extends Controller
             $base->where('company_id', $companyId);
         }
 
-        $todayRows = (clone $base)->with('outputs')->whereBetween('reading_date', [now()->startOfDay(), now()->endOfDay()])->get();
+        $reportDate = now()->subDay()->toDateString();
+        $dayRows = (clone $base)->with('outputs')->whereDate('reading_date', $reportDate)->get();
         $monthRows = (clone $base)->with('outputs')->whereBetween('reading_date', [now()->startOfMonth(), now()->endOfMonth()])->get();
         $recent = (clone $base)->with(['outputs', 'company:id,name'])->latest('reading_date')->take(10)->get();
 
         return [
-            'today' => $this->calculator->totals($todayRows),
+            'report_date' => $reportDate,
+            'day' => $this->calculator->totals($dayRows),
             'month' => $this->calculator->totals($monthRows),
             'rows' => $recent,
             'is_combined' => ! $companyId,

@@ -27,6 +27,7 @@ class SaveCompanyRequest extends FormRequest
             'password' => [$adminId ? 'nullable' : 'required', 'nullable', 'string', 'min:8'],
             'logo' => [$companyId ? 'nullable' : 'required', 'image', 'mimes:jpeg,png,webp', 'max:4096'],
             'active' => ['required', 'boolean'],
+            'is_ss_reference' => ['sometimes', 'boolean'],
             'plant_import_multiplier' => ['required', 'numeric', 'decimal:0,2', 'min:0'],
             'plant_export_multiplier' => ['required', 'numeric', 'decimal:0,2', 'min:0'],
             'sub_import_multiplier' => ['required', 'numeric', 'decimal:0,2', 'min:0'],
