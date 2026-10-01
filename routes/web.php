@@ -24,8 +24,13 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+Route::get('/login', function () {
+    return redirect('/');
+})->name('login');
+
 Route::prefix('api')->group(function () {
     Route::post('login', [AuthController::class, 'login']);
+    Route::get('notifications/vapid-key', [\App\Http\Controllers\NotificationController::class, 'vapidKey']);
     Route::middleware('auth')->group(function () {
         Route::get('me', [AuthController::class, 'me']);
         Route::post('logout', [AuthController::class, 'logout']);
@@ -100,7 +105,6 @@ Route::prefix('api')->group(function () {
         Route::post('isolarcloud/toggle-source', [\App\Http\Controllers\ISolarCloudController::class, 'toggleSource']);
 
         // Push Notifications
-        Route::get('notifications/vapid-key', [\App\Http\Controllers\NotificationController::class, 'vapidKey']);
         Route::post('notifications/subscribe', [\App\Http\Controllers\NotificationController::class, 'subscribe']);
         Route::post('notifications/test', [\App\Http\Controllers\NotificationController::class, 'sendTest']);
         Route::match(['get', 'post'], 'notifications/preferences', [\App\Http\Controllers\NotificationController::class, 'preferences']);
