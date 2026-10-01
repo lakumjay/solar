@@ -665,13 +665,16 @@ export default function MobileAppView({
                                 <Bell size={18} style={{color: '#15803d'}}/>
                                 <h3>Notifications & Alerts</h3>
                             </div>
-                            <button
-                                type="button"
-                                className="test-notif-btn"
-                                onClick={() => triggerMobileNotification('SolarFlow ⚡ Push Test', 'Sound + Vibration + Live Sync Notification working perfectly!')}
-                            >
-                                <Volume2 size={13}/> Test Sound
-                            </button>
+                            <span style={{
+                                fontSize: '11px',
+                                color: '#64748b',
+                                background: '#f1f5f9',
+                                padding: '3px 8px',
+                                borderRadius: '12px',
+                                fontWeight: 600
+                            }}>
+                                24h Auto-Sync
+                            </span>
                         </div>
 
                         <div className="notif-items-list">

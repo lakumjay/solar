@@ -3449,6 +3449,113 @@
     box-shadow: none !important;
 }
 
+/* ==========================================================================
+   📱 1000% Professional Mobile UI Optimization & Responsive Bug Fixes
+   ========================================================================== */
+@media (max-width: 768px) {
+    /* Prevent any modal from overflowing the mobile screen / keyboard */
+    .solar-modal-backdrop,
+    .modal-backdrop,
+    .dialog-backdrop,
+    .mobile-drawer-backdrop {
+        padding: 0 !important;
+        align-items: flex-end !important;
+        justify-content: center !important;
+    }
+
+    .solar-compact-modal,
+    .modal-card,
+    .dialog-card,
+    .form-modal,
+    .compact-stock-modal,
+    .stock-form-modal,
+    .compact-salary-modal,
+    .employee-form-modal,
+    .company-modal {
+        max-height: 88vh !important;
+        max-height: 88dvh !important;
+        display: flex !important;
+        flex-direction: column !important;
+        border-radius: 20px 20px 0 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+        overflow: hidden !important;
+        box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.25) !important;
+        animation: modalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+
+    .solar-modal-body,
+    .modal-body,
+    .form-body,
+    .dialog-body {
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        flex: 1 1 auto !important;
+        padding: 16px !important;
+        padding-bottom: 24px !important;
+    }
+
+    /* Fixed / Sticky Submit Buttons Bar at the bottom of all modals */
+    .solar-modal-foot,
+    .form-actions,
+    .modal-foot,
+    .dialog-foot,
+    .modal-sticky-footer {
+        position: sticky !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        background: #ffffff !important;
+        padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 10px)) !important;
+        border-top: 1px solid #e2e8f0 !important;
+        z-index: 20 !important;
+        display: flex !important;
+        gap: 8px !important;
+        box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05) !important;
+    }
+
+    .form-actions button,
+    .solar-modal-foot button,
+    .modal-foot button,
+    .dialog-foot button {
+        flex: 1 !important;
+        padding: 11px 14px !important;
+        font-size: 13.5px !important;
+        font-weight: 750 !important;
+        border-radius: 10px !important;
+    }
+
+    /* Clean typography & input sizes (prevents iOS auto-zoom on inputs) */
+    input[type="text"],
+    input[type="number"],
+    input[type="date"],
+    input[type="email"],
+    input[type="password"],
+    select,
+    textarea {
+        font-size: 15px !important;
+        padding: 10px 12px !important;
+        border-radius: 10px !important;
+    }
+
+    /* Fix table overflows */
+    .table-container,
+    .data-table-wrapper,
+    .stock-table-wrap,
+    .salary-table-wrap,
+    .attendance-table-wrap {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        border-radius: 12px !important;
+    }
+
+    /* Clean safe-area bottom navigation */
+    .mobile-bottom-nav {
+        padding-bottom: max(10px, env(safe-area-inset-bottom)) !important;
+    }
+}
+
+
 
 
 

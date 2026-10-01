@@ -15,7 +15,6 @@ export default function DashboardPage({companyId, currentUser}) {
     const [locSaving, setLocSaving] = useState(false);
     const [locMessage, setLocMessage] = useState('');
     const [notifStatus, setNotifStatus] = useState('default');
-    const [testAlertToast, setTestAlertToast] = useState(null);
     const showModalRef = useRef(false);
     const timerRef = useRef(null);
 
@@ -207,13 +206,6 @@ export default function DashboardPage({companyId, currentUser}) {
         }
     };
 
-    const handleTriggerTestAlert = () => {
-        const testMsg = 'ટેસ્ટ એલર્ટ: Nilkanth Green Energy - Inverter 2 માં PV10 અને PV15 માં ધૂળ/કચરો અથવા છાંયડો છે - પ્લેટો ધોવાની જરૂર છે.';
-        setTestAlertToast(testMsg);
-        setTimeout(() => setTestAlertToast(null), 6000);
-        triggerNativePush('⚠️ સોલાર પેનલ સફાઈ એલર્ટ (ટેસ્ટ)', testMsg);
-    };
-
     if (loading && !liveData) return <Loading/>;
 
     const data = liveData || {};
@@ -282,28 +274,7 @@ export default function DashboardPage({companyId, currentUser}) {
                 </div>
             </div>
 
-            {/* Test Alert Floating Toast */}
-            {testAlertToast && (
-                <div style={{
-                    background: '#fef2f2',
-                    border: '1px solid #f87171',
-                    color: '#991b1b',
-                    padding: '10px 14px',
-                    borderRadius: '8px',
-                    marginBottom: '12px',
-                    fontSize: '12.5px',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.15)'
-                }}>
-                    <span>⚠️ {testAlertToast}</span>
-                    <button type="button" onClick={() => setTestAlertToast(null)} style={{background: 'none', border: 'none', color: '#991b1b', cursor: 'pointer', fontWeight: 800}}>✕</button>
-                </div>
-            )}
-
-            {/* 1. FIRST: Top Dashboard Notifications (Panel Soiling / Dust Cleaning Alert matching media_1790837012647.jpg) */}
+            {/* 1. FIRST: Top Dashboard Notifications (Panel Soiling / Dust Cleaning Alert) */}
             <section className="cleaning-alert-section">
                 <div className="cleaning-section-header">
                     <div className="cleaning-head-left">
@@ -330,14 +301,6 @@ export default function DashboardPage({companyId, currentUser}) {
                         >
                             <Bell size={13}/>
                             {notifStatus === 'granted' ? 'નોટિફિકેશન સક્રિય છે' : 'મોબાઈલ નોટિફિકેશન ચાલુ કરો'}
-                        </button>
-                        <button
-                            type="button"
-                            className="btn-test-alert"
-                            onClick={handleTriggerTestAlert}
-                            title="Trigger a test alert"
-                        >
-                            ટેસ્ટ એલર્ટ
                         </button>
                     </div>
                 </div>
