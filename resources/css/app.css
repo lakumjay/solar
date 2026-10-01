@@ -3757,24 +3757,122 @@
     }
 }
 
-/* Global compact button refinement for desktop as well */
-.primary, .secondary {
-    padding: 7px 14px;
-    font-size: 12px;
-    font-weight: 700;
-    border-radius: 8px;
-    white-space: nowrap;
+/* Plant Photo Gallery - Responsive 4-Column Mobile Grid & Lightbox Carousel */
+.plant-gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
 }
 
-.panel-head button, .panel-head .primary, .panel-head .secondary {
-    padding: 6px 12px;
-    font-size: 11.5px;
-    font-weight: 700;
-    border-radius: 8px;
-    white-space: nowrap;
-    min-height: 32px;
-    flex-shrink: 0;
+.plant-photo-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.15s, box-shadow 0.15s;
 }
+
+.plant-photo-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+}
+
+.photo-thumb-wrap {
+    position: relative;
+    aspect-ratio: 4/3;
+    background: #0f172a;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.photo-thumb-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.2s;
+}
+
+.photo-thumb-wrap:hover img {
+    transform: scale(1.03);
+}
+
+@media (max-width: 768px) {
+    .plant-gallery-grid {
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 5px !important;
+        margin-bottom: 16px !important;
+    }
+    .plant-photo-card {
+        border-radius: 8px !important;
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: none !important;
+    }
+    .plant-photo-card .photo-details-body {
+        display: none !important;
+    }
+    .photo-thumb-wrap {
+        aspect-ratio: 1/1 !important;
+    }
+    .photo-thumb-overlay {
+        padding: 4px !important;
+    }
+    .photo-thumb-overlay span {
+        font-size: 8.5px !important;
+        padding: 1px 3px !important;
+    }
+    .photo-thumb-overlay .photo-thumb-time {
+        display: none !important;
+    }
+}
+
+/* Lightbox Carousel Navigation */
+.carousel-nav-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0, 0, 0, 0.65);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    z-index: 10;
+    transition: background 0.2s, transform 0.2s;
+}
+
+.carousel-nav-btn:hover {
+    background: rgba(0, 0, 0, 0.85);
+    transform: translateY(-50%) scale(1.08);
+}
+
+.carousel-nav-btn.prev-btn {
+    left: 12px;
+}
+
+.carousel-nav-btn.next-btn {
+    right: 12px;
+}
+
+@media (max-width: 600px) {
+    .carousel-nav-btn {
+        width: 36px;
+        height: 36px;
+    }
+    .carousel-nav-btn.prev-btn {
+        left: 6px;
+    }
+    .carousel-nav-btn.next-btn {
+        right: 6px;
+    }
+}
+
 
 
 

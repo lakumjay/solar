@@ -206,7 +206,18 @@ export default function MobileAppView({
         }
     };
 
-    const isCombined = companyId === 'all';
+    const isSuperAdmin = user.role === 'super_admin';
+    const can = permission => isSuperAdmin || (user.permissions && user.permissions.includes(permission));
+
+    // Auto-bind companyId if user is restricted to a company (e.g. Sunrise Company Admin or Employee)
+    useEffect(() => {
+        if (!isSuperAdmin && user.company_id && String(companyId) !== String(user.company_id)) {
+            setCompanyId(String(user.company_id));
+        }
+    }, [user.company_id, isSuperAdmin, companyId, setCompanyId]);
+
+    const canSwitchCompanies = isSuperAdmin;
+    const isCombined = isSuperAdmin && companyId === 'all';
     const activeCompany = companies.find(c => String(c.id) === String(companyId));
     const displayName = isCombined
         ? 'All Companies (Combined Live Sync)'
@@ -332,7 +343,11 @@ export default function MobileAppView({
             )}
 
             {/* 2. COMPANY SELECTOR DROPDOWN BAR */}
-            <div className="mobile-company-selector-bar" onClick={() => setShowCompanyPicker(true)}>
+            <div
+                className="mobile-company-selector-bar"
+                onClick={() => canSwitchCompanies && setShowCompanyPicker(true)}
+                style={{cursor: canSwitchCompanies ? 'pointer' : 'default'}}
+            >
                 <div className="company-sel-left">
                     <Leaf size={15} className="leaf-icon"/>
                     <span className="company-title-text">
@@ -351,7 +366,7 @@ export default function MobileAppView({
                     >
                         <RefreshCw size={13} className={refreshing ? 'spin' : ''}/>
                     </button>
-                    <ChevronDown size={16} className="chevron-icon"/>
+                    {canSwitchCompanies && <ChevronDown size={16} className="chevron-icon"/>}
                 </div>
             </div>
 
@@ -610,40 +625,57 @@ export default function MobileAppView({
 
             {/* 7. MODERN FLOATING BOTTOM NAVIGATION BAR */}
             <nav className="mobile-bottom-navbar">
-                <button
-                    type="button"
-                    className={`bnav-item ${page === 'dashboard' ? 'active' : ''}`}
-                    onClick={() => setPage('dashboard')}
-                >
-                    <Home size={20}/>
-                    <span>Home</span>
-                </button>
+                {can('view_dashboard') && (
+                    <button
+                        type="button"
+                        className={`bnav-item ${page === 'dashboard' ? 'active' : ''}`}
+                        onClick={() => setPage('dashboard')}
+                    >
+                        <Home size={20}/>
+                        <span>Home</span>
+                    </button>
+                )}
+
+                {can('enter_readings') && (
+                    <button
+                        type="button"
+                        className={`bnav-item ${page === 'entry' ? 'active' : ''}`}
+                        onClick={() => setPage('entry')}
+                    >
+                        <ClipboardPlus size={20}/>
+                        <span>Daily Entry</span>
+                    </button>
+                )}
+
+                {(user.role === 'employee' || can('view_attendance')) && (
+                    <button
+                        type="button"
+                        className={`bnav-item ${[attendanceTargetPage, 'attendance', 'my-attendance'].includes(page) ? 'active' : ''}`}
+                        onClick={() => setPage(attendanceTargetPage)}
+                    >
+                        <UserCheck size={20}/>
+                        <span>Attendance</span>
+                    </button>
+                )}
+
+                {can('view_reports') && (
+                    <button
+                        type="button"
+                        className={`bnav-item ${page === 'reports' ? 'active' : ''}`}
+                        onClick={() => setPage('reports')}
+                    >
+                        <BarChart3 size={20}/>
+                        <span>Reports</span>
+                    </button>
+                )}
 
                 <button
                     type="button"
-                    className={`bnav-item ${page === 'entry' ? 'active' : ''}`}
-                    onClick={() => setPage('entry')}
+                    className={`bnav-item ${page === 'gallery' ? 'active' : ''}`}
+                    onClick={() => setPage('gallery')}
                 >
-                    <ClipboardPlus size={20}/>
-                    <span>Daily Entry</span>
-                </button>
-
-                <button
-                    type="button"
-                    className={`bnav-item ${[attendanceTargetPage, 'attendance', 'my-attendance'].includes(page) ? 'active' : ''}`}
-                    onClick={() => setPage(attendanceTargetPage)}
-                >
-                    <UserCheck size={20}/>
-                    <span>Attendance</span>
-                </button>
-
-                <button
-                    type="button"
-                    className={`bnav-item ${page === 'reports' ? 'active' : ''}`}
-                    onClick={() => setPage('reports')}
-                >
-                    <BarChart3 size={20}/>
-                    <span>Reports</span>
+                    <Camera size={20}/>
+                    <span>Gallery</span>
                 </button>
 
                 <button
@@ -781,52 +813,62 @@ export default function MobileAppView({
                                 <span>Gallery (પ્લાન્ટ ફોટા)</span>
                             </button>
 
-                            <button
-                                type="button"
-                                className="dmenu-item"
-                                onClick={() => { setPage('expenses'); setMoreMenuOpen(false); }}
-                            >
-                                <IndianRupee size={18}/>
-                                <span>Expenses (ખર્ચ)</span>
-                            </button>
+                            {(isSuperAdmin || user.role === 'company_admin' || can('view_expenses')) && (
+                                <button
+                                    type="button"
+                                    className="dmenu-item"
+                                    onClick={() => { setPage('expenses'); setMoreMenuOpen(false); }}
+                                >
+                                    <IndianRupee size={18}/>
+                                    <span>Expenses (ખર્ચ)</span>
+                                </button>
+                            )}
 
-                            <button
-                                type="button"
-                                className="dmenu-item"
-                                onClick={() => { setPage(salaryTargetPage); setMoreMenuOpen(false); }}
-                            >
-                                <WalletCards size={18}/>
-                                <span>Salaries (પગાર)</span>
-                            </button>
+                            {(isSuperAdmin || user.role === 'company_admin' || user.role === 'employee') && (
+                                <button
+                                    type="button"
+                                    className="dmenu-item"
+                                    onClick={() => { setPage(salaryTargetPage); setMoreMenuOpen(false); }}
+                                >
+                                    <WalletCards size={18}/>
+                                    <span>Salaries (પગાર)</span>
+                                </button>
+                            )}
 
-                            <button
-                                type="button"
-                                className="dmenu-item"
-                                onClick={() => { setPage('stock'); setMoreMenuOpen(false); }}
-                            >
-                                <Boxes size={18}/>
-                                <span>Stock & Spares</span>
-                            </button>
+                            {(isSuperAdmin || user.role === 'company_admin' || can('view_stock') || can('manage_stock')) && (
+                                <button
+                                    type="button"
+                                    className="dmenu-item"
+                                    onClick={() => { setPage('stock'); setMoreMenuOpen(false); }}
+                                >
+                                    <Boxes size={18}/>
+                                    <span>Stock & Spares</span>
+                                </button>
+                            )}
 
-                            <button
-                                type="button"
-                                className="dmenu-item"
-                                onClick={() => { setPage('leave-holidays'); setMoreMenuOpen(false); }}
-                            >
-                                <Calendar size={18}/>
-                                <span>Leave & Holidays</span>
-                            </button>
+                            {(isSuperAdmin || user.role === 'company_admin' || can('view_attendance')) && (
+                                <button
+                                    type="button"
+                                    className="dmenu-item"
+                                    onClick={() => { setPage('leave-holidays'); setMoreMenuOpen(false); }}
+                                >
+                                    <Calendar size={18}/>
+                                    <span>Leave & Holidays</span>
+                                </button>
+                            )}
 
-                            <button
-                                type="button"
-                                className="dmenu-item"
-                                onClick={() => { setPage('attendance-reports'); setMoreMenuOpen(false); }}
-                            >
-                                <BarChart3 size={18}/>
-                                <span>Attendance Reports</span>
-                            </button>
+                            {(isSuperAdmin || user.role === 'company_admin' || can('view_attendance_reports')) && (
+                                <button
+                                    type="button"
+                                    className="dmenu-item"
+                                    onClick={() => { setPage('attendance-reports'); setMoreMenuOpen(false); }}
+                                >
+                                    <BarChart3 size={18}/>
+                                    <span>Attendance Reports</span>
+                                </button>
+                            )}
 
-                            {user.role === 'super_admin' && (
+                            {(isSuperAdmin || can('manage_company_users')) && (
                                 <button
                                     type="button"
                                     className="dmenu-item"
@@ -837,7 +879,7 @@ export default function MobileAppView({
                                 </button>
                             )}
 
-                            {user.role === 'super_admin' && (
+                            {isSuperAdmin && (
                                 <button
                                     type="button"
                                     className="dmenu-item"
@@ -848,14 +890,16 @@ export default function MobileAppView({
                                 </button>
                             )}
 
-                            <button
-                                type="button"
-                                className="dmenu-item"
-                                onClick={() => { setPage('activity'); setMoreMenuOpen(false); }}
-                            >
-                                <Activity size={18}/>
-                                <span>Activity Log</span>
-                            </button>
+                            {(isSuperAdmin || can('manage_company_users')) && (
+                                <button
+                                    type="button"
+                                    className="dmenu-item"
+                                    onClick={() => { setPage('activity'); setMoreMenuOpen(false); }}
+                                >
+                                    <Activity size={18}/>
+                                    <span>Activity Log</span>
+                                </button>
+                            )}
                         </div>
 
                         <div className="drawer-footer-actions">
@@ -872,24 +916,26 @@ export default function MobileAppView({
                 </div>
             )}
 
-            {/* Company Picker Bottom Sheet */}
-            {showCompanyPicker && (
+            {/* Company Picker Bottom Sheet (Super Admin only) */}
+            {showCompanyPicker && canSwitchCompanies && (
                 <div className="mobile-drawer-backdrop" onClick={() => setShowCompanyPicker(false)}>
                     <div className="mobile-drawer-sheet company-picker-sheet" onClick={e => e.stopPropagation()}>
                         <div className="drawer-handle-bar"/>
                         <h3>Select Solar Company</h3>
                         <div className="company-options-list">
-                            <button
-                                type="button"
-                                className={`comp-option-btn ${companyId === 'all' ? 'selected' : ''}`}
-                                onClick={() => {
-                                    setCompanyId('all');
-                                    setShowCompanyPicker(false);
-                                }}
-                            >
-                                <Sparkles size={16} style={{color: '#15803d'}}/>
-                                <span>All Companies (Combined Live Sync)</span>
-                            </button>
+                            {isSuperAdmin && (
+                                <button
+                                    type="button"
+                                    className={`comp-option-btn ${companyId === 'all' ? 'selected' : ''}`}
+                                    onClick={() => {
+                                        setCompanyId('all');
+                                        setShowCompanyPicker(false);
+                                    }}
+                                >
+                                    <Sparkles size={16} style={{color: '#15803d'}}/>
+                                    <span>All Companies (Combined Live Sync)</span>
+                                </button>
+                            )}
                             {companies.map(c => (
                                 <button
                                     type="button"

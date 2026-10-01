@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {Calendar, Camera, Clock, ExternalLink, Filter, MapPin, Plus, RefreshCw, Settings, Trash2, User, X} from 'lucide-react';
+import {Calendar, Camera, ChevronLeft, ChevronRight, Clock, ExternalLink, Filter, MapPin, Plus, RefreshCw, Settings, Trash2, User, X} from 'lucide-react';
 import {api} from '../api';
 import {DatePicker, Empty, Loading} from '../components/Common';
 import LiveBackCameraModal from '../components/LiveBackCameraModal';
@@ -11,7 +11,8 @@ export default function GalleryPage({currentUser, companyId}) {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [data, setData] = useState({photos: [], tasks: [], companies: []});
-    const [lightboxPhoto, setLightboxPhoto] = useState(null);
+    const [lightboxIndex, setLightboxIndex] = useState(null);
+    const [touchStart, setTouchStart] = useState(null);
     const [showTaskModal, setShowTaskModal] = useState(false);
     const [showCameraModal, setShowCameraModal] = useState(false);
     const [activeTaskForCamera, setActiveTaskForCamera] = useState(null);
@@ -34,14 +35,54 @@ export default function GalleryPage({currentUser, companyId}) {
     const isEmployee = currentUser?.role === 'employee';
     const canDeletePhoto = isSuperAdmin || isCompanyAdmin;
 
+    const photos = data.photos || [];
+    const tasks = data.tasks || [];
+    const companies = data.companies || [];
+    const lightboxPhoto = lightboxIndex !== null && photos[lightboxIndex] ? photos[lightboxIndex] : null;
+
+    const handleNextPhoto = (e) => {
+        if (e) e.stopPropagation();
+        if (photos.length === 0) return;
+        setLightboxIndex(prev => (prev + 1) % photos.length);
+    };
+
+    const handlePrevPhoto = (e) => {
+        if (e) e.stopPropagation();
+        if (photos.length === 0) return;
+        setLightboxIndex(prev => (prev - 1 + photos.length) % photos.length);
+    };
+
+    // Keyboard navigation (Arrow keys + Esc)
+    useEffect(() => {
+        if (lightboxIndex === null) return;
+        const handleKeyDown = (e) => {
+            if (e.key === 'ArrowRight') handleNextPhoto();
+            if (e.key === 'ArrowLeft') handlePrevPhoto();
+            if (e.key === 'Escape') setLightboxIndex(null);
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [lightboxIndex, photos.length]);
+
+    // Touch swipe handlers
+    const onTouchStart = (e) => setTouchStart(e.targetTouches[0].clientX);
+    const onTouchEnd = (e) => {
+        if (!touchStart) return;
+        const touchEnd = e.changedTouches[0].clientX;
+        if (touchStart - touchEnd > 45) {
+            handleNextPhoto();
+        } else if (touchEnd - touchStart > 45) {
+            handlePrevPhoto();
+        }
+        setTouchStart(null);
+    };
+
     const handleDeletePhoto = async (photoId, e) => {
         if (e) e.stopPropagation();
         if (!confirm('Are you sure you want to delete this inspection photo? This action cannot be undone.')) return;
         try {
             await api(`plant-photos/${photoId}`, {method: 'DELETE'});
-            if (lightboxPhoto && lightboxPhoto.id === photoId) {
-                setLightboxPhoto(null);
-            }
+            setLightboxIndex(null);
             loadGallery(true);
         } catch (err) {
             alert('Could not delete photo: ' + err.message);
@@ -105,10 +146,6 @@ export default function GalleryPage({currentUser, companyId}) {
     };
 
     if (loading) return <Loading/>;
-
-    const photos = data.photos || [];
-    const tasks = data.tasks || [];
-    const companies = data.companies || [];
 
     return (
         <div className="gallery-page-container">
@@ -223,66 +260,45 @@ export default function GalleryPage({currentUser, companyId}) {
                 </div>
             </div>
 
-            {/* Photos Grid */}
+            {/* Photos Grid (Responsive 4-column on mobile, detailed cards on desktop) */}
             {photos.length > 0 ? (
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-                    gap: '14px',
-                    marginBottom: '24px'
-                }}>
-                    {photos.map(p => (
+                <div className="plant-gallery-grid">
+                    {photos.map((p, idx) => (
                         <article
                             key={p.id}
-                            style={{
-                                background: '#ffffff',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '12px',
-                                overflow: 'hidden',
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                                display: 'flex',
-                                flexDirection: 'column'
-                            }}
+                            className="plant-photo-card"
+                            onClick={() => setLightboxIndex(idx)}
+                            style={{cursor: 'pointer'}}
                         >
                             {/* Photo Thumbnail */}
-                            <div
-                                onClick={() => setLightboxPhoto(p)}
-                                style={{
-                                    position: 'relative',
-                                    aspectRatio: '4/3',
-                                    background: '#0f172a',
-                                    cursor: 'pointer',
-                                    overflow: 'hidden'
-                                }}
-                            >
+                            <div className="photo-thumb-wrap">
                                 <img
                                     src={p.photo_url}
                                     alt={p.task_title}
                                     loading="lazy"
-                                    style={{width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.2s'}}
                                 />
-                                <div style={{
+                                <div className="photo-thumb-overlay" style={{
                                     position: 'absolute',
                                     bottom: 0,
                                     left: 0,
                                     right: 0,
                                     background: 'linear-gradient(to top, rgba(0,0,0,0.85), transparent)',
                                     color: '#ffffff',
-                                    padding: '8px 10px 6px',
+                                    padding: '6px 8px',
                                     fontSize: '11px',
                                     display: 'flex',
                                     justifyContent: 'space-between',
                                     alignItems: 'center'
                                 }}>
-                                    <span style={{fontWeight: 700}}>{p.time_formatted}</span>
-                                    <span style={{fontSize: '10px', background: 'rgba(255,255,255,0.25)', padding: '2px 6px', borderRadius: '4px'}}>
+                                    <span className="photo-thumb-time" style={{fontWeight: 700}}>{p.time_formatted}</span>
+                                    <span style={{fontSize: '9.5px', background: 'rgba(255,255,255,0.25)', padding: '2px 5px', borderRadius: '4px'}}>
                                         {p.company_name}
                                     </span>
                                 </div>
                             </div>
 
-                            {/* Card Content */}
-                            <div style={{padding: '10px 12px', flex: 1, display: 'flex', flexDirection: 'column', gap: '4px'}}>
+                            {/* Card Content (Hidden on small mobile screens for 4-column layout) */}
+                            <div className="photo-details-body" style={{padding: '10px 12px', flex: 1, display: 'flex', flexDirection: 'column', gap: '4px'}}>
                                 <b style={{fontSize: '12.5px', color: '#0f172a'}}>{p.task_title}</b>
                                 <div style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#64748b'}}>
                                     <User size={12}/>
@@ -310,6 +326,7 @@ export default function GalleryPage({currentUser, companyId}) {
                                                 href={p.google_maps_url}
                                                 target="_blank"
                                                 rel="noreferrer"
+                                                onClick={e => e.stopPropagation()}
                                                 style={{
                                                     fontSize: '11px',
                                                     color: '#15803d',
@@ -358,56 +375,141 @@ export default function GalleryPage({currentUser, companyId}) {
                 />
             )}
 
-            {/* Lightbox High-Resolution Modal */}
+            {/* Lightbox Interactive Slideshow Carousel Modal */}
             {lightboxPhoto && (
-                <div className="modal-backdrop" onClick={() => setLightboxPhoto(null)}>
+                <div className="modal-backdrop" onClick={() => setLightboxIndex(null)}>
                     <div
                         className="modal"
                         onClick={e => e.stopPropagation()}
                         style={{
-                            maxWidth: '750px',
+                            maxWidth: '820px',
                             background: '#091512',
                             color: '#ffffff',
                             padding: 0,
-                            overflow: 'hidden'
+                            overflow: 'hidden',
+                            position: 'relative'
                         }}
                     >
+                        {/* Top Header Bar with Slide Counter & Details */}
                         <div style={{
                             padding: '10px 16px',
                             background: '#0d2820',
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'space-between'
+                            justifyContent: 'space-between',
+                            borderBottom: '1px solid rgba(255,255,255,0.1)'
                         }}>
-                            <div>
-                                <h3 style={{margin: 0, fontSize: '14px', color: '#f0fdf4'}}>
-                                    {lightboxPhoto.task_title}
-                                </h3>
-                                <small style={{color: '#86efac'}}>
-                                    {lightboxPhoto.company_name} · Captured by {lightboxPhoto.employee_name} on {lightboxPhoto.captured_at}
-                                </small>
+                            <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                                <span style={{
+                                    background: '#16a34a',
+                                    color: '#ffffff',
+                                    fontSize: '11px',
+                                    fontWeight: 800,
+                                    padding: '3px 8px',
+                                    borderRadius: '12px'
+                                }}>
+                                    {lightboxIndex + 1} / {photos.length}
+                                </span>
+                                <div>
+                                    <h3 style={{margin: 0, fontSize: '13.5px', color: '#f0fdf4'}}>
+                                        {lightboxPhoto.task_title}
+                                    </h3>
+                                    <small style={{color: '#86efac', fontSize: '11px'}}>
+                                        {lightboxPhoto.company_name} · By {lightboxPhoto.employee_name} ({lightboxPhoto.time_formatted})
+                                    </small>
+                                </div>
                             </div>
                             <button
                                 type="button"
                                 className="icon-button ghost"
-                                onClick={() => setLightboxPhoto(null)}
+                                onClick={() => setLightboxIndex(null)}
+                                style={{
+                                    background: 'rgba(255,255,255,0.15)',
+                                    color: '#ffffff',
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '50%'
+                                }}
+                                title="Close popup (Esc)"
                             >
                                 <X size={16}/>
                             </button>
                         </div>
 
-                        <div style={{background: '#000000', display: 'flex', justifyContent: 'center'}}>
+                        {/* Image Viewer Area with Left/Right Nav Arrows & Touch Swipe */}
+                        <div
+                            onTouchStart={onTouchStart}
+                            onTouchEnd={onTouchEnd}
+                            style={{
+                                position: 'relative',
+                                background: '#000000',
+                                minHeight: '380px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                userSelect: 'none'
+                            }}
+                        >
+                            {/* Previous Slide Button */}
+                            {photos.length > 1 && (
+                                <button
+                                    type="button"
+                                    className="carousel-nav-btn prev-btn"
+                                    onClick={handlePrevPhoto}
+                                    title="Previous Photo (Left Arrow)"
+                                >
+                                    <ChevronLeft size={24}/>
+                                </button>
+                            )}
+
+                            {/* Main High-Res Image */}
                             <img
+                                key={lightboxPhoto.id}
                                 src={lightboxPhoto.photo_url}
                                 alt="Plant Photo High Resolution"
-                                style={{maxHeight: '70vh', width: '100%', objectFit: 'contain'}}
+                                style={{
+                                    maxHeight: '68vh',
+                                    maxWidth: '100%',
+                                    objectFit: 'contain',
+                                    animation: 'fadeIn 0.2s ease-in-out'
+                                }}
                             />
+
+                            {/* Next Slide Button */}
+                            {photos.length > 1 && (
+                                <button
+                                    type="button"
+                                    className="carousel-nav-btn next-btn"
+                                    onClick={handleNextPhoto}
+                                    title="Next Photo (Right Arrow)"
+                                >
+                                    <ChevronRight size={24}/>
+                                </button>
+                            )}
                         </div>
 
-                        <div style={{padding: '12px 16px', background: '#0d2820', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px'}}>
-                            <span style={{fontSize: '12px', color: '#cbd5e1'}}>
-                                📍 {lightboxPhoto.address || 'Plant Site'}
-                            </span>
+                        {/* Bottom Actions Footer Bar */}
+                        <div style={{
+                            padding: '12px 16px',
+                            background: '#0d2820',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                            gap: '8px',
+                            borderTop: '1px solid rgba(255,255,255,0.1)'
+                        }}>
+                            <div>
+                                <span style={{fontSize: '12px', color: '#cbd5e1'}}>
+                                    📍 {lightboxPhoto.address || 'Solar Plant Site'}
+                                </span>
+                                {lightboxPhoto.notes && (
+                                    <div style={{fontSize: '11.5px', color: '#86efac', marginTop: '2px'}}>
+                                        Note: "{lightboxPhoto.notes}"
+                                    </div>
+                                )}
+                            </div>
+
                             <div style={{display: 'inline-flex', alignItems: 'center', gap: '8px'}}>
                                 {lightboxPhoto.google_maps_url && (
                                     <a
