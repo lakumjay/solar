@@ -43,6 +43,7 @@ Route::prefix('api')->group(function () {
         Route::delete('plant-photos/tasks/{task}', [PlantPhotoController::class, 'deleteTask']);
         Route::post('plant-photos/upload', [PlantPhotoController::class, 'upload']);
         Route::get('plant-photos/gallery', [PlantPhotoController::class, 'gallery']);
+        Route::delete('plant-photos/{photo}', [PlantPhotoController::class, 'deletePhoto']);
         Route::get('plant-photos/{photo}/image', [PlantPhotoController::class, 'image'])->name('plant-photos.image');
         Route::get('companies', [CompanyController::class, 'index']);
         Route::post('companies', [CompanyController::class, 'store']);

@@ -30,7 +30,23 @@ export default function GalleryPage({currentUser, companyId}) {
     const [taskMessage, setTaskMessage] = useState('');
 
     const isSuperAdmin = currentUser?.role === 'super_admin';
+    const isCompanyAdmin = currentUser?.role === 'company_admin';
     const isEmployee = currentUser?.role === 'employee';
+    const canDeletePhoto = isSuperAdmin || isCompanyAdmin;
+
+    const handleDeletePhoto = async (photoId, e) => {
+        if (e) e.stopPropagation();
+        if (!confirm('Are you sure you want to delete this inspection photo? This action cannot be undone.')) return;
+        try {
+            await api(`plant-photos/${photoId}`, {method: 'DELETE'});
+            if (lightboxPhoto && lightboxPhoto.id === photoId) {
+                setLightboxPhoto(null);
+            }
+            loadGallery(true);
+        } catch (err) {
+            alert('Could not delete photo: ' + err.message);
+        }
+    };
 
     const loadGallery = async (manual = false) => {
         if (manual) setRefreshing(true);
@@ -286,26 +302,50 @@ export default function GalleryPage({currentUser, companyId}) {
                                     </p>
                                 )}
 
-                                <div style={{marginTop: 'auto', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                                <div style={{marginTop: 'auto', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px'}}>
                                     <small style={{color: '#94a3b8', fontSize: '10px'}}>{p.captured_at}</small>
-                                    {p.google_maps_url && (
-                                        <a
-                                            href={p.google_maps_url}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            style={{
-                                                fontSize: '11px',
-                                                color: '#15803d',
-                                                fontWeight: 700,
-                                                textDecoration: 'none',
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '3px'
-                                            }}
-                                        >
-                                            <MapPin size={12}/> View Map <ExternalLink size={10}/>
-                                        </a>
-                                    )}
+                                    <div style={{display: 'inline-flex', alignItems: 'center', gap: '8px'}}>
+                                        {p.google_maps_url && (
+                                            <a
+                                                href={p.google_maps_url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                style={{
+                                                    fontSize: '11px',
+                                                    color: '#15803d',
+                                                    fontWeight: 700,
+                                                    textDecoration: 'none',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '3px'
+                                                }}
+                                            >
+                                                <MapPin size={12}/> Map <ExternalLink size={10}/>
+                                            </a>
+                                        )}
+                                        {canDeletePhoto && (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => handleDeletePhoto(p.id, e)}
+                                                style={{
+                                                    background: '#fee2e2',
+                                                    color: '#b91c1c',
+                                                    border: 0,
+                                                    borderRadius: '4px',
+                                                    padding: '3px 6px',
+                                                    fontSize: '11px',
+                                                    cursor: 'pointer',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '3px',
+                                                    fontWeight: 600
+                                                }}
+                                                title="Delete photo"
+                                            >
+                                                <Trash2 size={11}/> Delete
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </article>
@@ -368,27 +408,50 @@ export default function GalleryPage({currentUser, companyId}) {
                             <span style={{fontSize: '12px', color: '#cbd5e1'}}>
                                 📍 {lightboxPhoto.address || 'Plant Site'}
                             </span>
-                            {lightboxPhoto.google_maps_url && (
-                                <a
-                                    href={lightboxPhoto.google_maps_url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    style={{
-                                        background: '#16a34a',
-                                        color: '#ffffff',
-                                        textDecoration: 'none',
-                                        padding: '6px 12px',
-                                        borderRadius: '6px',
-                                        fontSize: '12px',
-                                        fontWeight: 700,
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '4px'
-                                    }}
-                                >
-                                    <MapPin size={13}/> Open Exact Google Map Location <ExternalLink size={12}/>
-                                </a>
-                            )}
+                            <div style={{display: 'inline-flex', alignItems: 'center', gap: '8px'}}>
+                                {lightboxPhoto.google_maps_url && (
+                                    <a
+                                        href={lightboxPhoto.google_maps_url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{
+                                            background: '#16a34a',
+                                            color: '#ffffff',
+                                            textDecoration: 'none',
+                                            padding: '6px 12px',
+                                            borderRadius: '6px',
+                                            fontSize: '12px',
+                                            fontWeight: 700,
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px'
+                                        }}
+                                    >
+                                        <MapPin size={13}/> Open Google Map <ExternalLink size={12}/>
+                                    </a>
+                                )}
+                                {canDeletePhoto && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => handleDeletePhoto(lightboxPhoto.id, e)}
+                                        style={{
+                                            background: '#ef4444',
+                                            color: '#ffffff',
+                                            border: 0,
+                                            padding: '6px 12px',
+                                            borderRadius: '6px',
+                                            fontSize: '12px',
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px'
+                                        }}
+                                    >
+                                        <Trash2 size={13}/> Delete Photo
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>

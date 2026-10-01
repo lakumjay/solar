@@ -41,26 +41,19 @@ export default function LiveBackCameraModal({task, onClose, onUploaded}) {
         }
     };
 
-    // Auto-detect GPS
+    // Silent GPS Coordinate fetcher (No UI exposure to employee)
     const detectGps = () => {
-        if (!navigator.geolocation) {
-            setGps({latitude: null, longitude: null, accuracy: null, status: 'GPS not supported on this device'});
-            return;
-        }
-
-        setGps(prev => ({...prev, status: 'Fetching live GPS...'}));
+        if (!navigator.geolocation) return;
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 setGps({
                     latitude: pos.coords.latitude,
                     longitude: pos.coords.longitude,
                     accuracy: pos.coords.accuracy,
-                    status: `Lat: ${pos.coords.latitude.toFixed(5)}, Lon: ${pos.coords.longitude.toFixed(5)} (±${Math.round(pos.coords.accuracy)}m)`
+                    status: 'Ready'
                 });
             },
-            (err) => {
-                setGps({latitude: null, longitude: null, accuracy: null, status: 'GPS Warning: ' + err.message});
-            },
+            () => {},
             {enableHighAccuracy: true, timeout: 12000, maximumAge: 0}
         );
     };
@@ -76,7 +69,7 @@ export default function LiveBackCameraModal({task, onClose, onUploaded}) {
         };
     }, [facingMode]);
 
-    // Snap Photo onto Canvas with Date/Time + GPS Stamp
+    // Snap Photo onto Canvas with Date/Time Stamp (No visible GPS text)
     const takePhoto = () => {
         if (!videoRef.current) return;
         const video = videoRef.current;
@@ -88,15 +81,14 @@ export default function LiveBackCameraModal({task, onClose, onUploaded}) {
         // Draw video frame
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        // Overlay Clean Digital Watermark (Date/Time & GPS)
+        // Overlay Clean Digital Timestamp Watermark
         ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-        ctx.fillRect(0, canvas.height - 48, canvas.width, 48);
+        ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
 
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 16px sans-serif';
+        ctx.font = 'bold 15px sans-serif';
         const nowStr = new Date().toLocaleString('en-IN');
-        const locStr = gps.latitude ? `GPS: ${gps.latitude.toFixed(5)}, ${gps.longitude.toFixed(5)}` : 'Solar Plant Location';
-        ctx.fillText(`⚡ SolarFlow Plant Check · ${nowStr} · ${locStr}`, 16, canvas.height - 18);
+        ctx.fillText(`⚡ Plant Inspection · ${nowStr}`, 16, canvas.height - 15);
 
         const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
         setCapturedImage(dataUrl);
@@ -155,7 +147,7 @@ export default function LiveBackCameraModal({task, onClose, onUploaded}) {
                 }}>
                     <div>
                         <h3 style={{margin: 0, fontSize: '14px', fontWeight: 800, color: '#f0fdf4'}}>
-                            📷 Live Plant Photo Capture (Back Camera)
+                            📷 Plant Inspection Photo
                         </h3>
                         <p style={{margin: '2px 0 0', fontSize: '11px', color: '#86efac'}}>
                             {task ? `Task: ${task.title} (${task.start_time} - ${task.end_time})` : 'Daily Plant Inspection'}
@@ -198,38 +190,31 @@ export default function LiveBackCameraModal({task, onClose, onUploaded}) {
                         />
                     )}
 
-                    {/* Live GPS Watermark Pill on Bottom Left */}
-                    <div style={{
-                        position: 'absolute',
-                        bottom: '10px',
-                        left: '10px',
-                        right: '10px',
-                        background: 'rgba(0,0,0,0.72)',
-                        backdropFilter: 'blur(6px)',
-                        color: '#f8fafc',
-                        padding: '6px 12px',
-                        borderRadius: '8px',
-                        fontSize: '11px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '6px'
-                    }}>
-                        <span style={{display: 'inline-flex', alignItems: 'center', gap: '5px'}}>
-                            <MapPin size={13} style={{color: '#4ade80'}}/>
-                            <span>{gps.status}</span>
-                        </span>
-                        {!capturedImage && (
-                            <button
-                                type="button"
-                                onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
-                                style={{background: 'rgba(255,255,255,0.2)', border: 0, color: '#fff', borderRadius: '6px', padding: '3px 8px', fontSize: '10px', cursor: 'pointer'}}
-                                title="Flip Camera"
-                            >
-                                <SwitchCamera size={12}/>
-                            </button>
-                        )}
-                    </div>
+                    {/* Camera Switch button in corner if not captured */}
+                    {!capturedImage && (
+                        <button
+                            type="button"
+                            onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
+                            style={{
+                                position: 'absolute',
+                                top: '12px',
+                                right: '12px',
+                                background: 'rgba(0,0,0,0.6)',
+                                border: '1px solid rgba(255,255,255,0.3)',
+                                color: '#fff',
+                                borderRadius: '20px',
+                                padding: '5px 10px',
+                                fontSize: '11px',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                            }}
+                            title="Flip Camera"
+                        >
+                            <SwitchCamera size={13}/> <span>Switch</span>
+                        </button>
+                    )}
                 </div>
 
                 {/* Error Banner */}

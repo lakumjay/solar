@@ -197,4 +197,36 @@ class PlantPhotoController extends Controller
             'Cache-Control' => 'public, max-age=86400',
         ]);
     }
+
+    /**
+     * Delete a single plant photo (Super Admin or Company Admin or the uploader).
+     */
+    public function deletePhoto(PlantPhoto $photo, Request $request)
+    {
+        $user = $request->user();
+
+        // Check permission
+        if ($user->role !== 'super_admin' && $user->role !== 'company_admin' && $user->id !== $photo->employee?->user_id) {
+            abort(403, 'You do not have permission to delete this inspection photo.');
+        }
+
+        $photoId = $photo->id;
+        $taskTitle = $photo->task?->title ?: 'Plant Photo';
+
+        $this->photoService->deletePhoto($photo);
+
+        $this->activity->log(
+            $user,
+            $photo->company_id,
+            'deleted',
+            'plant_photo',
+            $photoId,
+            "Deleted inspection photo for '{$taskTitle}'"
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Plant photo deleted successfully.',
+        ]);
+    }
 }

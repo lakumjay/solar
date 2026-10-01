@@ -232,6 +232,25 @@ class PlantPhotoService
     }
 
     /**
+     * Delete a single plant photo, its file on disk, and DB row.
+     */
+    public function deletePhoto(PlantPhoto $photo): bool
+    {
+        try {
+            if ($photo->photo_path) {
+                $fullPath = storage_path('app/private/' . $photo->photo_path);
+                if (file_exists($fullPath)) {
+                    @unlink($fullPath);
+                }
+            }
+            return (bool) $photo->delete();
+        } catch (\Throwable $e) {
+            Log::warning('Plant photo delete error', ['id' => $photo->id, 'error' => $e->getMessage()]);
+            return false;
+        }
+    }
+
+    /**
      * Auto delete photos older than specified days (Default 10 days).
      */
     public function pruneExpiredPhotos(int $keepDays = 10): int

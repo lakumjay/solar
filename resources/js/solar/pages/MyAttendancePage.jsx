@@ -102,7 +102,7 @@ export default function MyAttendancePage() {
     const clockOut = async event => {
         event.preventDefault();
         setBusy(true);
-        setMessage('Getting precise location…');
+        setMessage('Submitting work report…');
         try {
             const coordinates = await location();
             await api('attendance/clock-out', {method: 'POST', body: JSON.stringify({...clockOutForm, ...coordinates})});
@@ -295,7 +295,7 @@ export default function MyAttendancePage() {
                     <div className="clock-icon"><LogIn/></div>
                     <div>
                         <h2>Ready to start your day?</h2>
-                        <p>Your Time In is recorded with a front-camera selfie and precise live GPS location.</p>
+                        <p>Your Time In is recorded with a front-camera selfie.</p>
                     </div>
                     <button className="primary" disabled={!today.can_clock_in} onClick={() => setTimeInOpen(true)}>
                         Time In
@@ -323,7 +323,7 @@ export default function MyAttendancePage() {
                     <div className="panel-head">
                         <div>
                             <h2>Complete your day (Final Time Out)</h2>
-                            <p>Timed in at {formatTime(today.record.clock_in_at)}. Location is compulsory at final Time Out.</p>
+                            <p>Timed in at {formatTime(today.record.clock_in_at)}. Please provide your daily work summary.</p>
                         </div>
                         <LogOut/>
                     </div>
