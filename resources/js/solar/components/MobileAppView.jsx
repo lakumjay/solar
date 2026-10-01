@@ -177,15 +177,30 @@ export default function MobileAppView({
                         renotify: true,
                     };
 
-                    if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
-                        const reg = await navigator.serviceWorker.ready;
-                        reg.showNotification(title, options);
+                    let reg = null;
+                    if ('serviceWorker' in navigator) {
+                        try {
+                            reg = await navigator.serviceWorker.getRegistration();
+                            if (!reg) {
+                                reg = await navigator.serviceWorker.register('/sw.js');
+                            }
+                        } catch (swErr) {
+                            console.warn('SW register error', swErr);
+                        }
+                    }
+
+                    if (reg && typeof reg.showNotification === 'function') {
+                        await reg.showNotification(title, options);
                     } else {
-                        new Notification(title, options);
+                        try {
+                            new Notification(title, options);
+                        } catch (nErr) {
+                            console.warn('Direct Notification fallback error', nErr);
+                        }
                     }
                 }
             } catch (e) {
-                console.log('Native push notification skipped:', e.message);
+                console.log('Native push notification error:', e.message);
             }
         }
     };
