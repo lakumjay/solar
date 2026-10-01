@@ -135,6 +135,25 @@ export default function DashboardPage({companyId, currentUser}) {
         );
     };
 
+    const playAlertChime = () => {
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            const ctx = new AudioCtx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+            osc.frequency.setValueAtTime(880.00, ctx.currentTime + 0.09);
+            gain.gain.setValueAtTime(0.25, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.35);
+        } catch (e) {}
+    };
+
     const handleEnableNotification = async () => {
         if (!('Notification' in window)) {
             alert('This browser does not support desktop notifications.');
@@ -143,24 +162,56 @@ export default function DashboardPage({companyId, currentUser}) {
         const perm = await Notification.requestPermission();
         setNotifStatus(perm);
         if (perm === 'granted') {
-            new Notification('SolarFlow Alert System', {
-                body: 'મોબાઈલ / વેબ નોટિફિકેશન સફળતાપૂર્વક ચાલુ થઈ ગયું છે!',
-                icon: '/favicon.ico'
-            });
+            triggerNativePush('SolarFlow Alert System', 'મોબાઈલ / વેબ નોટિફિકેશન સફળતાપૂર્વક ચાલુ થઈ ગયું છે!');
+        }
+    };
+
+    const triggerNativePush = async (title, bodyText) => {
+        playAlertChime();
+        if (navigator.vibrate) {
+            navigator.vibrate([200, 100, 200]);
+        }
+
+        if ('Notification' in window && Notification.permission === 'granted') {
+            const options = {
+                body: bodyText,
+                icon: '/icons/icon-192.png',
+                badge: '/icons/icon-192.png',
+                vibrate: [300, 100, 300],
+                tag: 'solarflow-alert-' + Date.now(),
+                renotify: true,
+                data: { url: '/' }
+            };
+
+            let reg = null;
+            if ('serviceWorker' in navigator) {
+                try {
+                    reg = await navigator.serviceWorker.getRegistration();
+                    if (!reg) {
+                        reg = await navigator.serviceWorker.register('/sw.js');
+                    }
+                } catch (swErr) {
+                    console.warn('SW register error', swErr);
+                }
+            }
+
+            if (reg && typeof reg.showNotification === 'function') {
+                await reg.showNotification(title, options);
+            } else {
+                try {
+                    new Notification(title, options);
+                } catch (nErr) {
+                    console.warn('Direct Notification fallback', nErr);
+                }
+            }
         }
     };
 
     const handleTriggerTestAlert = () => {
         const testMsg = 'ટેસ્ટ એલર્ટ: Nilkanth Green Energy - Inverter 2 માં PV10 અને PV15 માં ધૂળ/કચરો અથવા છાંયડો છે - પ્લેટો ધોવાની જરૂર છે.';
         setTestAlertToast(testMsg);
-        setTimeout(() => setTestAlertToast(null), 5000);
-
-        if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('⚠️ સોલાર પેનલ સફાઈ એલર્ટ (ટેસ્ટ)', {
-                body: testMsg,
-                icon: '/favicon.ico'
-            });
-        }
+        setTimeout(() => setTestAlertToast(null), 6000);
+        triggerNativePush('⚠️ સોલાર પેનલ સફાઈ એલર્ટ (ટેસ્ટ)', testMsg);
     };
 
     if (loading && !liveData) return <Loading/>;
