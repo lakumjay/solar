@@ -3519,10 +3519,11 @@
     .modal-foot button,
     .dialog-foot button {
         flex: 1 !important;
-        padding: 11px 14px !important;
-        font-size: 13.5px !important;
-        font-weight: 750 !important;
-        border-radius: 10px !important;
+        padding: 8px 14px !important;
+        font-size: 12px !important;
+        font-weight: 700 !important;
+        border-radius: 8px !important;
+        min-height: 36px !important;
     }
 
     /* Clean typography & input sizes (prevents iOS auto-zoom on inputs) */
@@ -3533,9 +3534,9 @@
     input[type="password"],
     select,
     textarea {
-        font-size: 15px !important;
-        padding: 10px 12px !important;
-        border-radius: 10px !important;
+        font-size: 13.5px !important;
+        padding: 8px 11px !important;
+        border-radius: 8px !important;
     }
 
     /* Fix table overflows */
@@ -3546,13 +3547,125 @@
     .attendance-table-wrap {
         overflow-x: auto !important;
         -webkit-overflow-scrolling: touch !important;
-        border-radius: 12px !important;
+        border-radius: 10px !important;
     }
 
     /* Clean safe-area bottom navigation */
     .mobile-bottom-nav {
         padding-bottom: max(10px, env(safe-area-inset-bottom)) !important;
     }
+
+    /* Responsive Compact Buttons & Panel Heads (No huge oversized buttons) */
+    .primary,
+    .secondary,
+    button.primary,
+    button.secondary {
+        padding: 7px 13px !important;
+        font-size: 12px !important;
+        font-weight: 700 !important;
+        border-radius: 8px !important;
+        white-space: nowrap !important;
+        min-height: 32px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 5px !important;
+    }
+
+    .panel-head {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 10px !important;
+        margin-bottom: 12px !important;
+        flex-wrap: nowrap !important;
+    }
+
+    .panel-head h2 {
+        font-size: 14px !important;
+        margin: 0 !important;
+        font-weight: 750 !important;
+    }
+
+    .panel-head p {
+        font-size: 11px !important;
+        margin: 2px 0 0 !important;
+        color: #64748b !important;
+    }
+
+    .panel-head button,
+    .panel-head .primary,
+    .panel-head .secondary {
+        padding: 6px 12px !important;
+        font-size: 11.5px !important;
+        font-weight: 700 !important;
+        border-radius: 8px !important;
+        white-space: nowrap !important;
+        min-height: 32px !important;
+        flex-shrink: 0 !important;
+    }
+
+    .panel {
+        padding: 12px 14px !important;
+        border-radius: 12px !important;
+        margin-bottom: 12px !important;
+    }
+
+    .cards,
+    .attendance-cards,
+    .cards.five {
+        gap: 8px !important;
+        margin-bottom: 12px !important;
+    }
+
+    .metric {
+        padding: 10px 12px !important;
+        border-radius: 10px !important;
+        gap: 2px !important;
+    }
+
+    .metric strong {
+        font-size: 18px !important;
+    }
+
+    .metric>span {
+        font-size: 11px !important;
+    }
+
+    .metric>small {
+        font-size: 9.5px !important;
+    }
+
+    .attendance-toolbar {
+        gap: 8px !important;
+        margin-bottom: 12px !important;
+    }
+
+    .attendance-toolbar select,
+    .attendance-toolbar input {
+        padding: 7px 10px !important;
+        font-size: 12px !important;
+        border-radius: 8px !important;
+    }
+}
+
+/* Global compact button refinement for desktop as well */
+.primary, .secondary {
+    padding: 7px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 8px;
+    white-space: nowrap;
+}
+
+.panel-head button, .panel-head .primary, .panel-head .secondary {
+    padding: 6px 12px;
+    font-size: 11.5px;
+    font-weight: 700;
+    border-radius: 8px;
+    white-space: nowrap;
+    min-height: 32px;
+    flex-shrink: 0;
 }
 
 
