@@ -38,7 +38,6 @@ import ISolarCloudVisualizer from './ISolarCloudVisualizer';
 
 export default function MobileAppView({
     user,
-    can: parentCan,
     page,
     setPage,
     companies = [],
@@ -49,7 +48,6 @@ export default function MobileAppView({
     refreshing = false,
     children
 }) {
-    const can = parentCan || (permission => user?.role === 'super_admin' || (user?.permissions && user.permissions.includes(permission)));
     const [currentTime, setCurrentTime] = useState('');
     const [moreMenuOpen, setMoreMenuOpen] = useState(false);
     const [notifCenterOpen, setNotifCenterOpen] = useState(false);
@@ -59,13 +57,6 @@ export default function MobileAppView({
     const [notifToast, setNotifToast] = useState(null);
     const [expandedPlantId, setExpandedPlantId] = useState(null);
     const [expandedInverters, setExpandedInverters] = useState({});
-
-    // Auto-switch away from 'all' on Daily Entry page (daily entry requires a specific company)
-    useEffect(() => {
-        if (page === 'entry' && companyId === 'all' && companies.length > 0) {
-            setCompanyId(String(companies[0].id));
-        }
-    }, [page, companyId, companies, setCompanyId]);
 
     // Live clock with seconds
     useEffect(() => {
@@ -91,43 +82,6 @@ export default function MobileAppView({
             setInstalled(true);
         }
         return () => window.removeEventListener('beforeinstallprompt', handler);
-    }, []);
-
-    // 📱 Keyboard Open / Focus State Listener for Mobile Modals
-    useEffect(() => {
-        const handleFocusIn = (e) => {
-            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target?.tagName)) {
-                document.body.classList.add('keyboard-open');
-            }
-        };
-        const handleFocusOut = (e) => {
-            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target?.tagName)) {
-                setTimeout(() => {
-                    if (!['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
-                        document.body.classList.remove('keyboard-open');
-                    }
-                }, 100);
-            }
-        };
-        window.addEventListener('focusin', handleFocusIn);
-        window.addEventListener('focusout', handleFocusOut);
-
-        const vv = window.visualViewport;
-        const handleVvResize = () => {
-            if (vv && window.innerHeight - vv.height > 140) {
-                document.body.classList.add('keyboard-open');
-            } else if (vv && window.innerHeight - vv.height <= 80 && !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
-                document.body.classList.remove('keyboard-open');
-            }
-        };
-        if (vv) vv.addEventListener('resize', handleVvResize);
-
-        return () => {
-            window.removeEventListener('focusin', handleFocusIn);
-            window.removeEventListener('focusout', handleFocusOut);
-            if (vv) vv.removeEventListener('resize', handleVvResize);
-            document.body.classList.remove('keyboard-open');
-        };
     }, []);
 
     const handleInstallClick = async () => {
@@ -168,11 +122,7 @@ export default function MobileAppView({
     // 🔔 Real Push Notification & In-App Toast Alert Trigger
     const triggerMobileNotification = async (customTitle, customBody) => {
         const title = customTitle || 'SolarFlow ⚡ Live Solar Generation Alert';
-        const liveKwVal = parseFloat(liveData?.realtime_power_kw || '0');
-        const livePowerStr = liveKwVal >= 1000
-            ? `${(liveKwVal / 1000).toFixed(2)} MW (${liveKwVal.toFixed(1)} kW)`
-            : `${liveKwVal.toFixed(1)} kW (${(liveKwVal / 1000).toFixed(2)} MW)`;
-        const bodyText = customBody || `Real-time: ${livePowerStr} | Today: ${liveData?.today_units_kwh || '0.00'} kWh | ₹${liveData?.total_revenue_rs || '0.00'}`;
+        const bodyText = customBody || `Real-time: ${liveData?.realtime_power_mw || '1.81'} MW (${liveData?.realtime_power_kw || '1805.4'} kW) | Today: ${liveData?.today_units_kwh || '12,643.10'} kWh | ₹${liveData?.total_revenue_rs || '48,043.78'}`;
 
         // 1. Play Soft Chime Sound
         playNotificationSound();
@@ -235,10 +185,8 @@ export default function MobileAppView({
     const alerts = liveData?.cleaning_alerts || [];
     const firstAlert = alerts[0];
 
-    const hasAttendanceAccess = user.role === 'employee' || can('view_attendance') || can('record_employee_attendance') || can('clock_attendance');
-    const attendanceTargetPage = (user.role === 'employee' || can('clock_attendance')) ? 'my-attendance' : 'attendance';
-    const salaryTargetPage = (user.role === 'super_admin' || user.role === 'company_admin') ? 'salaries' : (user.role === 'employee' ? 'my-salary' : 'salaries');
-    const canSwitchCompanies = user.role === 'super_admin' || (user.role === 'employee' && page === 'entry');
+    const attendanceTargetPage = user.role === 'employee' ? 'my-attendance' : 'attendance';
+    const salaryTargetPage = (user.role === 'super_admin' || user.role === 'company_admin') ? 'salaries' : 'my-salary';
 
     // Toggle 16 PV Strings for a specific Inverter
     const toggleInverterPv = (invKey) => {
@@ -349,15 +297,7 @@ export default function MobileAppView({
             )}
 
             {/* 2. COMPANY SELECTOR DROPDOWN BAR */}
-            <div
-                className="mobile-company-selector-bar"
-                onClick={() => {
-                    if (canSwitchCompanies && companies.length > 1) {
-                        setShowCompanyPicker(true);
-                    }
-                }}
-                style={{cursor: (canSwitchCompanies && companies.length > 1) ? 'pointer' : 'default'}}
-            >
+            <div className="mobile-company-selector-bar" onClick={() => setShowCompanyPicker(true)}>
                 <div className="company-sel-left">
                     <Leaf size={15} className="leaf-icon"/>
                     <span className="company-title-text">
@@ -376,9 +316,7 @@ export default function MobileAppView({
                     >
                         <RefreshCw size={13} className={refreshing ? 'spin' : ''}/>
                     </button>
-                    {canSwitchCompanies && companies.length > 1 && (
-                        <ChevronDown size={16} className="chevron-icon"/>
-                    )}
+                    <ChevronDown size={16} className="chevron-icon"/>
                 </div>
             </div>
 
@@ -445,71 +383,47 @@ export default function MobileAppView({
                         </div>
                     )}
 
-                    {/* 5. MODERN PERMISSION-FILTERED QUICK ACTIONS GRID */}
-                    {(() => {
-                        const quickActions = [
-                            can('enter_readings') && {
-                                key: 'entry',
-                                label: 'Daily Entry',
-                                icon: ClipboardPlus,
-                                colorClass: 'clip-wrap'
-                            },
-                            hasAttendanceAccess && {
-                                key: attendanceTargetPage,
-                                label: user.role === 'employee' ? 'હાજરી' : 'Attendance',
-                                icon: UserCheck,
-                                colorClass: 'user-wrap'
-                            },
-                            can('view_reports') && {
-                                key: 'reports',
-                                label: 'Reports',
-                                icon: BarChart3,
-                                colorClass: 'bar-wrap'
-                            },
-                            can('view_expenses') && {
-                                key: 'expenses',
-                                label: 'Expenses',
-                                icon: IndianRupee,
-                                colorClass: 'rupee-wrap'
-                            },
-                            can('view_stock') && {
-                                key: 'stock',
-                                label: 'Stock',
-                                icon: Boxes,
-                                colorClass: 'clip-wrap'
-                            },
-                            can('view_employees') && {
-                                key: 'employees',
-                                label: 'Employees',
-                                icon: Users,
-                                colorClass: 'user-wrap'
-                            },
-                        ].filter(Boolean);
+                    {/* 5. MODERN 4-TOUCH ACTION GRID */}
+                    <div className="mobile-action-grid-section">
+                        <h4 className="mobile-sec-heading">Quick Actions</h4>
+                        <div className="mobile-quick-actions-bar">
+                            <button
+                                type="button"
+                                className="mqa-btn"
+                                onClick={() => setPage('entry')}
+                            >
+                                <div className="mqa-icon-wrap clip-wrap"><ClipboardPlus size={20}/></div>
+                                <span>Daily Entry</span>
+                            </button>
 
-                        if (!quickActions.length) return null;
+                            <button
+                                type="button"
+                                className="mqa-btn"
+                                onClick={() => setPage(attendanceTargetPage)}
+                            >
+                                <div className="mqa-icon-wrap user-wrap"><UserCheck size={20}/></div>
+                                <span>Attendance</span>
+                            </button>
 
-                        return (
-                            <div className="mobile-action-grid-section">
-                                <h4 className="mobile-sec-heading">Quick Actions</h4>
-                                <div className="mobile-quick-actions-bar">
-                                    {quickActions.map(action => {
-                                        const Icon = action.icon;
-                                        return (
-                                            <button
-                                                key={action.key}
-                                                type="button"
-                                                className="mqa-btn"
-                                                onClick={() => setPage(action.key)}
-                                            >
-                                                <div className={`mqa-icon-wrap ${action.colorClass}`}><Icon size={20}/></div>
-                                                <span>{action.label}</span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        );
-                    })()}
+                            <button
+                                type="button"
+                                className="mqa-btn"
+                                onClick={() => setPage('reports')}
+                            >
+                                <div className="mqa-icon-wrap bar-wrap"><BarChart3 size={20}/></div>
+                                <span>Reports</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                className="mqa-btn"
+                                onClick={() => setPage('expenses')}
+                            >
+                                <div className="mqa-icon-wrap rupee-wrap"><IndianRupee size={20}/></div>
+                                <span>Expenses</span>
+                            </button>
+                        </div>
+                    </div>
 
                     {/* 6. COMPANY PLANTS & ACCORDION INVERTER LIST (MATCHING media_1790849197508.png) */}
                     <div className="mobile-plants-section">
@@ -659,81 +573,53 @@ export default function MobileAppView({
                 </main>
             )}
 
-            {/* 7. MODERN FLOATING BOTTOM NAVIGATION BAR (Strictly Permission Filtered) */}
-            {(() => {
-                const bottomNavItems = [
-                    can('view_dashboard') && {
-                        key: 'dashboard',
-                        label: 'Home',
-                        icon: Home,
-                        match: ['dashboard']
-                    },
-                    can('enter_readings') && {
-                        key: 'entry',
-                        label: 'Daily Entry',
-                        icon: ClipboardPlus,
-                        match: ['entry']
-                    },
-                    hasAttendanceAccess && {
-                        key: attendanceTargetPage,
-                        label: user.role === 'employee' ? 'હાજરી' : 'Attendance',
-                        icon: UserCheck,
-                        match: [attendanceTargetPage, 'attendance', 'my-attendance']
-                    },
-                    can('view_reports') && {
-                        key: 'reports',
-                        label: 'Reports',
-                        icon: BarChart3,
-                        match: ['reports']
-                    },
-                    can('view_expenses') && !can('view_reports') && {
-                        key: 'expenses',
-                        label: 'Expenses',
-                        icon: IndianRupee,
-                        match: ['expenses']
-                    },
-                    can('view_stock') && !can('view_reports') && !can('view_expenses') && {
-                        key: 'stock',
-                        label: 'Stock',
-                        icon: Boxes,
-                        match: ['stock']
-                    },
-                    can('view_employees') && !can('view_reports') && !can('view_expenses') && !can('view_stock') && {
-                        key: 'employees',
-                        label: 'Employees',
-                        icon: Users,
-                        match: ['employees']
-                    },
-                ].filter(Boolean);
+            {/* 7. MODERN FLOATING BOTTOM NAVIGATION BAR */}
+            <nav className="mobile-bottom-navbar">
+                <button
+                    type="button"
+                    className={`bnav-item ${page === 'dashboard' ? 'active' : ''}`}
+                    onClick={() => setPage('dashboard')}
+                >
+                    <Home size={20}/>
+                    <span>Home</span>
+                </button>
 
-                return (
-                    <nav className="mobile-bottom-navbar">
-                        {bottomNavItems.map(item => {
-                            const Icon = item.icon;
-                            const isActive = item.match ? item.match.includes(page) : page === item.key;
-                            return (
-                                <button
-                                    key={item.key}
-                                    type="button"
-                                    className={`bnav-item ${isActive ? 'active' : ''}`}
-                                    onClick={() => setPage(item.key)}
-                                >
-                                    <Icon size={20}/>
-                                    <span>{item.label}</span>
-                                </button>
-                            );
-                        })}
-                        <button
-                            type="button"
-                            className={`bnav-item ${moreMenuOpen ? 'active' : ''}`}
-                            onClick={() => setMoreMenuOpen(true)}
-                        >
-                            <MoreHorizontal size={20}/>
-                            <span>More</span>
-                        </button>
-                    </nav>
-                );
-            })()}
+                <button
+                    type="button"
+                    className={`bnav-item ${page === 'entry' ? 'active' : ''}`}
+                    onClick={() => setPage('entry')}
+                >
+                    <ClipboardPlus size={20}/>
+                    <span>Daily Entry</span>
+                </button>
+
+                <button
+                    type="button"
+                    className={`bnav-item ${[attendanceTargetPage, 'attendance', 'my-attendance'].includes(page) ? 'active' : ''}`}
+                    onClick={() => setPage(attendanceTargetPage)}
+                >
+                    <UserCheck size={20}/>
+                    <span>Attendance</span>
+                </button>
+
+                <button
+                    type="button"
+                    className={`bnav-item ${page === 'reports' ? 'active' : ''}`}
+                    onClick={() => setPage('reports')}
+                >
+                    <BarChart3 size={20}/>
+                    <span>Reports</span>
+                </button>
+
+                <button
+                    type="button"
+                    className={`bnav-item ${moreMenuOpen ? 'active' : ''}`}
+                    onClick={() => setMoreMenuOpen(true)}
+                >
+                    <MoreHorizontal size={20}/>
+                    <span>More</span>
+                </button>
+            </nav>
 
             {/* 🔔 Slide-up Notification Center & Alerts Drawer */}
             {notifCenterOpen && (
@@ -805,7 +691,7 @@ export default function MobileAppView({
                 </div>
             )}
 
-            {/* Slide-up "More Menu" Drawer (Strictly Permission Filtered) */}
+            {/* Slide-up "More Menu" Drawer */}
             {moreMenuOpen && (
                 <div className="mobile-drawer-backdrop" onClick={() => setMoreMenuOpen(false)}>
                     <div className="mobile-drawer-sheet" onClick={e => e.stopPropagation()}>
@@ -823,79 +709,83 @@ export default function MobileAppView({
                             </button>
                         </div>
 
-                        {(() => {
-                            const drawerMenuItems = [
-                                can('view_expenses') && {
-                                    key: 'expenses',
-                                    label: 'Expenses (ખર્ચ)',
-                                    icon: IndianRupee
-                                },
-                                ((user.role === 'super_admin' || user.role === 'company_admin') || (user.role === 'employee')) && {
-                                    key: salaryTargetPage,
-                                    label: 'Salaries (પગાર)',
-                                    icon: WalletCards
-                                },
-                                can('view_stock') && {
-                                    key: 'stock',
-                                    label: 'Stock & Spares',
-                                    icon: Boxes
-                                },
-                                can('view_employees') && {
-                                    key: 'employees',
-                                    label: 'Employees (કર્મચારીઓ)',
-                                    icon: Users
-                                },
-                                can('view_attendance') && {
-                                    key: 'attendance',
-                                    label: 'Daily Attendance',
-                                    icon: UserCheck
-                                },
-                                can('view_attendance') && {
-                                    key: 'leave-holidays',
-                                    label: 'Leave & Holidays',
-                                    icon: Calendar
-                                },
-                                can('view_attendance_reports') && {
-                                    key: 'attendance-reports',
-                                    label: 'Attendance Reports',
-                                    icon: BarChart3
-                                },
-                                (user.role === 'super_admin' || can('manage_company_users')) && {
-                                    key: 'users',
-                                    label: 'Users & Permissions',
-                                    icon: Users
-                                },
-                                user.role === 'super_admin' && {
-                                    key: 'companies',
-                                    label: 'Companies Config',
-                                    icon: Building2
-                                },
-                                (user.role === 'super_admin' || can('manage_company_users')) && {
-                                    key: 'activity',
-                                    label: 'Activity Log',
-                                    icon: Activity
-                                },
-                            ].filter(Boolean);
+                        <div className="drawer-menu-grid">
+                            <button
+                                type="button"
+                                className="dmenu-item"
+                                onClick={() => { setPage('expenses'); setMoreMenuOpen(false); }}
+                            >
+                                <IndianRupee size={18}/>
+                                <span>Expenses (ખર્ચ)</span>
+                            </button>
 
-                            return (
-                                <div className="drawer-menu-grid">
-                                    {drawerMenuItems.map(item => {
-                                        const Icon = item.icon;
-                                        return (
-                                            <button
-                                                key={item.key}
-                                                type="button"
-                                                className="dmenu-item"
-                                                onClick={() => { setPage(item.key); setMoreMenuOpen(false); }}
-                                            >
-                                                <Icon size={18}/>
-                                                <span>{item.label}</span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            );
-                        })()}
+                            <button
+                                type="button"
+                                className="dmenu-item"
+                                onClick={() => { setPage(salaryTargetPage); setMoreMenuOpen(false); }}
+                            >
+                                <WalletCards size={18}/>
+                                <span>Salaries (પગાર)</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                className="dmenu-item"
+                                onClick={() => { setPage('stock'); setMoreMenuOpen(false); }}
+                            >
+                                <Boxes size={18}/>
+                                <span>Stock & Spares</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                className="dmenu-item"
+                                onClick={() => { setPage('leave-holidays'); setMoreMenuOpen(false); }}
+                            >
+                                <Calendar size={18}/>
+                                <span>Leave & Holidays</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                className="dmenu-item"
+                                onClick={() => { setPage('attendance-reports'); setMoreMenuOpen(false); }}
+                            >
+                                <BarChart3 size={18}/>
+                                <span>Attendance Reports</span>
+                            </button>
+
+                            {user.role === 'super_admin' && (
+                                <button
+                                    type="button"
+                                    className="dmenu-item"
+                                    onClick={() => { setPage('users'); setMoreMenuOpen(false); }}
+                                >
+                                    <Users size={18}/>
+                                    <span>Users & Permissions</span>
+                                </button>
+                            )}
+
+                            {user.role === 'super_admin' && (
+                                <button
+                                    type="button"
+                                    className="dmenu-item"
+                                    onClick={() => { setPage('companies'); setMoreMenuOpen(false); }}
+                                >
+                                    <Building2 size={18}/>
+                                    <span>Companies Config</span>
+                                </button>
+                            )}
+
+                            <button
+                                type="button"
+                                className="dmenu-item"
+                                onClick={() => { setPage('activity'); setMoreMenuOpen(false); }}
+                            >
+                                <Activity size={18}/>
+                                <span>Activity Log</span>
+                            </button>
+                        </div>
 
                         <div className="drawer-footer-actions">
                             <button
@@ -918,19 +808,17 @@ export default function MobileAppView({
                         <div className="drawer-handle-bar"/>
                         <h3>Select Solar Company</h3>
                         <div className="company-options-list">
-                            {page !== 'entry' && (
-                                <button
-                                    type="button"
-                                    className={`comp-option-btn ${companyId === 'all' ? 'selected' : ''}`}
-                                    onClick={() => {
-                                        setCompanyId('all');
-                                        setShowCompanyPicker(false);
-                                    }}
-                                >
-                                    <Sparkles size={16} style={{color: '#15803d'}}/>
-                                    <span>All Companies (Combined Live Sync)</span>
-                                </button>
-                            )}
+                            <button
+                                type="button"
+                                className={`comp-option-btn ${companyId === 'all' ? 'selected' : ''}`}
+                                onClick={() => {
+                                    setCompanyId('all');
+                                    setShowCompanyPicker(false);
+                                }}
+                            >
+                                <Sparkles size={16} style={{color: '#15803d'}}/>
+                                <span>All Companies (Combined Live Sync)</span>
+                            </button>
                             {companies.map(c => (
                                 <button
                                     type="button"

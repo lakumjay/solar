@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {CheckCircle2, FileSpreadsheet, FileText, HandCoins, IndianRupee, PencilLine, Plus, ReceiptIndianRupee, Scale, X} from 'lucide-react';
+import {ArrowRight, CheckCircle2, Clock, FileSpreadsheet, FileText, HandCoins, History, IndianRupee, Layers, PencilLine, Plus, ReceiptIndianRupee, Scale, Sparkles, Split, X, Zap} from 'lucide-react';
 import {api} from '../api';
 import {Empty, Field, Loading, Metric} from '../components/Common';
 import {monthStart, today} from '../config';
@@ -13,72 +13,1074 @@ export default function ExpensesPage({currentUser}) {
     const [settlement, setSettlement] = useState(null);
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
+    const [activeTab, setActiveTab] = useState('ledger'); // 'ledger' or 'settlements'
+
     const load = async () => {
-        try { setData(await api(`expenses?date_from=${from}&date_to=${to}`)); setError(''); }
-        catch (failure) { setError(failure.message); }
+        try {
+            setData(await api(`expenses?date_from=${from}&date_to=${to}`));
+            setError('');
+        } catch (failure) {
+            setError(failure.message);
+        }
     };
+
     useEffect(() => { load(); }, []);
-    const completed = async success => { setExpenseForm(null); setSettlement(null); setMessage(success); await load(); };
+
+    const completed = async success => {
+        setExpenseForm(null);
+        setSettlement(null);
+        setMessage(success);
+        await load();
+    };
+
     const action = async (entry, name) => {
         if (!window.confirm(`${name === 'cancel' ? 'Cancel' : 'Reverse'} this expense?`)) return;
-        try { await api(`expenses/${entry.id}/${name}`, {method: 'POST'}); await completed(`Expense ${name === 'cancel' ? 'cancelled' : 'reversed'} successfully.`); }
-        catch (failure) { setError(failure.message); }
+        try {
+            await api(`expenses/${entry.id}/${name}`, {method: 'POST'});
+            await completed(`Expense ${name === 'cancel' ? 'cancelled' : 'reversed'} successfully.`);
+        } catch (failure) {
+            setError(failure.message);
+        }
     };
-    const groupedEntries = useMemo(() => Object.entries((data?.entries || []).reduce((groups, entry) => ({...groups, [entry.date]: [...(groups[entry.date] || []), entry]}), {})), [data]);
+
+    const groupedEntries = useMemo(() => {
+        return Object.entries(
+            (data?.entries || []).reduce((groups, entry) => ({
+                ...groups,
+                [entry.date]: [...(groups[entry.date] || []), entry],
+            }), {})
+        );
+    }, [data]);
 
     if (!data && !error) return <Loading/>;
     if (!data) return <Empty title="Could not load expenses" detail={error}/>;
+
     const summary = data.summary;
+    const settlementsHistory = data.settlements_history || [];
 
-    return <div className="expenses-page">
-        {currentUser.role === 'super_admin' ? <div className="cards expense-summary-cards"><Metric icon={IndianRupee} title="Total outstanding" value={summary.total_outstanding} unit="INR" color="amber"/><Metric icon={Scale} title="Open balances" value={summary.open_pairs} unit="company pairs"/><Metric icon={CheckCircle2} title="Cleared balances" value={summary.cleared_pairs} unit="company pairs"/><Metric icon={ReceiptIndianRupee} title="Period entries" value={summary.entries} unit="ledger entries"/></div> : <div className="cards expense-summary-cards"><Metric icon={HandCoins} title="You need to pay" value={summary.payable} unit="INR" color="amber"/><Metric icon={IndianRupee} title="You will receive" value={summary.receivable} unit="INR"/><Metric icon={Scale} title="Net balance" value={summary.net} unit="INR"/><Metric icon={ReceiptIndianRupee} title="Open balances" value={summary.open_pairs} unit="company pairs"/></div>}
-        {message && <div className="success">{message}</div>}{error && <div className="error">{error}</div>}
-        {!data.settings.configured && <div className="error">Shared expense percentages are not configured. Set the active-company total to 100% in Company Configuration.</div>}
-        <section className="panel expense-toolbar"><div><label><span>From</span><input type="date" max={today()} value={from} onChange={event => setFrom(event.target.value)}/></label><label><span>To</span><input type="date" max={today()} value={to} onChange={event => setTo(event.target.value)}/></label><button className="secondary" onClick={load}>Apply</button></div><div className="expense-toolbar-actions"><a className="secondary" href={`/api/expenses/export/excel?date_from=${from}&date_to=${to}`}><FileSpreadsheet size={16}/>{currentUser.role === 'super_admin' ? 'Export all expenses' : 'Export my expenses'}</a>{data.can_manage && <button className="primary" disabled={!data.settings.configured} onClick={() => setExpenseForm({})}><Plus size={16}/> Add expense</button>}</div></section>
+    return (
+        <div className="expenses-page">
+            {currentUser.role === 'super_admin' ? (
+                <div className="cards expense-summary-cards">
+                    <Metric icon={IndianRupee} title="Total outstanding" value={summary.total_outstanding} unit="INR" color="amber"/>
+                    <Metric icon={Scale} title="Open balances" value={summary.open_pairs} unit="company pairs"/>
+                    <Metric icon={CheckCircle2} title="Cleared balances" value={summary.cleared_pairs} unit="company pairs"/>
+                    <Metric icon={ReceiptIndianRupee} title="Period entries" value={summary.entries} unit="ledger entries"/>
+                </div>
+            ) : (
+                <div className="cards expense-summary-cards">
+                    <Metric icon={HandCoins} title="You need to pay" value={summary.payable} unit="INR" color="amber"/>
+                    <Metric icon={IndianRupee} title="You will receive" value={summary.receivable} unit="INR"/>
+                    <Metric icon={Scale} title="Net balance" value={summary.net} unit="INR"/>
+                    <Metric icon={ReceiptIndianRupee} title="Open balances" value={summary.open_pairs} unit="company pairs"/>
+                </div>
+            )}
 
-        <section className="panel"><div className="panel-head"><div><h2>Company balances</h2><p>Opposite purchases are netted automatically. Settlement payments reduce the remaining pair balance.</p></div></div>{data.balances.length ? <div className="table-wrap"><table><thead><tr><th>Companies</th><th>Current position</th><th>Amount</th><th>Status</th>{data.can_manage && <th/>}</tr></thead><tbody>{data.balances.map(pair => <tr key={pair.key}><td className="strong">{pair.first_company.name} ↔ {pair.second_company.name}</td><td>{pair.status === 'cleared' ? 'No amount pending' : `${pair.debtor_company.name} pays ${pair.creditor_company.name}`}</td><td>₹{number(pair.amount)}</td><td><i className={`status ${pair.status === 'cleared' ? 'on' : 'warning'}`}>{pair.status}</i></td>{data.can_manage && <td>{pair.status === 'open' && <button className="link" onClick={() => setSettlement(pair)}><HandCoins size={14}/> Settle</button>}</td>}</tr>)}</tbody></table></div> : <Empty title="No company balances yet" detail="Add the first shared expense to start the ledger."/>}</section>
+            {message && <div className="success">{message}</div>}
+            {error && <div className="error">{error}</div>}
+            {!data.settings.configured && (
+                <div className="error">
+                    Shared expense percentages are not configured. Set the active-company total to 100% in Company Configuration.
+                </div>
+            )}
 
-        <section className="panel"><div className="panel-head"><div><h2>Daily expense ledger</h2><p>Expenses, reversals, and settlement payments from {shortDate(from)} to {shortDate(to)}.</p></div></div>{groupedEntries.length ? <div className="expense-ledger">{groupedEntries.map(([date, entries]) => <div className="expense-day" key={date}><h3>{shortDate(date)}</h3><div className="table-wrap"><table><thead><tr><th>Entry</th><th>Company split / payment</th><th>Amount</th><th>Status</th><th/></tr></thead><tbody>{entries.map(entry => <LedgerRow entry={entry} canManage={data.can_manage} onEdit={() => setExpenseForm(entry)} onCancel={() => action(entry, 'cancel')} onReverse={() => action(entry, 'reverse')} key={`${entry.type}-${entry.id}`}/>)}</tbody></table></div></div>)}</div> : <Empty title="No expense entries" detail="No expenses or settlements were recorded in this date range."/>}</section>
+            {/* Toolbar */}
+            <section className="panel expense-toolbar">
+                <div>
+                    <label>
+                        <span>From</span>
+                        <input type="date" max={today()} value={from} onChange={event => setFrom(event.target.value)}/>
+                    </label>
+                    <label>
+                        <span>To</span>
+                        <input type="date" max={today()} value={to} onChange={event => setTo(event.target.value)}/>
+                    </label>
+                    <button className="secondary" onClick={load}>Apply</button>
+                </div>
+                <div className="expense-toolbar-actions">
+                    <a className="secondary" href={`/api/expenses/export/excel?date_from=${from}&date_to=${to}`}>
+                        <FileSpreadsheet size={16}/>
+                        {currentUser.role === 'super_admin' ? 'Export all expenses' : 'Export my expenses'}
+                    </a>
+                    {data.can_manage && (
+                        <button className="primary" disabled={!data.settings.configured} onClick={() => setExpenseForm({})}>
+                            <Plus size={16}/> Add shared expense
+                        </button>
+                    )}
+                </div>
+            </section>
 
-        {expenseForm && <ExpenseForm entry={expenseForm.id ? expenseForm : null} settings={data.settings} onClose={() => setExpenseForm(null)} onSaved={completed}/>} 
-        {settlement && <SettlementForm pair={settlement} onClose={() => setSettlement(null)} onSaved={completed}/>} 
-    </div>;
+            {/* Company Balances Panel */}
+            <section className="panel">
+                <div className="panel-head">
+                    <div>
+                        <h2>Company balances & Outstanding</h2>
+                        <p>Purchases and multi-payer splits are netted automatically. Partial settlements reduce the open balance.</p>
+                    </div>
+                </div>
+                {data.balances.length ? (
+                    <div className="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Companies</th>
+                                    <th>Current position</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    {data.can_manage && <th/>}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {data.balances.map(pair => (
+                                    <tr key={pair.key}>
+                                        <td className="strong">{pair.first_company.name} ↔ {pair.second_company.name}</td>
+                                        <td>
+                                            {pair.status === 'cleared'
+                                                ? 'No amount pending (સરભર)'
+                                                : <span><b>{pair.debtor_company.name}</b> pays <b>{pair.creditor_company.name}</b></span>}
+                                        </td>
+                                        <td className="strong" style={{color: pair.status === 'cleared' ? '#64748b' : '#b91c1c'}}>
+                                            ₹{number(pair.amount)}
+                                        </td>
+                                        <td>
+                                            <i className={`status ${pair.status === 'cleared' ? 'on' : 'warning'}`}>
+                                                {pair.status === 'cleared' ? 'Cleared' : 'Open Balance'}
+                                            </i>
+                                        </td>
+                                        {data.can_manage && (
+                                            <td>
+                                                {pair.status === 'open' && (
+                                                    <button className="primary" style={{padding: '5px 12px', fontSize: '12px'}} onClick={() => setSettlement(pair)}>
+                                                        <HandCoins size={14}/> Settle / Pay
+                                                    </button>
+                                                )}
+                                            </td>
+                                        )}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <Empty title="No company balances yet" detail="Add the first shared expense to start the ledger."/>
+                )}
+            </section>
+
+            {/* Tabs for Daily Ledger & Settlement Audit History */}
+            <div className="segment" style={{marginBottom: '14px'}}>
+                <button
+                    type="button"
+                    className={activeTab === 'ledger' ? 'active' : ''}
+                    onClick={() => setActiveTab('ledger')}
+                >
+                    <ReceiptIndianRupee size={15}/> Daily expense ledger ({data.entries?.length || 0})
+                </button>
+                <button
+                    type="button"
+                    className={activeTab === 'settlements' ? 'active' : ''}
+                    onClick={() => setActiveTab('settlements')}
+                >
+                    <History size={15}/> Settlement History & Logs ({settlementsHistory.length})
+                </button>
+            </div>
+
+            {/* TAB 1: Daily Expense Ledger */}
+            {activeTab === 'ledger' && (
+                <section className="panel">
+                    <div className="panel-head">
+                        <div>
+                            <h2>Daily expense ledger</h2>
+                            <p>Expenses, multi-payer allocations, reversals, and settlement payments from {shortDate(from)} to {shortDate(to)}.</p>
+                        </div>
+                    </div>
+                    {groupedEntries.length ? (
+                        <div className="expense-ledger">
+                            {groupedEntries.map(([date, entries]) => (
+                                <div className="expense-day" key={date}>
+                                    <h3>{shortDate(date)}</h3>
+                                    <div className="table-wrap">
+                                        <table>
+                                            <thead>
+                                                <tr>
+                                                    <th>Entry & Scope</th>
+                                                    <th>Company split & Payer(s)</th>
+                                                    <th>Amount</th>
+                                                    <th>Status</th>
+                                                    <th/>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {entries.map(entry => (
+                                                    <LedgerRow
+                                                        entry={entry}
+                                                        canManage={data.can_manage}
+                                                        onEdit={() => setExpenseForm(entry)}
+                                                        onCancel={() => action(entry, 'cancel')}
+                                                        onReverse={() => action(entry, 'reverse')}
+                                                        key={`${entry.type}-${entry.id}`}
+                                                    />
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <Empty title="No expense entries" detail="No expenses or settlements were recorded in this date range."/>
+                    )}
+                </section>
+            )}
+
+            {/* TAB 2: Settlement Audit History Log */}
+            {activeTab === 'settlements' && (
+                <section className="panel">
+                    <div className="panel-head">
+                        <div>
+                            <h2>Settlement History & Payment Log</h2>
+                            <p>Complete record of full and partial payments between companies with date, time, and remaining balances.</p>
+                        </div>
+                    </div>
+                    {settlementsHistory.length ? (
+                        <div className="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Date & Time</th>
+                                        <th>Transfer (From ➜ To)</th>
+                                        <th>Settled Amount</th>
+                                        <th>Type</th>
+                                        <th>Remaining Balance</th>
+                                        <th>Mode & Notes</th>
+                                        <th>Recorded by</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {settlementsHistory.map(item => (
+                                        <tr key={item.id}>
+                                            <td>
+                                                <b>{shortDate(item.date)}</b>
+                                                <small style={{display: 'block', color: '#64748b', fontSize: '11px'}}>{item.settled_at}</small>
+                                            </td>
+                                            <td>
+                                                <span style={{display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 600}}>
+                                                    <span>{item.from_company?.name}</span>
+                                                    <ArrowRight size={13} style={{color: '#059669'}}/>
+                                                    <span style={{color: '#059669'}}>{item.to_company?.name}</span>
+                                                </span>
+                                            </td>
+                                            <td className="strong" style={{color: '#059669'}}>
+                                                ₹{number(item.amount)}
+                                            </td>
+                                            <td>
+                                                <span className={`status ${item.settlement_type === 'full' ? 'on' : 'warning'}`}>
+                                                    {item.settlement_type === 'full' ? '100% Full' : 'Partial'}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                {item.remaining_balance > 0 ? (
+                                                    <span style={{color: '#b91c1c', fontWeight: 600}}>₹{number(item.remaining_balance)}</span>
+                                                ) : (
+                                                    <span style={{color: '#059669', fontWeight: 600}}>₹0.00 (Cleared)</span>
+                                                )}
+                                            </td>
+                                            <td>
+                                                <span style={{textTransform: 'capitalize', fontSize: '11.5px', color: '#334155'}}>
+                                                    {item.payment_mode?.replace('_', ' ') || 'Bank Transfer'}
+                                                </span>
+                                                {item.notes && <small style={{display: 'block', color: '#64748b'}}>{item.notes}</small>}
+                                            </td>
+                                            <td>
+                                                <small>{item.creator?.name || 'Admin'}</small>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <Empty title="No settlements recorded yet" detail="When companies pay outstanding balances, settlement history will appear here with full timestamps."/>
+                    )}
+                </section>
+            )}
+
+            {/* Modals */}
+            {expenseForm && (
+                <ExpenseForm
+                    entry={expenseForm.id ? expenseForm : null}
+                    settings={data.settings}
+                    onClose={() => setExpenseForm(null)}
+                    onSaved={completed}
+                />
+            )}
+
+            {settlement && (
+                <SettlementForm
+                    pair={settlement}
+                    onClose={() => setSettlement(null)}
+                    onSaved={completed}
+                />
+            )}
+        </div>
+    );
 }
 
 function LedgerRow({entry, canManage, onEdit, onCancel, onReverse}) {
-    if (entry.type === 'settlement') return <tr><td><b>Settlement payment</b><small>{entry.from_company.name} paid {entry.to_company.name}{entry.notes ? ` · ${entry.notes}` : ''}</small></td><td>{entry.from_company.name} → {entry.to_company.name}</td><td>₹{number(entry.amount)}</td><td><i className={`status ${entry.status === 'cleared' ? 'on' : 'warning'}`}>{entry.status}</i></td><td/></tr>;
+    if (entry.type === 'settlement') {
+        return (
+            <tr>
+                <td>
+                    <b>Settlement payment</b>
+                    <small>
+                        {entry.from_company?.name} paid {entry.to_company?.name}
+                        {entry.notes ? ` · ${entry.notes}` : ''}
+                    </small>
+                </td>
+                <td>
+                    <span style={{display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 600, color: '#059669'}}>
+                        {entry.from_company?.name} ➜ {entry.to_company?.name}
+                    </span>
+                </td>
+                <td className="strong" style={{color: '#059669'}}>₹{number(entry.amount)}</td>
+                <td>
+                    <i className={`status ${entry.status === 'cleared' ? 'on' : 'warning'}`}>
+                        {entry.status === 'cleared' ? 'Full Settlement' : 'Partial Settlement'}
+                    </i>
+                </td>
+                <td/>
+            </tr>
+        );
+    }
 
-    return <tr><td><b>{entry.description}</b><small>{entry.purchaser_name} · {entry.payer_company.name}{entry.notes ? ` · ${entry.notes}` : ''}</small></td><td><div className="allocation-list">{entry.allocations.map(row => <span key={row.company.id}><b>{row.company.name}</b> {number(row.percentage)}% · ₹{number(row.amount)} {row.is_payer ? '(covered)' : ''}</span>)}</div></td><td>₹{number(entry.amount)}</td><td><i className={`status ${entry.status === 'active' ? entry.locked ? 'warning' : 'on' : entry.status === 'cancelled' ? 'danger' : ''}`}>{entry.type === 'reversal' ? 'reversal' : entry.status}{entry.locked && entry.status === 'active' ? ' · locked' : ''}</i></td><td><div className="row-actions">{entry.receipt_url && <a className="link" href={entry.receipt_url} target="_blank" rel="noreferrer"><FileText size={14}/> Receipt</a>}{canManage && entry.editable && <><button className="link" onClick={onEdit}><PencilLine size={14}/> Edit</button><button className="link danger-text" onClick={onCancel}>Cancel</button></>}{canManage && entry.reversible && <button className="link danger-text" onClick={onReverse}>Reverse</button>}</div></td></tr>;
+    const scopeBadge = entry.allocation_scope === 'single'
+        ? '1 Company (100% Direct)'
+        : entry.allocation_scope === 'two'
+            ? '2 Companies Split'
+            : 'All Companies (3-Way Master)';
+
+    return (
+        <tr>
+            <td>
+                <b>{entry.description}</b>
+                <small>
+                    {entry.purchaser_name} · <span style={{color: '#0284c7', fontWeight: 600}}>{scopeBadge}</span>
+                    {entry.notes ? ` · ${entry.notes}` : ''}
+                </small>
+            </td>
+            <td>
+                <div className="allocation-list">
+                    {/* Payers summary */}
+                    {entry.payers && entry.payers.length > 0 && (
+                        <div style={{fontSize: '11px', color: '#0f766e', fontWeight: 700, marginBottom: '3px'}}>
+                            Paid by: {entry.payers.map(p => `${p.company_name} (₹${number(p.amount_paid)})`).join(', ')}
+                        </div>
+                    )}
+                    {/* Allocations breakdown */}
+                    {entry.allocations?.map(row => {
+                        const net = row.net_effect ?? ((row.amount_paid || 0) - row.amount);
+                        const netText = net > 0.001
+                            ? `(+₹${number(net)} લેવાના)`
+                            : net < -0.001
+                                ? `(-₹${number(Math.abs(net))} દેવાના)`
+                                : '(સરભર)';
+                        const netColor = net > 0.001 ? '#15803d' : net < -0.001 ? '#b91c1c' : '#64748b';
+
+                        return (
+                            <span key={row.company.id}>
+                                <b>{row.company.name}</b> {number(row.percentage)}% · ખર્ચ: ₹{number(row.amount)}{' '}
+                                <small style={{color: netColor, fontWeight: 700}}>{netText}</small>
+                            </span>
+                        );
+                    })}
+                </div>
+            </td>
+            <td className="strong">₹{number(entry.amount)}</td>
+            <td>
+                <i className={`status ${entry.status === 'active' ? (entry.locked ? 'warning' : 'on') : entry.status === 'cancelled' ? 'danger' : ''}`}>
+                    {entry.type === 'reversal' ? 'reversal' : entry.status}
+                    {entry.locked && entry.status === 'active' ? ' · locked' : ''}
+                </i>
+            </td>
+            <td>
+                <div className="row-actions">
+                    {entry.receipt_url && (
+                        <a className="link" href={entry.receipt_url} target="_blank" rel="noreferrer">
+                            <FileText size={14}/> Receipt
+                        </a>
+                    )}
+                    {canManage && entry.editable && (
+                        <>
+                            <button className="link" onClick={onEdit}><PencilLine size={14}/> Edit</button>
+                            <button className="link danger-text" onClick={onCancel}>Cancel</button>
+                        </>
+                    )}
+                    {canManage && entry.reversible && (
+                        <button className="link danger-text" onClick={onReverse}>Reverse</button>
+                    )}
+                </div>
+            </td>
+        </tr>
+    );
 }
 
 function ExpenseForm({entry, settings, onClose, onSaved}) {
-    const percentages = entry ? entry.allocations.map(row => ({id: row.company.id, name: row.company.name, percentage: row.percentage})) : settings.companies;
-    const [form, setForm] = useState({expense_date: entry?.date || today(), payer_company_id: String(entry?.payer_company.id || settings.companies[0]?.id || ''), purchaser_name: entry?.purchaser_name || '', description: entry?.description || '', amount: entry ? Math.abs(entry.amount) : '', notes: entry?.notes || '', remove_receipt: false});
+    const companies = settings.companies || [];
+
+    // Form fields
+    const [expenseDate, setExpenseDate] = useState(entry?.date || today());
+    const [purchaserName, setPurchaserName] = useState(entry?.purchaser_name || '');
+    const [description, setDescription] = useState(entry?.description || '');
+    const [amount, setAmount] = useState(entry ? String(Math.abs(entry.amount)) : '');
+    const [notes, setNotes] = useState(entry?.notes || '');
     const [receipt, setReceipt] = useState(null);
+    const [removeReceipt, setRemoveReceipt] = useState(false);
+
+    // 1. Allocation Scope (ખર્ચ કોના માટે છે)
+    const initialScope = entry?.allocation_scope || 'all';
+    const [allocationScope, setAllocationScope] = useState(initialScope);
+    const [selectedBeneficiaries, setSelectedBeneficiaries] = useState(() => {
+        if (entry?.allocations) {
+            return entry.allocations.filter(a => Number(a.percentage) > 0 || Number(a.amount) > 0).map(a => a.company.id);
+        }
+        return companies.map(c => c.id);
+    });
+    const [singleBeneficiaryId, setSingleBeneficiaryId] = useState(() => {
+        if (entry?.allocations) {
+            const single = entry.allocations.find(a => Number(a.percentage) >= 99.9 || Number(a.amount) >= Math.abs(entry.amount));
+            if (single) return String(single.company.id);
+        }
+        return String(companies[0]?.id || '');
+    });
+
+    // 2. Paying Company Mode (Single Payer vs Multi-Payer Split)
+    const [payerMode, setPayerMode] = useState(() => {
+        if (entry?.payers && entry.payers.length > 1) return 'multiple';
+        return 'single';
+    });
+    const [singlePayerId, setSinglePayerId] = useState(String(entry?.payer_company?.id || companies[0]?.id || ''));
+    
+    // Multiple payers state: map of { [companyId]: amountPaid }
+    const [payerAmounts, setPayerAmounts] = useState(() => {
+        const init = {};
+        companies.forEach(c => {
+            const existing = entry?.payers?.find(p => p.company_id === c.id);
+            init[c.id] = existing ? String(existing.amount_paid) : '';
+        });
+        return init;
+    });
+    const [selectedPayers, setSelectedPayers] = useState(() => {
+        if (entry?.payers && entry.payers.length > 0) {
+            return entry.payers.map(p => p.company_id);
+        }
+        return [companies[0]?.id].filter(Boolean);
+    });
+
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
-    const amount = Number(form.amount || 0);
-    const preview = percentages.filter(row => Number(row.percentage) > 0).map(row => ({...row, amount: amount * Number(row.percentage) / 100}));
-    const save = async event => {
-        event.preventDefault(); setBusy(true); setError('');
-        const payload = new FormData(); Object.entries(form).forEach(([key, value]) => payload.append(key, typeof value === 'boolean' ? (value ? '1' : '0') : value)); if (receipt) payload.append('receipt', receipt);
-        try { await api(entry ? `expenses/${entry.id}` : 'expenses', {method: 'POST', body: payload}); await onSaved(entry ? 'Expense updated successfully.' : 'Expense added successfully.'); }
-        catch (failure) { setError(failure.message); }
-        finally { setBusy(false); }
+
+    const parsedAmount = Number(amount) || 0;
+
+    // Toggle Beneficiary Checkbox for 2-company mode
+    const toggleBeneficiary = (cid) => {
+        setSelectedBeneficiaries(prev => {
+            if (prev.includes(cid)) {
+                if (prev.length <= 1) return prev; // keep at least 1
+                return prev.filter(id => id !== cid);
+            }
+            if (prev.length >= 2) {
+                return [prev[1], cid]; // replace first with new
+            }
+            return [...prev, cid];
+        });
     };
 
-    return <div className="modal-backdrop"><form className="modal expense-modal" onSubmit={save}><div className="panel-head"><div><h2>{entry ? 'Edit expense' : 'Add shared expense'}</h2><p>The saved split is calculated securely from company percentages.</p></div><button type="button" className="icon-button ghost" onClick={onClose}><X/></button></div><div className="form-grid two"><Field label="Expense date"><input type="date" max={today()} value={form.expense_date} onChange={event => setForm({...form, expense_date: event.target.value})} required/></Field><Field label="Paying company"><select value={form.payer_company_id} onChange={event => setForm({...form, payer_company_id: event.target.value})}>{settings.companies.map(company => <option value={company.id} key={company.id}>{company.name}</option>)}</select></Field><Field label="Purchased by"><input value={form.purchaser_name} maxLength="150" onChange={event => setForm({...form, purchaser_name: event.target.value})} placeholder="e.g. Jay" required/></Field><Field label="Total amount"><input type="number" min="0.01" step="0.01" inputMode="decimal" value={form.amount} onChange={event => setForm({...form, amount: event.target.value})} required/></Field><Field label="Description"><input value={form.description} maxLength="255" onChange={event => setForm({...form, description: event.target.value})} placeholder="What was purchased?" required/></Field><Field label="Receipt (optional)"><input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={event => setReceipt(event.target.files?.[0] || null)}/></Field></div><Field label="Notes (optional)"><textarea rows="3" value={form.notes} onChange={event => setForm({...form, notes: event.target.value})}/></Field>{entry?.receipt_url && <label className="toggle"><input type="checkbox" checked={form.remove_receipt} onChange={event => setForm({...form, remove_receipt: event.target.checked})}/><span/> Remove existing receipt</label>}<div className="expense-preview"><h3>Allocation preview</h3>{preview.map(row => <span key={row.id}><b>{row.name}</b><small>{number(row.percentage)}%</small><strong>₹{number(row.amount)}</strong>{String(row.id) === String(form.payer_company_id) && <i>Covered by payer</i>}</span>)}</div>{error && <div className="error">{error}</div>}<div className="form-actions"><span>Amounts are finalized server-side with paise rounding.</span><button className="primary" disabled={busy}>{busy ? 'Saving…' : entry ? 'Update expense' : 'Save expense'}</button></div></form></div>;
+    // Toggle Payer Checkbox for multiple payers
+    const togglePayer = (cid) => {
+        setSelectedPayers(prev => {
+            if (prev.includes(cid)) {
+                if (prev.length <= 1) return prev;
+                return prev.filter(id => id !== cid);
+            }
+            return [...prev, cid];
+        });
+    };
+
+    // "Split Equally" Action for Multiple Payers (૫૦-૫૦% વહેંચો)
+    const handleSplitEqually = () => {
+        if (!selectedPayers.length || parsedAmount <= 0) return;
+        const count = selectedPayers.length;
+        const splitVal = Number((parsedAmount / count).toFixed(2));
+        
+        setPayerAmounts(prev => {
+            const next = {...prev};
+            let runningSum = 0;
+            selectedPayers.forEach((cid, idx) => {
+                if (idx === count - 1) {
+                    // last takes residual
+                    next[cid] = String(Number((parsedAmount - runningSum).toFixed(2)));
+                } else {
+                    next[cid] = String(splitVal);
+                    runningSum += splitVal;
+                }
+            });
+            return next;
+        });
+    };
+
+    // Calculate live allocation percentages & rupee shares
+    const previewAllocations = useMemo(() => {
+        if (allocationScope === 'single') {
+            const targetId = Number(singleBeneficiaryId);
+            return companies.map(c => ({
+                id: c.id,
+                name: c.name,
+                percentage: c.id === targetId ? 100 : 0,
+                shareAmount: c.id === targetId ? parsedAmount : 0,
+            }));
+        }
+        if (allocationScope === 'two') {
+            const activeSel = companies.filter(c => selectedBeneficiaries.includes(c.id));
+            const sumMaster = activeSel.reduce((s, c) => s + (Number(c.percentage) || 0), 0);
+            return companies.map(c => {
+                if (!selectedBeneficiaries.includes(c.id)) {
+                    return {id: c.id, name: c.name, percentage: 0, shareAmount: 0};
+                }
+                const pct = sumMaster > 0 ? ((Number(c.percentage) || 0) / sumMaster) * 100 : 50;
+                return {
+                    id: c.id,
+                    name: c.name,
+                    percentage: Number(pct.toFixed(2)),
+                    shareAmount: Number((parsedAmount * (pct / 100)).toFixed(2)),
+                };
+            });
+        }
+        // Default All 3
+        return companies.map(c => {
+            const pct = Number(c.percentage) || 0;
+            return {
+                id: c.id,
+                name: c.name,
+                percentage: pct,
+                shareAmount: Number((parsedAmount * (pct / 100)).toFixed(2)),
+            };
+        });
+    }, [allocationScope, selectedBeneficiaries, singleBeneficiaryId, companies, parsedAmount]);
+
+    // Calculate live paid amounts per company
+    const previewPaidMap = useMemo(() => {
+        const map = {};
+        if (payerMode === 'single') {
+            const pid = Number(singlePayerId);
+            companies.forEach(c => { map[c.id] = c.id === pid ? parsedAmount : 0; });
+        } else {
+            companies.forEach(c => {
+                map[c.id] = selectedPayers.includes(c.id) ? Number(payerAmounts[c.id]) || 0 : 0;
+            });
+        }
+        return map;
+    }, [payerMode, singlePayerId, payerAmounts, selectedPayers, companies, parsedAmount]);
+
+    const totalPaidSum = Object.values(previewPaidMap).reduce((s, v) => s + v, 0);
+    const paidDiff = Number((parsedAmount - totalPaidSum).toFixed(2));
+    const isPaidValid = Math.abs(paidDiff) <= 0.01;
+
+    // Submit handler
+    const save = async event => {
+        event.preventDefault();
+        setBusy(true);
+        setError('');
+
+        if (parsedAmount <= 0) {
+            setError('Please enter a valid expense amount.');
+            setBusy(false);
+            return;
+        }
+
+        if (payerMode === 'multiple' && !isPaidValid) {
+            setError(`Total paid amounts (₹${totalPaidSum}) must equal total amount (₹${parsedAmount}). Difference: ₹${paidDiff}`);
+            setBusy(false);
+            return;
+        }
+
+        const payload = new FormData();
+        payload.append('expense_date', expenseDate);
+        payload.append('purchaser_name', purchaserName);
+        payload.append('description', description);
+        payload.append('amount', String(parsedAmount));
+        payload.append('notes', notes);
+        payload.append('allocation_scope', allocationScope);
+
+        if (allocationScope === 'single') {
+            payload.append('beneficiary_company_ids[]', singleBeneficiaryId);
+        } else if (allocationScope === 'two') {
+            selectedBeneficiaries.forEach(id => payload.append('beneficiary_company_ids[]', String(id)));
+        } else {
+            companies.forEach(c => payload.append('beneficiary_company_ids[]', String(c.id)));
+        }
+
+        if (payerMode === 'single') {
+            payload.append('payer_company_id', singlePayerId);
+        } else {
+            selectedPayers.forEach((cid, index) => {
+                payload.append(`payers[${index}][company_id]`, String(cid));
+                payload.append(`payers[${index}][amount_paid]`, String(previewPaidMap[cid] || 0));
+            });
+        }
+
+        if (receipt) payload.append('receipt', receipt);
+        if (removeReceipt) payload.append('remove_receipt', '1');
+
+        try {
+            await api(entry ? `expenses/${entry.id}` : 'expenses', {
+                method: 'POST',
+                body: payload,
+            });
+            await onSaved(entry ? 'Expense updated successfully.' : 'Shared expense added successfully.');
+        } catch (failure) {
+            setError(failure.message);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <div className="modal-backdrop" onClick={onClose}>
+            <form className="modal expense-modal expense-modal-sheet" onSubmit={save} onClick={e => e.stopPropagation()}>
+                <div className="mobile-modal-handle-bar"/>
+                
+                <div className="panel-head expense-sheet-head">
+                    <div>
+                        <h2>{entry ? 'Edit Shared Expense' : 'Add Shared Expense (શેર્ડ ખર્ચ)'}</h2>
+                        <p>કંપનીઓ વચ્ચે ભાગીદારી ખર્ચ અને ચૂકવણીની સરળ એન્ટ્રી</p>
+                    </div>
+                    <button type="button" className="icon-button ghost modal-close-chip" onClick={onClose}><X size={18}/></button>
+                </div>
+
+                <div className="expense-form-body-scroll">
+                    {/* Basic Info Fields */}
+                    <div className="form-grid two expense-base-grid">
+                        <Field label="Expense Date (ખર્ચની તારીખ)">
+                            <input type="date" max={today()} value={expenseDate} onChange={e => setExpenseDate(e.target.value)} required/>
+                        </Field>
+                        <Field label="Total Amount (કુલ રકમ ₹)">
+                            <div className="amount-input-prefix-wrap">
+                                <span className="input-rupee-symbol">₹</span>
+                                <input
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    inputMode="decimal"
+                                    value={amount}
+                                    onChange={e => setAmount(e.target.value)}
+                                    placeholder="0.00"
+                                    className="highlight-amount-input"
+                                    required
+                                />
+                            </div>
+                        </Field>
+                        <Field label="Purchased By (ખર્ચ કરનારનું નામ)">
+                            <input value={purchaserName} maxLength="150" onChange={e => setPurchaserName(e.target.value)} placeholder="e.g. Jay / Rajesh" required/>
+                        </Field>
+                        <Field label="Description (ખર્ચની વિગત)">
+                            <input value={description} maxLength="255" onChange={e => setDescription(e.target.value)} placeholder="e.g. Solar panel cleaning chemicals / spares" required/>
+                        </Field>
+                    </div>
+
+                    {/* STEP 1: BENEFICIARY SCOPE */}
+                    <div className="expense-step-card step-scope-card">
+                        <div className="step-card-header">
+                            <div className="step-badge-title">
+                                <span className="step-num-badge">1</span>
+                                <b>ખર્ચ કોના માટે થયો છે? (Beneficiary Scope)</b>
+                            </div>
+                        </div>
+                        
+                        <div className="scope-pills-row">
+                            <label className={`scope-pill-btn ${allocationScope === 'all' ? 'active' : ''}`}>
+                                <input type="radio" name="alloc_scope" checked={allocationScope === 'all'} onChange={() => setAllocationScope('all')}/>
+                                <span>ત્રણેય કંપનીઓ (All 3 Master %)</span>
+                            </label>
+
+                            <label className={`scope-pill-btn ${allocationScope === 'two' ? 'active' : ''}`}>
+                                <input type="radio" name="alloc_scope" checked={allocationScope === 'two'} onChange={() => setAllocationScope('two')}/>
+                                <span>૨ કંપનીઓ (2 Companies)</span>
+                            </label>
+
+                            <label className={`scope-pill-btn ${allocationScope === 'single' ? 'active' : ''}`}>
+                                <input type="radio" name="alloc_scope" checked={allocationScope === 'single'} onChange={() => setAllocationScope('single')}/>
+                                <span>૧ કંપની (100% Direct)</span>
+                            </label>
+                        </div>
+
+                        {/* Sub-selector for 2 Companies */}
+                        {allocationScope === 'two' && (
+                            <div className="scope-sub-panel">
+                                <span className="sub-panel-label">કોઈપણ ૨ કંપની પસંદ કરો:</span>
+                                <div className="companies-chips-list">
+                                    {companies.map(c => (
+                                        <label key={c.id} className={`company-check-chip ${selectedBeneficiaries.includes(c.id) ? 'checked' : ''}`}>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedBeneficiaries.includes(c.id)}
+                                                onChange={() => toggleBeneficiary(c.id)}
+                                            />
+                                            <span>{c.name}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Sub-selector for 1 Company */}
+                        {allocationScope === 'single' && (
+                            <div className="scope-sub-panel">
+                                <span className="sub-panel-label">કઈ કંપનીનો પોતાનો ખર્ચ છે?</span>
+                                <select
+                                    value={singleBeneficiaryId}
+                                    onChange={e => setSingleBeneficiaryId(e.target.value)}
+                                    className="clean-select-box"
+                                >
+                                    {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* STEP 2: PAYING COMPANY SELECTION */}
+                    <div className="expense-step-card step-payers-card">
+                        <div className="step-card-header">
+                            <div className="step-badge-title">
+                                <span className="step-num-badge green-badge">2</span>
+                                <b>પૈસા કોણે ચૂકવ્યા? (Who Paid the Bill?)</b>
+                            </div>
+
+                            <div className="payer-mode-switch-group">
+                                <label className={`payer-mode-pill ${payerMode === 'single' ? 'active' : ''}`}>
+                                    <input type="radio" name="payer_mode" checked={payerMode === 'single'} onChange={() => setPayerMode('single')}/>
+                                    <span>૧ કંપનીએ</span>
+                                </label>
+                                <label className={`payer-mode-pill ${payerMode === 'multiple' ? 'active' : ''}`}>
+                                    <input type="radio" name="payer_mode" checked={payerMode === 'multiple'} onChange={() => setPayerMode('multiple')}/>
+                                    <span>બે કે વધુ કંપનીઓએ</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        {payerMode === 'single' ? (
+                            <div className="single-payer-wrap">
+                                <span className="sub-panel-label">ચૂકવનાર કંપની:</span>
+                                <select
+                                    value={singlePayerId}
+                                    onChange={e => setSinglePayerId(e.target.value)}
+                                    className="clean-select-box"
+                                >
+                                    {companies.map(c => <option key={c.id} value={c.id}>{c.name} (૧૦૦% = ₹{number(parsedAmount)})</option>)}
+                                </select>
+                            </div>
+                        ) : (
+                            <div className="multiple-payers-wrap">
+                                <div className="split-action-header">
+                                    <span className="sub-panel-label">દરેક કંપનીએ ચૂકવેલ રકમ દાખલ કરો:</span>
+                                    <button
+                                        type="button"
+                                        onClick={handleSplitEqually}
+                                        className="quick-split-pill-btn"
+                                        title="Divide total amount equally among selected payers"
+                                    >
+                                        <Split size={13}/>
+                                        <span>⚡ Split Equally (૫૦-૫૦%)</span>
+                                    </button>
+                                </div>
+
+                                <div className="payers-grid-cards">
+                                    {companies.map(c => {
+                                        const isChecked = selectedPayers.includes(c.id);
+                                        return (
+                                            <div key={c.id} className={`payer-input-row-card ${isChecked ? 'active-payer' : ''}`}>
+                                                <label className="payer-chk-label">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isChecked}
+                                                        onChange={() => togglePayer(c.id)}
+                                                    />
+                                                    <span className="payer-name-text">{c.name}</span>
+                                                </label>
+                                                {isChecked && (
+                                                    <div className="payer-amount-input-wrap">
+                                                        <span>₹</span>
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            value={payerAmounts[c.id] ?? ''}
+                                                            onChange={e => {
+                                                                const val = e.target.value;
+                                                                setPayerAmounts(prev => ({...prev, [c.id]: val}));
+                                                            }}
+                                                            placeholder="0.00"
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Live Split Total Validation Bar */}
+                                <div className={`split-validation-status-bar ${isPaidValid ? 'valid-status' : 'invalid-status'}`}>
+                                    <span>કુલ ચૂકવેલ: <b>₹{number(totalPaidSum)}</b> / ₹{number(parsedAmount)}</span>
+                                    <span>
+                                        {isPaidValid
+                                            ? '✓ રકમ પરફેક્ટ મેચ છે'
+                                            : paidDiff > 0
+                                                ? `બાકી ₹${number(paidDiff)} ચૂકવવાના છે`
+                                                : `₹${number(Math.abs(paidDiff))} વધારે લખાયા છે`}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* STEP 3: DYNAMIC PREVIEW & LIVE NET CALCULATION */}
+                    <div className="expense-step-card step-preview-card">
+                        <div className="step-card-header">
+                            <div className="step-badge-title">
+                                <Sparkles size={15} style={{color: '#d97706'}}/>
+                                <b>૩. લાઈવ વહેંચણી અને હિસાબ પ્રિવ્યુ</b>
+                            </div>
+                        </div>
+
+                        <div className="preview-alloc-cards-list">
+                            {previewAllocations.map(row => {
+                                const paid = previewPaidMap[row.id] || 0;
+                                const share = row.shareAmount || 0;
+                                const net = Number((paid - share).toFixed(2));
+                                const netText = net > 0.001
+                                    ? `+₹${number(net)} (લેવાના)`
+                                    : net < -0.001
+                                        ? `-₹${number(Math.abs(net))} (દેવાના)`
+                                        : '₹0.00 (સરભર)';
+                                const netClass = net > 0.001 ? 'net-receivable' : net < -0.001 ? 'net-payable' : 'net-even';
+
+                                return (
+                                    <div key={row.id} className="preview-alloc-row-card">
+                                        <div className="alloc-comp-name">
+                                            <b>{row.name}</b>
+                                            <small>({number(row.percentage)}%)</small>
+                                        </div>
+                                        <div className="alloc-amounts-col">
+                                            <span>ચૂકવ્યા: <b>₹{number(paid)}</b></span>
+                                            <span>હિસ્સો: <b>₹{number(share)}</b></span>
+                                        </div>
+                                        <span className={`net-status-badge ${netClass}`}>
+                                            {netText}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Receipt & Notes */}
+                    <div className="form-grid two" style={{marginTop: '10px'}}>
+                        <Field label="Receipt upload (બિલની રસીદ)">
+                            <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={e => setReceipt(e.target.files?.[0] || null)}/>
+                        </Field>
+                        <Field label="Notes (નોંધ / Remarks)">
+                            <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Payment reference or remarks"/>
+                        </Field>
+                    </div>
+
+                    {entry?.receipt_url && (
+                        <label className="toggle" style={{marginTop: '6px'}}>
+                            <input type="checkbox" checked={removeReceipt} onChange={e => setRemoveReceipt(e.target.checked)}/>
+                            <span/> Remove existing receipt
+                        </label>
+                    )}
+
+                    {error && <div className="error" style={{marginTop: '10px'}}>{error}</div>}
+                </div>
+
+                {/* Bottom Modal Actions */}
+                <div className="modal-sticky-footer">
+                    <button
+                        type="submit"
+                        className="primary expense-submit-btn"
+                        disabled={busy || (payerMode === 'multiple' && !isPaidValid)}
+                    >
+                        {busy ? 'Saving…' : entry ? 'Update Expense' : 'Save Shared Expense (ખર્ચ સેવ કરો)'}
+                    </button>
+                </div>
+            </form>
+        </div>
+    );
 }
 
 function SettlementForm({pair, onClose, onSaved}) {
-    const [form, setForm] = useState({settled_on: today(), amount: pair.amount, notes: ''});
+    const totalOpen = Number(pair.amount) || 0;
+    const [settledOn, setSettledOn] = useState(today());
+    const [amount, setAmount] = useState(String(totalOpen));
+    const [paymentMode, setPaymentMode] = useState('bank_transfer');
+    const [notes, setNotes] = useState('');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
-    const save = async event => {
-        event.preventDefault(); setBusy(true); setError('');
-        try { await api('expense-settlements', {method: 'POST', body: JSON.stringify({...form, from_company_id: pair.debtor_company.id, to_company_id: pair.creditor_company.id})}); await onSaved('Settlement recorded successfully.'); }
-        catch (failure) { setError(failure.message); }
-        finally { setBusy(false); }
+
+    const parsedAmount = Number(amount) || 0;
+    const remainingBalance = Math.max(0, Number((totalOpen - parsedAmount).toFixed(2)));
+    const settlementType = remainingBalance <= 0.001 ? 'full' : 'partial';
+
+    // Preset Chip Click
+    const handlePreset = (fraction) => {
+        const val = Number((totalOpen * fraction).toFixed(2));
+        setAmount(String(val));
     };
-    return <div className="modal-backdrop"><form className="modal settlement-modal" onSubmit={save}><div className="panel-head"><div><h2>Record settlement</h2><p>{pair.debtor_company.name} pays {pair.creditor_company.name}</p></div><button type="button" className="icon-button ghost" onClick={onClose}><X/></button></div><div className="settlement-balance"><small>Open balance</small><strong>₹{number(pair.amount)}</strong></div><div className="form-grid two"><Field label="Payment date"><input type="date" max={today()} value={form.settled_on} onChange={event => setForm({...form, settled_on: event.target.value})} required/></Field><Field label="Amount paid"><input type="number" min="0.01" max={pair.amount} step="0.01" inputMode="decimal" value={form.amount} onChange={event => setForm({...form, amount: event.target.value})} required/></Field></div><Field label="Reference / notes (optional)"><textarea rows="3" value={form.notes} onChange={event => setForm({...form, notes: event.target.value})}/></Field>{error && <div className="error">{error}</div>}<div className="form-actions"><span>Partial payments keep the remaining balance open.</span><button className="primary" disabled={busy}>{busy ? 'Saving…' : 'Record payment'}</button></div></form></div>;
+
+    const save = async event => {
+        event.preventDefault();
+        setBusy(true);
+        setError('');
+
+        if (parsedAmount <= 0 || parsedAmount > totalOpen) {
+            setError(`Please enter a valid amount between ₹0.01 and ₹${number(totalOpen)}.`);
+            setBusy(false);
+            return;
+        }
+
+        try {
+            await api('expense-settlements', {
+                method: 'POST',
+                body: JSON.stringify({
+                    settled_on: settledOn,
+                    amount: parsedAmount,
+                    from_company_id: pair.debtor_company.id,
+                    to_company_id: pair.creditor_company.id,
+                    settlement_type: settlementType,
+                    payment_mode: paymentMode,
+                    notes,
+                }),
+            });
+            await onSaved(`Settlement of ₹${number(parsedAmount)} recorded successfully.`);
+        } catch (failure) {
+            setError(failure.message);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <div className="modal-backdrop">
+            <form className="modal settlement-modal" onSubmit={save} style={{maxWidth: '520px'}}>
+                <div className="panel-head">
+                    <div>
+                        <h2>Record balance settlement (ચૂકવણી / સેટલમેન્ટ)</h2>
+                        <p>
+                            <b>{pair.debtor_company.name}</b> pays <b>{pair.creditor_company.name}</b>
+                        </p>
+                    </div>
+                    <button type="button" className="icon-button ghost" onClick={onClose}><X/></button>
+                </div>
+
+                <div className="settlement-balance" style={{background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: '10px', padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px'}}>
+                    <div>
+                        <small style={{fontWeight: 700, textTransform: 'uppercase', fontSize: '10.5px'}}>Total Open Balance</small>
+                        <div style={{fontSize: '22px', fontWeight: 800}}>₹{number(totalOpen)}</div>
+                    </div>
+                    <span className="status warning" style={{fontSize: '11px', padding: '4px 8px'}}>
+                        બાકી લેવાના નીકળે છે
+                    </span>
+                </div>
+
+                {/* Quick Presets (100% Full, 50% Half, 25%) */}
+                <div style={{marginBottom: '12px'}}>
+                    <span style={{fontSize: '11.5px', color: '#475569', fontWeight: 600, display: 'block', marginBottom: '4px'}}>
+                        ઝડપી રકમ પસંદગી (Quick Amount Presets):
+                    </span>
+                    <div style={{display: 'flex', gap: '6px', flexWrap: 'wrap'}}>
+                        <button
+                            type="button"
+                            className="secondary"
+                            onClick={() => handlePreset(1.0)}
+                            style={{padding: '4px 10px', fontSize: '11.5px', fontWeight: 700, background: parsedAmount === totalOpen ? '#15803d' : '#f1f5f9', color: parsedAmount === totalOpen ? '#fff' : '#1e293b'}}
+                        >
+                            ૧૦૦% Full (₹{number(totalOpen)})
+                        </button>
+                        <button
+                            type="button"
+                            className="secondary"
+                            onClick={() => handlePreset(0.5)}
+                            style={{padding: '4px 10px', fontSize: '11.5px', fontWeight: 700}}
+                        >
+                            ૫૦% Half (₹{number(totalOpen / 2)})
+                        </button>
+                        <button
+                            type="button"
+                            className="secondary"
+                            onClick={() => handlePreset(0.25)}
+                            style={{padding: '4px 10px', fontSize: '11.5px', fontWeight: 700}}
+                        >
+                            ૨૫% (₹{number(totalOpen / 4)})
+                        </button>
+                    </div>
+                </div>
+
+                <div className="form-grid two">
+                    <Field label="Payment date (તારીખ)">
+                        <input type="date" max={today()} value={settledOn} onChange={e => setSettledOn(e.target.value)} required/>
+                    </Field>
+                    <Field label="Amount to settle (ચૂકવવાની રકમ ₹)">
+                        <input
+                            type="number"
+                            min="0.01"
+                            max={totalOpen}
+                            step="0.01"
+                            inputMode="decimal"
+                            value={amount}
+                            onChange={e => setAmount(e.target.value)}
+                            required
+                        />
+                    </Field>
+                </div>
+
+                <div className="form-grid two" style={{marginTop: '10px'}}>
+                    <Field label="Payment mode (ચૂકવણી પદ્ધતિ)">
+                        <select value={paymentMode} onChange={e => setPaymentMode(e.target.value)}>
+                            <option value="bank_transfer">Bank Transfer / NEFT / RTGS</option>
+                            <option value="cash">Cash (રોકડ)</option>
+                            <option value="upi">UPI / GPay / PhonePe</option>
+                            <option value="cheque">Cheque</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </Field>
+                    <Field label="Settlement status">
+                        <input
+                            type="text"
+                            value={settlementType === 'full' ? '૧૦૦% Full Settlement (ખાતું ક્લિયર)' : `Partial (બાકી ₹${number(remainingBalance)})`}
+                            disabled
+                            style={{fontWeight: 700, color: settlementType === 'full' ? '#15803d' : '#b45309'}}
+                        />
+                    </Field>
+                </div>
+
+                <Field label="Reference / Notes (વિગત અથવા ટ્રાન્ઝેક્શન નંબર)">
+                    <textarea rows="2" value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. Paid via ICICI Bank UTR #123456"/>
+                </Field>
+
+                {/* Remaining Balance Indicator */}
+                <div style={{background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', fontSize: '12px'}}>
+                    <span style={{color: '#64748b'}}>ચૂકવણી બાદ બાકી રહેતું બેલેન્સ:</span>
+                    <b style={{fontSize: '14px', color: remainingBalance > 0 ? '#b91c1c' : '#15803d'}}>
+                        {remainingBalance > 0 ? `₹${number(remainingBalance)}` : '₹0.00 (સંપૂર્ણ ક્લિયર)'}
+                    </b>
+                </div>
+
+                {error && <div className="error" style={{marginTop: '10px'}}>{error}</div>}
+
+                <div className="form-actions" style={{marginTop: '16px'}}>
+                    <span>આ સેટલમેન્ટ તારીખ અને સમય સાથે હિસ્ટ્રીમાં સેવ થશે.</span>
+                    <button className="primary" disabled={busy}>
+                        {busy ? 'Saving…' : `Record ${settlementType === 'full' ? 'Full' : 'Partial'} Payment`}
+                    </button>
+                </div>
+            </form>
+        </div>
+    );
 }

@@ -7,6 +7,8 @@
         body { font-family: DejaVu Sans, sans-serif; color: #17352b; font-size: 10px; }
         h1 { margin: 0 0 5px; font-size: 20px; }
         .meta { color: #667b70; margin-bottom: 18px; }
+        .reference { background: #eef5ef; border-left: 4px solid #2f7759; padding: 8px 10px; margin: -8px 0 14px; }
+        .warning { background: #fff7df; border-left: 4px solid #d39a21; color: #74540e; padding: 8px 10px; margin: -5px 0 14px; }
         .totals { width: 100%; margin-bottom: 18px; border-collapse: separate; border-spacing: 7px 0; }
         .totals td { background: #edf5ef; padding: 10px; border-radius: 5px; }
         .totals span { display: block; color: #63796d; font-size: 8px; text-transform: uppercase; margin-bottom: 5px; }
@@ -23,6 +25,12 @@
 <body>
     <h1>SolarFlow {{ ucfirst($report['period']) }} Report</h1>
     <div class="meta">{{ $report['from'] }} to {{ $report['to'] }} · {{ $report['is_combined'] ? 'All companies combined' : 'Selected company' }}</div>
+    @if($report['is_combined'] && $report['ss_reference'])
+        <div class="reference"><b>Daily SS reference company:</b> {{ $report['ss_reference']['company'] }}</div>
+        @if(count($report['ss_reference']['missing_dates']))
+            <div class="warning"><b>Missing reference dates:</b> {{ implode(', ', $report['ss_reference']['missing_dates']) }}. 66kV Sub Import contributes 0.00 for these dates.</div>
+        @endif
+    @endif
     <table class="totals"><tr>
         <td><span>All Inverter Total</span><b>{{ number_format($report['grand_total']['generation'], 2) }} kWh</b></td>
         <td><span>Plant Import</span><b>{{ number_format($report['grand_total']['plant_import'], 2) }}</b></td>

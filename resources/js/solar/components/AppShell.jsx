@@ -1,34 +1,63 @@
 import React, {useEffect, useState} from 'react';
-import {Activity, BarChart3, Bell, Boxes, Building2, CalendarCheck2, ChevronRight, ClipboardPlus, Clock3, Gauge, IndianRupee, LogOut, Menu, Sun, UserCheck, Users, WalletCards, X} from 'lucide-react';
+import {Activity, BarChart3, Boxes, Building2, CalendarCheck2, ChevronRight, ClipboardPlus, Clock3, CloudSun, Gauge, IndianRupee, LogOut, Menu, Sun, UserCheck, Users, WalletCards, X} from 'lucide-react';
 import {api} from '../api';
+import MobileAppView from './MobileAppView';
 
 export default function AppShell({user, page, setPage, companies, companyId, setCompanyId, children}) {
     const [menuOpen, setMenuOpen] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
+    const [liveSolarData, setLiveSolarData] = useState(null);
+
+    useEffect(() => {
+        const checkMobile = () => {
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+            const isSmallScreen = window.innerWidth <= 768;
+            setIsMobile(isStandalone || isSmallScreen);
+        };
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
+    const fetchLiveSolar = async () => {
+        try {
+            const res = await api(`dashboard/live-solar?company_id=${companyId || 'all'}`);
+            setLiveSolarData(res);
+        } catch (e) {
+            console.error('Mobile live solar fetch error', e);
+        }
+    };
+
+    useEffect(() => {
+        fetchLiveSolar();
+        const timer = setInterval(fetchLiveSolar, 10000);
+        return () => clearInterval(timer);
+    }, [companyId]);
+
     const can = permission => user.role === 'super_admin' || user.permissions.includes(permission);
     const activeCompany = companies.find(company => String(company.id) === String(companyId));
     const navigation = [
         can('view_dashboard') && ['dashboard', 'Dashboard', Gauge],
         can('enter_readings') && ['entry', 'Daily Entry', ClipboardPlus],
         can('view_reports') && ['reports', 'Reports', BarChart3],
+        ['expenses', 'Expenses', IndianRupee],
         user.role === 'super_admin' && ['companies', 'Companies', Building2],
-        // Temporarily hidden from the sidebar; keep the Excel Import module available for later.
-        // user.role === 'super_admin' && ['import', 'Excel Import', Upload],
         (user.role === 'super_admin' || can('manage_company_users')) && ['users', 'Users & Access', Users],
         (user.role === 'super_admin' || can('manage_company_users')) && ['activity', 'Activity Log', Activity],
         can('view_employees') && ['employees', 'Employees', Users],
         can('view_attendance') && ['attendance', 'Attendance', UserCheck],
         can('view_attendance') && ['leave-holidays', 'Leave & Holidays', CalendarCheck2],
         can('view_attendance_reports') && ['attendance-reports', 'Attendance Reports', BarChart3],
-        user.role === 'super_admin' && ['salaries', 'Monthly Salary', WalletCards],
-        can('view_stock') && ['stock', 'Stock Management', Boxes],
-        can('view_expenses') && ['expenses', 'Expenses', IndianRupee],
+        (user.role === 'super_admin' || user.role === 'company_admin') && ['salaries', 'Monthly Salary', WalletCards],
+        ['stock', 'Stock Management', Boxes],
         user.role === 'employee' && ['my-attendance', 'My Attendance', Clock3],
         user.role === 'employee' && ['my-salary', 'My Salary', IndianRupee],
     ].filter(Boolean);
     const titles = {
-        dashboard: ['Operations overview', companyId === 'all' ? 'Combined view of all companies' : activeCompany?.name],
+        dashboard: ['Live Solar Generation & Real-Time Flow', companyId === 'all' ? 'All Companies Live Sync' : activeCompany?.name],
         entry: ['Daily reading entry', activeCompany?.name],
         reports: ['Reports', companyId === 'all' ? 'All companies combined' : activeCompany?.name],
+        expenses: ['Shared expenses', 'Company-wise balances and settlements'],
         companies: ['Company configuration', 'Multipliers and inverters'],
         users: ['Users & access', 'Roles and custom permissions'],
         activity: ['Activity log', 'Track important changes'],
@@ -39,7 +68,6 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         'attendance-reports': ['Attendance reports', 'Monthly attendance and work summary'],
         salaries: ['Monthly salary', 'Confidential payroll calculation and adjustments'],
         stock: ['Stock management', 'Common inventory and borrowing register'],
-        expenses: ['Shared expenses', 'Company-wise balances and settlements'],
         'my-attendance': ['My attendance', 'Time in, time out and leave'],
         'my-salary': ['My salary', 'Private salary statements and attendance details'],
     };
@@ -59,6 +87,25 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         setMenuOpen(false);
     };
 
+    // 📱 If on Mobile Screen or Standalone APK View: Render MobileAppView
+    if (isMobile) {
+        return (
+            <MobileAppView
+                user={user}
+                page={page}
+                setPage={setPage}
+                companies={companies}
+                companyId={companyId}
+                setCompanyId={setCompanyId}
+                liveData={liveSolarData}
+                fetchLiveSolar={fetchLiveSolar}
+            >
+                {children({can, activeCompany})}
+            </MobileAppView>
+        );
+    }
+
+    // 💻 Desktop Layout
     return <div className="shell">
         <aside className={menuOpen ? 'open' : ''}>
             <div className="brand"><span><Sun size={25}/></span> SolarFlow <button className="mobile-close" onClick={() => setMenuOpen(false)}><X/></button></div>
@@ -71,30 +118,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
             <header className="topbar">
                 <button className="mobile-menu" onClick={() => setMenuOpen(true)}><Menu/></button>
                 <div><p className="eyebrow">{titles[page]?.[1]}</p><h1>{titles[page]?.[0]}</h1></div>
-                <div className="topbar-actions" style={{display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto'}}>
-                    {((user.role === 'super_admin' && ['dashboard', 'reports', 'entry', 'activity'].includes(page)) || (user.role === 'employee' && page === 'entry')) && <label className="company-switch"><span>Company</span><select value={companyId} onChange={event => setCompanyId(event.target.value)}>{page !== 'entry' && <option value="all">All Companies</option>}{companies.map(company => <option value={company.id} key={company.id}>{company.name}</option>)}</select></label>}
-                    <button 
-                        type="button"
-                        className="button secondary"
-                        style={{padding: '8px 12px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '8px', cursor: 'pointer'}}
-                        onClick={async () => {
-                            if (!('Notification' in window)) return alert('Desktop notifications not supported in this browser.');
-                            if (Notification.permission !== 'granted') {
-                                const { subscribeToPushNotifications } = await import('../notifications');
-                                const res = await subscribeToPushNotifications();
-                                alert(res.message);
-                            } else {
-                                const { sendTestNotification } = await import('../notifications');
-                                const res = await sendTestNotification();
-                                if (res.success) alert('🔔 Push notification sent to your screen!');
-                                else alert(res.message || 'Notification test completed.');
-                            }
-                        }}
-                        title="Enable or Test Push Notifications"
-                    >
-                        <Bell size={16}/> <span>Alerts</span>
-                    </button>
-                </div>
+                {((user.role === 'super_admin' && ['dashboard', 'reports', 'entry', 'activity'].includes(page)) || (user.role === 'employee' && page === 'entry')) && <label className="company-switch"><span>Company</span><select value={companyId} onChange={event => setCompanyId(event.target.value)}>{page !== 'entry' && <option value="all">All Companies</option>}{companies.map(company => <option value={company.id} key={company.id}>{company.name}</option>)}</select></label>}
             </header>
             {children({can, activeCompany})}
         </main>

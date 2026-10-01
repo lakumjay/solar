@@ -1,33 +1,19 @@
 import React, {useState} from 'react';
 import {CheckCircle, Clock, HelpCircle, Sun, Cloud, CloudRain, CloudLightning, Wind, AlertTriangle} from 'lucide-react';
 
-export default function ISolarCloudVisualizer({data, weather = {}, isEmployee}) {
-    // Derive live weather state from actual weather data
-    const isLiveRain = weather?.type === 'rain' || weather?.condition?.toLowerCase()?.includes('rain');
-    const isLiveStorm = weather?.type === 'storm' || weather?.condition?.toLowerCase()?.includes('storm') || weather?.condition?.toLowerCase()?.includes('thunder');
-    const selectedWeather = isLiveStorm ? 'storm' : isLiveRain ? 'rain' : 'sunny';
+export default function ISolarCloudVisualizer({data, weather, isEmployee}) {
+    // Interactive weather mode for live testing (Sunny / Rain / Storm)
+    const [selectedWeather, setSelectedWeather] = useState(weather.type || 'sunny');
 
-    // Dynamic Auto kW / MW Switching (< 1000 kW -> show kW, >= 1000 kW -> show MW)
-    const rawKw = data.realtime_power_kw !== undefined && data.realtime_power_kw !== null && data.realtime_power_kw !== ''
-        ? parseFloat(data.realtime_power_kw)
-        : (data.realtime_power_mw ? parseFloat(data.realtime_power_mw) * 1000 : 0.0);
-    const isKw = rawKw < 1000;
-    const displayPower = isKw
-        ? (rawKw >= 100 ? rawKw.toFixed(1) : (rawKw > 0 ? rawKw.toFixed(2) : '0.00'))
-        : (rawKw / 1000).toFixed(2);
-    const displayUnit = isKw ? 'kW' : 'MW';
-    const subPowerText = isKw
-        ? `${(rawKw / 1000).toFixed(2)} MW`
-        : `${rawKw.toFixed(1)} kW`;
-    const kpiLabel = `Real-time power (${displayUnit})`;
-
-    const todayKwh = data.today_units_kwh || '0.00';
+    const realtimeMw = data.realtime_power_mw || '1.41';
+    const realtimeKw = data.realtime_power_kw || '1410.41';
+    const todayKwh = data.today_units_kwh || '13980.10';
     const installedMwp = data.installed_capacity_mwp || '3.00';
-    const revenueRs = data.total_revenue_rs || '0.00';
-    const onlineCount = data.online_count ?? 0;
+    const revenueRs = data.total_revenue_rs || '53124.38';
+    const onlineCount = data.online_count ?? 9;
     const totalInverters = data.total_inverters ?? 10;
 
-    const weatherTemp = weather.temp || (selectedWeather === 'storm' ? '24.5°C' : selectedWeather === 'rain' ? '26.8°C' : '32.9°C');
+    const weatherTemp = selectedWeather === 'storm' ? '24.5°C' : selectedWeather === 'rain' ? '26.8°C' : (weather.temp || '32.9°C');
 
     return (
         <section className={`isolar-app-card weather-mode-${selectedWeather}`}>
@@ -40,12 +26,45 @@ export default function ISolarCloudVisualizer({data, weather = {}, isEmployee}) 
                         ) : selectedWeather === 'rain' ? (
                             <><CloudRain size={12}/> <span>Rain Active</span></>
                         ) : (
-                            <><CheckCircle size={12} className="pill-check-icon"/> <span>Live Normal</span></>
+                            <><CheckCircle size={12} className="pill-check-icon"/> <span>Normal</span></>
                         )}
                     </span>
                     <span className="isolar-sync-icon" title="Real-time synchronized">
                         <Clock size={12}/>
                     </span>
+                </div>
+
+                {/* Weather Test Simulator Buttons (☀️ Sunny | 🌧️ Rain | ⛈️ Tufan) */}
+                <div className="isolar-weather-simulator-tabs">
+                    <button
+                        type="button"
+                        className={`weather-sim-btn ${selectedWeather === 'sunny' ? 'active sun-active' : ''}`}
+                        onClick={() => setSelectedWeather('sunny')}
+                        title="Normal Sunny Clear Weather"
+                    >
+                        <Sun size={12}/>
+                        <span>Sun</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        className={`weather-sim-btn ${selectedWeather === 'rain' ? 'active rain-active' : ''}`}
+                        onClick={() => setSelectedWeather('rain')}
+                        title="Test Rain (વરસાદ) Animation"
+                    >
+                        <CloudRain size={12}/>
+                        <span>Rain</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        className={`weather-sim-btn ${selectedWeather === 'storm' ? 'active storm-active' : ''}`}
+                        onClick={() => setSelectedWeather('storm')}
+                        title="Test Tufan / Storm (વાવાઝોડું/તોફાન) Animation"
+                    >
+                        <CloudLightning size={12}/>
+                        <span>Tufan</span>
+                    </button>
                 </div>
             </div>
 
@@ -208,7 +227,7 @@ export default function ISolarCloudVisualizer({data, weather = {}, isEmployee}) 
 
                     {/* Solar Generation Text above Panel */}
                     <g transform="translate(262, 82)">
-                        <text x="0" y="0" textAnchor="start" className="isolar-mw-text-main">{displayPower} <tspan className="isolar-mw-unit">{displayUnit}</tspan></text>
+                        <text x="0" y="0" textAnchor="start" className="isolar-mw-text-main">{realtimeMw} <tspan className="isolar-mw-unit">MW</tspan></text>
                     </g>
 
                     {/* ========================================================
@@ -254,7 +273,7 @@ export default function ISolarCloudVisualizer({data, weather = {}, isEmployee}) 
 
                     {/* Grid Export Text below tower */}
                     <g transform="translate(344, 282)">
-                        <text x="0" y="0" textAnchor="middle" className="isolar-mw-text-grid">{displayPower} <tspan className="isolar-mw-unit">{displayUnit}</tspan></text>
+                        <text x="0" y="0" textAnchor="middle" className="isolar-mw-text-grid">{realtimeMw} <tspan className="isolar-mw-unit">MW</tspan></text>
                     </g>
 
                     {/* ========================================================
@@ -365,9 +384,9 @@ export default function ISolarCloudVisualizer({data, weather = {}, isEmployee}) 
             {/* Bottom 3 Column KPI Stats Divider (Clean, Compact, Normal Font Sizes) */}
             <div className="isolar-kpi-footer">
                 <div className="isolar-kpi-col">
-                    <span className="isolar-kpi-label">{kpiLabel}</span>
-                    <strong className="isolar-kpi-num">{displayPower} <span className="unit-tag">{displayUnit}</span></strong>
-                    <small className="isolar-kpi-sub">{subPowerText}</small>
+                    <span className="isolar-kpi-label">Real-time power(MW)</span>
+                    <strong className="isolar-kpi-num">{realtimeMw}</strong>
+                    <small className="isolar-kpi-sub">{realtimeKw} kW</small>
                 </div>
 
                 <div className="isolar-kpi-col isolar-kpi-col-center">

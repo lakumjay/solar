@@ -19,7 +19,7 @@ class UserController extends Controller
     public function index(Request $request)
     {
         $this->access->requireUserManagement($request);
-        $query = User::with('company:id,name')->where('role', '!=', 'employee')->orderBy('name');
+        $query = User::with('company:id,name')->orderBy('name');
         if ($request->user()->role !== 'super_admin') {
             $query->where('company_id', $request->user()->company_id)->where('role', '!=', 'super_admin');
         }

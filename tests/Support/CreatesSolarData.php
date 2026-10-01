@@ -10,13 +10,23 @@ trait CreatesSolarData
 {
     protected function solarCompany(array $overrides = []): Company
     {
-        return Company::create(array_merge([
+        $company = Company::create(array_merge([
             'name' => 'Test Solar',
             'plant_import_multiplier' => 10,
             'plant_export_multiplier' => 20,
             'sub_import_multiplier' => 30,
             'sub_export_multiplier' => 40,
         ], $overrides));
+        $company->refresh();
+
+        if (($overrides['is_ss_reference'] ?? false) === true) {
+            Company::whereKeyNot($company->id)->update(['is_ss_reference' => false]);
+            $company->update(['is_ss_reference' => true]);
+        } elseif ($company->active && ! Company::where('is_ss_reference', true)->exists()) {
+            $company->update(['is_ss_reference' => true]);
+        }
+
+        return $company->refresh();
     }
 
     protected function superAdmin(): User

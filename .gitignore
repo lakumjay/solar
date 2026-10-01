@@ -13,6 +13,9 @@
 /.zed
 /auth.json
 /node_modules
+/dist
+/public/build
+/public/build.zip
 /public/hot
 /public/storage
 /storage/*.key
@@ -21,4 +24,3 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
-/dist

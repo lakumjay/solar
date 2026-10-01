@@ -26,10 +26,10 @@ class SalaryCalculationService
             ->orderBy('employee_code')->get();
 
         $employeeIds = $employees->pluck('id');
-        $adjustments = SalaryAdjustment::with(['creator:id,name', 'canceller:id,name'])
+        $adjustments = SalaryAdjustment::with(['creator:id,name', 'canceller:id,name', 'company:id,name'])
             ->whereIn('employee_id', $employeeIds)
             ->whereDate('salary_month', $start)
-            ->orderBy('created_at')->orderBy('id')->get()->groupBy('employee_id');
+            ->orderBy('work_date')->orderBy('created_at')->orderBy('id')->get()->groupBy('employee_id');
         $holidays = Holiday::where('active', true)->whereBetween('holiday_date', [$start, $end])
             ->get()->keyBy(fn (Holiday $holiday) => $holiday->holiday_date->toDateString());
         $leaves = LeaveRequest::whereIn('employee_id', $employeeIds)->where('status', 'approved')
@@ -150,8 +150,8 @@ class SalaryCalculationService
             ? (int) round($monthlyCents * $leaveHalfUnits / $scheduledHalfUnits, 0, PHP_ROUND_HALF_UP)
             : 0;
         $activeAdjustments = $adjustments->whereNull('cancelled_at');
-        $additionCents = $activeAdjustments->where('type', 'addition')->sum(fn (SalaryAdjustment $item) => $this->toCents($item->amount));
-        $deductionCents = $activeAdjustments->where('type', 'deduction')->sum(fn (SalaryAdjustment $item) => $this->toCents($item->amount));
+        $additionCents = $activeAdjustments->whereIn('type', ['addition', 'bonus', 'allowance', 'overtime'])->sum(fn (SalaryAdjustment $item) => $this->toCents($item->amount));
+        $deductionCents = $activeAdjustments->whereIn('type', ['deduction', 'advance'])->sum(fn (SalaryAdjustment $item) => $this->toCents($item->amount));
         $finalCents = max(0, $grossCents - $leaveCents + $additionCents - $deductionCents);
         $summary = $attendance['summary'] ?? [];
 
@@ -192,15 +192,18 @@ class SalaryCalculationService
             'adjustments' => $adjustments->map(fn (SalaryAdjustment $item) => [
                 'id' => $item->id,
                 'type' => $item->type,
+                'work_date' => $item->work_date?->toDateString(),
                 'amount' => $this->money($this->toCents($item->amount)),
                 'reason' => $item->reason,
+                'company' => $item->company ? ['id' => $item->company->id, 'name' => $item->company->name] : null,
+                'add_to_shared_expenses' => (bool) $item->add_to_shared_expenses,
+                'shared_expense_id' => $item->shared_expense_id,
                 'created_at' => $item->created_at?->toIso8601String(),
                 'created_by' => $item->creator?->name,
                 'cancelled' => (bool) $item->cancelled_at,
                 'cancelled_at' => $item->cancelled_at?->toIso8601String(),
-                'cancelled_by' => $item->canceller?->name,
+                'canceller' => $item->canceller?->name,
                 'cancellation_reason' => $item->cancellation_reason,
-                'replaces_adjustment_id' => $item->replaces_adjustment_id,
             ])->values()->all(),
             'days' => $daily,
         ];

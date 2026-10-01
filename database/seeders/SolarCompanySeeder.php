@@ -35,5 +35,17 @@ class SolarCompanySeeder extends Seeder
                 ],
             );
         }
+
+        $reference = Company::where('active', true)
+            ->where('is_ss_reference', true)
+            ->oldest('id')
+            ->first()
+            ?? Company::where('active', true)->where('name', 'Sunrise Green Energy')->first()
+            ?? Company::where('active', true)->oldest('id')->first();
+
+        if ($reference) {
+            Company::whereKeyNot($reference->id)->update(['is_ss_reference' => false]);
+            $reference->update(['is_ss_reference' => true]);
+        }
     }
 }

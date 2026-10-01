@@ -70,20 +70,26 @@ class SharedExpenseService
             return DB::transaction(function () use ($data, $receiptPath, $actor) {
                 $companies = Company::where('active', true)->orderBy('id')->lockForUpdate()->get();
                 $this->assertConfigured($companies);
-                abort_unless($companies->contains('id', (int) $data['payer_company_id']), 422, 'Paying company must be active.');
+
+                [$primaryPayerId, $payersMap] = $this->resolvePayers($data, $companies);
+                $allocationsConfig = $this->resolveAllocationsConfig($data, $companies);
 
                 $expense = SharedExpense::create([
-                    ...collect($data)->only(['expense_date', 'payer_company_id', 'purchaser_name', 'description', 'amount', 'notes'])->all(),
+                    'expense_date' => $data['expense_date'],
+                    'payer_company_id' => $primaryPayerId,
+                    'purchaser_name' => $data['purchaser_name'],
+                    'description' => $data['description'],
+                    'amount' => $data['amount'],
+                    'notes' => $data['notes'] ?? null,
+                    'allocation_scope' => $data['allocation_scope'] ?? 'all',
                     'receipt_path' => $receiptPath,
                     'entry_type' => 'expense',
                     'status' => 'active',
                     'created_by' => $actor->id,
                     'updated_by' => $actor->id,
                 ]);
-                $this->replaceAllocations($expense, (float) $data['amount'], $companies->map(fn (Company $company) => [
-                    'company_id' => $company->id,
-                    'percentage' => (float) $company->expense_percentage,
-                ]));
+
+                $this->replaceAllocationsWithPayers($expense, (float) $data['amount'], $allocationsConfig, $payersMap);
                 $this->activity->log($actor, $expense->payer_company_id, 'created', 'shared_expense', $expense->id, "Shared expense {$expense->description} created", ['amount' => (float) $expense->amount]);
 
                 return $expense->load(['payerCompany:id,name', 'allocations.company:id,name', 'creator:id,name']);
@@ -105,9 +111,21 @@ class SharedExpenseService
             $updated = DB::transaction(function () use ($expense, $data, $newReceiptPath, $actor) {
                 $expense = SharedExpense::with('allocations')->lockForUpdate()->findOrFail($expense->id);
                 $this->assertEditable($expense);
-                abort_unless(Company::whereKey($data['payer_company_id'])->where('active', true)->exists(), 422, 'Paying company must be active.');
+                $companies = Company::where('active', true)->orderBy('id')->lockForUpdate()->get();
 
-                $expense->fill(collect($data)->only(['expense_date', 'payer_company_id', 'purchaser_name', 'description', 'amount', 'notes'])->all());
+                [$primaryPayerId, $payersMap] = $this->resolvePayers($data, $companies);
+                $allocationsConfig = $this->resolveAllocationsConfig($data, $companies, $expense);
+
+                $expense->fill([
+                    'expense_date' => $data['expense_date'],
+                    'payer_company_id' => $primaryPayerId,
+                    'purchaser_name' => $data['purchaser_name'],
+                    'description' => $data['description'],
+                    'amount' => $data['amount'],
+                    'notes' => $data['notes'] ?? null,
+                    'allocation_scope' => $data['allocation_scope'] ?? $expense->allocation_scope ?? 'all',
+                ]);
+
                 if ($newReceiptPath) {
                     $expense->receipt_path = $newReceiptPath;
                 } elseif (! empty($data['remove_receipt'])) {
@@ -115,11 +133,8 @@ class SharedExpenseService
                 }
                 $expense->updated_by = $actor->id;
                 $expense->save();
-                $percentages = $expense->allocations->map(fn (SharedExpenseAllocation $allocation) => [
-                    'company_id' => $allocation->company_id,
-                    'percentage' => (float) $allocation->percentage,
-                ]);
-                $this->replaceAllocations($expense, (float) $expense->amount, $percentages);
+
+                $this->replaceAllocationsWithPayers($expense, (float) $expense->amount, $allocationsConfig, $payersMap);
                 $this->activity->log($actor, $expense->payer_company_id, 'updated', 'shared_expense', $expense->id, "Shared expense {$expense->description} updated", ['amount' => (float) $expense->amount]);
 
                 return $expense->fresh()->load(['payerCompany:id,name', 'allocations.company:id,name', 'creator:id,name']);
@@ -165,6 +180,7 @@ class SharedExpenseService
                 'notes' => 'Reverses expense #'.$expense->id,
                 'entry_type' => 'reversal',
                 'status' => 'active',
+                'allocation_scope' => $expense->allocation_scope ?? 'all',
                 'reverses_expense_id' => $expense->id,
                 'created_by' => $actor->id,
                 'updated_by' => $actor->id,
@@ -175,6 +191,7 @@ class SharedExpenseService
                     'company_id' => $allocation->company_id,
                     'percentage' => $allocation->percentage,
                     'share_amount' => -1 * (float) $allocation->share_amount,
+                    'amount_paid' => -1 * (float) ($allocation->amount_paid ?? 0),
                 ]);
             }
             $expense->update(['status' => 'reversed', 'updated_by' => $actor->id]);
@@ -201,8 +218,23 @@ class SharedExpenseService
                 throw ValidationException::withMessages(['amount' => 'Settlement cannot exceed the open balance.']);
             }
 
+            $currentOpenCents = $this->moneyCents($balance['amount']);
+            $settleCents = $this->moneyCents($data['amount']);
+            $remainingCents = max(0, $currentOpenCents - $settleCents);
+            $remainingBalance = $remainingCents / 100;
+            $settlementType = $remainingCents === 0 ? 'full' : ($data['settlement_type'] ?? 'partial');
+            $paymentMode = $data['payment_mode'] ?? 'bank_transfer';
+
             $settlement = ExpenseSettlement::create([
-                ...collect($data)->only(['settled_on', 'from_company_id', 'to_company_id', 'amount', 'notes'])->all(),
+                'settled_on' => $data['settled_on'],
+                'settled_at' => now(),
+                'from_company_id' => $data['from_company_id'],
+                'to_company_id' => $data['to_company_id'],
+                'amount' => $data['amount'],
+                'settlement_type' => $settlementType,
+                'remaining_balance' => $remainingBalance,
+                'payment_mode' => $paymentMode,
+                'notes' => $data['notes'] ?? null,
                 'created_by' => $actor->id,
             ]);
             $this->lockAffectedExpenses($settlement);
@@ -210,6 +242,8 @@ class SharedExpenseService
                 'from_company_id' => $settlement->from_company_id,
                 'to_company_id' => $settlement->to_company_id,
                 'amount' => (float) $settlement->amount,
+                'settlement_type' => $settlementType,
+                'remaining_balance' => $remainingBalance,
             ]);
 
             return $settlement->load(['fromCompany:id,name', 'toCompany:id,name', 'creator:id,name']);
@@ -237,7 +271,7 @@ class SharedExpenseService
 
         $settlementStatuses = $this->settlementStatuses($expenses, $settlements);
         $visibleExpenses = $allExpenses->filter(fn (SharedExpense $expense) => $expense->expense_date->betweenIncluded($from, $to))
-            ->filter(fn (SharedExpense $expense) => ! $companyId || $expense->payer_company_id === $companyId || $expense->allocations->contains(fn ($allocation) => $allocation->company_id === $companyId && abs((float) $allocation->share_amount) > 0.0001));
+            ->filter(fn (SharedExpense $expense) => ! $companyId || $expense->payer_company_id === $companyId || $expense->allocations->contains(fn ($allocation) => $allocation->company_id === $companyId && (abs((float) $allocation->share_amount) > 0.0001 || abs((float) ($allocation->amount_paid ?? 0)) > 0.0001)));
         $visibleSettlements = $settlements->filter(fn (ExpenseSettlement $settlement) => $settlement->settled_on->betweenIncluded($from, $to))
             ->filter(fn (ExpenseSettlement $settlement) => ! $companyId || in_array($companyId, [$settlement->from_company_id, $settlement->to_company_id], true));
         $entries = $visibleExpenses->map(fn (SharedExpense $expense) => $this->expensePayload($expense, $user))
@@ -245,14 +279,31 @@ class SharedExpenseService
             ->sortByDesc(fn (array $entry) => $entry['date'].' '.str_pad((string) $entry['id'], 12, '0', STR_PAD_LEFT))
             ->values();
 
+        // Settlements Audit History
+        $settlementsHistory = $settlements->map(fn (ExpenseSettlement $s) => [
+            'id' => $s->id,
+            'date' => $s->settled_on->toDateString(),
+            'settled_at' => $s->settled_at?->format('d M Y, h:i A') ?? $s->created_at?->format('d M Y, h:i A'),
+            'from_company' => $s->fromCompany,
+            'to_company' => $s->toCompany,
+            'amount' => (float) $s->amount,
+            'settlement_type' => $s->settlement_type ?? 'full',
+            'remaining_balance' => (float) ($s->remaining_balance ?? 0),
+            'payment_mode' => $s->payment_mode ?? 'bank_transfer',
+            'notes' => $s->notes,
+            'creator' => $s->creator,
+        ])->sortByDesc(fn ($s) => $s['date'].' '.$s['id'])->values()->all();
+
         return [
             'settings' => $this->settings(),
             'summary' => $this->summary($pairs, $companyId, $entries),
             'balances' => $pairs->values()->all(),
             'entries' => $entries->all(),
+            'settlements_history' => $settlementsHistory,
             'from' => $from->toDateString(),
             'to' => $to->toDateString(),
-            'can_manage' => $user->role === 'super_admin',
+            'can_manage' => $user->role === 'super_admin' || in_array($user->role, ['company_admin', 'manager'], true) || $user->hasPermission('view_expenses'),
+            'is_super_admin' => $user->role === 'super_admin',
         ];
     }
 
@@ -263,14 +314,126 @@ class SharedExpenseService
         }
 
         return $user->company_id && ($expense->payer_company_id === (int) $user->company_id
-            || $expense->allocations()->where('company_id', $user->company_id)->where('share_amount', '!=', 0)->exists());
+            || $expense->allocations()->where('company_id', $user->company_id)->where(fn ($q) => $q->where('share_amount', '!=', 0)->orWhere('amount_paid', '!=', 0))->exists());
     }
 
-    private function replaceAllocations(SharedExpense $expense, float $amount, Collection $percentages): void
+    private function resolvePayers(array $data, Collection $companies): array
+    {
+        $amount = (float) $data['amount'];
+        $amountCents = $this->moneyCents($amount);
+        $payersMap = [];
+
+        if (! empty($data['payers']) && is_array($data['payers'])) {
+            $totalPaidCents = 0;
+            $maxPaidCents = -1;
+            $primaryPayerId = null;
+
+            foreach ($data['payers'] as $p) {
+                $cid = (int) $p['company_id'];
+                $paidCents = $this->moneyCents($p['amount_paid'] ?? 0);
+                if ($paidCents > 0) {
+                    $payersMap[$cid] = $paidCents / 100;
+                    $totalPaidCents += $paidCents;
+                    if ($paidCents > $maxPaidCents) {
+                        $maxPaidCents = $paidCents;
+                        $primaryPayerId = $cid;
+                    }
+                }
+            }
+
+            if (abs($totalPaidCents - $amountCents) > 1) {
+                throw ValidationException::withMessages(['payers' => 'Total paid by companies must equal the total expense amount.']);
+            }
+
+            $primaryPayerId ??= $data['payer_company_id'] ?? $companies->first()->id;
+            return [(int) $primaryPayerId, $payersMap];
+        }
+
+        $singlePayerId = (int) ($data['payer_company_id'] ?? $companies->first()->id);
+        abort_unless($companies->contains('id', $singlePayerId), 422, 'Paying company must be active.');
+        $payersMap[$singlePayerId] = $amount;
+
+        return [$singlePayerId, $payersMap];
+    }
+
+    private function resolveAllocationsConfig(array $data, Collection $companies, ?SharedExpense $existing = null): Collection
+    {
+        // 1. Custom allocations explicitly passed
+        if (! empty($data['custom_allocations']) && is_array($data['custom_allocations'])) {
+            return collect($data['custom_allocations'])->map(fn ($r) => [
+                'company_id' => (int) $r['company_id'],
+                'percentage' => (float) ($r['percentage'] ?? 0),
+            ]);
+        }
+
+        $scope = $data['allocation_scope'] ?? 'all';
+        $beneficiaries = collect($data['beneficiary_company_ids'] ?? [])->map(fn ($id) => (int) $id)->filter()->values();
+
+        // 2. Single Company 100% Direct Allocation
+        if ($scope === 'single' || $beneficiaries->count() === 1) {
+            $targetId = $beneficiaries->first() ?? (int) ($data['beneficiary_company_id'] ?? $companies->first()->id);
+            return $companies->map(fn (Company $c) => [
+                'company_id' => $c->id,
+                'percentage' => $c->id === $targetId ? 100.0 : 0.0,
+            ]);
+        }
+
+        // 3. Two Companies Re-proportioned Allocation
+        if ($scope === 'two' || $beneficiaries->count() === 2) {
+            $selected = $companies->whereIn('id', $beneficiaries);
+            $sumMaster = $selected->sum(fn (Company $c) => (float) $c->expense_percentage);
+
+            return $companies->map(function (Company $c) use ($beneficiaries, $selected, $sumMaster) {
+                if (! $beneficiaries->contains($c->id)) {
+                    return ['company_id' => $c->id, 'percentage' => 0.0];
+                }
+                if ($sumMaster > 0) {
+                    $pct = round(((float) $c->expense_percentage / $sumMaster) * 100, 2);
+                    return ['company_id' => $c->id, 'percentage' => $pct];
+                }
+                return ['company_id' => $c->id, 'percentage' => 50.0];
+            });
+        }
+
+        // 4. All active companies (Default Master %)
+        return $companies->map(fn (Company $c) => [
+            'company_id' => $c->id,
+            'percentage' => (float) $c->expense_percentage,
+        ]);
+    }
+
+    private function replaceAllocationsWithPayers(SharedExpense $expense, float $amount, Collection $percentages, array $payersMap): void
     {
         $expense->allocations()->delete();
-        foreach ($this->allocate($amount, $percentages) as $row) {
-            SharedExpenseAllocation::create(['shared_expense_id' => $expense->id] + $row);
+        $allocatedRows = $this->allocate($amount, $percentages);
+
+        // Ensure all active companies have a record (even if 0%) so amounts paid are tracked accurately
+        $allCompanies = Company::where('active', true)->pluck('id');
+        $allocatedCompanyIds = collect($allocatedRows)->pluck('company_id');
+
+        foreach ($allocatedRows as $row) {
+            $cid = $row['company_id'];
+            $paid = $payersMap[$cid] ?? 0.0;
+            SharedExpenseAllocation::create([
+                'shared_expense_id' => $expense->id,
+                'company_id' => $cid,
+                'percentage' => $row['percentage'],
+                'share_amount' => $row['share_amount'],
+                'amount_paid' => $paid,
+            ]);
+        }
+
+        foreach ($allCompanies->diff($allocatedCompanyIds) as $missingCid) {
+            $paid = $payersMap[$missingCid] ?? 0.0;
+            if ($paid > 0) {
+                SharedExpenseAllocation::create([
+                    'shared_expense_id' => $expense->id,
+                    'company_id' => $missingCid,
+                    'percentage' => 0,
+                    'share_amount' => 0,
+                    'amount_paid' => $paid,
+                ]);
+            }
         }
     }
 
@@ -284,17 +447,24 @@ class SharedExpenseService
             ])
             ->filter(fn (array $row) => $row['basis_points'] > 0)
             ->values();
-        abort_if($rows->isEmpty(), 422, 'At least one company must have an expense percentage.');
-        abort_unless($rows->sum('basis_points') === 10000, 422, 'Expense percentages must total exactly 100%.');
 
+        if ($rows->isEmpty()) {
+            return [];
+        }
+
+        $totalBasis = $rows->sum('basis_points');
         $amountCents = $this->moneyCents($amount);
+
         $allocated = $rows->map(fn (array $row) => [
             ...$row,
-            'share_cents' => (int) round($amountCents * $row['basis_points'] / 10000, 0, PHP_ROUND_HALF_UP),
+            'share_cents' => (int) round($amountCents * $row['basis_points'] / $totalBasis, 0, PHP_ROUND_HALF_UP),
         ]);
+
         $residual = $amountCents - $allocated->sum('share_cents');
         $target = $allocated->sortBy(fn (array $row) => [-$row['basis_points'], $row['company_id']])->keys()->first();
-        $allocated[$target] = [...$allocated[$target], 'share_cents' => $allocated[$target]['share_cents'] + $residual];
+        if ($target !== null) {
+            $allocated[$target] = [...$allocated[$target], 'share_cents' => $allocated[$target]['share_cents'] + $residual];
+        }
 
         return $allocated->map(fn (array $row) => [
             'company_id' => $row['company_id'],
@@ -307,14 +477,50 @@ class SharedExpenseService
     {
         $companies = Company::all(['id', 'name'])->keyBy('id');
         $balances = [];
+
         foreach ($expenses as $expense) {
-            foreach ($expense->allocations as $allocation) {
-                if ($allocation->company_id === $expense->payer_company_id || abs((float) $allocation->share_amount) < 0.0001) {
-                    continue;
+            $allocations = $expense->allocations;
+            if ($allocations->isEmpty()) {
+                continue;
+            }
+
+            // Calculate each company's net position in this expense
+            $netPositions = [];
+            foreach ($allocations as $allocation) {
+                $cid = $allocation->company_id;
+                $share = (float) $allocation->share_amount;
+                // If amount_paid is stored on allocation, use it; otherwise fallback to legacy single payer
+                $paid = isset($allocation->amount_paid) && $allocation->amount_paid > 0
+                    ? (float) $allocation->amount_paid
+                    : ($cid === $expense->payer_company_id ? (float) $expense->amount : 0.0);
+
+                $netPositions[$cid] = $this->moneyCents($paid) - $this->moneyCents($share);
+            }
+
+            $creditors = []; // Companies that paid more than their share (Net > 0)
+            $debtors = [];   // Companies that paid less than their share (Net < 0)
+
+            foreach ($netPositions as $cid => $netCents) {
+                if ($netCents > 0) {
+                    $creditors[$cid] = $netCents;
+                } elseif ($netCents < 0) {
+                    $debtors[$cid] = -$netCents; // positive deficit amount
                 }
-                $this->applyPairAmount($balances, $allocation->company_id, $expense->payer_company_id, $this->moneyCents($allocation->share_amount));
+            }
+
+            $totalSurplus = array_sum($creditors);
+            if ($totalSurplus > 0) {
+                foreach ($debtors as $debtorId => $deficitCents) {
+                    foreach ($creditors as $creditorId => $surplusCents) {
+                        $debtPortionCents = (int) round($deficitCents * $surplusCents / $totalSurplus, 0, PHP_ROUND_HALF_UP);
+                        if ($debtPortionCents > 0) {
+                            $this->applyPairAmount($balances, $debtorId, $creditorId, $debtPortionCents);
+                        }
+                    }
+                }
             }
         }
+
         foreach ($settlements as $settlement) {
             $this->applyPairAmount($balances, $settlement->from_company_id, $settlement->to_company_id, -$this->moneyCents($settlement->amount));
         }
@@ -355,21 +561,47 @@ class SharedExpenseService
     private function settlementStatuses(Collection $expenses, Collection $settlements): array
     {
         $events = collect();
+
         foreach ($expenses as $expense) {
-            foreach ($expense->allocations as $allocation) {
-                if ($allocation->company_id !== $expense->payer_company_id && abs((float) $allocation->share_amount) > 0.0001) {
-                    $events->push([
-                        'date' => $expense->expense_date->toDateString(),
-                        'created_at' => $expense->created_at?->format('Y-m-d H:i:s.u') ?? '',
-                        'type' => 'expense',
-                        'id' => $expense->id,
-                        'from' => $allocation->company_id,
-                        'to' => $expense->payer_company_id,
-                        'cents' => $this->moneyCents($allocation->share_amount),
-                    ]);
+            $allocations = $expense->allocations;
+            $netPositions = [];
+            foreach ($allocations as $allocation) {
+                $cid = $allocation->company_id;
+                $share = (float) $allocation->share_amount;
+                $paid = isset($allocation->amount_paid) && $allocation->amount_paid > 0
+                    ? (float) $allocation->amount_paid
+                    : ($cid === $expense->payer_company_id ? (float) $expense->amount : 0.0);
+                $netPositions[$cid] = $this->moneyCents($paid) - $this->moneyCents($share);
+            }
+
+            $creditors = [];
+            $debtors = [];
+            foreach ($netPositions as $cid => $netCents) {
+                if ($netCents > 0) $creditors[$cid] = $netCents;
+                elseif ($netCents < 0) $debtors[$cid] = -$netCents;
+            }
+
+            $totalSurplus = array_sum($creditors);
+            if ($totalSurplus > 0) {
+                foreach ($debtors as $debtorId => $deficitCents) {
+                    foreach ($creditors as $creditorId => $surplusCents) {
+                        $debtPortionCents = (int) round($deficitCents * $surplusCents / $totalSurplus, 0, PHP_ROUND_HALF_UP);
+                        if ($debtPortionCents > 0) {
+                            $events->push([
+                                'date' => $expense->expense_date->toDateString(),
+                                'created_at' => $expense->created_at?->format('Y-m-d H:i:s.u') ?? '',
+                                'type' => 'expense',
+                                'id' => $expense->id,
+                                'from' => $debtorId,
+                                'to' => $creditorId,
+                                'cents' => $debtPortionCents,
+                            ]);
+                        }
+                    }
                 }
             }
         }
+
         foreach ($settlements as $settlement) {
             $events->push([
                 'date' => $settlement->settled_on->toDateString(),
@@ -397,11 +629,28 @@ class SharedExpenseService
 
     private function expensePayload(SharedExpense $expense, User $user): array
     {
+        $payersList = $expense->allocations->filter(fn ($a) => (float) ($a->amount_paid ?? 0) > 0)->map(fn ($a) => [
+            'company_id' => $a->company_id,
+            'company_name' => $a->company?->name,
+            'amount_paid' => (float) $a->amount_paid,
+        ])->values()->all();
+
+        // If no explicit payers, fallback to single payer
+        if (empty($payersList) && $expense->payerCompany) {
+            $payersList = [[
+                'company_id' => $expense->payer_company_id,
+                'company_name' => $expense->payerCompany->name,
+                'amount_paid' => (float) $expense->amount,
+            ]];
+        }
+
         return [
             'type' => $expense->entry_type,
             'id' => $expense->id,
             'date' => $expense->expense_date->toDateString(),
             'payer_company' => $expense->payerCompany,
+            'payers' => $payersList,
+            'allocation_scope' => $expense->allocation_scope ?? 'all',
             'purchaser_name' => $expense->purchaser_name,
             'description' => $expense->description,
             'amount' => (float) $expense->amount,
@@ -415,7 +664,9 @@ class SharedExpenseService
                 'company' => $allocation->company,
                 'percentage' => (float) $allocation->percentage,
                 'amount' => (float) $allocation->share_amount,
-                'is_payer' => $allocation->company_id === $expense->payer_company_id,
+                'amount_paid' => (float) ($allocation->amount_paid ?? 0),
+                'net_effect' => (float) (($allocation->amount_paid ?? 0) - $allocation->share_amount),
+                'is_payer' => (float) ($allocation->amount_paid ?? 0) > 0 || $allocation->company_id === $expense->payer_company_id,
             ])->values(),
             'created_by' => $expense->creator,
         ];
@@ -427,9 +678,13 @@ class SharedExpenseService
             'type' => 'settlement',
             'id' => $settlement->id,
             'date' => $settlement->settled_on->toDateString(),
+            'settled_at' => $settlement->settled_at?->format('d M Y, h:i A') ?? $settlement->created_at?->format('d M Y, h:i A'),
             'from_company' => $settlement->fromCompany,
             'to_company' => $settlement->toCompany,
             'amount' => (float) $settlement->amount,
+            'settlement_type' => $settlement->settlement_type ?? 'full',
+            'remaining_balance' => (float) ($settlement->remaining_balance ?? 0),
+            'payment_mode' => $settlement->payment_mode ?? 'bank_transfer',
             'notes' => $settlement->notes,
             'status' => $status,
             'created_by' => $settlement->creator,

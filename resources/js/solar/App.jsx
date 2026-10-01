@@ -19,6 +19,7 @@ import ReportsPage from './pages/ReportsPage';
 import SalaryPage from './pages/SalaryPage';
 import StockPage from './pages/StockPage';
 import UsersPage from './pages/UsersPage';
+import ISolarCloudPage from './pages/ISolarCloudPage';
 
 export default function App() {
     const [user, setUser] = useState(undefined);
@@ -66,9 +67,10 @@ export default function App() {
 
     return <AppShell user={user} page={page} setPage={setPage} companies={companies} companyId={companyId} setCompanyId={setCompanyId}>
         {({can, activeCompany}) => <>
-            {page === 'dashboard' && <DashboardPage companyId={companyId}/>}
+            {page === 'dashboard' && <DashboardPage companyId={companyId} currentUser={user}/>}
             {page === 'entry' && <DailyEntryPage company={activeCompany} canEdit={user.role !== 'employee' && can('edit_readings')}/>}
             {page === 'reports' && <ReportsPage companyId={companyId} companies={companies}/>}
+            {page === 'isolarcloud' && <ISolarCloudPage company={activeCompany} companies={companies} user={user}/>}
             {page === 'companies' && <CompaniesPage companies={companies} refresh={() => loadCompanies(user)}/>}
             {page === 'import' && <ExcelImportPage/>}
             {page === 'users' && <UsersPage companies={companies} currentUser={user}/>}

@@ -17,6 +17,9 @@ class SaveInverterRequest extends FormRequest
             'id' => ['nullable', 'integer', 'exists:inverters,id'],
             'company_id' => ['required', 'exists:companies,id'],
             'name' => ['required', 'string', 'max:80'],
+            'serial_number' => ['nullable', 'string', 'max:100'],
+            'device_type' => ['nullable', 'string', 'max:20'],
+            'point_id' => ['nullable', 'string', 'max:50'],
             'active' => ['required', 'boolean'],
         ];
     }

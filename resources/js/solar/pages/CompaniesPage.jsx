@@ -12,6 +12,9 @@ const blankCompany = {
     logo_url: null,
     active: true,
     is_ss_reference: false,
+    plant_location: 'Solar Plant, Gujarat',
+    latitude: '22.3039',
+    longitude: '70.8022',
     plant_import_multiplier: '600.00',
     plant_export_multiplier: '600.00',
     sub_import_multiplier: '5000.00',
@@ -68,6 +71,9 @@ export default function CompaniesPage({companies, refresh}) {
         payload.append('password', form.password ?? '');
         payload.append('active', form.active ? '1' : '0');
         payload.append('is_ss_reference', form.is_ss_reference ? '1' : '0');
+        payload.append('plant_location', form.plant_location ?? '');
+        payload.append('latitude', form.latitude ?? '');
+        payload.append('longitude', form.longitude ?? '');
         METERS.forEach(([key]) => payload.append(`${key}_multiplier`, form[`${key}_multiplier`]));
         if (logoFile) payload.append('logo', logoFile);
 
@@ -77,7 +83,7 @@ export default function CompaniesPage({companies, refresh}) {
             setForm({...saved, password: ''});
             setShowPassword(false);
             resetLogo(saved.logo_url);
-            setMessage('Company, logo and login saved. Historical units were recalculated.');
+            setMessage('Company, logo, location and login saved. Historical units were recalculated.');
             await refresh();
         } catch (error) {
             setMessage(error.message);
@@ -105,7 +111,7 @@ export default function CompaniesPage({companies, refresh}) {
         </section>
         <div>
             <form className="panel company-form" onSubmit={save}>
-                <div className="panel-head"><div><h2>{form.id ? 'Edit company' : 'New company'}</h2><p>Company login, logo and four meter multipliers are managed together.</p></div></div>
+                <div className="panel-head"><div><h2>{form.id ? 'Edit company' : 'New company'}</h2><p>Company login, logo, plant weather location and four meter multipliers are managed together.</p></div></div>
                 <div className="company-profile-fields">
                     <label className="company-logo-upload">
                         <span className="company-logo-preview">{logoPreview ? <img src={logoPreview} alt="Company logo preview"/> : <ImagePlus/>}</span>
@@ -122,6 +128,9 @@ export default function CompaniesPage({companies, refresh}) {
                     <Field label="Company name"><input value={form.name} onChange={event => setForm({...form, name: event.target.value})} required/></Field>
                     <Field label="Company login email"><input type="email" value={form.admin_email ?? ''} onChange={event => setForm({...form, admin_email: event.target.value})} autoComplete="off" required/></Field>
                     <Field label={form.id ? 'New password (optional)' : 'Login password'}><input type={showPassword ? 'text' : 'password'} minLength="8" value={form.password ?? ''} onChange={event => setForm({...form, password: event.target.value})} autoComplete="new-password" required={!form.id}/><button type="button" className="password-visibility" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'} title={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button></Field>
+                    <Field label="Plant Location Name"><input value={form.plant_location ?? ''} placeholder="e.g. Rajkot, Gujarat" onChange={event => setForm({...form, plant_location: event.target.value})}/></Field>
+                    <Field label="Latitude (for Weather & Predictions)"><input type="number" step="0.0001" value={form.latitude ?? ''} placeholder="22.3039" onChange={event => setForm({...form, latitude: event.target.value})}/></Field>
+                    <Field label="Longitude (for Weather & Predictions)"><input type="number" step="0.0001" value={form.longitude ?? ''} placeholder="70.8022" onChange={event => setForm({...form, longitude: event.target.value})}/></Field>
                     {METERS.map(([key, label]) => <Field key={key} label={`${label} Unit Multiplier`}><input type="number" min="0" step="0.01" inputMode="decimal" value={form[`${key}_multiplier`]} onChange={event => setForm({...form, [`${key}_multiplier`]: event.target.value})} onBlur={event => setForm(current => ({...current, [`${key}_multiplier`]: fixedTwo(event.target.value)}))} required/></Field>)}
                 </div>
                 {message && <div className={message.includes('saved') ? 'success' : 'error'}>{message}</div>}
@@ -162,6 +171,47 @@ function ExpensePercentagePanel({companies, refresh}) {
 
 function Inverters({company, save}) {
     const [name, setName] = useState('');
+    const [serialNumber, setSerialNumber] = useState('');
 
-    return <section className="panel"><div className="panel-head"><div><h2>Inverters</h2><p>Daily entry fields follow the active inverter list.</p></div></div><div className="inverter-list">{company.inverters.map(inverter => <div key={inverter.id}><span className="company-icon"><Factory/></span><b>{inverter.name}</b><label className="toggle small"><input type="checkbox" checked={Boolean(inverter.active)} onChange={event => save({...inverter, active: event.target.checked})}/><span/>{inverter.active ? 'Active' : 'Inactive'}</label></div>)}</div><div className="inline-add"><input placeholder="e.g. Inverter 5" value={name} onChange={event => setName(event.target.value)}/><button type="button" className="secondary" onClick={async () => {if (!name.trim()) return; await save({company_id: company.id, name, active: true}); setName('');}}>Add inverter</button></div></section>;
+    return <section className="panel">
+        <div className="panel-head">
+            <div>
+                <h2>Inverters</h2>
+                <p>Daily entry fields follow the active inverter list. Enter iSolarCloud Serial Number (device_sn) for automated sync.</p>
+            </div>
+        </div>
+        <div className="inverter-list">
+            {company.inverters.map(inverter => <div key={inverter.id} style={{display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap'}}>
+                <span className="company-icon"><Factory/></span>
+                <b style={{minWidth: '100px'}}>{inverter.name}</b>
+                <input
+                    type="text"
+                    placeholder="iSolarCloud SN (e.g. I2640800649)"
+                    defaultValue={inverter.serial_number || ''}
+                    onBlur={event => {
+                        if (event.target.value !== (inverter.serial_number || '')) {
+                            save({...inverter, serial_number: event.target.value.trim()});
+                        }
+                    }}
+                    style={{maxWidth: '250px', padding: '6px 10px', fontSize: '13px'}}
+                />
+                <label className="toggle small">
+                    <input type="checkbox" checked={Boolean(inverter.active)} onChange={event => save({...inverter, active: event.target.checked})}/>
+                    <span/>
+                    {inverter.active ? 'Active' : 'Inactive'}
+                </label>
+            </div>)}
+        </div>
+        <div className="inline-add" style={{marginTop: '12px'}}>
+            <input placeholder="Inverter Name (e.g. Inverter 5)" value={name} onChange={event => setName(event.target.value)}/>
+            <input placeholder="Serial Number (optional)" value={serialNumber} onChange={event => setSerialNumber(event.target.value)} style={{maxWidth: '220px'}}/>
+            <button type="button" className="secondary" onClick={async () => {
+                if (!name.trim()) return;
+                await save({company_id: company.id, name, serial_number: serialNumber.trim() || null, active: true});
+                setName('');
+                setSerialNumber('');
+            }}>Add inverter</button>
+        </div>
+    </section>;
 }
+

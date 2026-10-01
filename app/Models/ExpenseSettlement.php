@@ -10,7 +10,9 @@ class ExpenseSettlement extends Model
 
     protected $casts = [
         'settled_on' => 'date',
+        'settled_at' => 'datetime',
         'amount' => 'decimal:2',
+        'remaining_balance' => 'decimal:2',
     ];
 
     public function fromCompany()

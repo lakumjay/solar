@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SolarFlow</string>
+    <string name="title_activity_main">SolarFlow</string>
+    <string name="package_name">com.solarflow.mobile</string>
+    <string name="custom_url_scheme">com.solarflow.mobile</string>
+</resources>

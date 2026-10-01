@@ -13,6 +13,7 @@ use App\Http\Controllers\InverterController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\ReadingController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ISolarCloudController;
 use App\Http\Controllers\SalaryController;
 use App\Http\Controllers\SharedExpenseController;
 use App\Http\Controllers\StockBorrowingController;
@@ -24,13 +25,10 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::get('/login', function () {
-    return redirect('/');
-})->name('login');
+Route::match(['get', 'post'], 'callback', [ISolarCloudController::class, 'callback'])->name('isolarcloud.callback');
 
 Route::prefix('api')->group(function () {
     Route::post('login', [AuthController::class, 'login']);
-    Route::get('notifications/vapid-key', [\App\Http\Controllers\NotificationController::class, 'vapidKey']);
     Route::middleware('auth')->group(function () {
         Route::get('me', [AuthController::class, 'me']);
         Route::post('logout', [AuthController::class, 'logout']);
@@ -95,19 +93,16 @@ Route::prefix('api')->group(function () {
         Route::post('expenses', [SharedExpenseController::class, 'store']);
         Route::post('expenses/{expense}', [SharedExpenseController::class, 'update']);
         Route::post('expenses/{expense}/cancel', [SharedExpenseController::class, 'cancel']);
+        Route::post('expenses/{expense}/reverse', [SharedExpenseController::class, 'reverse']);
         Route::post('expense-settlements', [SharedExpenseController::class, 'settle']);
         Route::get('expenses/{expense}/receipt', [SharedExpenseController::class, 'receipt'])->name('expenses.receipt');
 
-        // iSolarCloud IoT integration
-        Route::get('isolarcloud/status', [\App\Http\Controllers\ISolarCloudController::class, 'status']);
-        Route::post('isolarcloud/fetch-now', [\App\Http\Controllers\ISolarCloudController::class, 'fetchNow']);
-        Route::post('isolarcloud/save-auth', [\App\Http\Controllers\ISolarCloudController::class, 'saveAuth']);
-        Route::post('isolarcloud/toggle-source', [\App\Http\Controllers\ISolarCloudController::class, 'toggleSource']);
-
-        // Push Notifications
-        Route::post('notifications/subscribe', [\App\Http\Controllers\NotificationController::class, 'subscribe']);
-        Route::post('notifications/test', [\App\Http\Controllers\NotificationController::class, 'sendTest']);
-        Route::match(['get', 'post'], 'notifications/preferences', [\App\Http\Controllers\NotificationController::class, 'preferences']);
+        Route::get('isolarcloud/status', [ISolarCloudController::class, 'status']);
+        Route::get('isolarcloud/auth-url', [ISolarCloudController::class, 'authUrl']);
+        Route::post('isolarcloud/manual-token', [ISolarCloudController::class, 'manualToken']);
+        Route::get('isolarcloud/live', [ISolarCloudController::class, 'liveData']);
+        Route::post('isolarcloud/sync', [ISolarCloudController::class, 'sync']);
+        Route::get('dashboard/live-solar', [ISolarCloudController::class, 'liveDashboard']);
+        Route::post('dashboard/plant-location', [ISolarCloudController::class, 'updatePlantLocation']);
     });
 });
-

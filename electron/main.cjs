@@ -1,4 +1,4 @@
-const {app, BrowserWindow, dialog, shell} = require('electron');
+const {app, BrowserWindow, dialog, session, shell} = require('electron');
 const {spawn, spawnSync} = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -28,7 +28,7 @@ function prepareRuntime() {
     const environment = {
         ...process.env,
         APP_NAME: 'SolarFlow', APP_ENV: 'production', APP_DEBUG: 'false', APP_URL: `http://127.0.0.1:${PORT}`,
-        APP_KEY: 'base64:YQX7klchbg5Iki9fylUYpl5GfPTe7lt7J+f0wb3vbF4=', APP_STORAGE_PATH: storage,
+        APP_KEY: 'base64:YQX7klchbg5Iki9fylUYpl5GfPTe7lt7J+f0wb3vbF4=', APP_TIMEZONE: 'Asia/Kolkata', APP_STORAGE_PATH: storage,
         DB_CONNECTION: 'sqlite', DB_DATABASE: database, CACHE_STORE: 'database', SESSION_DRIVER: 'database', QUEUE_CONNECTION: 'database',
     };
     return {laravel, environment};
@@ -51,6 +51,13 @@ async function createWindow() {
     const router = path.join(laravel, 'vendor', 'laravel', 'framework', 'src', 'Illuminate', 'Foundation', 'resources', 'server.php');
     backend = spawn(php, ['-S', `127.0.0.1:${PORT}`, router], {cwd: publicPath, env: environment, stdio: ['ignore', 'pipe', 'pipe']});
     await waitForBackend(`http://127.0.0.1:${PORT}/up`);
+    session.defaultSession.setPermissionCheckHandler((_webContents, permission, requestingOrigin) => {
+        return requestingOrigin.startsWith(`http://127.0.0.1:${PORT}`) && ['media', 'geolocation'].includes(permission);
+    });
+    session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
+        const trusted = details.requestingUrl?.startsWith(`http://127.0.0.1:${PORT}`);
+        callback(Boolean(trusted && ['media', 'geolocation'].includes(permission)));
+    });
     const window = new BrowserWindow({
         width: 1440, height: 900, minWidth: 980, minHeight: 680, backgroundColor: '#f4f7f2',
         title: 'SolarFlow', webPreferences: {contextIsolation: true, nodeIntegration: false, sandbox: true},

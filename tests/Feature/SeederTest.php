@@ -31,5 +31,7 @@ class SeederTest extends TestCase
         $this->assertSame(2, Company::where('name', 'Sunrise Green Energy')->firstOrFail()->inverters()->count());
         $this->assertSame(4, Company::where('name', 'Rajeshwari Solar')->firstOrFail()->inverters()->count());
         $this->assertSame(4, Company::where('name', 'Nilkanth Green Energy')->firstOrFail()->inverters()->count());
+        $this->assertSame(1, Company::where('is_ss_reference', true)->count());
+        $this->assertTrue(Company::where('name', 'Sunrise Green Energy')->firstOrFail()->is_ss_reference);
     }
 }

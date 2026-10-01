@@ -21,7 +21,7 @@ class SaveUserRequest extends FormRequest
             'name' => ['required', 'string', 'max:100'],
             'email' => ['required', 'email', 'max:150', Rule::unique('users')->ignore($this->input('id'))],
             'password' => [$this->filled('id') ? 'nullable' : 'required', 'nullable', 'string', 'min:8'],
-            'role' => ['required', Rule::in(['super_admin', 'company_admin', 'manager', 'data_entry', 'viewer'])],
+            'role' => ['required', Rule::in(['super_admin', 'company_admin', 'manager', 'data_entry', 'viewer', 'employee'])],
             'permissions' => ['nullable', 'array'],
             'permissions.*' => [Rule::in(SolarAccessService::PERMISSIONS)],
             'active' => ['required', 'boolean'],
