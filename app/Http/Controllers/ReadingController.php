@@ -38,7 +38,6 @@ class ReadingController extends Controller
         $this->access->requireCompany($request, (int) $data['company_id']);
         $data['reading_date'] = Carbon::parse($data['reading_date'])->startOfDay();
         $existing = DailyReading::where('company_id', $data['company_id'])->where('reading_date', $data['reading_date'])->first();
-        abort_if($existing && $request->user()->role === 'employee', 403, 'Employees cannot edit an existing daily reading.');
         $this->access->requirePermission($request, $existing ? 'edit_readings' : 'enter_readings');
 
         $inverterIds = collect($data['outputs'])->pluck('inverter_id');

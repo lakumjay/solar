@@ -76,7 +76,7 @@ export default function DailyEntryPage({company, canEdit}) {
     const locked = existing && !canEdit;
     return <form className="entry" onSubmit={save}>
         <section className="panel entry-date"><div><p className="step">STEP 1</p><h2>Select entry date</h2><p>If this date already exists, its values will load for editing.</p></div><DatePicker label="Entry date" value={date} onChange={setDate} align="right"/></section>
-        {existing && <div className="info-banner">An entry already exists for this date. {locked ? 'Employees can add new daily entries but cannot edit or delete existing entries.' : 'Saving will update it and recalculate later dates.'}</div>}
+        {existing && <div className="info-banner">An entry already exists for this date. {locked ? 'You do not have permission to edit or overwrite existing entries.' : 'Saving will update it and recalculate later dates.'}</div>}
         {autoFetched && !existing && <div className="info-banner" style={{background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534'}}>⚡ Current live inverter readings auto-loaded from iSolarCloud!</div>}
         <section className="panel">
             <div className="panel-head">

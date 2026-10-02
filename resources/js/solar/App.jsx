@@ -69,7 +69,7 @@ export default function App() {
     return <AppShell user={user} page={page} setPage={setPage} companies={companies} companyId={companyId} setCompanyId={setCompanyId}>
         {({can, activeCompany}) => <>
             {page === 'dashboard' && <DashboardPage companyId={companyId} currentUser={user}/>}
-            {page === 'entry' && <DailyEntryPage company={activeCompany} canEdit={user.role !== 'employee' && can('edit_readings')}/>}
+            {page === 'entry' && <DailyEntryPage company={activeCompany} canEdit={can('edit_readings')}/>}
             {page === 'reports' && <ReportsPage companyId={companyId} companies={companies}/>}
             {page === 'gallery' && <GalleryPage companyId={companyId} currentUser={user}/>}
             {page === 'isolarcloud' && <ISolarCloudPage company={activeCompany} companies={companies} user={user}/>}
