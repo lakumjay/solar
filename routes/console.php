@@ -9,4 +9,5 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('plant-photos:prune --days=10')->dailyAt('02:00');
-Schedule::command('solar:auto-save-daily')->dailyAt('20:05');
+Schedule::command('isolarcloud:auto-save-daily')->dailyAt('20:05');
+Schedule::command('isolarcloud:auto-save-daily')->dailyAt('20:30');
