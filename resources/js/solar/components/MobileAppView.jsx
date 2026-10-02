@@ -700,13 +700,16 @@ export default function MobileAppView({
                 </main>
             )}
 
-            {/* 7. MODERN FLOATING BOTTOM NAVIGATION BAR */}
+            {/* 7. MODERN FLOATING BOTTOM NAVIGATION BAR WITH HAPTIC TOUCH */}
             <nav className="mobile-bottom-navbar">
                 {can('view_dashboard') && (
                     <button
                         type="button"
                         className={`bnav-item ${page === 'dashboard' ? 'active' : ''}`}
-                        onClick={() => setPage('dashboard')}
+                        onClick={() => {
+                            if (navigator.vibrate) { try { navigator.vibrate(20); } catch(e){} }
+                            setPage('dashboard');
+                        }}
                     >
                         <Home size={20}/>
                         <span>Home</span>
@@ -717,7 +720,10 @@ export default function MobileAppView({
                     <button
                         type="button"
                         className={`bnav-item ${page === 'entry' ? 'active' : ''}`}
-                        onClick={() => setPage('entry')}
+                        onClick={() => {
+                            if (navigator.vibrate) { try { navigator.vibrate(20); } catch(e){} }
+                            setPage('entry');
+                        }}
                     >
                         <ClipboardPlus size={20}/>
                         <span>Daily Entry</span>
@@ -728,7 +734,10 @@ export default function MobileAppView({
                     <button
                         type="button"
                         className={`bnav-item ${[attendanceTargetPage, 'attendance', 'my-attendance'].includes(page) ? 'active' : ''}`}
-                        onClick={() => setPage(attendanceTargetPage)}
+                        onClick={() => {
+                            if (navigator.vibrate) { try { navigator.vibrate(20); } catch(e){} }
+                            setPage(attendanceTargetPage);
+                        }}
                     >
                         <UserCheck size={20}/>
                         <span>Attendance</span>
@@ -739,7 +748,10 @@ export default function MobileAppView({
                     <button
                         type="button"
                         className={`bnav-item ${page === 'reports' ? 'active' : ''}`}
-                        onClick={() => setPage('reports')}
+                        onClick={() => {
+                            if (navigator.vibrate) { try { navigator.vibrate(20); } catch(e){} }
+                            setPage('reports');
+                        }}
                     >
                         <BarChart3 size={20}/>
                         <span>Reports</span>
@@ -749,7 +761,10 @@ export default function MobileAppView({
                 <button
                     type="button"
                     className={`bnav-item ${page === 'gallery' ? 'active' : ''}`}
-                    onClick={() => setPage('gallery')}
+                    onClick={() => {
+                        if (navigator.vibrate) { try { navigator.vibrate(20); } catch(e){} }
+                        setPage('gallery');
+                    }}
                 >
                     <Camera size={20}/>
                     <span>Gallery</span>
@@ -758,7 +773,10 @@ export default function MobileAppView({
                 <button
                     type="button"
                     className={`bnav-item ${moreMenuOpen ? 'active' : ''}`}
-                    onClick={() => setMoreMenuOpen(true)}
+                    onClick={() => {
+                        if (navigator.vibrate) { try { navigator.vibrate(20); } catch(e){} }
+                        setMoreMenuOpen(true);
+                    }}
                 >
                     <MoreHorizontal size={20}/>
                     <span>More</span>

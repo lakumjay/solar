@@ -1,5 +1,5 @@
 import React, {useState} from 'react';
-import {CheckCircle, Clock, HelpCircle, Sun, Cloud, CloudRain, CloudLightning, Wind, AlertTriangle} from 'lucide-react';
+import {CheckCircle, Clock, HelpCircle, Sun, Cloud, CloudRain, CloudLightning, Wind, AlertTriangle, Share2} from 'lucide-react';
 
 export default function ISolarCloudVisualizer({data, weather, isEmployee}) {
     const selectedWeather = weather?.type || 'sunny';
@@ -23,6 +23,25 @@ export default function ISolarCloudVisualizer({data, weather, isEmployee}) {
 
     const weatherTemp = weather?.temp || '28.1°C';
 
+    const handleShareWhatsapp = () => {
+        if (navigator.vibrate) {
+            try { navigator.vibrate(30); } catch (e) {}
+        }
+        const plantTitle = data?.company_name || 'All Companies Combined';
+        const text = `☀️ *SolarFlow ⚡ Live Generation Summary* ☀️\n` +
+            `📅 Date: ${new Date().toLocaleDateString('en-GB')}\n` +
+            `🏢 Plant: ${plantTitle}\n` +
+            `⚡ Realtime Power: ${displayPowerVal} ${displayPowerUnit} (${subPowerText})\n` +
+            `🔋 Today Units: ${todayKwh} kWh\n` +
+            `💰 Today Revenue: ₹${revenueRs}\n` +
+            `🟢 Inverters Online: ${onlineCount} / ${totalInverters}\n` +
+            `🌡️ Weather: ${weatherTemp} (${weather?.condition || 'Clear'})\n` +
+            `🚀 Live SolarFlow Monitoring`;
+        
+        const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+        window.open(url, '_blank');
+    };
+
     return (
         <section className={`isolar-app-card weather-mode-${selectedWeather}`}>
             {/* Top Bar Header */}
@@ -42,8 +61,32 @@ export default function ISolarCloudVisualizer({data, weather, isEmployee}) {
                     </span>
                 </div>
 
-                {/* Clean Live Weather Badge in Header Right */}
+                {/* Clean Live Weather Badge & WhatsApp Share in Header Right */}
                 <div className="isolar-header-right" style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                    <button
+                        type="button"
+                        onClick={handleShareWhatsapp}
+                        className="isolar-share-btn"
+                        title="Share Live Generation Summary to WhatsApp"
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            background: '#25d366',
+                            color: '#ffffff',
+                            border: '0',
+                            borderRadius: '20px',
+                            padding: '4px 10px',
+                            fontSize: '11.5px',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(37, 211, 102, 0.3)'
+                        }}
+                    >
+                        <Share2 size={12}/>
+                        <span>Share</span>
+                    </button>
+
                     <span style={{
                         display: 'inline-flex',
                         alignItems: 'center',
