@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {ClockAlert, MapPin, PencilLine, Plus, Search, X} from 'lucide-react';
+import {Bell, ClockAlert, ExternalLink, MapPin, Navigation, PencilLine, Plus, Radio, RefreshCw, Search, Send, Smartphone, User, X} from 'lucide-react';
 import {api} from '../api';
 import {DatePicker, Empty, Field} from '../components/Common';
 
@@ -24,6 +24,46 @@ export default function AttendancePage({canCorrect, canRecord}) {
     const [manual, setManual] = useState(null);
     const [selfiePreview, setSelfiePreview] = useState(null);
     const [message, setMessage] = useState('');
+
+    // 📍 Real-Time Live Employee Locations
+    const [liveLocations, setLiveLocations] = useState([]);
+    const [liveCount, setLiveCount] = useState(0);
+    const [loadingLocations, setLoadingLocations] = useState(false);
+    const [selectedMapEmployee, setSelectedMapEmployee] = useState(null);
+    const [pushSending, setPushSending] = useState(false);
+
+    const loadLiveLocations = async () => {
+        try {
+            setLoadingLocations(true);
+            const data = await api('employee-locations/live');
+            setLiveLocations(data.employees || []);
+            setLiveCount(data.live_count || 0);
+        } catch (e) {
+            console.warn('Live location error', e);
+        } finally {
+            setLoadingLocations(false);
+        }
+    };
+
+    const handleSendTestPush = async () => {
+        setPushSending(true);
+        setMessage('');
+        try {
+            const res = await api('push-notifications/send-test', {
+                method: 'POST',
+                body: JSON.stringify({
+                    title: '⚡ SolarFlow Live Push Alert',
+                    body: 'Live Web Push Notification working successfully even when app is closed!'
+                })
+            });
+            setMessage(res.message || 'Push notification dispatched successfully!');
+        } catch (err) {
+            setMessage('Push error: ' + err.message);
+        } finally {
+            setPushSending(false);
+        }
+    };
+
     const load = async () => {
         const query = new URLSearchParams({date});
         if (employeeId) query.set('employee_id', employeeId);
@@ -31,7 +71,13 @@ export default function AttendancePage({canCorrect, canRecord}) {
         setRows(attendance);
         setEmployees(people);
     };
-    useEffect(() => { load().catch(error => setMessage(error.message)); }, [date, employeeId]);
+
+    useEffect(() => {
+        load().catch(error => setMessage(error.message));
+        loadLiveLocations();
+        const locInterval = setInterval(loadLiveLocations, 30000); // 30s auto-refresh
+        return () => clearInterval(locInterval);
+    }, [date, employeeId]);
     const filtered = useMemo(() => rows.filter(row => `${row.employee.user.name} ${row.employee.employee_code}`.toLowerCase().includes(search.toLowerCase())), [rows, search]);
     const openCorrection = row => setCorrection({
         id: row.id,
@@ -99,7 +145,180 @@ export default function AttendancePage({canCorrect, canRecord}) {
             <article className="metric"><span>Late arrivals</span><strong>{totals.late}</strong><small>after grace period</small></article>
             <article className="metric"><span>Manual corrections</span><strong>{totals.corrected}</strong><small>audited records</small></article>
         </div>
-        {message && <div className={message.includes('saved') ? 'success' : 'error'}>{message}</div>}
+        {message && <div className={message.includes('saved') || message.includes('dispatched') || message.includes('delivered') ? 'success' : 'error'}>{message}</div>}
+
+        {/* 📡 Live Employee GPS Field Tracker & Map Box */}
+        <section className="panel" style={{marginBottom: '24px', border: '1px solid #cbe4d7', background: 'linear-gradient(to bottom, #ffffff, #f9fdfa)'}}>
+            <div className="panel-head" style={{alignItems: 'center', flexWrap: 'wrap', gap: '12px'}}>
+                <div>
+                    <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                        <h2 style={{display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '18px', color: '#123e30'}}>
+                            <Navigation size={20} style={{color: '#22c55e'}}/>
+                            કર્મચારી લાઈવ લોકેશન ટ્રેકર (Live Field Tracker)
+                        </h2>
+                        <span className="status on" style={{padding: '4px 10px', fontSize: '11px', fontWeight: 800}}>
+                            🟢 {liveCount} Live Online
+                        </span>
+                    </div>
+                    <p style={{margin: '4px 0 0', fontSize: '12px', color: '#627c70'}}>
+                        એમ્પ્લોયીનો ફોન/PWA ઓપન અથવા મિનિમાઇઝ હોય ત્યારે રીઅલ-ટાઇમ જીપીએસ ટ્રેકિંગ (Syncs every 30s)
+                    </p>
+                </div>
+                <div style={{display: 'flex', gap: '8px', alignItems: 'center', marginLeft: 'auto'}}>
+                    <button
+                        type="button"
+                        className="secondary"
+                        onClick={loadLiveLocations}
+                        disabled={loadingLocations}
+                        style={{display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 13px', fontSize: '12px'}}
+                        title="Refresh Live GPS coordinates"
+                    >
+                        <RefreshCw size={14} className={loadingLocations ? 'spin' : ''}/> રીફ્રેશ લોકેશન
+                    </button>
+                    <button
+                        type="button"
+                        className="secondary"
+                        onClick={handleSendTestPush}
+                        disabled={pushSending}
+                        style={{display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 13px', fontSize: '12px', background: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd'}}
+                        title="Send Web Push Notification to verify closed app delivery"
+                    >
+                        <Bell size={14}/> {pushSending ? 'મોકલી રહ્યાં છીએ...' : '🔔 ટેસ્ટ પુશ મોકલો (Test Push)'}
+                    </button>
+                </div>
+            </div>
+
+            {liveLocations.length > 0 ? (
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                    gap: '14px',
+                    marginTop: '12px'
+                }}>
+                    {liveLocations.map(emp => (
+                        <div
+                            key={emp.employee_id}
+                            style={{
+                                background: '#ffffff',
+                                border: emp.is_live ? '1.5px solid #86efac' : '1px solid #e2ece5',
+                                borderRadius: '14px',
+                                padding: '14px 16px',
+                                boxShadow: emp.is_live ? '0 4px 14px rgba(34, 197, 94, 0.12)' : '0 2px 6px rgba(0,0,0,0.03)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '10px'
+                            }}
+                        >
+                            <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+                                <div style={{
+                                    width: '42px',
+                                    height: '42px',
+                                    borderRadius: '12px',
+                                    background: emp.is_live ? '#dcfce7' : '#f1f5f9',
+                                    color: emp.is_live ? '#15803d' : '#64748b',
+                                    display: 'grid',
+                                    placeItems: 'center',
+                                    fontWeight: 800,
+                                    fontSize: '14px',
+                                    overflow: 'hidden',
+                                    flexShrink: 0
+                                }}>
+                                    {emp.avatar_url ? (
+                                        <img src={emp.avatar_url} alt={emp.name} style={{width: '100%', height: '100%', objectFit: 'cover'}}/>
+                                    ) : (
+                                        <span>{emp.name.slice(0, 2).toUpperCase()}</span>
+                                    )}
+                                </div>
+                                <div style={{flex: 1, minWidth: 0}}>
+                                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px'}}>
+                                        <b style={{fontSize: '13px', color: '#133e31', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+                                            {emp.name}
+                                        </b>
+                                        {emp.is_live ? (
+                                            <span className="status on" style={{fontSize: '10px', padding: '2px 7px'}}>
+                                                🟢 Live ({emp.last_seen})
+                                            </span>
+                                        ) : emp.latitude ? (
+                                            <span className="status warning" style={{fontSize: '10px', padding: '2px 7px'}}>
+                                                🟡 {emp.last_seen}
+                                            </span>
+                                        ) : (
+                                            <span className="status" style={{fontSize: '10px', padding: '2px 7px'}}>
+                                                ⚪ Offline
+                                            </span>
+                                        )}
+                                    </div>
+                                    <small style={{display: 'block', color: '#687e74', fontSize: '11px', marginTop: '2px'}}>
+                                        {emp.employee_code} · {emp.designation} · <span style={{color: '#0d9488'}}>{emp.company_name}</span>
+                                    </small>
+                                </div>
+                            </div>
+
+                            <div style={{
+                                background: '#f8faf9',
+                                borderRadius: '10px',
+                                padding: '9px 12px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                fontSize: '11px',
+                                color: '#4b6357'
+                            }}>
+                                <span>હાજરી સ્ટેટસ: <b style={{color: emp.status === 'Working' ? '#16a34a' : emp.status === 'Shift Ended' ? '#0284c7' : '#eab308'}}>{emp.status}</b></span>
+                                {emp.accuracy && <small style={{color: '#71857c'}}>ચોક્કસતા: ±{Math.round(emp.accuracy)}m</small>}
+                            </div>
+
+                            {emp.latitude && emp.longitude ? (
+                                <div style={{display: 'flex', gap: '8px', marginTop: 'auto'}}>
+                                    <button
+                                        type="button"
+                                        className="primary"
+                                        onClick={() => setSelectedMapEmployee(emp)}
+                                        style={{
+                                            flex: 1,
+                                            padding: '8px 12px',
+                                            fontSize: '12px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '6px'
+                                        }}
+                                    >
+                                        <MapPin size={14}/> લાઈવ મેપ જુઓ (View Map)
+                                    </button>
+                                    <a
+                                        href={emp.map_url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="secondary"
+                                        style={{
+                                            padding: '8px 12px',
+                                            fontSize: '12px',
+                                            textDecoration: 'none',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                        title="Open in Google Maps tab"
+                                    >
+                                        <ExternalLink size={14}/>
+                                    </a>
+                                </div>
+                            ) : (
+                                <div style={{fontSize: '11px', color: '#94a3b8', textAlign: 'center', padding: '6px 0'}}>
+                                    હજુ સુધી GPS લોકેશન પિંગ મળેલ નથી
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div style={{textAlign: 'center', padding: '20px', color: '#64748b', fontSize: '13px'}}>
+                    હાલ કોઈ કર્મચારી લાઈવ ટ્રેકિંગ માટે ઉપલબ્ધ નથી.
+                </div>
+            )}
+        </section>
+
         <section className="panel">
             <div className="panel-head attendance-list-head"><div><h2>Daily attendance</h2><p>Employee and audited manager-entered records.</p></div>{canRecord && <button type="button" className="primary" onClick={openManual}><Plus size={16}/> Add attendance</button>}</div>
             <div className="attendance-toolbar">
@@ -250,5 +469,85 @@ export default function AttendancePage({canCorrect, canRecord}) {
             </form>
         </div>}
         {selfiePreview && <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && setSelfiePreview(null)}><div className="modal attendance-photo-modal" role="dialog" aria-modal="true" aria-labelledby="time-in-selfie-title"><div className="panel-head"><div><h2 id="time-in-selfie-title">Time In selfie</h2><p>{selfiePreview.employee} · {selfiePreview.date}</p></div><button type="button" className="icon-button ghost" onClick={() => setSelfiePreview(null)} aria-label="Close photo preview"><X/></button></div><img className="attendance-photo-preview" src={selfiePreview.url} alt={`${selfiePreview.employee} Time In selfie`}/></div></div>}
+
+        {/* 🗺️ Live Google Maps Interactive View Modal */}
+        {selectedMapEmployee && (
+            <div className="modal-backdrop" onClick={() => setSelectedMapEmployee(null)}>
+                <div className="modal" onClick={e => e.stopPropagation()} style={{maxWidth: '720px', padding: 0, overflow: 'hidden', borderRadius: '18px'}}>
+                    <div style={{
+                        padding: '14px 18px',
+                        background: '#0d382d',
+                        color: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                    }}>
+                        <div>
+                            <h3 style={{margin: 0, fontSize: '15px', fontWeight: 800, color: '#f0fdf4'}}>
+                                📍 {selectedMapEmployee.name} ({selectedMapEmployee.employee_code}) · લાઈવ લોકેશન
+                            </h3>
+                            <p style={{margin: '3px 0 0', fontSize: '11px', color: '#86efac'}}>
+                                {selectedMapEmployee.designation} · {selectedMapEmployee.company_name} · {selectedMapEmployee.last_seen}
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            className="icon-button ghost"
+                            onClick={() => setSelectedMapEmployee(null)}
+                            style={{background: 'rgba(255,255,255,0.15)', color: '#ffffff'}}
+                        >
+                            <X size={16}/>
+                        </button>
+                    </div>
+
+                    <div style={{position: 'relative', width: '100%', height: '420px', background: '#e2e8f0'}}>
+                        <iframe
+                            title={`Map for ${selectedMapEmployee.name}`}
+                            width="100%"
+                            height="100%"
+                            frameBorder="0"
+                            scrolling="no"
+                            marginHeight="0"
+                            marginWidth="0"
+                            src={`https://maps.google.com/maps?q=${selectedMapEmployee.latitude},${selectedMapEmployee.longitude}&hl=gu&z=16&output=embed`}
+                            style={{border: 0}}
+                        />
+                    </div>
+
+                    <div style={{
+                        padding: '12px 18px',
+                        background: '#f8faf9',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        borderTop: '1px solid #e2ece5'
+                    }}>
+                        <div style={{fontSize: '11px', color: '#475569'}}>
+                            <b>GPS:</b> {selectedMapEmployee.latitude?.toFixed(6)}, {selectedMapEmployee.longitude?.toFixed(6)}
+                            {selectedMapEmployee.accuracy && <span> (±{Math.round(selectedMapEmployee.accuracy)}m)</span>}
+                        </div>
+                        <div style={{display: 'flex', gap: '8px'}}>
+                            <a
+                                href={selectedMapEmployee.map_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="primary"
+                                style={{textDecoration: 'none', padding: '8px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px'}}
+                            >
+                                <ExternalLink size={14}/> Open in Google Maps App
+                            </a>
+                            <button
+                                type="button"
+                                className="secondary"
+                                onClick={() => setSelectedMapEmployee(null)}
+                                style={{padding: '8px 14px', fontSize: '12px'}}
+                            >
+                                બંધ કરો (Close)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
     </div>;
 }

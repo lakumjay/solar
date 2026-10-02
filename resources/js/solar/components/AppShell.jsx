@@ -57,6 +57,51 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         };
     }, [companyId]);
 
+    // 📍 Periodic Employee Live Location Background Ping (Active when App is open or minimized)
+    useEffect(() => {
+        if (!user || user.role !== 'employee') return;
+
+        const pingLocation = () => {
+            if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return;
+
+            navigator.geolocation.getCurrentPosition(
+                position => {
+                    api('employee-locations/ping', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy: position.coords.accuracy,
+                            status_label: 'App Active'
+                        })
+                    }).catch(() => {});
+                },
+                () => {},
+                {enableHighAccuracy: true, timeout: 15000, maximumAge: 60000}
+            );
+        };
+
+        // Ping immediately
+        pingLocation();
+
+        // Periodic background interval (every 3 minutes)
+        const locationInterval = setInterval(pingLocation, 3 * 60 * 1000);
+
+        const handleFocus = () => {
+            if (document.visibilityState === 'visible') {
+                pingLocation();
+            }
+        };
+        document.addEventListener('visibilitychange', handleFocus);
+        window.addEventListener('focus', handleFocus);
+
+        return () => {
+            clearInterval(locationInterval);
+            document.removeEventListener('visibilitychange', handleFocus);
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [user?.id]);
+
     const can = permission => user.role === 'super_admin' || user.permissions.includes(permission);
     const activeCompany = companies.find(company => String(company.id) === String(companyId));
     const navigation = [

@@ -1,5 +1,6 @@
 import React, {useState, useEffect} from 'react';
 import {Bell, CheckCircle, ShieldAlert, Sparkles, X} from 'lucide-react';
+import {syncPushSubscription} from '../api';
 
 export default function NotificationPermissionModal() {
     const [showModal, setShowModal] = useState(false);
@@ -14,8 +15,10 @@ export default function NotificationPermissionModal() {
         const currentPerm = Notification.permission;
         setPermissionStatus(currentPerm);
 
-        // Show prompt if not granted yet
-        if (currentPerm !== 'granted') {
+        // If already granted, ensure Web Push subscription is registered in backend
+        if (currentPerm === 'granted') {
+            syncPushSubscription();
+        } else {
             const hasDismissed = sessionStorage.getItem('solar_notif_dismissed_session');
             if (!hasDismissed) {
                 setShowModal(true);
@@ -35,10 +38,13 @@ export default function NotificationPermissionModal() {
             setPermissionStatus(result);
             if (result === 'granted') {
                 setShowModal(false);
+                // Register push subscription with backend
+                await syncPushSubscription();
+
                 // Trigger quick confirmation test notification
                 try {
                     const options = {
-                        body: 'સોલાર પ્લાન્ટ એલર્ટ્સ અને રોજના 8:00 PM ઉત્પાદન રિપોર્ટ સક્રિય થઈ ગયા છે.',
+                        body: 'સોલાર પ્લાન્ટ એલર્ટ્સ અને રોજના ઉત્પાદન રિપોર્ટ સક્રિય થઈ ગયા છે.',
                         icon: '/icons/icon-192.png',
                         badge: '/icons/icon-192.png',
                     };

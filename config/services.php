@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'vapid' => [
+        'public_key' => env('VAPID_PUBLIC_KEY', 'BA6zohhbg2dSyTQVJUkaTn7edHpiNkoJw7LKoqnqcg02VLdKNUcV6xIJnD9qNuX7VEts22SdTcoJMwJ2HSF-20o'),
+        'private_key' => env('VAPID_PRIVATE_KEY', 'TW64rgW30g-kiKJoK0rLupFkZzm_hJks-Y0MVd_1FCY'),
+        'subject' => env('VAPID_SUBJECT', 'mailto:admin@solarflow.in'),
+    ],
+
 ];
