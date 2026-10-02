@@ -33,17 +33,17 @@ class DailySsReportExporter
         $sheet->mergeCells("C1:F{$companyPanelLastRow}");
         $sheet->setCellValue('C1', self::COMPANY_NAME);
 
-        $sheet->getStyle('A1:B1')->getFont()->setBold(true);
-        $sheet->getStyle('A1:B1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFFF00');
+        $sheet->getStyle('A1:B1')->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+        $sheet->getStyle('A1:B1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('107C41');
         $sheet->getStyle("C1:F{$companyPanelLastRow}")->getFont()->setBold(true)->setSize(16)->getColor()->setRGB('FFFFFF');
-        $sheet->getStyle("C1:F{$companyPanelLastRow}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('4A86E8');
+        $sheet->getStyle("C1:F{$companyPanelLastRow}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('1E40AF');
         $sheet->getStyle("C1:F{$companyPanelLastRow}")->getAlignment()
             ->setHorizontal(Alignment::HORIZONTAL_CENTER)
             ->setVertical(Alignment::VERTICAL_CENTER)
             ->setWrapText(true);
         $sheet->getStyle("A1:B{$companyPanelLastRow}")->getBorders()->getAllBorders()
             ->setBorderStyle(Border::BORDER_THIN)
-            ->getColor()->setRGB('D9E2F3');
+            ->getColor()->setRGB('CBD5E1');
         $sheet->getStyle("B2:B{$rowNumber}")->getNumberFormat()->setFormatCode('#,##0.00');
         $sheet->getColumnDimension('A')->setWidth(15);
         $sheet->getColumnDimension('B')->setWidth(20);
