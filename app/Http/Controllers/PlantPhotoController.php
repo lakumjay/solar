@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Company;
 use App\Models\Employee;
 use App\Models\PlantPhoto;
 use App\Models\PlantPhotoTask;
