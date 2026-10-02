@@ -458,33 +458,6 @@ export default function MobileAppView({
             ) : (
                 /* MAIN DASHBOARD CONTENT WITH 3D ANIMATED ISOMETRIC VISUALIZER */
                 <main className="mobile-dashboard-scroll">
-                    {/* 0. VIP OWNER WELCOME BANNER (Personalized with Photo & Name) */}
-                    <div className="mobile-vip-owner-banner">
-                        <div className="vip-banner-left">
-                            <div className="vip-avatar-wrap">
-                                {activeCompany?.owner_photo_url ? (
-                                    <img src={activeCompany.owner_photo_url} alt="" className="vip-owner-thumb"/>
-                                ) : (
-                                    <div className="vip-owner-initial">
-                                        {(activeCompany?.owner_name || (user.name === 'Super Admin' ? 'Lakum Jay' : user.name) || 'L').slice(0, 1).toUpperCase()}
-                                    </div>
-                                )}
-                                <span className="vip-crown-badge">👑</span>
-                            </div>
-                            <div className="vip-owner-info">
-                                <h4 className="vip-owner-greeting">
-                                    નમસ્તે, <span className="vip-gold-name">{activeCompany?.owner_name || (user.name === 'Super Admin' ? 'Lakum Jay' : user.name)} સર! 👋</span>
-                                </h4>
-                                <p className="vip-owner-sub">
-                                    {activeCompany?.owner_designation || 'Solar Plant Owner & Director'}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="vip-badge-pill">
-                            <span>⚡ LIVE</span>
-                        </div>
-                    </div>
-
                     {/* Subhead Status Row */}
                     <div className="mobile-subhead-section">
                         <div className="plant-live-status-row">
