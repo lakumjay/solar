@@ -105,6 +105,16 @@ export default function MobileAppView({
         return () => window.removeEventListener('beforeinstallprompt', handler);
     }, []);
 
+    // ⚡ Auto-select first company when navigating to Daily Entry if "All Companies" was selected
+    useEffect(() => {
+        if (page === 'entry' && (companyId === 'all' || !companyId) && companies.length > 0) {
+            const firstValidComp = companies.find(c => String(c.id) !== 'all') || companies[0];
+            if (firstValidComp) {
+                setCompanyId(String(firstValidComp.id));
+            }
+        }
+    }, [page, companyId, companies]);
+
     const handleInstallClick = async () => {
         if (!pwaPrompt) {
             alert('To install this app on your phone: Tap Chrome Menu (⋮) and select "Install app" or "Add to Home Screen".');
@@ -722,6 +732,10 @@ export default function MobileAppView({
                         className={`bnav-item ${page === 'entry' ? 'active' : ''}`}
                         onClick={() => {
                             if (navigator.vibrate) { try { navigator.vibrate(20); } catch(e){} }
+                            if ((companyId === 'all' || !companyId) && companies.length > 0) {
+                                const validComp = companies.find(c => String(c.id) !== 'all') || companies[0];
+                                if (validComp) setCompanyId(String(validComp.id));
+                            }
                             setPage('entry');
                         }}
                     >

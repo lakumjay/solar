@@ -122,30 +122,133 @@ export default function AttendancePage({canCorrect, canRecord}) {
                 </tr>)}</tbody>
             </table></div> : <Empty title="No attendance records" detail="No employee timed in for the selected date and filters."/>}
         </section>
-        {manual && <div className="modal-backdrop"><form className="modal manual-attendance-modal" onSubmit={saveManual}>
-            <div className="panel-head"><div><h2>Add employee attendance</h2><p>Completed attendance without employee selfie or GPS.</p></div><button type="button" className="icon-button ghost" onClick={() => setManual(null)}><X/></button></div>
-            <div className="audit-warning"><ClockAlert/><span><b>This action is audited.</b><small>Your name, entry time and reason are permanently recorded.</small></span></div>
-            <div className="form-grid two">
-                <Field label="Employee"><select value={manual.employee_id} onChange={event => changeManualEmployee(event.target.value)} required>{eligibleEmployees.map(employee => <option key={employee.id} value={employee.id}>{employee.employee_code} · {employee.name}</option>)}</select></Field>
-                <Field label="Attendance date"><input type="date" max={localDate()} value={manual.attendance_date} onChange={event => changeManualDate(event.target.value)} required/></Field>
-                <Field label="Time In"><input type="datetime-local" value={manual.clock_in_at} onChange={event => setManual({...manual, clock_in_at: event.target.value})} required/></Field>
-                <Field label="Time Out"><input type="datetime-local" value={manual.clock_out_at} onChange={event => setManual({...manual, clock_out_at: event.target.value})} required/></Field>
-                <Field label="Total break minutes"><input type="number" min="0" max="1439" value={manual.break_minutes} onChange={event => setManual({...manual, break_minutes: event.target.value})} required/></Field>
-            </div>
-            <Field label="What did the employee do?"><textarea value={manual.work_done} onChange={event => setManual({...manual, work_done: event.target.value})} rows="3" required/></Field>
-            <Field label="What did the employee learn?"><textarea value={manual.learned} onChange={event => setManual({...manual, learned: event.target.value})} rows="3" required/></Field>
-            <Field label="Why is the manager entering this attendance?"><textarea value={manual.entry_reason} onChange={event => setManual({...manual, entry_reason: event.target.value})} rows="3" placeholder="Example: Employee does not own a smartphone" required/></Field>
-            <div className="form-actions"><span>Existing attendance will never be overwritten.</span><button className="primary">Save attendance</button></div>
-        </form></div>}
-        {correction && <div className="modal-backdrop"><form className="modal correction-modal" onSubmit={saveCorrection}>
-            <div className="panel-head"><div><h2>{correction.had_clock_out ? 'Correct attendance' : 'Complete missing Time Out'}</h2><p>{correction.employee} · {correction.attendance_date}</p></div><button type="button" className="icon-button ghost" onClick={() => setCorrection(null)}><X/></button></div>
-            <div className="audit-warning"><ClockAlert/><span><b>This action is audited.</b><small>Your name, time, old values and reason will be stored.</small></span></div>
-            <Field label="Time Out"><input type="datetime-local" value={correction.clock_out_at} onChange={event => setCorrection({...correction, clock_out_at: event.target.value})} required/></Field>
-            <Field label="What did the employee do?"><textarea value={correction.work_done} onChange={event => setCorrection({...correction, work_done: event.target.value})} rows="3" required/></Field>
-            <Field label="What did the employee learn?"><textarea value={correction.learned} onChange={event => setCorrection({...correction, learned: event.target.value})} rows="3" required/></Field>
-            <Field label="Correction reason"><textarea value={correction.correction_reason} onChange={event => setCorrection({...correction, correction_reason: event.target.value})} rows="3" placeholder="Why is this manual update required?" required/></Field>
-            <div className="form-actions"><button className="primary">Save audited correction</button></div>
-        </form></div>}
+        {manual && <div className="modal-backdrop" onClick={() => setManual(null)}>
+            <form className="modal modal-sheet manual-attendance-modal" onSubmit={saveManual} onClick={e => e.stopPropagation()} style={{maxWidth: '620px'}}>
+                <div className="panel-head">
+                    <div>
+                        <h2>કર્મચારી હાજરી ઉમેરો (Add Attendance)</h2>
+                        <p>સેલ્ફી અથવા GPS વગર અધિકૃત મેનેજર દ્વારા હાજરી એન્ટ્રી</p>
+                    </div>
+                    <button type="button" className="icon-button ghost" onClick={() => setManual(null)}><X size={18}/></button>
+                </div>
+
+                <div className="modal-body-scroll">
+                    <div className="audit-warning">
+                        <ClockAlert/>
+                        <span>
+                            <b>⚠️ આ એક્શન ઓડિટ લોગમાં કાયમી રેકોર્ડ થશે</b>
+                            <small>તમારું નામ, એન્ટ્રી સમય અને દર્શાવેલ કારણ ડેટાબેઝમાં સેવ થશે.</small>
+                        </span>
+                    </div>
+
+                    <div className="form-grid two">
+                        <Field label="કર્મચારી પસંદ કરો (Select Employee)">
+                            <select value={manual.employee_id} onChange={event => changeManualEmployee(event.target.value)} required>
+                                {eligibleEmployees.map(employee => <option key={employee.id} value={employee.id}>{employee.employee_code} · {employee.name}</option>)}
+                            </select>
+                        </Field>
+                        <Field label="હાજરી તારીખ (Attendance Date)">
+                            <input type="date" max={localDate()} value={manual.attendance_date} onChange={event => changeManualDate(event.target.value)} required/>
+                        </Field>
+                        <Field label="આવવાનો સમય (Time In)">
+                            <input type="datetime-local" value={manual.clock_in_at} onChange={event => setManual({...manual, clock_in_at: event.target.value})} required/>
+                        </Field>
+                        <Field label="જવાનો સમય (Time Out)">
+                            <input type="datetime-local" value={manual.clock_out_at} onChange={event => setManual({...manual, clock_out_at: event.target.value})} required/>
+                        </Field>
+                        <Field label="કુલ બ્રેક / રિસેસ મિનિટ (Break Minutes)">
+                            <input type="number" min="0" max="1439" value={manual.break_minutes} onChange={event => setManual({...manual, break_minutes: event.target.value})} required/>
+                        </Field>
+                    </div>
+
+                    <Field label="કર્મચારીએ આજે શું કામ કર્યું? (What did the employee do?)">
+                        <textarea
+                            value={manual.work_done}
+                            onChange={event => setManual({...manual, work_done: event.target.value})}
+                            rows="3"
+                            placeholder="દા.ત. સોલાર પેનલ સાફ કરી, ઇન્વર્ટર 3 ચેક કર્યું, અર્થિંગ વેરિફિકેશન કર્યું..."
+                            required
+                        />
+                    </Field>
+
+                    <Field label="કર્મચારીએ આજે નવું શું શીખ્યું? (What did the employee learn?)">
+                        <textarea
+                            value={manual.learned}
+                            onChange={event => setManual({...manual, learned: event.target.value})}
+                            rows="3"
+                            placeholder="દા.ત. DC ફ્યુઝ ટેસ્ટિંગ, SCADA મોનિટરિંગ ટૂલ શીખ્યા..."
+                            required
+                        />
+                    </Field>
+
+                    <Field label="મેનેજર દ્વારા હાજરી પૂરવાનું કારણ (Why is manager entering?)">
+                        <textarea
+                            value={manual.entry_reason}
+                            onChange={event => setManual({...manual, entry_reason: event.target.value})}
+                            rows="2"
+                            placeholder="દા.ત. સ્માર્ટફોન બેટરી ડાઉન હતી / સાઇટ પર ઇન્ટરનેટ નેટવર્ક ન હતું..."
+                            required
+                        />
+                    </Field>
+                </div>
+
+                <div className="modal-sticky-footer">
+                    <button type="button" className="secondary modal-cancel-btn" onClick={() => setManual(null)}>
+                        રદ કરો (Cancel)
+                    </button>
+                    <button type="submit" className="primary expense-submit-btn">
+                        ✓ Save Attendance (હાજરી સેવ કરો)
+                    </button>
+                </div>
+            </form>
+        </div>}
+
+        {correction && <div className="modal-backdrop" onClick={() => setCorrection(null)}>
+            <form className="modal modal-sheet correction-modal" onSubmit={saveCorrection} onClick={e => e.stopPropagation()} style={{maxWidth: '580px'}}>
+                <div className="panel-head">
+                    <div>
+                        <h2>{correction.had_clock_out ? 'હાજરી સુધારો (Correct Attendance)' : 'બાકી Time Out પૂર્ણ કરો (Complete Time Out)'}</h2>
+                        <p>{correction.employee} · {correction.attendance_date}</p>
+                    </div>
+                    <button type="button" className="icon-button ghost" onClick={() => setCorrection(null)}><X size={18}/></button>
+                </div>
+
+                <div className="modal-body-scroll">
+                    <div className="audit-warning">
+                        <ClockAlert/>
+                        <span>
+                            <b>⚠️ આ સુધારો ઓડિટ લોગમાં રેકોર્ડ થશે</b>
+                            <small>જૂનો સમય, નવો સમય અને સુધારાનું કારણ કાયમી સેવ થશે.</small>
+                        </span>
+                    </div>
+
+                    <Field label="જવાનો સમય (Time Out)">
+                        <input type="datetime-local" value={correction.clock_out_at} onChange={event => setCorrection({...correction, clock_out_at: event.target.value})} required/>
+                    </Field>
+
+                    <Field label="કર્મચારીએ આજે શું કામ કર્યું? (Work Done)">
+                        <textarea value={correction.work_done} onChange={event => setCorrection({...correction, work_done: event.target.value})} rows="3" required/>
+                    </Field>
+
+                    <Field label="કર્મચારીએ આજે નવું શું શીખ્યું? (What Learned)">
+                        <textarea value={correction.learned} onChange={event => setCorrection({...correction, learned: event.target.value})} rows="3" required/>
+                    </Field>
+
+                    <Field label="સુધારાનું કારણ (Correction Reason)">
+                        <textarea value={correction.correction_reason} onChange={event => setCorrection({...correction, correction_reason: event.target.value})} rows="2" placeholder="દા.ત. કર્મચારી સાંજે પંચ આઉટ કરવાનું ભૂલી ગયેલ..." required/>
+                    </Field>
+                </div>
+
+                <div className="modal-sticky-footer">
+                    <button type="button" className="secondary modal-cancel-btn" onClick={() => setCorrection(null)}>
+                        રદ કરો (Cancel)
+                    </button>
+                    <button type="submit" className="primary expense-submit-btn">
+                        ✓ Save Audited Correction (સેવ કરો)
+                    </button>
+                </div>
+            </form>
+        </div>}
         {selfiePreview && <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && setSelfiePreview(null)}><div className="modal attendance-photo-modal" role="dialog" aria-modal="true" aria-labelledby="time-in-selfie-title"><div className="panel-head"><div><h2 id="time-in-selfie-title">Time In selfie</h2><p>{selfiePreview.employee} · {selfiePreview.date}</p></div><button type="button" className="icon-button ghost" onClick={() => setSelfiePreview(null)} aria-label="Close photo preview"><X/></button></div><img className="attendance-photo-preview" src={selfiePreview.url} alt={`${selfiePreview.employee} Time In selfie`}/></div></div>}
     </div>;
 }
