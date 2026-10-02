@@ -562,178 +562,192 @@ export default function GalleryPage({currentUser, companyId}) {
             {/* Super Admin Task Management Modal */}
             {showTaskModal && (
                 <div className="modal-backdrop" onClick={() => setShowTaskModal(false)}>
-                    <div className="modal" onClick={e => e.stopPropagation()} style={{maxWidth: '680px'}}>
+                    <div className="modal modal-sheet task-management-modal" onClick={e => e.stopPropagation()} style={{maxWidth: '680px'}}>
                         <div className="panel-head">
                             <div>
                                 <h2>Manage Daily Photo Tasks & Schedule</h2>
                                 <p>Set time slots and required photo counts (e.g. 10 to 15 photos daily).</p>
                             </div>
                             <button type="button" className="icon-button ghost" onClick={() => setShowTaskModal(false)}>
-                                <X size={16}/>
+                                <X size={18}/>
                             </button>
                         </div>
 
-                        {/* List Existing Tasks */}
-                        <div style={{marginBottom: '18px'}}>
-                            <h4 style={{fontSize: '12.5px', margin: '0 0 8px', color: '#334155'}}>Current Time-Table Slots:</h4>
-                            <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
-                                {tasks.map((t, idx) => (
-                                    <div
-                                        key={t.id}
-                                        style={{
-                                            padding: '8px 12px',
-                                            background: '#f8fafc',
-                                            border: '1px solid #e2e8f0',
-                                            borderRadius: '8px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'space-between'
-                                        }}
-                                    >
-                                        <div>
-                                            <b>{idx + 1}. {t.title}</b>
-                                            <div style={{fontSize: '11px', color: '#64748b'}}>
-                                                🕒 {t.start_time} - {t.end_time} &nbsp;|&nbsp; 📸 <b>{t.required_photos}</b> Photos required
+                        {/* Scrollable Modal Content */}
+                        <div className="modal-body-scroll">
+                            {/* List Existing Tasks */}
+                            <div style={{marginBottom: '16px'}}>
+                                <h4 style={{fontSize: '12.5px', margin: '0 0 8px', color: '#334155'}}>Current Time-Table Slots:</h4>
+                                <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                                    {tasks.map((t, idx) => (
+                                        <div
+                                            key={t.id}
+                                            style={{
+                                                padding: '8px 12px',
+                                                background: '#f8fafc',
+                                                border: '1px solid #e2e8f0',
+                                                borderRadius: '8px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                gap: '8px'
+                                            }}
+                                        >
+                                            <div style={{minWidth: 0}}>
+                                                <b style={{display: 'block', fontSize: '13px', color: '#0f172a'}}>{idx + 1}. {t.title}</b>
+                                                <div style={{fontSize: '11px', color: '#64748b'}}>
+                                                    🕒 {t.start_time} - {t.end_time} &nbsp;|&nbsp; 📸 <b>{t.required_photos}</b> Photos required
+                                                </div>
+                                            </div>
+                                            <div style={{display: 'flex', gap: '6px', flexShrink: 0}}>
+                                                <button
+                                                    type="button"
+                                                    className="secondary"
+                                                    onClick={() => setEditingTask({
+                                                        id: t.id,
+                                                        title: t.title,
+                                                        start_time: t.start_time.includes('AM') || t.start_time.includes('PM') ? '11:00' : t.start_time,
+                                                        end_time: '12:00',
+                                                        required_photos: t.required_photos,
+                                                        description: t.description || '',
+                                                        company_id: t.company_id || ''
+                                                    })}
+                                                    style={{fontSize: '11px', padding: '5px 9px'}}
+                                                >
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteTask(t.id)}
+                                                    style={{background: '#fee2e2', color: '#dc2626', border: 0, borderRadius: '6px', padding: '5px 8px', cursor: 'pointer'}}
+                                                    title="Delete task"
+                                                >
+                                                    <Trash2 size={14}/>
+                                                </button>
                                             </div>
                                         </div>
-                                        <div style={{display: 'flex', gap: '6px'}}>
-                                            <button
-                                                type="button"
-                                                className="secondary"
-                                                onClick={() => setEditingTask({
-                                                    id: t.id,
-                                                    title: t.title,
-                                                    start_time: t.start_time.includes('AM') || t.start_time.includes('PM') ? '11:00' : t.start_time,
-                                                    end_time: '12:00',
-                                                    required_photos: t.required_photos,
-                                                    description: t.description || '',
-                                                    company_id: t.company_id || ''
-                                                })}
-                                                style={{fontSize: '11px', padding: '4px 8px'}}
-                                            >
-                                                Edit
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleDeleteTask(t.id)}
-                                                style={{background: '#fee2e2', color: '#dc2626', border: 0, borderRadius: '6px', padding: '4px 8px', cursor: 'pointer'}}
-                                                title="Delete task"
-                                            >
-                                                <Trash2 size={13}/>
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
+                                    ))}
+                                </div>
                             </div>
+
+                            {/* Add / Edit Task Form */}
+                            <form id="task-slot-form" onSubmit={handleSaveTask} style={{background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0'}}>
+                                <h4 style={{fontSize: '13px', margin: '0 0 10px', color: '#0f172a'}}>
+                                    {editingTask.id ? '✏️ Edit Photo Task Slot' : '➕ Add New Photo Task Slot'}
+                                </h4>
+
+                                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px'}}>
+                                    <div style={{gridColumn: '1 / -1'}}>
+                                        <label style={{display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#475569', marginBottom: '3px'}}>
+                                            Task Title / Location Name
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={editingTask.title}
+                                            onChange={e => setEditingTask({...editingTask, title: e.target.value})}
+                                            placeholder="e.g. Afternoon Substation & Grid Inspection"
+                                            required
+                                            style={{width: '100%'}}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label style={{display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#475569', marginBottom: '3px'}}>
+                                            Start Time
+                                        </label>
+                                        <input
+                                            type="time"
+                                            value={editingTask.start_time}
+                                            onChange={e => setEditingTask({...editingTask, start_time: e.target.value})}
+                                            required
+                                            style={{width: '100%'}}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label style={{display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#475569', marginBottom: '3px'}}>
+                                            End Time
+                                        </label>
+                                        <input
+                                            type="time"
+                                            value={editingTask.end_time}
+                                            onChange={e => setEditingTask({...editingTask, end_time: e.target.value})}
+                                            required
+                                            style={{width: '100%'}}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label style={{display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#475569', marginBottom: '3px'}}>
+                                            Required Photos Count
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="50"
+                                            value={editingTask.required_photos}
+                                            onChange={e => setEditingTask({...editingTask, required_photos: parseInt(e.target.value, 10) || 1})}
+                                            required
+                                            style={{width: '100%'}}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label style={{display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#475569', marginBottom: '3px'}}>
+                                            Assign to Company (Optional)
+                                        </label>
+                                        <select
+                                            value={editingTask.company_id}
+                                            onChange={e => setEditingTask({...editingTask, company_id: e.target.value})}
+                                            style={{width: '100%'}}
+                                        >
+                                            <option value="">All Companies (Common)</option>
+                                            {companies.map(c => (
+                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {taskMessage && (
+                                    <div style={{
+                                        fontSize: '12px',
+                                        padding: '8px 12px',
+                                        borderRadius: '6px',
+                                        background: taskMessage.includes('Error') ? '#fef2f2' : '#ecfdf5',
+                                        color: taskMessage.includes('Error') ? '#991b1b' : '#065f46',
+                                        marginBottom: '6px'
+                                    }}>
+                                        {taskMessage}
+                                    </div>
+                                )}
+                            </form>
                         </div>
 
-                        {/* Add / Edit Task Form */}
-                        <form onSubmit={handleSaveTask} style={{background: '#f1f5f9', padding: '14px', borderRadius: '10px'}}>
-                            <h4 style={{fontSize: '13px', margin: '0 0 10px', color: '#0f172a'}}>
-                                {editingTask.id ? '✏️ Edit Photo Task Slot' : '➕ Add New Photo Task Slot'}
-                            </h4>
-
-                            <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px'}}>
-                                <div style={{gridColumn: '1 / -1'}}>
-                                    <label style={{display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#475569', marginBottom: '3px'}}>
-                                        Task Title / Location Name
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={editingTask.title}
-                                        onChange={e => setEditingTask({...editingTask, title: e.target.value})}
-                                        placeholder="e.g. Afternoon Substation & Grid Inspection"
-                                        required
-                                        style={{width: '100%'}}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label style={{display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#475569', marginBottom: '3px'}}>
-                                        Start Time
-                                    </label>
-                                    <input
-                                        type="time"
-                                        value={editingTask.start_time}
-                                        onChange={e => setEditingTask({...editingTask, start_time: e.target.value})}
-                                        required
-                                        style={{width: '100%'}}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label style={{display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#475569', marginBottom: '3px'}}>
-                                        End Time
-                                    </label>
-                                    <input
-                                        type="time"
-                                        value={editingTask.end_time}
-                                        onChange={e => setEditingTask({...editingTask, end_time: e.target.value})}
-                                        required
-                                        style={{width: '100%'}}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label style={{display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#475569', marginBottom: '3px'}}>
-                                        Required Photos Count
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        max="50"
-                                        value={editingTask.required_photos}
-                                        onChange={e => setEditingTask({...editingTask, required_photos: parseInt(e.target.value, 10) || 1})}
-                                        required
-                                        style={{width: '100%'}}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label style={{display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#475569', marginBottom: '3px'}}>
-                                        Assign to Company (Optional)
-                                    </label>
-                                    <select
-                                        value={editingTask.company_id}
-                                        onChange={e => setEditingTask({...editingTask, company_id: e.target.value})}
-                                        style={{width: '100%'}}
-                                    >
-                                        <option value="">All Companies (Common)</option>
-                                        {companies.map(c => (
-                                            <option key={c.id} value={c.id}>{c.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            {taskMessage && (
-                                <div style={{
-                                    fontSize: '12px',
-                                    padding: '8px 12px',
-                                    borderRadius: '6px',
-                                    background: taskMessage.includes('Error') ? '#fef2f2' : '#ecfdf5',
-                                    color: taskMessage.includes('Error') ? '#991b1b' : '#065f46',
-                                    marginBottom: '10px'
-                                }}>
-                                    {taskMessage}
-                                </div>
-                            )}
-
-                            <div style={{display: 'flex', justifyContent: 'flex-end', gap: '8px'}}>
-                                {editingTask.id && (
-                                    <button
-                                        type="button"
-                                        className="secondary"
-                                        onClick={() => setEditingTask({id: null, title: '', start_time: '11:00', end_time: '12:00', required_photos: 2, description: '', company_id: ''})}
-                                    >
-                                        Cancel Edit
-                                    </button>
-                                )}
-                                <button type="submit" className="primary" disabled={taskSaving}>
-                                    {taskSaving ? 'Saving...' : (editingTask.id ? 'Update Task' : 'Save Task Slot')}
-                                </button>
-                            </div>
-                        </form>
+                        {/* Sticky Action Footer */}
+                        <div className="modal-sticky-footer">
+                            <button
+                                type="button"
+                                className="secondary modal-cancel-btn"
+                                onClick={() => {
+                                    if (editingTask.id) {
+                                        setEditingTask({id: null, title: '', start_time: '11:00', end_time: '12:00', required_photos: 2, description: '', company_id: ''});
+                                    } else {
+                                        setShowTaskModal(false);
+                                    }
+                                }}
+                            >
+                                {editingTask.id ? 'Cancel Edit' : 'Close'}
+                            </button>
+                            <button
+                                type="submit"
+                                form="task-slot-form"
+                                className="primary expense-submit-btn"
+                                disabled={taskSaving}
+                            >
+                                {taskSaving ? 'Saving...' : (editingTask.id ? '✓ Update Task Slot' : '✓ Save Task Slot')}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

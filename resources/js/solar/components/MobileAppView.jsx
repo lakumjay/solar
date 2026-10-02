@@ -422,14 +422,14 @@ export default function MobileAppView({
                             <div className="mob-pred-top-row">
                                 <div className="mob-pred-left-info">
                                     <div className="mob-pred-icon-box green">
-                                        <Zap size={17}/>
+                                        <Zap size={15}/>
                                     </div>
                                     <div className="mob-pred-titles">
                                         <small className="mob-pred-kicker">
-                                            UPCOMING 1 HOUR PREDICTION ({predictions.time_window || '07:30 AM - 08:30 AM'})
+                                            1-HOUR FORECAST ({predictions.time_window || 'Next 60m'})
                                         </small>
                                         <strong className="mob-pred-heading">
-                                            Next 1-Hour Generation · {predictions.date || 'Today'}
+                                            Upcoming Generation · {predictions.date || 'Today'}
                                         </strong>
                                     </div>
                                 </div>
@@ -444,7 +444,7 @@ export default function MobileAppView({
                                 <div className="mob-pred-companies-wrap">
                                     {predictions.companies.map(cp => (
                                         <span key={cp.company_id} className="mob-pred-company-pill">
-                                            <span className="mob-pill-name">{cp.company_name}:</span>
+                                            <span className="mob-pill-name">{cp.company_name.replace(' Green Energy', '').replace(' Solar', '')}:</span>
                                             <b className="mob-pill-kwh">{cp.next_1h_kwh} kWh</b>
                                         </span>
                                     ))}
@@ -457,12 +457,12 @@ export default function MobileAppView({
                             <div className="mob-pred-mini-card">
                                 <div className="mob-pred-mini-left">
                                     <div className="mob-pred-icon-box purple">
-                                        <TrendingUp size={16}/>
+                                        <TrendingUp size={15}/>
                                     </div>
                                     <div className="mob-pred-titles">
-                                        <small className="mob-pred-kicker">END OF DAY (EOD) ESTIMATE</small>
+                                        <small className="mob-pred-kicker">EOD ESTIMATE</small>
                                         <strong className="mob-pred-heading">
-                                            Total by Sunset ({predictions.eod_target_time ? predictions.eod_target_time.replace(' (Sunset)', '') : '06:30 PM'})
+                                            Sunset ({predictions.eod_target_time ? predictions.eod_target_time.replace(' (Sunset)', '') : '06:30 PM'})
                                         </strong>
                                     </div>
                                 </div>
@@ -475,10 +475,10 @@ export default function MobileAppView({
                             <div className="mob-pred-mini-card">
                                 <div className="mob-pred-mini-left">
                                     <div className="mob-pred-icon-box yellow">
-                                        <Sun size={16}/>
+                                        <Sun size={15}/>
                                     </div>
                                     <div className="mob-pred-titles">
-                                        <small className="mob-pred-kicker">SOLAR IRRADIANCE</small>
+                                        <small className="mob-pred-kicker">IRRADIANCE</small>
                                         <strong className="mob-pred-heading">Solar Intensity</strong>
                                     </div>
                                 </div>

@@ -408,11 +408,11 @@ export default function DashboardPage({companyId, currentUser}) {
                     <div className="prediction-chip-header">
                         <div className="prediction-chip-left">
                             <div className="prediction-chip-icon">
-                                <Zap size={16}/>
+                                <Zap size={15}/>
                             </div>
                             <div className="prediction-chip-text">
-                                <small>UPCOMING 1 HOUR PREDICTION ({predictions.time_window || '12:21 PM - 01:21 PM'})</small>
-                                <b>Next 1-Hour Generation · {predictions.date || '01 Oct 2026'}</b>
+                                <small>1-HOUR FORECAST ({predictions.time_window || 'Next 60m'})</small>
+                                <b>Upcoming Generation · {predictions.date || 'Today'}</b>
                             </div>
                         </div>
                         <div className="prediction-chip-val">
@@ -425,7 +425,7 @@ export default function DashboardPage({companyId, currentUser}) {
                         <div className="prediction-companies-breakdown">
                             {predictions.companies.map(cp => (
                                 <span key={cp.company_id} className="pred-company-pill">
-                                    <span>{cp.company_name}:</span>
+                                    <span>{cp.company_name.replace(' Green Energy', '').replace(' Solar', '')}:</span>
                                     <b>{cp.next_1h_kwh} kWh</b>
                                 </span>
                             ))}
@@ -436,11 +436,11 @@ export default function DashboardPage({companyId, currentUser}) {
                 <div className="prediction-chip">
                     <div className="prediction-chip-left">
                         <div className="prediction-chip-icon eod">
-                            <TrendingUp size={16}/>
+                            <TrendingUp size={15}/>
                         </div>
                         <div className="prediction-chip-text">
-                            <small>END OF DAY (EOD) ESTIMATE</small>
-                            <b>Total by Sunset ({predictions.eod_target_time ? predictions.eod_target_time.replace(' (Sunset)', '') : '06:30 PM'})</b>
+                            <small>EOD ESTIMATE</small>
+                            <b>Sunset ({predictions.eod_target_time ? predictions.eod_target_time.replace(' (Sunset)', '') : '06:30 PM'})</b>
                         </div>
                     </div>
                     <div className="prediction-chip-val">
@@ -451,10 +451,10 @@ export default function DashboardPage({companyId, currentUser}) {
                 <div className="prediction-chip">
                     <div className="prediction-chip-left">
                         <div className="prediction-chip-icon" style={{background: '#fef3c7', color: '#d97706'}}>
-                            <Sun size={16}/>
+                            <Sun size={15}/>
                         </div>
                         <div className="prediction-chip-text">
-                            <small>SOLAR IRRADIANCE</small>
+                            <small>IRRADIANCE</small>
                             <b>Solar Intensity</b>
                         </div>
                     </div>

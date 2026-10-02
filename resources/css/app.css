@@ -3156,19 +3156,22 @@
 }
 
 /* ==========================================================================
-   📱 ADD SHARED EXPENSE MODAL SHEET (MOBILE OPTIMIZED)
+   📱 MODAL SHEET & SCROLLABLE FORM CONTAINERS (MOBILE OPTIMIZED)
    ========================================================================== */
+.modal-sheet,
+.task-management-modal,
 .expense-modal-sheet {
-    max-width: 580px;
+    max-width: 620px;
     width: 100%;
-    max-height: 92vh;
+    max-height: 90vh;
     display: flex;
     flex-direction: column;
     background: #ffffff;
-    border-radius: 20px;
+    border-radius: 18px;
     overflow: hidden;
-    box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.25);
+    box-shadow: 0 20px 45px -10px rgba(15, 23, 42, 0.25);
     animation: modalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    padding: 0 !important;
 }
 
 @keyframes modalSlideUp {
@@ -3184,19 +3187,23 @@
         padding: 0 !important;
         overflow: hidden !important;
     }
-    .expense-modal-sheet {
+    .modal-sheet,
+    .task-management-modal,
+    .expense-modal-sheet,
+    .settlement-modal {
         max-width: 100% !important;
         width: 100% !important;
-        height: 90vh !important;
-        height: 90dvh !important;
-        max-height: 90vh !important;
-        max-height: 90dvh !important;
+        height: 92vh !important;
+        height: 92dvh !important;
+        max-height: 92vh !important;
+        max-height: 92dvh !important;
         border-radius: 20px 20px 0 0 !important;
-        margin: 0 !important;
+        margin: auto 0 0 0 !important;
         display: flex !important;
         flex-direction: column !important;
         overflow: hidden !important;
         background: #ffffff !important;
+        padding: 0 !important;
     }
 }
 
@@ -3244,10 +3251,12 @@
     flex-shrink: 0;
 }
 
-.expense-form-body-scroll {
-    flex: 1;
+.expense-form-body-scroll,
+.modal-body-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
-    padding: 14px 18px;
+    padding: 14px 18px 24px;
     display: flex;
     flex-direction: column;
     gap: 12px;
