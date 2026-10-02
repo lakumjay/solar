@@ -4,6 +4,15 @@ import {CheckCircle, Clock, HelpCircle, Sun, Cloud, CloudRain, CloudLightning, W
 export default function ISolarCloudVisualizer({data, weather, isEmployee}) {
     const selectedWeather = weather?.type || 'sunny';
 
+    const rawKw = parseFloat(data?.realtime_power_kw || 0);
+    const rawMw = parseFloat(data?.realtime_power_mw || 0);
+
+    // Dynamic smart power display: If < 1000 kW, display in kW (e.g. 478.83 kW) exactly matching iSolarCloud app
+    const isKwMode = rawKw < 1000 && rawKw > 0;
+    const displayPowerVal = isKwMode ? rawKw.toFixed(2) : (rawMw > 0 ? rawMw.toFixed(2) : (rawKw / 1000).toFixed(2));
+    const displayPowerUnit = isKwMode ? 'kW' : 'MW';
+    const subPowerText = isKwMode ? `${(rawKw / 1000).toFixed(3)} MW` : `${rawKw.toFixed(1)} kW`;
+
     const realtimeMw = data.realtime_power_mw || '0.00';
     const realtimeKw = data.realtime_power_kw || '0.00';
     const todayKwh = data.today_units_kwh || '0.00';
@@ -213,7 +222,7 @@ export default function ISolarCloudVisualizer({data, weather, isEmployee}) {
 
                     {/* Solar Generation Text above Panel */}
                     <g transform="translate(262, 82)">
-                        <text x="0" y="0" textAnchor="start" className="isolar-mw-text-main">{realtimeMw} <tspan className="isolar-mw-unit">MW</tspan></text>
+                        <text x="0" y="0" textAnchor="start" className="isolar-mw-text-main">{displayPowerVal} <tspan className="isolar-mw-unit">{displayPowerUnit}</tspan></text>
                     </g>
 
                     {/* ========================================================
@@ -259,7 +268,7 @@ export default function ISolarCloudVisualizer({data, weather, isEmployee}) {
 
                     {/* Grid Export Text below tower */}
                     <g transform="translate(344, 282)">
-                        <text x="0" y="0" textAnchor="middle" className="isolar-mw-text-grid">{realtimeMw} <tspan className="isolar-mw-unit">MW</tspan></text>
+                        <text x="0" y="0" textAnchor="middle" className="isolar-mw-text-grid">{displayPowerVal} <tspan className="isolar-mw-unit">{displayPowerUnit}</tspan></text>
                     </g>
 
                     {/* ========================================================
@@ -370,9 +379,9 @@ export default function ISolarCloudVisualizer({data, weather, isEmployee}) {
             {/* Bottom 3 Column KPI Stats Divider (Clean, Compact, Normal Font Sizes) */}
             <div className="isolar-kpi-footer">
                 <div className="isolar-kpi-col">
-                    <span className="isolar-kpi-label">Real-time power(MW)</span>
-                    <strong className="isolar-kpi-num">{realtimeMw}</strong>
-                    <small className="isolar-kpi-sub">{realtimeKw} kW</small>
+                    <span className="isolar-kpi-label">Real-time power ({displayPowerUnit})</span>
+                    <strong className="isolar-kpi-num">{displayPowerVal} <span className="unit-tag">{displayPowerUnit}</span></strong>
+                    <small className="isolar-kpi-sub">{subPowerText}</small>
                 </div>
 
                 <div className="isolar-kpi-col isolar-kpi-col-center">
