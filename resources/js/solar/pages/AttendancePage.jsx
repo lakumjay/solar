@@ -44,6 +44,40 @@ export default function AttendancePage({canCorrect, canRecord}) {
         }
     };
 
+    const displayLocations = useMemo(() => {
+        if (liveLocations && liveLocations.length > 0) {
+            return liveLocations;
+        }
+        if (employees && employees.length > 0) {
+            return employees.map(emp => {
+                const row = rows.find(r => String(r.employee_id) === String(emp.id) || String(r.employee?.id) === String(emp.id));
+                const lat = row && row.clock_in_latitude && Number(row.clock_in_latitude) !== 0 ? Number(row.clock_in_latitude) : null;
+                const lng = row && row.clock_in_longitude && Number(row.clock_in_longitude) !== 0 ? Number(row.clock_in_longitude) : null;
+                return {
+                    employee_id: emp.id,
+                    name: emp.name || emp.user?.name || 'Employee',
+                    employee_code: emp.employee_code,
+                    designation: emp.designation || 'Field Officer',
+                    company_name: 'SolarFlow Shared',
+                    company_id: null,
+                    avatar_url: emp.profile_photo_url || null,
+                    is_live: Boolean(row && !row.clock_out_at && lat),
+                    last_seen: row ? 'Time In પરથી સિંક' : 'GPS પિંગની રાહ જુએ છે',
+                    status: row ? (row.clock_out_at ? 'Shift Ended' : 'Working') : 'Not Checked In',
+                    latitude: lat,
+                    longitude: lng,
+                    accuracy: row?.clock_in_accuracy || 15,
+                    map_url: lat && lng ? `https://www.google.com/maps?q=${lat},${lng}` : null,
+                };
+            });
+        }
+        return [];
+    }, [liveLocations, employees, rows]);
+
+    const activeLiveCount = useMemo(() => {
+        return displayLocations.filter(e => e.is_live).length;
+    }, [displayLocations]);
+
     const load = async () => {
         const query = new URLSearchParams({date});
         if (employeeId) query.set('employee_id', employeeId);
@@ -138,7 +172,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                 કર્મચારી લાઈવ લોકેશન ટ્રેકર
                             </h2>
                             <span className="status on" style={{padding: '3px 8px', fontSize: '11px', fontWeight: 800, whiteSpace: 'nowrap'}}>
-                                🟢 {liveCount} Live Online
+                                🟢 {activeLiveCount} Live Online
                             </span>
                         </div>
                         <p style={{margin: '4px 0 0', fontSize: '11.5px', color: '#627c70'}}>
@@ -160,14 +194,14 @@ export default function AttendancePage({canCorrect, canRecord}) {
                 </div>
             </div>
 
-            {liveLocations.length > 0 ? (
+            {displayLocations.length > 0 ? (
                 <div style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
                     gap: '14px',
                     marginTop: '12px'
                 }}>
-                    {liveLocations.map(emp => (
+                    {displayLocations.map(emp => (
                         <div
                             key={emp.employee_id}
                             style={{
