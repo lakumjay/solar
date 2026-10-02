@@ -26,15 +26,26 @@ class EmployeeLocationController extends Controller
                     $table->decimal('latitude', 10, 7);
                     $table->decimal('longitude', 10, 7);
                     $table->decimal('accuracy', 8, 2)->nullable();
+                    $table->decimal('speed', 6, 2)->nullable();
+                    $table->decimal('heading', 6, 2)->nullable();
                     $table->string('status_label')->default('Active');
                     $table->timestamp('recorded_at')->useCurrent();
                     $table->timestamps();
 
                     $table->index(['employee_id', 'recorded_at']);
                 });
+            } else {
+                Schema::table('employee_locations', function (Blueprint $table) {
+                    if (!Schema::hasColumn('employee_locations', 'speed')) {
+                        $table->decimal('speed', 6, 2)->nullable()->after('accuracy');
+                    }
+                    if (!Schema::hasColumn('employee_locations', 'heading')) {
+                        $table->decimal('heading', 6, 2)->nullable()->after('speed');
+                    }
+                });
             }
         } catch (\Throwable $e) {
-            // Silently continue if table exists or permission prevents creation
+            // Silently continue if table/columns already exist
         }
     }
 
@@ -47,6 +58,8 @@ class EmployeeLocationController extends Controller
             'latitude' => 'required|numeric|between:-90,90',
             'longitude' => 'required|numeric|between:-180,180',
             'accuracy' => 'nullable|numeric',
+            'speed' => 'nullable|numeric',
+            'heading' => 'nullable|numeric',
             'status_label' => 'nullable|string|max:50',
         ]);
 
@@ -63,6 +76,8 @@ class EmployeeLocationController extends Controller
                     'latitude' => $validated['latitude'],
                     'longitude' => $validated['longitude'],
                     'accuracy' => $validated['accuracy'] ?? null,
+                    'speed' => $validated['speed'] ?? null,
+                    'heading' => $validated['heading'] ?? null,
                     'status_label' => $validated['status_label'] ?? 'Active',
                     'recorded_at' => now(),
                 ]);
@@ -125,6 +140,7 @@ class EmployeeLocationController extends Controller
             $lat = null;
             $lng = null;
             $accuracy = null;
+            $speed = null;
             $recordedAt = null;
 
             // Source 1: Real-time background ping
@@ -132,6 +148,7 @@ class EmployeeLocationController extends Controller
                 $lat = (float)$loc->latitude;
                 $lng = (float)$loc->longitude;
                 $accuracy = (float)($loc->accuracy ?? 15);
+                $speed = $loc->speed !== null ? (float)$loc->speed : null;
                 $recordedAt = $loc->recorded_at;
             }
 
@@ -173,6 +190,29 @@ class EmployeeLocationController extends Controller
                 $lastSeenHuman = $carbonDate->diffForHumans();
             }
 
+            // 🏍️ Movement mode: bike (>= 12 km/h), walking (2 to 12 km/h), stationary (< 2 km/h)
+            $movement = 'stationary';
+            $movementIcon = '📍';
+            $movementLabel = 'સ્થિર છે (સાઇટ પર)';
+
+            if ($speed !== null && $speed >= 12) {
+                $movement = 'bike';
+                $movementIcon = '🏍️';
+                $movementLabel = 'બાઇક પર ગતિમાં (~' . round($speed) . ' km/h)';
+            } elseif ($speed !== null && $speed >= 2) {
+                $movement = 'walking';
+                $movementIcon = '🚶';
+                $movementLabel = 'ચાલી રહ્યો છે (~' . round($speed) . ' km/h)';
+            } elseif ($isLive) {
+                $movement = 'stationary';
+                $movementIcon = '📍';
+                $movementLabel = 'સ્થિર છે (સાઇટ પર)';
+            } else {
+                $movement = 'offline';
+                $movementIcon = '⚪';
+                $movementLabel = 'ઑફલાઇન';
+            }
+
             return [
                 'employee_id' => $emp->id,
                 'name' => $emp->user->name ?? 'Unknown',
@@ -188,6 +228,10 @@ class EmployeeLocationController extends Controller
                 'latitude' => $lat,
                 'longitude' => $lng,
                 'accuracy' => $accuracy,
+                'speed' => $speed,
+                'movement' => $movement,
+                'movement_icon' => $movementIcon,
+                'movement_label' => $movementLabel,
                 'recorded_at' => $recordedAt ? (is_string($recordedAt) ? $recordedAt : $recordedAt->toIso8601String()) : null,
                 'map_url' => $lat && $lng ? "https://www.google.com/maps?q={$lat},{$lng}" : null,
             ];

@@ -66,26 +66,30 @@ export default function AppShell({user, page, setPage, companies, companyId, set
 
             navigator.geolocation.getCurrentPosition(
                 position => {
+                    const rawSpeed = position.coords.speed; // meters/sec
+                    const speedKmh = rawSpeed !== null && rawSpeed >= 0 ? Math.round(rawSpeed * 3.6) : null;
                     api('employee-locations/ping', {
                         method: 'POST',
                         body: JSON.stringify({
                             latitude: position.coords.latitude,
                             longitude: position.coords.longitude,
                             accuracy: position.coords.accuracy,
+                            speed: speedKmh,
+                            heading: position.coords.heading,
                             status_label: 'App Active'
                         })
                     }).catch(() => {});
                 },
                 () => {},
-                {enableHighAccuracy: true, timeout: 15000, maximumAge: 60000}
+                {enableHighAccuracy: true, timeout: 15000, maximumAge: 15000}
             );
         };
 
         // Ping immediately
         pingLocation();
 
-        // Periodic background interval (every 3 minutes)
-        const locationInterval = setInterval(pingLocation, 3 * 60 * 1000);
+        // Periodic background interval (every 30 seconds for live movement tracking)
+        const locationInterval = setInterval(pingLocation, 30 * 1000);
 
         const handleFocus = () => {
             if (document.visibilityState === 'visible') {

@@ -31,6 +31,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
     const [loadingLocations, setLoadingLocations] = useState(false);
     const [selectedMapEmployee, setSelectedMapEmployee] = useState(null);
     const [mapMode, setMapMode] = useState('satellite'); // 'satellite' | 'roadmap'
+    const [zoomLevel, setZoomLevel] = useState(20); // 20 is ultra close-up satellite level
 
     const loadLiveLocations = async () => {
         try {
@@ -282,18 +283,33 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                 </div>
                             </div>
 
+                            {/* 🏍️ Movement / Activity Status Badge */}
                             <div style={{
-                                background: '#f8faf9',
+                                background: emp.movement === 'bike' ? '#fef3c7' : emp.movement === 'walking' ? '#e0f2fe' : '#f8faf9',
                                 borderRadius: '10px',
-                                padding: '9px 12px',
+                                padding: '8px 12px',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
                                 fontSize: '11px',
-                                color: '#4b6357'
+                                border: emp.movement === 'bike' ? '1px solid #fde68a' : emp.movement === 'walking' ? '1px solid #bae6fd' : '1px solid #e2ece5'
                             }}>
-                                <span>હાજરી સ્ટેટસ: <b style={{color: emp.status === 'Working' ? '#16a34a' : emp.status === 'Shift Ended' ? '#0284c7' : '#eab308'}}>{emp.status}</b></span>
-                                {emp.accuracy && <small style={{color: '#71857c'}}>ચોક્કસતા: ±{Math.round(emp.accuracy)}m</small>}
+                                <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                                    <span style={{fontSize: '15px'}}>{emp.movement_icon || (emp.movement === 'bike' ? '🏍️' : emp.movement === 'walking' ? '🚶' : '📍')}</span>
+                                    <b style={{color: emp.movement === 'bike' ? '#b45309' : emp.movement === 'walking' ? '#0369a1' : '#1e293b'}}>
+                                        {emp.movement_label || (emp.movement === 'bike' ? 'બાઇક પર ગતિમાં' : emp.movement === 'walking' ? 'ચાલી રહ્યો છે' : 'સ્થિર છે (સાઇટ પર)')}
+                                    </b>
+                                </div>
+                                <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                                    {emp.speed ? (
+                                        <span style={{fontWeight: 800, fontSize: '10.5px', color: '#0f766e', background: '#ccfbf1', padding: '2px 6px', borderRadius: '6px'}}>
+                                            ⚡ {Math.round(emp.speed)} km/h
+                                        </span>
+                                    ) : null}
+                                    <span style={{color: emp.status === 'Working' ? '#16a34a' : emp.status === 'Shift Ended' ? '#0284c7' : '#eab308', fontWeight: 700}}>
+                                        {emp.status}
+                                    </span>
+                                </div>
                             </div>
 
                             {emp.latitude && emp.longitude ? (
@@ -302,7 +318,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                     <div style={{
                                         position: 'relative',
                                         width: '100%',
-                                        height: '175px',
+                                        height: '185px',
                                         borderRadius: '12px',
                                         overflow: 'hidden',
                                         border: '1px solid #cbd5e1',
@@ -317,25 +333,84 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                             scrolling="no"
                                             marginHeight="0"
                                             marginWidth="0"
-                                            src={`https://maps.google.com/maps?q=${emp.latitude},${emp.longitude}${mapMode === 'satellite' ? '&t=k' : ''}&hl=gu&z=17&output=embed`}
+                                            src={`https://maps.google.com/maps?q=${emp.latitude},${emp.longitude}${mapMode === 'satellite' ? '&t=k' : ''}&hl=gu&z=${zoomLevel}&output=embed`}
                                             style={{border: 0, width: '100%', height: '100%'}}
                                             loading="lazy"
                                         />
+
+                                        {/* 🔍 Quick Zoom Controls on Map */}
+                                        <div style={{
+                                            position: 'absolute',
+                                            top: '6px',
+                                            right: '8px',
+                                            display: 'flex',
+                                            gap: '4px',
+                                            zIndex: 5
+                                        }}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setZoomLevel(z => Math.min(21, z + 1))}
+                                                style={{
+                                                    width: '26px',
+                                                    height: '26px',
+                                                    borderRadius: '6px',
+                                                    background: 'rgba(255,255,255,0.92)',
+                                                    border: '1px solid #cbd5e1',
+                                                    color: '#0f172a',
+                                                    fontWeight: 900,
+                                                    fontSize: '15px',
+                                                    display: 'grid',
+                                                    placeItems: 'center',
+                                                    cursor: 'pointer',
+                                                    padding: 0,
+                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                                }}
+                                                title="Zoom In (નજીક લાવો)"
+                                            >
+                                                +
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setZoomLevel(z => Math.max(14, z - 1))}
+                                                style={{
+                                                    width: '26px',
+                                                    height: '26px',
+                                                    borderRadius: '6px',
+                                                    background: 'rgba(255,255,255,0.92)',
+                                                    border: '1px solid #cbd5e1',
+                                                    color: '#0f172a',
+                                                    fontWeight: 900,
+                                                    fontSize: '15px',
+                                                    display: 'grid',
+                                                    placeItems: 'center',
+                                                    cursor: 'pointer',
+                                                    padding: 0,
+                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                                }}
+                                                title="Zoom Out (દૂર કરો)"
+                                            >
+                                                -
+                                            </button>
+                                        </div>
+
+                                        {/* 📍 Bottom Map Status Tag */}
                                         <div style={{
                                             position: 'absolute',
                                             bottom: '6px',
                                             left: '8px',
-                                            background: 'rgba(15, 23, 42, 0.85)',
+                                            background: 'rgba(15, 23, 42, 0.88)',
                                             color: '#ffffff',
-                                            padding: '2px 8px',
+                                            padding: '3px 8px',
                                             borderRadius: '6px',
                                             fontSize: '10px',
                                             pointerEvents: 'none',
                                             display: 'flex',
                                             alignItems: 'center',
-                                            gap: '4px'
+                                            gap: '5px'
                                         }}>
-                                            {mapMode === 'satellite' ? '🛰️ Satellite' : '📍 GPS'}: {Number(emp.latitude).toFixed(4)}, {Number(emp.longitude).toFixed(4)}
+                                            <span>{emp.movement_icon || '📍'}</span>
+                                            <b style={{color: '#38bdf8'}}>{emp.movement === 'bike' ? 'Bike Moving' : emp.movement === 'walking' ? 'Walking' : 'Stationary'}</b>
+                                            <span>· Zoom: {zoomLevel}x</span>
                                         </div>
                                     </div>
 
@@ -592,9 +667,62 @@ export default function AttendancePage({canCorrect, canRecord}) {
                             scrolling="no"
                             marginHeight="0"
                             marginWidth="0"
-                            src={`https://maps.google.com/maps?q=${selectedMapEmployee.latitude},${selectedMapEmployee.longitude}${mapMode === 'satellite' ? '&t=k' : ''}&hl=gu&z=17&output=embed`}
+                            src={`https://maps.google.com/maps?q=${selectedMapEmployee.latitude},${selectedMapEmployee.longitude}${mapMode === 'satellite' ? '&t=k' : ''}&hl=gu&z=${zoomLevel}&output=embed`}
                             style={{border: 0}}
                         />
+
+                        {/* 🔍 Quick Zoom Controls in Modal */}
+                        <div style={{
+                            position: 'absolute',
+                            top: '12px',
+                            right: '14px',
+                            display: 'flex',
+                            gap: '5px',
+                            zIndex: 10
+                        }}>
+                            <button
+                                type="button"
+                                onClick={() => setZoomLevel(z => Math.min(21, z + 1))}
+                                style={{
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '8px',
+                                    background: 'rgba(255,255,255,0.95)',
+                                    border: '1px solid #cbd5e1',
+                                    color: '#0f172a',
+                                    fontWeight: 900,
+                                    fontSize: '18px',
+                                    display: 'grid',
+                                    placeItems: 'center',
+                                    cursor: 'pointer',
+                                    boxShadow: '0 2px 6px rgba(0,0,0,0.25)'
+                                }}
+                                title="Zoom In (નજીક લાવો)"
+                            >
+                                +
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setZoomLevel(z => Math.max(14, z - 1))}
+                                style={{
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '8px',
+                                    background: 'rgba(255,255,255,0.95)',
+                                    border: '1px solid #cbd5e1',
+                                    color: '#0f172a',
+                                    fontWeight: 900,
+                                    fontSize: '18px',
+                                    display: 'grid',
+                                    placeItems: 'center',
+                                    cursor: 'pointer',
+                                    boxShadow: '0 2px 6px rgba(0,0,0,0.25)'
+                                }}
+                                title="Zoom Out (દૂર કરો)"
+                            >
+                                -
+                            </button>
+                        </div>
                     </div>
 
                     <div style={{
