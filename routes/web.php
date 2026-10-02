@@ -24,7 +24,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
-});
+})->name('login');
 
 Route::prefix('api')->group(function () {
     Route::get('isolarcloud/callback', [ISolarCloudController::class, 'callback']);
@@ -33,11 +33,14 @@ Route::prefix('api')->group(function () {
         Route::get('me', [AuthController::class, 'me']);
         Route::post('logout', [AuthController::class, 'logout']);
         Route::get('dashboard/live-solar', [ISolarCloudController::class, 'liveDashboard']);
+        Route::post('dashboard/plant-location', [ISolarCloudController::class, 'updatePlantLocation']);
         Route::post('plant-location', [ISolarCloudController::class, 'updatePlantLocation']);
         Route::get('isolarcloud/status', [ISolarCloudController::class, 'status']);
         Route::get('isolarcloud/auth-url', [ISolarCloudController::class, 'authUrl']);
         Route::post('isolarcloud/manual-token', [ISolarCloudController::class, 'manualToken']);
-        Route::post('isolarcloud/sync-daily', [ISolarCloudController::class, 'syncGeneration']);
+        Route::get('isolarcloud/live', [ISolarCloudController::class, 'liveData']);
+        Route::post('isolarcloud/sync', [ISolarCloudController::class, 'sync']);
+        Route::post('isolarcloud/sync-daily', [ISolarCloudController::class, 'sync']);
         Route::get('plant-photos/tasks', [PlantPhotoController::class, 'tasks']);
         Route::post('plant-photos/tasks', [PlantPhotoController::class, 'saveTask']);
         Route::delete('plant-photos/tasks/{task}', [PlantPhotoController::class, 'deleteTask']);
