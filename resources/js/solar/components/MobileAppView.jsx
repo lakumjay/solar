@@ -787,7 +787,7 @@ export default function MobileAppView({
                                 
                                 const inverters = c.inverters && c.inverters.length > 0 ? c.inverters : [
                                     { id: 1, name: 'Inverter 1', serial_number: 'I2633100421', online: true, today_kwh: (parseFloat(cToday) * 0.24).toFixed(2), live_kw: (parseFloat(cLive) * 0.24).toFixed(2) },
-                                    { id: 2, name: 'Inverter 2', serial_number: 'I2633100362', online: true, today_kwh: (parseFloat(cToday) * 0.26).toFixed(2), live_kw: (parseFloat(cLive) * 0.26).toFixed(2), needs_cleaning: true },
+                                    { id: 2, name: 'Inverter 2', serial_number: 'I2633100362', online: true, today_kwh: (parseFloat(cToday) * 0.26).toFixed(2), live_kw: (parseFloat(cLive) * 0.26).toFixed(2) },
                                     { id: 3, name: 'Inverter 3', serial_number: 'I2633100382', online: true, today_kwh: (parseFloat(cToday) * 0.26).toFixed(2), live_kw: (parseFloat(cLive) * 0.26).toFixed(2) },
                                     { id: 4, name: 'Inverter 4', serial_number: 'I2640800227', online: true, today_kwh: (parseFloat(cToday) * 0.24).toFixed(2), live_kw: (parseFloat(cLive) * 0.24).toFixed(2) },
                                 ];
@@ -817,10 +817,11 @@ export default function MobileAppView({
                                                 const isPvOpen = expandedInverters[invKey] === true;
                                                 const pvStrings = getPvStrings(inv, 8.40 + (idx * 0.05));
                                                 
-                                                const invNeedsCleaning = inv.needs_cleaning || cleaningAlerts.some(alert => 
-                                                    (alert.inverter_id && String(alert.inverter_id) === String(inv.id)) ||
-                                                    (alert.title && alert.title.toLowerCase().includes(String(inv.name || '').toLowerCase())) ||
-                                                    (alert.strings && alert.strings.some(s => String(s.inverter_id) === String(inv.id) || s.inverter_name === inv.name))
+                                                const invNeedsCleaning = (inv.cleaning_alerts && inv.cleaning_alerts.length > 0) || cleaningAlerts.some(alert => 
+                                                    String(alert.company_id) === String(cId) && (
+                                                        (alert.inverter_id && String(alert.inverter_id) === String(inv.id)) ||
+                                                        (alert.serial_number && inv.serial_number && alert.serial_number === inv.serial_number)
+                                                    )
                                                 );
 
                                                 return (

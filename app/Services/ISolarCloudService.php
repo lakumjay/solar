@@ -437,8 +437,8 @@ class ISolarCloudService
                                 $cVal = $pvStrings[$s]['current_a'];
                                 $cacheKey = "solar_soiling_since_{$company->id}_{$inv->id}_{$s}";
 
-                                // Check if this string is connected and has a severe drop of 50% or more compared to healthy average
-                                if ($cVal > 0.0 && $cVal < ($healthyAvg * 0.50)) {
+                                // Check if this string is connected (current > 1.0A) and has a severe drop of 50% or more compared to healthy average
+                                if ($cVal > 1.0 && $cVal < ($healthyAvg * 0.50)) {
                                     $dropPct = round((1 - ($cVal / $healthyAvg)) * 100);
                                     $pvStrings[$s]['status'] = 'critical_cleaning';
                                     $pvStrings[$s]['drop_pct'] = $dropPct;
@@ -464,7 +464,7 @@ class ISolarCloudService
                             // Cloud vs Dust Filter: If more than 50% of strings dropped together, it is a passing cloud over the whole plant
                             $isIsolatedDustIssue = ! empty($inverterProblemStrings) && (count($inverterProblemStrings) <= max(2, (int) round($totalConnectedStrings * 0.45)));
 
-                            if ($isIsolatedDustIssue) {
+                            if ($isIsolatedDustIssue && $canRunSoilingCheck) {
                                 $strNums = array_column($inverterProblemStrings, 'string_num');
                                 $dropPcts = array_column($inverterProblemStrings, 'drop_pct');
                                 $maxDrop = ! empty($dropPcts) ? max($dropPcts) : 50;
@@ -491,9 +491,7 @@ class ISolarCloudService
                                 ];
 
                                 $inverterAlerts[] = $alertItem;
-                                if ($canRunSoilingCheck) {
-                                    $allCleaningAlerts[] = $alertItem;
-                                }
+                                $allCleaningAlerts[] = $alertItem;
                             }
                         }
                     }
