@@ -58,7 +58,7 @@ class EmployeeLocationController extends Controller
         // Common shared employees are accessible across all companies
         $query = Employee::with(['user.company', 'attendanceRecords' => function ($q) {
             $q->whereDate('attendance_date', Carbon::today())->latest('id');
-        }])->where('active', true)->orderBy('employee_code');
+        }])->orderBy('employee_code');
 
         $employees = $query->get();
         $employeeIds = $employees->pluck('id');
