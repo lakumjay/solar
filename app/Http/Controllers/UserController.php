@@ -19,13 +19,22 @@ class UserController extends Controller
     public function index(Request $request)
     {
         $this->access->requireUserManagement($request);
-        $query = User::with('company:id,name')->where('role', '!=', 'employee')->orderBy('name');
+        $query = User::with(['company:id,name', 'employee:id,user_id,employee_code,designation'])->orderBy('name');
         if ($request->user()->role !== 'super_admin') {
-            $query->where('company_id', $request->user()->company_id)->where('role', '!=', 'super_admin');
+            $query->where(function ($q) use ($request) {
+                $q->where('company_id', $request->user()->company_id)
+                  ->orWhere('role', 'employee');
+            })->where('role', '!=', 'super_admin');
         }
 
         return $query->get(['id', 'company_id', 'name', 'email', 'role', 'permissions', 'active', 'created_at'])
-            ->each(fn (User $user) => $user->setAttribute('permissions', $this->access->effectivePermissions($user)));
+            ->each(function (User $user) {
+                $user->setAttribute('permissions', $this->access->effectivePermissions($user));
+                if ($user->employee) {
+                    $user->setAttribute('employee_code', $user->employee->employee_code);
+                    $user->setAttribute('designation', $user->employee->designation);
+                }
+            });
     }
 
     public function store(SaveUserRequest $request)
@@ -38,18 +47,25 @@ class UserController extends Controller
             if (! empty($data['id'])) {
                 abort_unless(
                     User::whereKey($data['id'])
-                        ->where('company_id', $request->user()->company_id)
+                        ->where(function ($q) use ($request) {
+                            $q->where('company_id', $request->user()->company_id)
+                              ->orWhere('role', 'employee');
+                        })
                         ->where('role', '!=', 'super_admin')
                         ->exists(),
                     403,
                 );
             }
-            $data['company_id'] = $request->user()->company_id;
+            if ($data['role'] !== 'employee') {
+                $data['company_id'] = $request->user()->company_id;
+            }
             abort_if($data['role'] === 'super_admin', 403);
         }
 
         if ($data['role'] === 'super_admin') {
             $data['company_id'] = null;
+        } elseif ($data['role'] === 'employee') {
+            $data['company_id'] = $data['company_id'] ?? null;
         } else {
             abort_if(empty($data['company_id']), 422, 'Company is required for company users.');
         }
