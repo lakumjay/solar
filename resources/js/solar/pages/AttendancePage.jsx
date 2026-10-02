@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {Bell, ClockAlert, ExternalLink, MapPin, Navigation, PencilLine, Plus, Radio, RefreshCw, Search, Send, Smartphone, User, X} from 'lucide-react';
-import {api, syncPushSubscription} from '../api';
+import {ClockAlert, ExternalLink, MapPin, Navigation, PencilLine, Plus, Radio, RefreshCw, Search, Smartphone, User, X} from 'lucide-react';
+import {api} from '../api';
 import {DatePicker, Empty, Field} from '../components/Common';
 
 const localDate = () => {
@@ -30,7 +30,6 @@ export default function AttendancePage({canCorrect, canRecord}) {
     const [liveCount, setLiveCount] = useState(0);
     const [loadingLocations, setLoadingLocations] = useState(false);
     const [selectedMapEmployee, setSelectedMapEmployee] = useState(null);
-    const [pushSending, setPushSending] = useState(false);
 
     const loadLiveLocations = async () => {
         try {
@@ -42,62 +41,6 @@ export default function AttendancePage({canCorrect, canRecord}) {
             console.warn('Live location error', e);
         } finally {
             setLoadingLocations(false);
-        }
-    };
-
-    const handleSendTestPush = async () => {
-        setPushSending(true);
-        setMessage('');
-        try {
-            // 1. Ensure notification permission is granted on this device
-            if (typeof window !== 'undefined' && 'Notification' in window) {
-                if (Notification.permission !== 'granted') {
-                    const perm = await Notification.requestPermission();
-                    if (perm !== 'granted') {
-                        setMessage('નોટિફિકેશન પરમિશન Allow નથી. કૃપા કરીને બ્રાઉઝર સેટિંગ્સમાંથી Notification Allow કરો.');
-                        setPushSending(false);
-                        return;
-                    }
-                }
-
-                // 2. Sync / Register push subscription with backend
-                await syncPushSubscription();
-
-                // 3. Trigger immediate local system push feedback
-                try {
-                    const options = {
-                        body: '⚡ SolarFlow Live Push: બેકગ્રાઉન્ડ નોટિફિકેશન સફળતાપૂર્વક સક્રિય છે!',
-                        icon: '/icons/icon-192.png',
-                        badge: '/icons/icon-192.png',
-                        vibrate: [200, 100, 200],
-                        tag: 'solarflow-test'
-                    };
-                    if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
-                        const reg = await navigator.serviceWorker.ready;
-                        if (reg && typeof reg.showNotification === 'function') {
-                            await reg.showNotification('⚡ SolarFlow Live Alert', options);
-                        }
-                    } else {
-                        new Notification('⚡ SolarFlow Live Alert', options);
-                    }
-                } catch (e) {
-                    console.log('Local notification feedback error', e);
-                }
-            }
-
-            // 4. Send backend push dispatch
-            const res = await api('push-notifications/send-test', {
-                method: 'POST',
-                body: JSON.stringify({
-                    title: '⚡ SolarFlow Live Push Alert',
-                    body: 'Live Web Push Notification working successfully even when app is closed!'
-                })
-            });
-            setMessage(res.message || '✓ ટેસ્ટ પુશ નોટિફિકેશન સફળતાપૂર્વક મોકલાઈ ગયું!');
-        } catch (err) {
-            setMessage('✓ ટેસ્ટ પુશ નોટિફિકેશન સફળતાપૂર્વક મોકલાઈ ગયું!');
-        } finally {
-            setPushSending(false);
         }
     };
 
@@ -187,7 +130,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
         {/* 📡 Live Employee GPS Field Tracker & Map Box */}
         <section className="panel" style={{marginBottom: '24px', border: '1px solid #cbe4d7', background: 'linear-gradient(to bottom, #ffffff, #f9fdfa)', padding: '16px'}}>
             <div style={{display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '14px'}}>
-                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px'}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px'}}>
                     <div>
                         <div style={{display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px'}}>
                             <h2 style={{display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '16px', fontWeight: 800, color: '#123e30'}}>
@@ -202,29 +145,18 @@ export default function AttendancePage({canCorrect, canRecord}) {
                             એમ્પ્લોયીનો ફોન/PWA ઓપન અથવા મિનિમાઇઝ હોય ત્યારે રીઅલ-ટાઇમ GPS (Syncs every 30s)
                         </p>
                     </div>
-                </div>
-
-                <div style={{display: 'flex', gap: '8px', width: '100%', flexWrap: 'wrap'}}>
-                    <button
-                        type="button"
-                        className="secondary"
-                        onClick={loadLiveLocations}
-                        disabled={loadingLocations}
-                        style={{flex: '1 1 130px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 12px', fontSize: '12px', borderRadius: '10px'}}
-                        title="Refresh Live GPS coordinates"
-                    >
-                        <RefreshCw size={14} className={loadingLocations ? 'spin' : ''}/> રીફ્રેશ લોકેશન
-                    </button>
-                    <button
-                        type="button"
-                        className="secondary"
-                        onClick={handleSendTestPush}
-                        disabled={pushSending}
-                        style={{flex: '1 1 130px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 12px', fontSize: '12px', background: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd', borderRadius: '10px'}}
-                        title="Send Web Push Notification to verify closed app delivery"
-                    >
-                        <Bell size={14}/> {pushSending ? 'મોકલી રહ્યાં છીએ...' : '🔔 ટેસ્ટ પુશ મોકલો'}
-                    </button>
+                    <div>
+                        <button
+                            type="button"
+                            className="secondary"
+                            onClick={loadLiveLocations}
+                            disabled={loadingLocations}
+                            style={{display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px 14px', fontSize: '12px', borderRadius: '10px', fontWeight: 600}}
+                            title="Refresh Live GPS coordinates"
+                        >
+                            <RefreshCw size={14} className={loadingLocations ? 'spin' : ''}/> રીફ્રેશ લોકેશન
+                        </button>
+                    </div>
                 </div>
             </div>
 

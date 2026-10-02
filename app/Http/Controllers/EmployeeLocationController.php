@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AttendanceRecord;
 use App\Models\Employee;
 use App\Models\EmployeeLocation;
 use Carbon\Carbon;
@@ -54,20 +55,10 @@ class EmployeeLocationController extends Controller
      */
     public function live(Request $request): JsonResponse
     {
-        $user = $request->user();
-        $companyId = $request->query('company_id');
-
+        // Common shared employees are accessible across all companies
         $query = Employee::with(['user.company', 'attendanceRecords' => function ($q) {
             $q->whereDate('attendance_date', Carbon::today())->latest('id');
-        }])->where('active', true);
-
-        if ($user->role !== 'super_admin') {
-            if ($user->company_id) {
-                $query->whereHas('user', fn($q) => $q->where('company_id', $user->company_id));
-            }
-        } elseif ($companyId && $companyId !== 'all') {
-            $query->whereHas('user', fn($q) => $q->where('company_id', $companyId));
-        }
+        }])->where('active', true)->orderBy('employee_code');
 
         $employees = $query->get();
         $employeeIds = $employees->pluck('id');
@@ -91,12 +82,27 @@ class EmployeeLocationController extends Controller
             $accuracy = $loc ? (float)$loc->accuracy : null;
             $recordedAt = $loc ? $loc->recorded_at : null;
 
-            // Fallback: If no periodic ping yet today, use today's Clock-in GPS coordinates!
+            // Fallback 1: Today's Clock-in GPS coordinates
             if (!$lat && $todayAttendance && $todayAttendance->clock_in_latitude && $todayAttendance->clock_in_longitude) {
                 $lat = (float)$todayAttendance->clock_in_latitude;
                 $lng = (float)$todayAttendance->clock_in_longitude;
                 $accuracy = (float)($todayAttendance->clock_in_accuracy ?? 15);
                 $recordedAt = $todayAttendance->clock_in_at ?: Carbon::today();
+            }
+
+            // Fallback 2: Latest available attendance record with GPS coordinates
+            if (!$lat) {
+                $latestAttWithGps = AttendanceRecord::where('employee_id', $emp->id)
+                    ->whereNotNull('clock_in_latitude')
+                    ->whereNotNull('clock_in_longitude')
+                    ->orderBy('attendance_date', 'desc')
+                    ->first();
+                if ($latestAttWithGps) {
+                    $lat = (float)$latestAttWithGps->clock_in_latitude;
+                    $lng = (float)$latestAttWithGps->clock_in_longitude;
+                    $accuracy = (float)($latestAttWithGps->clock_in_accuracy ?? 20);
+                    $recordedAt = $latestAttWithGps->clock_in_at ?: Carbon::parse($latestAttWithGps->attendance_date);
+                }
             }
 
             $isLive = false;
@@ -125,7 +131,7 @@ class EmployeeLocationController extends Controller
                 'latitude' => $lat,
                 'longitude' => $lng,
                 'accuracy' => $accuracy,
-                'recorded_at' => $recordedAt ? $recordedAt->toIso8601String() : null,
+                'recorded_at' => $recordedAt ? (is_string($recordedAt) ? $recordedAt : $recordedAt->toIso8601String()) : null,
                 'map_url' => $lat && $lng ? "https://www.google.com/maps?q={$lat},{$lng}" : null,
             ];
         });

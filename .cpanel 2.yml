@@ -1,6 +1,0 @@
----
-deployment:
-  tasks:
-    - export DEPLOYPATH=/home3/snweba2e/rns.snwebkarma.in/
-    - /bin/cp -R * $DEPLOYPATH
-    - /bin/cp -R .env.example $DEPLOYPATH
