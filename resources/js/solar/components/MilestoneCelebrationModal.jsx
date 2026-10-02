@@ -1,12 +1,12 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {Trophy, Sparkles, X, Share2, Zap, IndianRupee, Sun, CheckCircle2} from 'lucide-react';
+import {Trophy, Sparkles, X, Zap, IndianRupee} from 'lucide-react';
 
 export default function MilestoneCelebrationModal({user, activeCompany, liveData}) {
     const [milestone, setMilestone] = useState(null);
     const canvasRef = useRef(null);
     const animationFrameRef = useRef(null);
 
-    const ownerName = activeCompany?.owner_name || user?.name || 'Lakum Jay';
+    const ownerName = activeCompany?.owner_name || (user?.name === 'Super Admin' ? 'Lakum Jay' : user?.name) || 'Lakum Jay';
     const ownerTitle = activeCompany?.owner_designation || 'Solar Plant Owner & Director';
     const ownerPhoto = activeCompany?.owner_photo_url || null;
 
@@ -34,17 +34,22 @@ export default function MilestoneCelebrationModal({user, activeCompany, liveData
         } catch (e) {}
     };
 
-    // 🎊 Canvas Confetti Particle Engine
+    // 🎊 Canvas Confetti Particle Engine & Auto-Dismiss Timer
     useEffect(() => {
         if (!milestone) return;
 
         playVictoryChime();
         if (navigator.vibrate) {
-            navigator.vibrate([150, 80, 150, 80, 300]);
+            try { navigator.vibrate([150, 80, 150, 80, 300]); } catch(e){}
         }
 
+        // Auto dismiss after 7 seconds if untouched
+        const autoDismissTimer = setTimeout(() => {
+            handleDismiss();
+        }, 7000);
+
         const canvas = canvasRef.current;
-        if (!canvas) return;
+        if (!canvas) return () => clearTimeout(autoDismissTimer);
         const ctx = canvas.getContext('2d');
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
@@ -98,6 +103,7 @@ export default function MilestoneCelebrationModal({user, activeCompany, liveData
         render();
 
         return () => {
+            clearTimeout(autoDismissTimer);
             if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
         };
     }, [milestone]);
@@ -184,29 +190,15 @@ export default function MilestoneCelebrationModal({user, activeCompany, liveData
         setMilestone(null);
     };
 
-    const handleShareWhatsApp = () => {
-        if (!milestone) return;
-        const text = `🎉 *SolarFlow - Solar Generation Celebration* ⚡\n\n` +
-            `👑 *Owner:* ${ownerName} (${ownerTitle})\n` +
-            `🏢 *Plant:* ${activeCompany?.name || 'Solar Energy'}\n` +
-            `🎯 *Achievement:* ${milestone.badge}\n` +
-            `⚡ *Today Units:* ${milestone.units} kWh\n` +
-            `💰 *Estimated Revenue:* ₹ ${milestone.revenue}\n\n` +
-            `🚀 Powered by SolarFlow Intelligence System`;
-
-        window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
-        handleDismiss();
-    };
-
     if (!milestone) return null;
 
     return (
-        <div className="milestone-celebration-backdrop" onClick={handleDismiss}>
+        <div className="milestone-celebration-backdrop" onClick={handleDismiss} onTouchStart={handleDismiss}>
             {/* Canvas for falling confetti & ribbons */}
             <canvas ref={canvasRef} className="milestone-confetti-canvas"/>
 
-            <div className="milestone-celebration-card" onClick={e => e.stopPropagation()}>
-                <button type="button" className="milestone-close-btn" onClick={handleDismiss}>
+            <div className="milestone-celebration-card" onClick={handleDismiss} onTouchStart={handleDismiss}>
+                <button type="button" className="milestone-close-btn" onClick={(e) => { e.stopPropagation(); handleDismiss(); }}>
                     <X size={18}/>
                 </button>
 
@@ -214,10 +206,10 @@ export default function MilestoneCelebrationModal({user, activeCompany, liveData
                 <div className="milestone-top-trophy-wrap">
                     <div className="trophy-pulse-aura"/>
                     <div className="trophy-icon-box">
-                        <Trophy size={38} className="trophy-golden-svg"/>
+                        <Trophy size={34} className="trophy-golden-svg"/>
                     </div>
-                    <span className="milestone-sparkle-l"><Sparkles size={16}/></span>
-                    <span className="milestone-sparkle-r"><Sparkles size={16}/></span>
+                    <span className="milestone-sparkle-l"><Sparkles size={15}/></span>
+                    <span className="milestone-sparkle-r"><Sparkles size={15}/></span>
                 </div>
 
                 <div className="milestone-badge-pill">
@@ -255,23 +247,9 @@ export default function MilestoneCelebrationModal({user, activeCompany, liveData
                     </div>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="milestone-actions-row">
-                    <button
-                        type="button"
-                        className="milestone-btn-whatsapp"
-                        onClick={handleShareWhatsApp}
-                    >
-                        <Share2 size={16}/>
-                        <span>WhatsApp પર શેર કરો</span>
-                    </button>
-                    <button
-                        type="button"
-                        className="milestone-btn-dismiss"
-                        onClick={handleDismiss}
-                    >
-                        આભાર (Thank You)
-                    </button>
+                {/* Subtle Dismiss Hint */}
+                <div className="milestone-touch-hint">
+                    <span>👆 બંધ કરવા સ્ક્રીન પર ગમે ત્યાં ટચ કરો</span>
                 </div>
             </div>
         </div>

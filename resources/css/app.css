@@ -4702,12 +4702,15 @@
     background: #ffffff;
     border: 2px solid #fbbf24;
     border-radius: 24px;
-    padding: 28px 22px 22px;
-    max-width: 400px;
+    padding: 22px 20px 18px;
+    max-width: 360px;
     width: 100%;
     text-align: center;
     position: relative;
     z-index: 2;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
     box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4), 0 0 35px rgba(245, 158, 11, 0.25);
     animation: bounceInCard 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
@@ -4794,15 +4797,14 @@
 .milestone-badge-pill {
     display: inline-block;
     background: #fef3c7;
-    color: #b45309;
-    border: 1px solid #fcd34d;
-    font-size: 11.5px;
-    font-weight: 800;
-    padding: 4px 14px;
+    color: #92400e;
+    border: 1px solid #fde68a;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 12px;
     border-radius: 20px;
-    margin-bottom: 14px;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
+    margin-bottom: 12px;
+    letter-spacing: 0.2px;
 }
 
 .milestone-owner-row {
@@ -4812,45 +4814,45 @@
     background: #f8fafc;
     border: 1px solid #e2e8f0;
     border-radius: 14px;
-    padding: 12px 14px;
+    padding: 10px 12px;
     text-align: left;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
 }
 
 .milestone-avatar-ring {
     position: relative;
-    width: 48px;
-    height: 48px;
+    width: 44px;
+    height: 44px;
     flex-shrink: 0;
 }
 
 .milestone-owner-img {
-    width: 48px;
-    height: 48px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     object-fit: cover;
     border: 2px solid #f59e0b;
 }
 
 .milestone-owner-initial {
-    width: 48px;
-    height: 48px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #f59e0b, #b45309);
+    background: linear-gradient(135deg, #f59e0b, #d97706);
     display: flex;
     align-items: center;
     justify-content: center;
     color: #ffffff;
-    font-weight: 800;
-    font-size: 20px;
+    font-weight: 700;
+    font-size: 18px;
     border: 2px solid #fbbf24;
 }
 
 .milestone-crown-badge {
     position: absolute;
-    top: -6px;
-    right: -4px;
-    font-size: 13px;
+    top: -5px;
+    right: -3px;
+    font-size: 12px;
 }
 
 .milestone-owner-texts {
@@ -4860,32 +4862,32 @@
 
 .milestone-heading {
     margin: 0 0 2px;
-    font-size: 16px;
-    font-weight: 800;
+    font-size: 14.5px;
+    font-weight: 600;
     color: #0f172a;
 }
 
 .milestone-subheading {
     margin: 0;
-    font-size: 12px;
+    font-size: 11.5px;
     color: #64748b;
-    line-height: 1.4;
+    line-height: 1.35;
 }
 
 .milestone-metrics-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-bottom: 20px;
+    gap: 8px;
+    margin-bottom: 14px;
 }
 
 .m-metric-box {
     border-radius: 12px;
-    padding: 12px 10px;
+    padding: 10px 8px;
     text-align: left;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
 }
 
 .m-metric-box.green {
@@ -4905,68 +4907,35 @@
 .m-metric-box.gold .m-metric-val { color: #b45309; }
 
 .m-metric-lbl {
-    font-size: 11px;
-    font-weight: 700;
+    font-size: 10.5px;
+    font-weight: 600;
     display: flex;
     align-items: center;
     gap: 4px;
 }
 
 .m-metric-val {
-    font-size: 18px;
-    font-weight: 900;
+    font-size: 16px;
+    font-weight: 600;
     line-height: 1.2;
 }
 
 .m-metric-val small {
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 500;
 }
 
-.milestone-actions-row {
-    display: flex;
-    gap: 10px;
-}
-
-.milestone-btn-whatsapp {
-    flex: 1;
-    background: #25d366;
-    color: #ffffff;
-    border: none;
-    border-radius: 12px;
-    padding: 12px 14px;
-    font-size: 13px;
-    font-weight: 800;
-    display: flex;
+.milestone-touch-hint {
+    background: #f1f5f9;
+    color: #64748b;
+    border-radius: 20px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 500;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    cursor: pointer;
-    box-shadow: 0 4px 14px rgba(37, 211, 102, 0.3);
-    transition: all 0.15s ease;
-}
-
-.milestone-btn-whatsapp:hover {
-    background: #22c55e;
-    transform: translateY(-1px);
-}
-
-.milestone-btn-dismiss {
-    flex: 1;
-    background: #f1f5f9;
-    color: #334155;
-    border: 1px solid #cbd5e1;
-    border-radius: 12px;
-    padding: 12px 14px;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-
-.milestone-btn-dismiss:hover {
-    background: #e2e8f0;
-    color: #0f172a;
+    margin-top: 4px;
 }
 
 /* VIP Owner Welcome Banner on Mobile Dashboard (Clean, Light & Minimalist) */
