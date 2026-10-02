@@ -161,6 +161,29 @@ export default function MobileAppView({
         }
     };
 
+    // 🔊 Synthesized Interactive Nav Click Sound & Haptic Pulse
+    const playNavClickSound = () => {
+        try {
+            if (navigator.vibrate) {
+                try { navigator.vibrate(15); } catch (e) {}
+            }
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            const ctx = new AudioCtx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(600, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(360, ctx.currentTime + 0.04);
+            gain.gain.setValueAtTime(0.08, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.04);
+        } catch (e) {}
+    };
+
     // 🔊 Synthesized Audio Chime (Works on HTTP & HTTPS without external MP3 files)
     const playNotificationSound = () => {
         try {
@@ -443,14 +466,14 @@ export default function MobileAppView({
                                     <img src={activeCompany.owner_photo_url} alt="" className="vip-owner-thumb"/>
                                 ) : (
                                     <div className="vip-owner-initial">
-                                        {(activeCompany?.owner_name || user.name || 'J').slice(0, 1).toUpperCase()}
+                                        {(activeCompany?.owner_name || (user.name === 'Super Admin' ? 'Lakum Jay' : user.name) || 'L').slice(0, 1).toUpperCase()}
                                     </div>
                                 )}
                                 <span className="vip-crown-badge">👑</span>
                             </div>
                             <div className="vip-owner-info">
                                 <h4 className="vip-owner-greeting">
-                                    નમસ્તે, <span className="vip-gold-name">{activeCompany?.owner_name || user.name} સર! 👋</span>
+                                    નમસ્તે, <span className="vip-gold-name">{activeCompany?.owner_name || (user.name === 'Super Admin' ? 'Lakum Jay' : user.name)} સર! 👋</span>
                                 </h4>
                                 <p className="vip-owner-sub">
                                     {activeCompany?.owner_designation || 'Solar Plant Owner & Director'}
@@ -692,7 +715,10 @@ export default function MobileAppView({
                             <button
                                 type="button"
                                 className="mqa-btn"
-                                onClick={() => setPage('entry')}
+                                onClick={() => {
+                                    playNavClickSound();
+                                    setPage('entry');
+                                }}
                             >
                                 <div className="mqa-icon-wrap clip-wrap"><ClipboardPlus size={20}/></div>
                                 <span>Daily Entry</span>
@@ -701,7 +727,10 @@ export default function MobileAppView({
                             <button
                                 type="button"
                                 className="mqa-btn"
-                                onClick={() => setPage(attendanceTargetPage)}
+                                onClick={() => {
+                                    playNavClickSound();
+                                    setPage(attendanceTargetPage);
+                                }}
                             >
                                 <div className="mqa-icon-wrap user-wrap"><UserCheck size={20}/></div>
                                 <span>Attendance</span>
@@ -710,7 +739,10 @@ export default function MobileAppView({
                             <button
                                 type="button"
                                 className="mqa-btn"
-                                onClick={() => setPage('reports')}
+                                onClick={() => {
+                                    playNavClickSound();
+                                    setPage('reports');
+                                }}
                             >
                                 <div className="mqa-icon-wrap bar-wrap"><BarChart3 size={20}/></div>
                                 <span>Reports</span>
@@ -719,7 +751,10 @@ export default function MobileAppView({
                             <button
                                 type="button"
                                 className="mqa-btn"
-                                onClick={() => setPage('expenses')}
+                                onClick={() => {
+                                    playNavClickSound();
+                                    setPage('expenses');
+                                }}
                             >
                                 <div className="mqa-icon-wrap rupee-wrap"><IndianRupee size={20}/></div>
                                 <span>Expenses</span>
@@ -727,7 +762,7 @@ export default function MobileAppView({
                         </div>
                     </div>
 
-                    {/* 6. COMPANY PLANTS & ACCORDION INVERTER LIST (MATCHING media_1790849197508.png) */}
+                    {/* 6. COMPANY PLANTS & INVERTER LIST */}
                     <div className="mobile-plants-section">
                         <div className="plants-sec-header">
                             <div className="plants-sec-title">
@@ -816,7 +851,10 @@ export default function MobileAppView({
                                                                 <button
                                                                     type="button"
                                                                     className="inv-pv-pill-btn"
-                                                                    onClick={() => toggleInverterPv(invKey)}
+                                                                    onClick={() => {
+                                                                        playNavClickSound();
+                                                                        toggleInverterPv(invKey);
+                                                                    }}
                                                                 >
                                                                     <span>PV</span>
                                                                     {isPvOpen ? <ChevronUp size={13}/> : <ChevronDown size={13}/>}
@@ -863,14 +901,14 @@ export default function MobileAppView({
                 </main>
             )}
 
-            {/* 7. MODERN FLOATING BOTTOM NAVIGATION BAR WITH HAPTIC TOUCH */}
+            {/* 7. MODERN FLOATING BOTTOM NAVIGATION BAR WITH HAPTIC TOUCH & AUDIO TICK */}
             <nav className="mobile-bottom-navbar">
                 {can('view_dashboard') && (
                     <button
                         type="button"
                         className={`bnav-item ${page === 'dashboard' ? 'active' : ''}`}
                         onClick={() => {
-                            if (navigator.vibrate) { try { navigator.vibrate(20); } catch(e){} }
+                            playNavClickSound();
                             setPage('dashboard');
                         }}
                     >
@@ -884,7 +922,7 @@ export default function MobileAppView({
                         type="button"
                         className={`bnav-item ${page === 'entry' ? 'active' : ''}`}
                         onClick={() => {
-                            if (navigator.vibrate) { try { navigator.vibrate(20); } catch(e){} }
+                            playNavClickSound();
                             if ((companyId === 'all' || !companyId) && companies.length > 0) {
                                 const validComp = companies.find(c => String(c.id) !== 'all') || companies[0];
                                 if (validComp) setCompanyId(String(validComp.id));
@@ -902,7 +940,7 @@ export default function MobileAppView({
                         type="button"
                         className={`bnav-item ${[attendanceTargetPage, 'attendance', 'my-attendance'].includes(page) ? 'active' : ''}`}
                         onClick={() => {
-                            if (navigator.vibrate) { try { navigator.vibrate(20); } catch(e){} }
+                            playNavClickSound();
                             setPage(attendanceTargetPage);
                         }}
                     >
@@ -916,7 +954,7 @@ export default function MobileAppView({
                         type="button"
                         className={`bnav-item ${page === 'reports' ? 'active' : ''}`}
                         onClick={() => {
-                            if (navigator.vibrate) { try { navigator.vibrate(20); } catch(e){} }
+                            playNavClickSound();
                             setPage('reports');
                         }}
                     >
@@ -929,7 +967,7 @@ export default function MobileAppView({
                     type="button"
                     className={`bnav-item ${page === 'gallery' ? 'active' : ''}`}
                     onClick={() => {
-                        if (navigator.vibrate) { try { navigator.vibrate(20); } catch(e){} }
+                        playNavClickSound();
                         setPage('gallery');
                     }}
                 >
@@ -941,7 +979,7 @@ export default function MobileAppView({
                     type="button"
                     className={`bnav-item ${moreMenuOpen ? 'active' : ''}`}
                     onClick={() => {
-                        if (navigator.vibrate) { try { navigator.vibrate(20); } catch(e){} }
+                        playNavClickSound();
                         setMoreMenuOpen(true);
                     }}
                 >
