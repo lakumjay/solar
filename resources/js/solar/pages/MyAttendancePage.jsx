@@ -60,9 +60,9 @@ function SelfieModal({mode, onClose, onDone}) {
     };
 
     return <div className="modal-backdrop"><div className="modal camera-modal"><div className="panel-head"><div><h2>{isTimeIn ? 'Time In verification' : 'Break Out verification'}</h2><p>{isTimeIn ? 'Front-camera selfie is required to verify your attendance.' : 'Capture a fresh front-camera selfie before returning to work.'}</p></div><button className="icon-button ghost" onClick={onClose}><X/></button></div>
-        <div className="camera-frame">{preview ? <img src={preview} alt="Captured selfie"/> : <video ref={videoRef} playsInline muted/>}<span><Camera size={18}/> Keep your full face inside the frame</span></div>
+        <div className="camera-frame">{preview ? <img src={preview} alt="Captured selfie"/> : <video ref={videoRef} playsInline autoPlay muted/>}<span><Camera size={16}/> Keep your face inside the frame</span></div>
         {error && <div className={error.includes('Getting') ? 'info-banner' : 'error'}>{error}</div>}
-        <div className="camera-actions">{preview ? <button className="secondary" onClick={() => {URL.revokeObjectURL(preview); setPhoto(null); setPreview(''); setCameraKey(value => value + 1);}}><RefreshCw size={16}/> Retake</button> : <button className="secondary" onClick={capture}><Camera size={16}/> Capture selfie</button>}<button className="primary" disabled={!photo || busy} onClick={submit}>{isTimeIn ? <MapPin size={16}/> : <Camera size={16}/>} {isTimeIn ? 'Confirm location & time in' : 'Confirm selfie & break out'}</button></div>
+        <div className="camera-actions">{preview ? <button className="secondary" onClick={() => {URL.revokeObjectURL(preview); setPhoto(null); setPreview(''); setCameraKey(value => value + 1);}}><RefreshCw size={16}/> Retake</button> : <button className="secondary" onClick={capture}><Camera size={16}/> Capture Selfie</button>}<button className="primary" disabled={!photo || busy} onClick={submit}>{isTimeIn ? <MapPin size={16}/> : <Camera size={16}/>} {isTimeIn ? 'Confirm & Time In' : 'Confirm & Break Out'}</button></div>
     </div></div>;
 }
 
