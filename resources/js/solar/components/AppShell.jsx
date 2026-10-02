@@ -59,7 +59,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
 
     // 📍 Periodic Employee Live Location Background Ping (Active when App is open or minimized)
     useEffect(() => {
-        if (!user || user.role !== 'employee') return;
+        if (!user) return;
 
         const pingLocation = () => {
             if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return;

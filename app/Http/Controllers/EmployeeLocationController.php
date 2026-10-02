@@ -25,22 +25,27 @@ class EmployeeLocationController extends Controller
         $user = $request->user();
         $employee = Employee::where('user_id', $user->id)->first();
 
-        if (!$employee) {
-            return response()->json(['message' => 'Employee profile not found.'], 404);
+        // If user is directly linked to an employee profile
+        if ($employee) {
+            $location = EmployeeLocation::create([
+                'employee_id' => $employee->id,
+                'latitude' => $validated['latitude'],
+                'longitude' => $validated['longitude'],
+                'accuracy' => $validated['accuracy'] ?? null,
+                'status_label' => $validated['status_label'] ?? 'Active',
+                'recorded_at' => now(),
+            ]);
+
+            return response()->json([
+                'message' => 'Location updated successfully.',
+                'employee_id' => $employee->id,
+                'recorded_at' => $location->recorded_at->toIso8601String(),
+            ]);
         }
 
-        $location = EmployeeLocation::create([
-            'employee_id' => $employee->id,
-            'latitude' => $validated['latitude'],
-            'longitude' => $validated['longitude'],
-            'accuracy' => $validated['accuracy'] ?? null,
-            'status_label' => $validated['status_label'] ?? 'Active',
-            'recorded_at' => now(),
-        ]);
-
         return response()->json([
-            'message' => 'Location updated successfully.',
-            'recorded_at' => $location->recorded_at->toIso8601String(),
+            'message' => 'Admin ping acknowledged.',
+            'recorded_at' => now()->toIso8601String(),
         ]);
     }
 
@@ -67,7 +72,7 @@ class EmployeeLocationController extends Controller
         $employees = $query->get();
         $employeeIds = $employees->pluck('id');
 
-        // Fetch latest location for each employee
+        // Fetch latest location for each employee from employee_locations
         $latestLocations = EmployeeLocation::whereIn('employee_id', $employeeIds)
             ->where('recorded_at', '>=', Carbon::now()->subHours(24))
             ->orderBy('recorded_at', 'desc')
@@ -81,15 +86,28 @@ class EmployeeLocationController extends Controller
             $loc = $latestLocations->get($emp->id);
             $todayAttendance = $emp->attendanceRecords->first();
 
+            $lat = $loc ? (float)$loc->latitude : null;
+            $lng = $loc ? (float)$loc->longitude : null;
+            $accuracy = $loc ? (float)$loc->accuracy : null;
+            $recordedAt = $loc ? $loc->recorded_at : null;
+
+            // Fallback: If no periodic ping yet today, use today's Clock-in GPS coordinates!
+            if (!$lat && $todayAttendance && $todayAttendance->clock_in_latitude && $todayAttendance->clock_in_longitude) {
+                $lat = (float)$todayAttendance->clock_in_latitude;
+                $lng = (float)$todayAttendance->clock_in_longitude;
+                $accuracy = (float)($todayAttendance->clock_in_accuracy ?? 15);
+                $recordedAt = $todayAttendance->clock_in_at ?: Carbon::today();
+            }
+
             $isLive = false;
-            $lastSeenHuman = 'No recent GPS';
+            $lastSeenHuman = 'GPS પિંગની રાહ જુએ છે';
             $elapsedMinutes = null;
 
-            if ($loc) {
-                $elapsedMinutes = $now->diffInMinutes($loc->recorded_at);
-                // Live if recorded within the last 15 minutes
-                $isLive = $elapsedMinutes <= 15;
-                $lastSeenHuman = $loc->recorded_at->diffForHumans();
+            if ($recordedAt) {
+                $elapsedMinutes = $now->diffInMinutes($recordedAt);
+                // Live if recorded within the last 20 minutes
+                $isLive = $elapsedMinutes <= 20;
+                $lastSeenHuman = $recordedAt->diffForHumans();
             }
 
             return [
@@ -103,12 +121,12 @@ class EmployeeLocationController extends Controller
                 'is_live' => $isLive,
                 'last_seen' => $lastSeenHuman,
                 'elapsed_minutes' => $elapsedMinutes,
-                'status' => $todayAttendance ? ($todayAttendance->time_out ? 'Shift Ended' : 'Working') : 'Not Checked In',
-                'latitude' => $loc ? (float)$loc->latitude : null,
-                'longitude' => $loc ? (float)$loc->longitude : null,
-                'accuracy' => $loc ? (float)$loc->accuracy : null,
-                'recorded_at' => $loc ? $loc->recorded_at->toIso8601String() : null,
-                'map_url' => $loc ? "https://www.google.com/maps?q={$loc->latitude},{$loc->longitude}" : null,
+                'status' => $todayAttendance ? ($todayAttendance->clock_out_at ? 'Shift Ended' : 'Working') : 'Not Checked In',
+                'latitude' => $lat,
+                'longitude' => $lng,
+                'accuracy' => $accuracy,
+                'recorded_at' => $recordedAt ? $recordedAt->toIso8601String() : null,
+                'map_url' => $lat && $lng ? "https://www.google.com/maps?q={$lat},{$lng}" : null,
             ];
         });
 

@@ -309,44 +309,96 @@ export default function AttendancePage({canCorrect, canRecord}) {
                             </div>
 
                             {emp.latitude && emp.longitude ? (
-                                <div style={{display: 'flex', gap: '8px', marginTop: 'auto'}}>
-                                    <button
-                                        type="button"
-                                        className="primary"
-                                        onClick={() => setSelectedMapEmployee(emp)}
-                                        style={{
-                                            flex: 1,
-                                            padding: '8px 12px',
-                                            fontSize: '12px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '6px'
-                                        }}
-                                    >
-                                        <MapPin size={14}/> લાઈવ મેપ જુઓ (View Map)
-                                    </button>
-                                    <a
-                                        href={emp.map_url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="secondary"
-                                        style={{
-                                            padding: '8px 12px',
-                                            fontSize: '12px',
-                                            textDecoration: 'none',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center'
-                                        }}
-                                        title="Open in Google Maps tab"
-                                    >
-                                        <ExternalLink size={14}/>
-                                    </a>
+                                <div style={{display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '2px'}}>
+                                    {/* 🗺️ Default Embedded Small Interactive Map */}
+                                    <div style={{
+                                        position: 'relative',
+                                        width: '100%',
+                                        height: '175px',
+                                        borderRadius: '12px',
+                                        overflow: 'hidden',
+                                        border: '1px solid #cbd5e1',
+                                        background: '#f1f5f9',
+                                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)'
+                                    }}>
+                                        <iframe
+                                            title={`Live Map for ${emp.name}`}
+                                            width="100%"
+                                            height="100%"
+                                            frameBorder="0"
+                                            scrolling="no"
+                                            marginHeight="0"
+                                            marginWidth="0"
+                                            src={`https://maps.google.com/maps?q=${emp.latitude},${emp.longitude}&hl=gu&z=15&output=embed`}
+                                            style={{border: 0, width: '100%', height: '100%'}}
+                                            loading="lazy"
+                                        />
+                                        <div style={{
+                                            position: 'absolute',
+                                            bottom: '6px',
+                                            left: '8px',
+                                            background: 'rgba(15, 23, 42, 0.8)',
+                                            color: '#ffffff',
+                                            padding: '2px 8px',
+                                            borderRadius: '6px',
+                                            fontSize: '10px',
+                                            pointerEvents: 'none'
+                                        }}>
+                                            📍 GPS: {Number(emp.latitude).toFixed(4)}, {Number(emp.longitude).toFixed(4)}
+                                        </div>
+                                    </div>
+
+                                    <div style={{display: 'flex', gap: '8px'}}>
+                                        <button
+                                            type="button"
+                                            className="secondary"
+                                            onClick={() => setSelectedMapEmployee(emp)}
+                                            style={{
+                                                flex: 1,
+                                                padding: '7px 10px',
+                                                fontSize: '11.5px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '5px',
+                                                borderRadius: '8px'
+                                            }}
+                                        >
+                                            <MapPin size={13}/> મોટો મેપ જુઓ
+                                        </button>
+                                        <a
+                                            href={emp.map_url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="primary"
+                                            style={{
+                                                flex: 1,
+                                                padding: '7px 10px',
+                                                fontSize: '11.5px',
+                                                textDecoration: 'none',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '5px',
+                                                borderRadius: '8px'
+                                            }}
+                                            title="Open in Google Maps App"
+                                        >
+                                            <ExternalLink size={13}/> Maps App માં જુઓ
+                                        </a>
+                                    </div>
                                 </div>
                             ) : (
-                                <div style={{fontSize: '11px', color: '#94a3b8', textAlign: 'center', padding: '6px 0'}}>
-                                    હજુ સુધી GPS લોકેશન પિંગ મળેલ નથી
+                                <div style={{
+                                    fontSize: '11.5px',
+                                    color: '#64748b',
+                                    background: '#f8fafc',
+                                    borderRadius: '10px',
+                                    padding: '16px',
+                                    textAlign: 'center',
+                                    border: '1px dashed #cbd5e1'
+                                }}>
+                                    📍 એમ્પ્લોયીનું લાઈવ GPS પિંગ મળતા જ અહીં લાઈવ મેપ આપોઆપ ખુલી જશે.
                                 </div>
                             )}
                         </div>
