@@ -30,6 +30,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
     const [liveCount, setLiveCount] = useState(0);
     const [loadingLocations, setLoadingLocations] = useState(false);
     const [selectedMapEmployee, setSelectedMapEmployee] = useState(null);
+    const [mapMode, setMapMode] = useState('satellite'); // 'satellite' | 'roadmap'
 
     const loadLiveLocations = async () => {
         try {
@@ -179,7 +180,28 @@ export default function AttendancePage({canCorrect, canRecord}) {
                             એમ્પ્લોયીનો ફોન/PWA ઓપન અથવા મિનિમાઇઝ હોય ત્યારે રીઅલ-ટાઇમ GPS (Syncs every 30s)
                         </p>
                     </div>
-                    <div>
+                    <div style={{display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap'}}>
+                        <button
+                            type="button"
+                            className="secondary"
+                            onClick={() => setMapMode(current => current === 'satellite' ? 'roadmap' : 'satellite')}
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px',
+                                padding: '8px 12px',
+                                fontSize: '12px',
+                                borderRadius: '10px',
+                                fontWeight: 700,
+                                background: mapMode === 'satellite' ? '#0f172a' : '#f8fafc',
+                                color: mapMode === 'satellite' ? '#38bdf8' : '#334155',
+                                border: mapMode === 'satellite' ? '1.5px solid #38bdf8' : '1px solid #cbd5e1'
+                            }}
+                            title="સેટેલાઇટ / સામાન્ય મેપ મોડ બદલો"
+                        >
+                            {mapMode === 'satellite' ? '🛰️ સેટેલાઇટ મોડ (ON)' : '🗺️ રોડમેપ મોડ'}
+                        </button>
                         <button
                             type="button"
                             className="secondary"
@@ -295,7 +317,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                             scrolling="no"
                                             marginHeight="0"
                                             marginWidth="0"
-                                            src={`https://maps.google.com/maps?q=${emp.latitude},${emp.longitude}&hl=gu&z=15&output=embed`}
+                                            src={`https://maps.google.com/maps?q=${emp.latitude},${emp.longitude}${mapMode === 'satellite' ? '&t=k' : ''}&hl=gu&z=17&output=embed`}
                                             style={{border: 0, width: '100%', height: '100%'}}
                                             loading="lazy"
                                         />
@@ -303,14 +325,17 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                             position: 'absolute',
                                             bottom: '6px',
                                             left: '8px',
-                                            background: 'rgba(15, 23, 42, 0.8)',
+                                            background: 'rgba(15, 23, 42, 0.85)',
                                             color: '#ffffff',
                                             padding: '2px 8px',
                                             borderRadius: '6px',
                                             fontSize: '10px',
-                                            pointerEvents: 'none'
+                                            pointerEvents: 'none',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '4px'
                                         }}>
-                                            📍 GPS: {Number(emp.latitude).toFixed(4)}, {Number(emp.longitude).toFixed(4)}
+                                            {mapMode === 'satellite' ? '🛰️ Satellite' : '📍 GPS'}: {Number(emp.latitude).toFixed(4)}, {Number(emp.longitude).toFixed(4)}
                                         </div>
                                     </div>
 
@@ -567,7 +592,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                             scrolling="no"
                             marginHeight="0"
                             marginWidth="0"
-                            src={`https://maps.google.com/maps?q=${selectedMapEmployee.latitude},${selectedMapEmployee.longitude}&hl=gu&z=16&output=embed`}
+                            src={`https://maps.google.com/maps?q=${selectedMapEmployee.latitude},${selectedMapEmployee.longitude}${mapMode === 'satellite' ? '&t=k' : ''}&hl=gu&z=17&output=embed`}
                             style={{border: 0}}
                         />
                     </div>
