@@ -66,7 +66,7 @@ function SelfieModal({mode, onClose, onDone}) {
     </div></div>;
 }
 
-export default function MyAttendancePage() {
+export default function MyAttendancePage({companyId}) {
     const [today, setToday] = useState(null);
     const [history, setHistory] = useState([]);
     const [leaves, setLeaves] = useState([]);
@@ -521,6 +521,7 @@ export default function MyAttendancePage() {
             {cameraModalOpen && (
                 <LiveBackCameraModal
                     task={selectedTaskForPhoto}
+                    companyId={companyId}
                     onClose={() => setCameraModalOpen(false)}
                     onUploaded={async () => {
                         setMessage('Plant photo uploaded successfully.');

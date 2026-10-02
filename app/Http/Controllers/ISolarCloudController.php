@@ -228,9 +228,9 @@ class ISolarCloudController extends Controller
         $requestedCompanyId = $request->query('company_id');
 
         // Role-based scoping:
-        // Super Admin sees all companies or the requested filter.
-        // Other roles are strictly restricted to their own assigned company.
-        if ($user && $user->role !== 'super_admin') {
+        // Super Admin and shared employees (without single company restriction) can see all companies or requested filter.
+        // Single-company users are strictly restricted to their own assigned company.
+        if ($user && $user->role !== 'super_admin' && ! empty($user->company_id)) {
             $companyId = (string) $user->company_id;
         } else {
             $companyId = $requestedCompanyId;

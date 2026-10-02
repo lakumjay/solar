@@ -27,7 +27,7 @@ class PlantPhotoController extends Controller
     {
         $user = $request->user();
         $employee = Employee::where('user_id', $user->id)->first();
-        $companyId = $user->company_id ?: ($employee?->companies()->first()?->id);
+        $companyId = $user->company_id ?: ($request->input('company_id') ?: Company::where('active', true)->value('id'));
 
         $data = $this->photoService->getTodayTasksWithProgress($employee?->id, $companyId);
         return response()->json($data);
@@ -127,11 +127,15 @@ class PlantPhotoController extends Controller
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $companyId = $request->input('company_id')
-            ?: ($user->company_id
-            ?: ($employee?->companies()->first()?->id ?: 1));
+        $taskId = $request->filled('task_id') ? (int) $request->input('task_id') : null;
+        $task = $taskId ? PlantPhotoTask::find($taskId) : null;
 
-        $company = Company::find($companyId) ?: Company::first();
+        $companyId = $request->input('company_id')
+            ?: ($task?->company_id
+            ?: ($user->company_id
+            ?: Company::where('active', true)->value('id')));
+
+        $company = Company::find($companyId) ?: Company::where('active', true)->first();
         $companyId = $company ? $company->id : 1;
         $employeeId = $employee ? $employee->id : 1;
 

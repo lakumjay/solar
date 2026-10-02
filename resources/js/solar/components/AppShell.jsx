@@ -175,8 +175,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
                     <main className="content">
                         <header className="topbar">
                             <button className="mobile-menu" onClick={() => setMenuOpen(true)}><Menu/></button>
-                            <div><p className="eyebrow">{titles[page]?.[1]}</p><h1>{titles[page]?.[0]}</h1></div>
-                            {((user.role === 'super_admin' && ['dashboard', 'reports', 'entry', 'activity'].includes(page)) || (user.role === 'employee' && page === 'entry')) && <label className="company-switch"><span>Company</span><select value={companyId} onChange={event => setCompanyId(event.target.value)}>{page !== 'entry' && <option value="all">All Companies</option>}{companies.map(company => <option value={company.id} key={company.id}>{company.name}</option>)}</select></label>}
+                            {((user.role === 'super_admin' && ['dashboard', 'reports', 'entry', 'activity'].includes(page)) || (!user.company_id && ['dashboard', 'reports', 'entry', 'activity', 'stock'].includes(page)) || (user.role === 'employee' && page === 'entry')) && <label className="company-switch"><span>Company</span><select value={companyId} onChange={event => setCompanyId(event.target.value)}>{page !== 'entry' && <option value="all">All Companies</option>}{companies.map(company => <option value={company.id} key={company.id}>{company.name}</option>)}</select></label>}
                         </header>
                         {children({can, activeCompany})}
                     </main>

@@ -32,7 +32,11 @@ export default function App() {
         if (currentUser.role === 'employee') {
             const rows = await api('companies');
             setCompanies(rows);
-            setCompanyId(rows[0] ? String(rows[0].id) : 'all');
+            if (currentUser.company_id) {
+                setCompanyId(String(currentUser.company_id));
+            } else {
+                setCompanyId(prev => (prev && prev !== 'all' && rows.some(r => String(r.id) === String(prev)) ? prev : (preferredPage === 'entry' && rows[0] ? String(rows[0].id) : 'all')));
+            }
             setPage(['entry', 'stock', 'gallery', 'my-attendance', 'my-salary'].includes(preferredPage) ? preferredPage : 'my-attendance');
             return rows;
         }
@@ -84,7 +88,7 @@ export default function App() {
             {page === 'attendance-reports' && <AttendanceReportsPage/>}
             {page === 'salaries' && <SalaryPage/>}
             {page === 'stock' && <StockPage can={can} currentUser={user}/>}
-            {page === 'my-attendance' && <MyAttendancePage/>}
+            {page === 'my-attendance' && <MyAttendancePage companyId={companyId}/>}
             {page === 'my-salary' && <MySalaryPage/>}
         </>}
     </AppShell>;

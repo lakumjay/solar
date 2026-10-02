@@ -57,6 +57,14 @@ class SolarAccessService
     public function requestedCompany(Request $request, bool $allowCombined = false): ?int
     {
         if ($request->user()->role === 'employee') {
+            if ($request->user()->company_id) {
+                return (int) $request->user()->company_id;
+            }
+
+            if ($allowCombined && (! $request->filled('company_id') || $request->string('company_id')->toString() === 'all')) {
+                return null;
+            }
+
             abort_unless($request->filled('company_id'), 422, 'Company is required.');
             $companyId = (int) $request->input('company_id');
             $this->requireCompany($request, $companyId);
@@ -79,6 +87,7 @@ class SolarAccessService
     public function requireCompany(Request $request, int $companyId): void
     {
         $employeeCompany = $request->user()->role === 'employee'
+            && (! $request->user()->company_id || (int) $request->user()->company_id === $companyId)
             && Company::whereKey($companyId)->where('active', true)->exists();
         abort_unless($request->user()->role === 'super_admin' || $employeeCompany || (int) $request->user()->company_id === $companyId, 403);
     }

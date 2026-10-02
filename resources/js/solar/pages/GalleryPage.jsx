@@ -756,6 +756,7 @@ export default function GalleryPage({currentUser, companyId}) {
             {showCameraModal && (
                 <LiveBackCameraModal
                     task={activeTaskForCamera}
+                    companyId={selectedCompany || companyId}
                     onClose={() => setShowCameraModal(false)}
                     onUploaded={() => loadGallery(true)}
                 />

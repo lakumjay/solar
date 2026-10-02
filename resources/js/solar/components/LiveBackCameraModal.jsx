@@ -2,7 +2,7 @@ import React, {useEffect, useRef, useState} from 'react';
 import {Camera, CheckCircle, Crosshair, MapPin, RefreshCw, SwitchCamera, X} from 'lucide-react';
 import {api} from '../api';
 
-export default function LiveBackCameraModal({task, onClose, onUploaded}) {
+export default function LiveBackCameraModal({task, companyId, onClose, onUploaded}) {
     const videoRef = useRef(null);
     const streamRef = useRef(null);
     const [capturedImage, setCapturedImage] = useState(null);
@@ -113,6 +113,7 @@ export default function LiveBackCameraModal({task, onClose, onUploaded}) {
             const payload = {
                 photo: capturedImage,
                 task_id: task?.id || null,
+                company_id: task?.company_id || (companyId && companyId !== 'all' ? companyId : undefined),
                 latitude: gps.latitude,
                 longitude: gps.longitude,
                 notes: notes || null

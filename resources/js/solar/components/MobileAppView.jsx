@@ -296,8 +296,8 @@ export default function MobileAppView({
         }
     }, [user.company_id, isSuperAdmin, companyId, setCompanyId]);
 
-    const canSwitchCompanies = isSuperAdmin;
-    const isCombined = isSuperAdmin && companyId === 'all';
+    const canSwitchCompanies = isSuperAdmin || !user.company_id;
+    const isCombined = (isSuperAdmin || !user.company_id) && companyId === 'all';
     const activeCompany = companies.find(c => String(c.id) === String(companyId));
     const displayName = isCombined
         ? 'All Companies (Combined Live Sync)'
@@ -1315,7 +1315,7 @@ export default function MobileAppView({
                         <div className="drawer-handle-bar"/>
                         <h3>Select Solar Company</h3>
                         <div className="company-options-list">
-                            {isSuperAdmin && (
+                            {(isSuperAdmin || !user.company_id) && (
                                 <button
                                     type="button"
                                     className={`comp-option-btn ${companyId === 'all' ? 'selected' : ''}`}
