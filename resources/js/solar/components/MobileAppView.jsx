@@ -885,7 +885,7 @@ export default function MobileAppView({
                             setPage('dashboard');
                         }}
                     >
-                        <Home size={20}/>
+                        <Home size={19}/>
                         <span>Home</span>
                     </button>
                 )}
@@ -903,8 +903,8 @@ export default function MobileAppView({
                             setPage('entry');
                         }}
                     >
-                        <ClipboardPlus size={20}/>
-                        <span>Daily Entry</span>
+                        <ClipboardPlus size={19}/>
+                        <span>Entry</span>
                     </button>
                 )}
 
@@ -917,7 +917,7 @@ export default function MobileAppView({
                             setPage(attendanceTargetPage);
                         }}
                     >
-                        <UserCheck size={20}/>
+                        <UserCheck size={19}/>
                         <span>Attendance</span>
                     </button>
                 )}
@@ -931,7 +931,7 @@ export default function MobileAppView({
                             setPage('reports');
                         }}
                     >
-                        <BarChart3 size={20}/>
+                        <BarChart3 size={19}/>
                         <span>Reports</span>
                     </button>
                 )}
@@ -944,7 +944,7 @@ export default function MobileAppView({
                         setPage('gallery');
                     }}
                 >
-                    <Camera size={20}/>
+                    <Camera size={19}/>
                     <span>Gallery</span>
                 </button>
 
@@ -956,7 +956,7 @@ export default function MobileAppView({
                         setMoreMenuOpen(true);
                     }}
                 >
-                    <MoreHorizontal size={20}/>
+                    <MoreHorizontal size={19}/>
                     <span>More</span>
                 </button>
             </nav>
