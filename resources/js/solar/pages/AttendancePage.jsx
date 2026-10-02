@@ -148,29 +148,32 @@ export default function AttendancePage({canCorrect, canRecord}) {
         {message && <div className={message.includes('saved') || message.includes('dispatched') || message.includes('delivered') ? 'success' : 'error'}>{message}</div>}
 
         {/* 📡 Live Employee GPS Field Tracker & Map Box */}
-        <section className="panel" style={{marginBottom: '24px', border: '1px solid #cbe4d7', background: 'linear-gradient(to bottom, #ffffff, #f9fdfa)'}}>
-            <div className="panel-head" style={{alignItems: 'center', flexWrap: 'wrap', gap: '12px'}}>
-                <div>
-                    <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
-                        <h2 style={{display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '18px', color: '#123e30'}}>
-                            <Navigation size={20} style={{color: '#22c55e'}}/>
-                            કર્મચારી લાઈવ લોકેશન ટ્રેકર (Live Field Tracker)
-                        </h2>
-                        <span className="status on" style={{padding: '4px 10px', fontSize: '11px', fontWeight: 800}}>
-                            🟢 {liveCount} Live Online
-                        </span>
+        <section className="panel" style={{marginBottom: '24px', border: '1px solid #cbe4d7', background: 'linear-gradient(to bottom, #ffffff, #f9fdfa)', padding: '16px'}}>
+            <div style={{display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '14px'}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px'}}>
+                    <div>
+                        <div style={{display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px'}}>
+                            <h2 style={{display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '16px', fontWeight: 800, color: '#123e30'}}>
+                                <Navigation size={18} style={{color: '#22c55e', flexShrink: 0}}/>
+                                કર્મચારી લાઈવ લોકેશન ટ્રેકર
+                            </h2>
+                            <span className="status on" style={{padding: '3px 8px', fontSize: '11px', fontWeight: 800, whiteSpace: 'nowrap'}}>
+                                🟢 {liveCount} Live Online
+                            </span>
+                        </div>
+                        <p style={{margin: '4px 0 0', fontSize: '11.5px', color: '#627c70'}}>
+                            એમ્પ્લોયીનો ફોન/PWA ઓપન અથવા મિનિમાઇઝ હોય ત્યારે રીઅલ-ટાઇમ GPS (Syncs every 30s)
+                        </p>
                     </div>
-                    <p style={{margin: '4px 0 0', fontSize: '12px', color: '#627c70'}}>
-                        એમ્પ્લોયીનો ફોન/PWA ઓપન અથવા મિનિમાઇઝ હોય ત્યારે રીઅલ-ટાઇમ જીપીએસ ટ્રેકિંગ (Syncs every 30s)
-                    </p>
                 </div>
-                <div style={{display: 'flex', gap: '8px', alignItems: 'center', marginLeft: 'auto'}}>
+
+                <div style={{display: 'flex', gap: '8px', width: '100%', flexWrap: 'wrap'}}>
                     <button
                         type="button"
                         className="secondary"
                         onClick={loadLiveLocations}
                         disabled={loadingLocations}
-                        style={{display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 13px', fontSize: '12px'}}
+                        style={{flex: '1 1 130px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 12px', fontSize: '12px', borderRadius: '10px'}}
                         title="Refresh Live GPS coordinates"
                     >
                         <RefreshCw size={14} className={loadingLocations ? 'spin' : ''}/> રીફ્રેશ લોકેશન
@@ -180,10 +183,10 @@ export default function AttendancePage({canCorrect, canRecord}) {
                         className="secondary"
                         onClick={handleSendTestPush}
                         disabled={pushSending}
-                        style={{display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 13px', fontSize: '12px', background: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd'}}
+                        style={{flex: '1 1 130px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 12px', fontSize: '12px', background: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd', borderRadius: '10px'}}
                         title="Send Web Push Notification to verify closed app delivery"
                     >
-                        <Bell size={14}/> {pushSending ? 'મોકલી રહ્યાં છીએ...' : '🔔 ટેસ્ટ પુશ મોકલો (Test Push)'}
+                        <Bell size={14}/> {pushSending ? 'મોકલી રહ્યાં છીએ...' : '🔔 ટેસ્ટ પુશ મોકલો'}
                     </button>
                 </div>
             </div>
