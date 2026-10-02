@@ -13,6 +13,9 @@ import {
     ChevronUp,
     ClipboardPlus,
     Clock,
+    Cloud,
+    CloudRain,
+    CheckCircle,
     Download,
     Factory,
     Home,
@@ -25,6 +28,7 @@ import {
     RefreshCw,
     Sparkles,
     Sun,
+    Trash2,
     TrendingUp,
     User,
     UserCheck,
@@ -54,12 +58,22 @@ export default function MobileAppView({
     const [currentTime, setCurrentTime] = useState('');
     const [moreMenuOpen, setMoreMenuOpen] = useState(false);
     const [notifCenterOpen, setNotifCenterOpen] = useState(false);
+    const [isNotifCleared, setIsNotifCleared] = useState(() => {
+        try {
+            const today = new Date().toISOString().slice(0, 10);
+            return localStorage.getItem('solar_notif_cleared_date') === today;
+        } catch (e) {
+            return false;
+        }
+    });
     const [hasUnreadNotif, setHasUnreadNotif] = useState(() => {
         try {
-            const lastRead = localStorage.getItem('solar_notif_last_read');
-            if (!lastRead) return true;
-            // Mark unread if more than 4 hours old
-            return (Date.now() - parseInt(lastRead, 10)) > (4 * 60 * 60 * 1000);
+            const today = new Date().toISOString().slice(0, 10);
+            const clearedDate = localStorage.getItem('solar_notif_cleared_date');
+            if (clearedDate === today) return false;
+            const lastReadDate = localStorage.getItem('solar_notif_last_read_date');
+            if (lastReadDate === today) return false;
+            return true;
         } catch (e) {
             return true;
         }
@@ -75,8 +89,27 @@ export default function MobileAppView({
         setNotifCenterOpen(true);
         setHasUnreadNotif(false);
         try {
+            const today = new Date().toISOString().slice(0, 10);
+            localStorage.setItem('solar_notif_last_read_date', today);
             localStorage.setItem('solar_notif_last_read', String(Date.now()));
         } catch (e) {}
+    };
+
+    const handleClearAllNotifications = () => {
+        try {
+            const today = new Date().toISOString().slice(0, 10);
+            localStorage.setItem('solar_notif_cleared_date', today);
+            localStorage.setItem('solar_notif_last_read_date', today);
+        } catch (e) {}
+        setIsNotifCleared(true);
+        setHasUnreadNotif(false);
+    };
+
+    const handleRestoreNotifications = () => {
+        try {
+            localStorage.removeItem('solar_notif_cleared_date');
+        } catch (e) {}
+        setIsNotifCleared(false);
     };
 
     // Live clock with seconds
@@ -238,10 +271,10 @@ export default function MobileAppView({
     const data = liveData || {};
     const companyList = data.companies || companies || [];
     const predictions = data.predictions || {};
-
-    // Dynamic alerts
-    const alerts = liveData?.cleaning_alerts || [];
-    const firstAlert = alerts[0];
+    const cleaningSystem = data.cleaning_system || {alerts: []};
+    const cleaningAlerts = cleaningSystem.alerts || liveData?.cleaning_alerts || [];
+    const firstAlert = cleaningAlerts[0];
+    const rainAlert = weather?.rain_alert;
 
     const attendanceTargetPage = user.role === 'employee' ? 'my-attendance' : 'attendance';
     const salaryTargetPage = (user.role === 'super_admin' || user.role === 'company_admin') ? 'salaries' : 'my-salary';
@@ -500,25 +533,126 @@ export default function MobileAppView({
                         </div>
                     </div>
 
-                    {/* 4. GUJARATI ALERT BANNER (If Active) */}
-                    {firstAlert && (
-                        <div className="mobile-warning-card" onClick={() => setNotifCenterOpen(true)}>
-                            <div className="warning-head">
-                                <div className="warning-left">
-                                    <AlertTriangle size={16} className="warn-triangle-icon"/>
-                                    <span className="warning-gujarati-title">
-                                        {firstAlert.title || 'સોલાર પેનલ સફાઈ ચેતવણી'}
+                    {/* 4. GUJARATI CLEANING & WEATHER ALERTS SECTION */}
+                    <section className="cleaning-alert-section" style={{margin: '12px 0'}}>
+                        <div className="cleaning-section-header">
+                            <div className="cleaning-head-left">
+                                <h3>
+                                    <span style={{color: '#d97706'}}>⚠️</span>
+                                    પેનલ સફાઈ એલર્ટ (Dust / Soiling Indicator)
+                                    {cleaningAlerts.length > 0 && (
+                                        <span className="cleaning-head-badge">
+                                            🔴 {cleaningAlerts.length} ચેતવણી
+                                        </span>
+                                    )}
+                                </h3>
+                                <p className="cleaning-head-subtitle">
+                                    સૂર્યપ્રકાશ પૂરો હોવા છતાં જે PV સ્ટ્રિંગમાં ઓછો કરંટ આવે છે તેનું ઓટોમેટિક નિદાન
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* 🚨 Severe High Wind Storm Damage Warning Alert Banner */}
+                        {weather.storm_alert && weather.storm_alert.active && (
+                            <div style={{
+                                background: '#fef2f2',
+                                border: '2px solid #ef4444',
+                                borderRadius: '10px',
+                                padding: '10px 14px',
+                                marginBottom: '10px',
+                                boxShadow: '0 4px 14px rgba(239, 68, 68, 0.15)',
+                            }}>
+                                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', flexWrap: 'wrap', gap: '4px'}}>
+                                    <span style={{
+                                        background: '#dc2626',
+                                        color: '#ffffff',
+                                        fontSize: '11px',
+                                        fontWeight: 800,
+                                        padding: '3px 8px',
+                                        borderRadius: '6px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '5px'
+                                    }}>
+                                        🚨 વાવાઝોડું & પવન ચેતવણી
+                                    </span>
+                                    <span style={{fontSize: '11.5px', fontWeight: 800, color: '#991b1b'}}>
+                                        પવન: {weather.storm_alert.wind_speed}
                                     </span>
                                 </div>
-                                <span className="warning-tag-pill">
-                                    <AlertTriangle size={10}/> Alert
+                                <p style={{margin: '4px 0 0', fontSize: '12px', color: '#7f1d1d', fontWeight: 600, lineHeight: 1.4}}>
+                                    {weather.storm_alert.message}
+                                </p>
+                            </div>
+                        )}
+
+                        {/* 🌧️ Advance Rain Forecast Banner */}
+                        {rainAlert && rainAlert.active && (
+                            <div className="rain-advance-banner" style={{
+                                marginBottom: '10px',
+                                background: rainAlert.status === 'raining_now' ? '#eff6ff' : '#f0f9ff',
+                                border: rainAlert.status === 'raining_now' ? '1px solid #60a5fa' : '1px solid #bae6fd',
+                                borderRadius: '8px',
+                                padding: '10px 12px'
+                            }}>
+                                <div style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
+                                    <span className="rain-pill" style={{
+                                        background: rainAlert.status === 'raining_now' ? '#2563eb' : '#0284c7',
+                                        color: '#fff',
+                                        fontSize: '11px',
+                                        fontWeight: 700,
+                                        padding: '2px 8px',
+                                        borderRadius: '12px'
+                                    }}>
+                                        {rainAlert.status === 'raining_now' ? 'વરસાદ ચાલુ છે' : 'વરસાદની આગાહી'}
+                                    </span>
+                                    <CloudRain size={16} style={{color: '#1d4ed8'}}/>
+                                    <span style={{fontSize: '12px', color: '#1e3a8a', fontWeight: 600}}>
+                                        <b>{rainAlert.title}:</b> {rainAlert.message}
+                                    </span>
+                                </div>
+                                <div style={{display: 'flex', gap: '10px', fontSize: '11px', color: '#1e40af', fontWeight: 700, marginTop: '6px', flexWrap: 'wrap'}}>
+                                    <span>શરૂઆત: <b>{rainAlert.start_time}</b></span>
+                                    <span>અંદાજિત રોકાણ: <b>{rainAlert.stop_time}</b></span>
+                                    <span>શક્યતા: <b>{rainAlert.probability}%</b></span>
+                                </div>
+                            </div>
+                        )}
+
+                        {cleaningAlerts.length > 0 ? (
+                            <div className="cleaning-alert-list-stacked">
+                                {cleaningAlerts.map((alert, idx) => (
+                                    <div key={idx} className="cleaning-banner-card">
+                                        <div className="cleaning-banner-title">
+                                            <span style={{color: '#dc2626'}}>⚠️</span>
+                                            <span>"{alert.title}"</span>
+                                        </div>
+                                        <div className="cleaning-banner-pills-row" style={{paddingLeft: '6px', marginTop: '4px'}}>
+                                            <span className="pill-healthy-baseline">
+                                                સામાન્ય કરંટ: {alert.healthy_avg} A
+                                            </span>
+                                            {alert.strings && alert.strings.map((str, sIdx) => (
+                                                <span key={sIdx} className="pill-problem-string">
+                                                    {str.string_label}: {str.current_a} A ({str.drop_pct}% પાવર લોસ - ધોવાની જરૂર)
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="cleaning-ok-banner">
+                                <CheckCircle size={17} style={{color: '#16a34a', flexShrink: 0}}/>
+                                <span>
+                                    {cleaningSystem.is_window_active && cleaningSystem.is_irradiance_sufficient ? (
+                                        'બધા PV સ્ટ્રિંગ્સ નોર્મલ કરંટ આપી રહ્યા છે. અત્યારે કોઈ પેનલ પર વધુ પડતી ધૂળ કે તાત્કાલિક સફાઈની જરૂરિયાત નથી.'
+                                    ) : (
+                                        'સ્માર્ટ વેધર ચેક: સૂર્યપ્રકાશ પૂરો હોય (10:30 AM થી 4:00 PM અને Irradiance > 600 W/m²) ત્યારે જ એક્યુરેટ સફાઈ એલર્ટ ચકાસાય છે.'
+                                    )}
                                 </span>
                             </div>
-                            <p className="warning-gujarati-sub">
-                                {firstAlert.message}
-                            </p>
-                        </div>
-                    )}
+                        )}
+                    </section>
 
                     {/* 5. MODERN 4-TOUCH ACTION GRID */}
                     <div className="mobile-action-grid-section">
@@ -819,75 +953,159 @@ export default function MobileAppView({
                             </span>
                         </div>
 
-                        <div className="notif-items-list">
-                            {/* 1. Daily 8:00 PM Production & Revenue Report */}
-                            <div className="notif-item-card info-type">
-                                <div className="notif-icon-col success">
-                                    <Sun size={18}/>
+                        {isNotifCleared ? (
+                            <div style={{padding: '30px 16px', textAlign: 'center', color: '#64748b'}}>
+                                <CheckCircle size={40} style={{color: '#16a34a', margin: '0 auto 12px', display: 'block'}}/>
+                                <h4 style={{margin: '0 0 6px', color: '#1e293b', fontSize: '15px', fontWeight: 700}}>બધી નોટિફિકેશન ક્લિયર થઈ ગઈ છે</h4>
+                                <p style={{fontSize: '12.5px', margin: '0 0 16px', lineHeight: 1.5}}>આજનું કોઈ નવું અનરીડ એલર્ટ બાકી નથી.</p>
+                                <button
+                                    type="button"
+                                    style={{
+                                        background: '#f8fafc',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '8px',
+                                        padding: '8px 16px',
+                                        fontSize: '12px',
+                                        fontWeight: 700,
+                                        color: '#334155',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px'
+                                    }}
+                                    onClick={handleRestoreNotifications}
+                                >
+                                    <RefreshCw size={13}/>
+                                    <span>નોટિફિકેશન ફરી જુઓ (View All)</span>
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="notif-items-list">
+                                {/* 1. Daily 8:00 PM Production & Revenue Report */}
+                                <div className="notif-item-card info-type">
+                                    <div className="notif-icon-col success">
+                                        <Sun size={18}/>
+                                    </div>
+                                    <div className="notif-text-col">
+                                        <h4>⚡ આજનું દૈનિક સોલાર ઉત્પાદન (8:00 PM Report)</h4>
+                                        <p style={{margin: '4px 0'}}>
+                                            કુલ યુનિટ્સ: <b>{liveData?.today_units_kwh || '15,699.90'} kWh</b> &nbsp;|&nbsp; અંદાજિત કમાણી: <b>₹ {liveData?.total_revenue_rs || '59,659.62'}</b>
+                                        </p>
+                                        {liveData?.companies && liveData.companies.length > 0 && (
+                                            <div style={{fontSize: '11.5px', color: '#166534', marginTop: '5px', lineHeight: 1.4}}>
+                                                {liveData.companies.map(cp => (
+                                                    <div key={cp.company_id}>
+                                                        • <b>{cp.company_name}:</b> {cp.total_today_kwh} kWh ({cp.online_count}/{cp.total_count} Inverters)
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        <small style={{display: 'block', marginTop: '6px', color: '#64748b'}}>Automatic 8:00 PM End-Of-Day Summary Sync</small>
+                                    </div>
                                 </div>
-                                <div className="notif-text-col">
-                                    <h4>⚡ આજનું દૈનિક સોલાર ઉત્પાદન (8:00 PM Report)</h4>
-                                    <p style={{margin: '4px 0'}}>
-                                        કુલ યુનિટ્સ: <b>{liveData?.today_units_kwh || '15,699.90'} kWh</b> &nbsp;|&nbsp; અંદાજિત કમાણી: <b>₹ {liveData?.total_revenue_rs || '59,659.62'}</b>
-                                    </p>
-                                    {liveData?.companies && liveData.companies.length > 0 && (
-                                        <div style={{fontSize: '11.5px', color: '#166534', marginTop: '5px', lineHeight: 1.4}}>
-                                            {liveData.companies.map(cp => (
-                                                <div key={cp.company_id}>
-                                                    • <b>{cp.company_name}:</b> {cp.total_today_kwh} kWh ({cp.online_count}/{cp.total_count} Inverters)
-                                                </div>
-                                            ))}
+
+                                {/* 2. Live / Persistent Panel Cleaning Alerts */}
+                                {cleaningAlerts.length > 0 ? (
+                                    cleaningAlerts.map((ca, cIdx) => (
+                                        <div key={cIdx} className="notif-item-card alert-type">
+                                            <div className="notif-icon-col alert">
+                                                <AlertTriangle size={18}/>
+                                            </div>
+                                            <div className="notif-text-col">
+                                                <h4>⚠️ {ca.title || 'સોલાર પેનલ સફાઈ અને વોશિંગ ચેતવણી'}</h4>
+                                                <p style={{margin: '3px 0'}}>સામાન્ય બેઝલાઇન કરંટ: <b>{ca.healthy_avg} A</b></p>
+                                                {ca.strings && ca.strings.map((str, sIdx) => (
+                                                    <div key={sIdx} style={{fontSize: '11.5px', color: '#b91c1c', marginTop: '3px', fontWeight: 600}}>
+                                                        • <b>{str.string_label}:</b> {str.current_a} A ({str.drop_pct}% પાવર ડ્રોપ - તાત્કાલિક ધોવાની જરૂર)
+                                                    </div>
+                                                ))}
+                                                <small style={{display: 'block', marginTop: '6px', color: '#b45309'}}>Live Soiling & Dust System Alert</small>
+                                            </div>
                                         </div>
-                                    )}
-                                    <small style={{display: 'block', marginTop: '6px', color: '#64748b'}}>Automatic 8:00 PM End-Of-Day Summary Sync</small>
-                                </div>
-                            </div>
+                                    ))
+                                ) : (
+                                    <div className="notif-item-card sync-type">
+                                        <div className="notif-icon-col sync" style={{background: '#dcfce7', color: '#16a34a'}}>
+                                            <CheckCircle size={18}/>
+                                        </div>
+                                        <div className="notif-text-col">
+                                            <h4>પેનલ સફાઈ સ્ટેટસ: ઉત્તમ (Clean & Normal)</h4>
+                                            <p>બધા PV સ્ટ્રિંગ્સ પૂરતો અને નોર્મલ કરંટ આપી રહ્યા છે. કોઈ તાત્કાલિક વોશિંગની જરૂર નથી.</p>
+                                            <small>Live Panel Health Monitor</small>
+                                        </div>
+                                    </div>
+                                )}
 
-                            {/* 2. Live / Persistent Panel Cleaning Alert */}
-                            <div className="notif-item-card alert-type">
-                                <div className="notif-icon-col alert">
-                                    <AlertTriangle size={18}/>
-                                </div>
-                                <div className="notif-text-col">
-                                    <h4>{firstAlert?.title || 'સોલાર પેનલ સફાઈ અને વોશિંગ ચેતવણી'}</h4>
-                                    <p>{firstAlert?.message || 'નીલકંઠ અને રાજેશ્વરી પ્લાન્ટના ઇન્વર્ટર PV Strings પર સામાન્ય કરતાં ધૂળ હોવાથી નિયમિત વોશિંગ જરૂરી છે.'}</p>
-                                    <small>Live System Alert · Saved</small>
-                                </div>
+                                {/* 3. Weather / Rain / Storm Notification */}
+                                {weather?.storm_alert?.active ? (
+                                    <div className="notif-item-card alert-type" style={{background: '#fef2f2', borderColor: '#fca5a5'}}>
+                                        <div className="notif-icon-col" style={{background: '#fee2e2', color: '#dc2626'}}>
+                                            <AlertTriangle size={18}/>
+                                        </div>
+                                        <div className="notif-text-col">
+                                            <h4 style={{color: '#991b1b'}}>🚨 વાવાઝોડું & પવન ડેમેજ ચેતવણી</h4>
+                                            <p style={{color: '#7f1d1d'}}>{weather.storm_alert.message}</p>
+                                            <small style={{color: '#b91c1c'}}>પવનની ઝડપ: {weather.storm_alert.wind_speed}</small>
+                                        </div>
+                                    </div>
+                                ) : weather?.rain_alert?.active ? (
+                                    <div className="notif-item-card alert-type" style={{background: '#eff6ff', borderColor: '#93c5fd'}}>
+                                        <div className="notif-icon-col" style={{background: '#dbeafe', color: '#2563eb'}}>
+                                            <CloudRain size={18}/>
+                                        </div>
+                                        <div className="notif-text-col">
+                                            <h4 style={{color: '#1e40af'}}>🌧️ {weather.rain_alert.title}</h4>
+                                            <p>{weather.rain_alert.message}</p>
+                                            <small style={{color: '#3b82f6'}}>શરૂઆત: {weather.rain_alert.start_time} | અંદાજિત સ્ટોપ: {weather.rain_alert.stop_time}</small>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="notif-item-card sync-type">
+                                        <div className="notif-icon-col sync">
+                                            <Radio size={18}/>
+                                        </div>
+                                        <div className="notif-text-col">
+                                            <h4>iSolarCloud Live Sync સક્રિય છે</h4>
+                                            <p>બધા ૧૦ ઇન્વર્ટર્સ કનેક્ટેડ છે અને લાઈવ પાવર જનરેશન ડેટાબેઝમાં સેવ થઈ રહ્યો છે.</p>
+                                            <small>Live Cloud Sync Status</small>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
+                        )}
 
-                            {/* 3. Weather / Rain Notification */}
-                            {liveData?.weather?.rain_alert?.active ? (
-                                <div className="notif-item-card alert-type" style={{background: '#eff6ff', borderColor: '#93c5fd'}}>
-                                    <div className="notif-icon-col" style={{background: '#dbeafe', color: '#2563eb'}}>
-                                        <Cloud size={18}/>
-                                    </div>
-                                    <div className="notif-text-col">
-                                        <h4 style={{color: '#1e40af'}}>🌧️ {liveData.weather.rain_alert.title}</h4>
-                                        <p>{liveData.weather.rain_alert.message}</p>
-                                        <small style={{color: '#3b82f6'}}>શરૂઆત: {liveData.weather.rain_alert.start_time} | અંદાજિત સ્ટોપ: {liveData.weather.rain_alert.stop_time}</small>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="notif-item-card sync-type">
-                                    <div className="notif-icon-col sync">
-                                        <Radio size={18}/>
-                                    </div>
-                                    <div className="notif-text-col">
-                                        <h4>iSolarCloud Live Sync સક્રિય છે</h4>
-                                        <p>બધા ૧૦ ઇન્વર્ટર્સ કનેક્ટેડ છે અને લાઈવ પાવર જનરેશન ડેટાબેઝમાં સેવ થઈ રહ્યો છે.</p>
-                                        <small>Live Cloud Sync Status</small>
-                                    </div>
-                                </div>
+                        <div className="drawer-footer-actions" style={{display: 'flex', gap: '8px'}}>
+                            {!isNotifCleared && (
+                                <button
+                                    type="button"
+                                    style={{
+                                        flex: 1,
+                                        background: '#fee2e2',
+                                        color: '#b91c1c',
+                                        border: '1px solid #fca5a5',
+                                        borderRadius: '10px',
+                                        padding: '10px 14px',
+                                        fontWeight: 700,
+                                        fontSize: '12.5px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '6px',
+                                        cursor: 'pointer'
+                                    }}
+                                    onClick={handleClearAllNotifications}
+                                >
+                                    <Trash2 size={15}/>
+                                    <span>બધી ક્લિયર કરો</span>
+                                </button>
                             )}
-                        </div>
-
-                        <div className="drawer-footer-actions">
                             <button
                                 type="button"
                                 className="notif-dismiss-all-btn"
+                                style={{flex: 1}}
                                 onClick={() => setNotifCenterOpen(false)}
                             >
-                                Close Notification Center
+                                બંધ કરો (Close)
                             </button>
                         </div>
                     </div>
