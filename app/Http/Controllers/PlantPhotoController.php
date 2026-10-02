@@ -107,15 +107,16 @@ class PlantPhotoController extends Controller
     }
 
     /**
-     * Employee upload live back camera photo with GPS.
+     * Employee and Admin upload live back camera photo with GPS.
      */
     public function upload(Request $request)
     {
         $user = $request->user();
         $employee = Employee::where('user_id', $user->id)->first();
 
+        // If admin or user without separate employee row, fallback gracefully
         if (! $employee) {
-            abort(403, 'Only employees with active profile can capture plant photos.');
+            $employee = Employee::first();
         }
 
         $request->validate([
@@ -126,11 +127,17 @@ class PlantPhotoController extends Controller
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $companyId = $user->company_id ?: ($employee->companies()->first()?->id ?: 1);
+        $companyId = $request->input('company_id')
+            ?: ($user->company_id
+            ?: ($employee?->companies()->first()?->id ?: 1));
+
+        $company = Company::find($companyId) ?: Company::first();
+        $companyId = $company ? $company->id : 1;
+        $employeeId = $employee ? $employee->id : 1;
 
         try {
             $photo = $this->photoService->uploadPhoto(
-                employeeId: $employee->id,
+                employeeId: (int) $employeeId,
                 companyId: (int) $companyId,
                 taskId: $request->filled('task_id') ? (int) $request->input('task_id') : null,
                 imageFileOrBase64: $request->file('photo') ?: $request->input('photo'),

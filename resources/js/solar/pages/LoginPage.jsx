@@ -104,8 +104,8 @@ export default function LoginPage({onLogin}) {
                         <label className="login-field-label" htmlFor="login-email">
                             Email address
                         </label>
-                        <div className="login-input-container">
-                            <span className="login-input-addon">
+                        <div className="login-input-container" style={{display: 'flex', alignItems: 'center', width: '100%', height: '48px', background: '#ffffff', border: '1.5px solid #cadcd1', borderRadius: '12px', overflow: 'hidden', boxSizing: 'border-box'}}>
+                            <span className="login-input-addon" style={{width: '42px', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#789388', flexShrink: 0, pointerEvents: 'none'}}>
                                 <Mail size={18}/>
                             </span>
                             <input
@@ -118,6 +118,7 @@ export default function LoginPage({onLogin}) {
                                 required
                                 autoFocus
                                 className="login-input-core"
+                                style={{flex: 1, minWidth: 0, height: '100%', border: 'none', outline: 'none', background: 'transparent', padding: '0 12px 0 0', fontSize: '14px', color: '#15372c', boxShadow: 'none'}}
                             />
                         </div>
                     </div>
@@ -126,8 +127,8 @@ export default function LoginPage({onLogin}) {
                         <label className="login-field-label" htmlFor="login-password">
                             Password
                         </label>
-                        <div className="login-input-container">
-                            <span className="login-input-addon">
+                        <div className="login-input-container" style={{display: 'flex', alignItems: 'center', width: '100%', height: '48px', background: '#ffffff', border: '1.5px solid #cadcd1', borderRadius: '12px', overflow: 'hidden', boxSizing: 'border-box'}}>
+                            <span className="login-input-addon" style={{width: '42px', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#789388', flexShrink: 0, pointerEvents: 'none'}}>
                                 <LockKeyhole size={18}/>
                             </span>
                             <input
@@ -139,6 +140,7 @@ export default function LoginPage({onLogin}) {
                                 autoComplete="current-password"
                                 required
                                 className="login-input-core"
+                                style={{flex: 1, minWidth: 0, height: '100%', border: 'none', outline: 'none', background: 'transparent', padding: '0 4px 0 0', fontSize: '14px', color: '#15372c', boxShadow: 'none'}}
                             />
                             <button
                                 type="button"
@@ -149,6 +151,7 @@ export default function LoginPage({onLogin}) {
                                     setShowPassword(prev => !prev);
                                 }}
                                 aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                style={{width: '42px', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', color: '#789087', cursor: 'pointer', flexShrink: 0, padding: 0}}
                             >
                                 {showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
                             </button>

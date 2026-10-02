@@ -25,6 +25,7 @@ import {
     RefreshCw,
     Sparkles,
     Sun,
+    TrendingUp,
     User,
     UserCheck,
     Users,
@@ -226,6 +227,7 @@ export default function MobileAppView({
     const weather = liveData?.weather || {temp: '33°C', type: 'sunny'};
     const data = liveData || {};
     const companyList = data.companies || companies || [];
+    const predictions = data.predictions || {};
 
     // Dynamic alerts
     const alerts = liveData?.cleaning_alerts || [];
@@ -411,6 +413,81 @@ export default function MobileAppView({
                             weather={weather}
                             isEmployee={user.role === 'employee'}
                         />
+                    </div>
+
+                    {/* 3.5. SOLAR PREDICTIONS & GENERATION FORECAST ROW (MATCHING DESKTOP CARDS) */}
+                    <div className="mobile-predictions-container">
+                        {/* Upcoming 1-Hour Prediction Card */}
+                        <div className="mob-pred-card-main">
+                            <div className="mob-pred-top-row">
+                                <div className="mob-pred-left-info">
+                                    <div className="mob-pred-icon-box green">
+                                        <Zap size={17}/>
+                                    </div>
+                                    <div className="mob-pred-titles">
+                                        <small className="mob-pred-kicker">
+                                            UPCOMING 1 HOUR PREDICTION ({predictions.time_window || '07:30 AM - 08:30 AM'})
+                                        </small>
+                                        <strong className="mob-pred-heading">
+                                            Next 1-Hour Generation · {predictions.date || 'Today'}
+                                        </strong>
+                                    </div>
+                                </div>
+                                <div className="mob-pred-val-badge">
+                                    <span className="mob-pred-num">{predictions.next_1h_kwh || '0.00'}</span>
+                                    <span className="mob-pred-unit">kWh</span>
+                                </div>
+                            </div>
+
+                            {/* Company Breakdown Pills */}
+                            {predictions.companies && predictions.companies.length > 0 && (
+                                <div className="mob-pred-companies-wrap">
+                                    {predictions.companies.map(cp => (
+                                        <span key={cp.company_id} className="mob-pred-company-pill">
+                                            <span className="mob-pill-name">{cp.company_name}:</span>
+                                            <b className="mob-pill-kwh">{cp.next_1h_kwh} kWh</b>
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Dual Row for EOD & Solar Irradiance */}
+                        <div className="mob-pred-duo-grid">
+                            <div className="mob-pred-mini-card">
+                                <div className="mob-pred-mini-left">
+                                    <div className="mob-pred-icon-box purple">
+                                        <TrendingUp size={16}/>
+                                    </div>
+                                    <div className="mob-pred-titles">
+                                        <small className="mob-pred-kicker">END OF DAY (EOD) ESTIMATE</small>
+                                        <strong className="mob-pred-heading">
+                                            Total by Sunset ({predictions.eod_target_time ? predictions.eod_target_time.replace(' (Sunset)', '') : '06:30 PM'})
+                                        </strong>
+                                    </div>
+                                </div>
+                                <div className="mob-pred-val-badge">
+                                    <span className="mob-pred-num">{predictions.eod_units_kwh || '0.00'}</span>
+                                    <span className="mob-pred-unit">kWh</span>
+                                </div>
+                            </div>
+
+                            <div className="mob-pred-mini-card">
+                                <div className="mob-pred-mini-left">
+                                    <div className="mob-pred-icon-box yellow">
+                                        <Sun size={16}/>
+                                    </div>
+                                    <div className="mob-pred-titles">
+                                        <small className="mob-pred-kicker">SOLAR IRRADIANCE</small>
+                                        <strong className="mob-pred-heading">Solar Intensity</strong>
+                                    </div>
+                                </div>
+                                <div className="mob-pred-val-badge">
+                                    <span className="mob-pred-num">{predictions.irradiance_w_m2 !== undefined && predictions.irradiance_w_m2 !== null ? predictions.irradiance_w_m2 : 0}</span>
+                                    <span className="mob-pred-unit">W/m²</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     {/* 4. GUJARATI ALERT BANNER (If Active) */}
