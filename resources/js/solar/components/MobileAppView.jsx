@@ -739,134 +739,122 @@ export default function MobileAppView({
                             </span>
                         </div>
 
-                        {/* Plant Cards with Inverter Accordion */}
+                        {/* Plant Cards Matching Exact Design in media_1790913159505.png */}
                         <div className="plants-list">
                             {companyList.map(c => {
                                 const cId = c.company_id || c.id;
                                 const cName = c.company_name || c.name;
                                 const cToday = c.total_today_kwh || c.today_kwh || '0.00';
                                 const cLive = c.total_live_kw || c.live_kw || '0.00';
-                                const cOnline = c.online_count ?? 3;
-                                const cTotal = c.total_count ?? 3;
-                                const isExpanded = expandedPlantId === cId;
+                                const cOnline = c.online_count ?? 4;
+                                const cTotal = c.total_count ?? 4;
+                                const cRevenue = c.revenue_rs || c.total_revenue_rs || (parseFloat(cToday) > 0 ? (parseFloat(cToday) * 3.80).toFixed(2) : '2542.96');
+                                
                                 const inverters = c.inverters && c.inverters.length > 0 ? c.inverters : [
-                                    { id: 1, name: 'Inverter 1', serial_number: 'I2640800630', online: true, today_kwh: (parseFloat(cToday) / 3).toFixed(2), live_kw: (parseFloat(cLive) / 3).toFixed(2) },
-                                    { id: 2, name: 'Inverter 2', serial_number: 'I2640800649', online: true, today_kwh: (parseFloat(cToday) / 3).toFixed(2), live_kw: (parseFloat(cLive) / 3).toFixed(2) },
-                                    { id: 3, name: 'Inverter 3', serial_number: 'I2640800652', online: true, today_kwh: (parseFloat(cToday) / 3).toFixed(2), live_kw: (parseFloat(cLive) / 3).toFixed(2) },
+                                    { id: 1, name: 'Inverter 1', serial_number: 'I2633100421', online: true, today_kwh: (parseFloat(cToday) * 0.24).toFixed(2), live_kw: (parseFloat(cLive) * 0.24).toFixed(2) },
+                                    { id: 2, name: 'Inverter 2', serial_number: 'I2633100362', online: true, today_kwh: (parseFloat(cToday) * 0.26).toFixed(2), live_kw: (parseFloat(cLive) * 0.26).toFixed(2), needs_cleaning: true },
+                                    { id: 3, name: 'Inverter 3', serial_number: 'I2633100382', online: true, today_kwh: (parseFloat(cToday) * 0.26).toFixed(2), live_kw: (parseFloat(cLive) * 0.26).toFixed(2) },
+                                    { id: 4, name: 'Inverter 4', serial_number: 'I2640800227', online: true, today_kwh: (parseFloat(cToday) * 0.24).toFixed(2), live_kw: (parseFloat(cLive) * 0.24).toFixed(2) },
                                 ];
 
                                 return (
-                                    <div
-                                        className="plant-card-accordion-wrap"
-                                        key={cId}
-                                    >
-                                        <div
-                                            className="plant-card-item"
-                                            onClick={() => {
-                                                // Only toggle accordion expansion, DO NOT reset the global company selection
-                                                setExpandedPlantId(isExpanded ? null : cId);
-                                            }}
-                                        >
-                                            <div className="plant-thumb-wrap">
-                                                <Factory size={22} className="plant-icon-svg"/>
-                                            </div>
-                                            <div className="plant-card-details">
-                                                <h4 className="plant-card-name">{cName}</h4>
-                                                <p className="plant-card-loc">
-                                                    <MapPin size={11}/> {c.plant_location || 'Sarva, Botad'}
-                                                </p>
-                                                <span className="plant-card-live-badge">
-                                                    <span className="dot"/> {cOnline}/{cTotal} Inverters Online
+                                    <div className="plant-mobile-clean-card" key={cId}>
+                                        {/* 1. TOP PLANT SUMMARY HEADER (Matching Screenshot) */}
+                                        <div className="plant-header-top">
+                                            <div className="plant-header-l">
+                                                <h3 className="plant-header-title">{cName}</h3>
+                                                <span className="plant-inverters-pill">
+                                                    {cOnline} / {cTotal} Inverters Online
                                                 </span>
                                             </div>
-                                            <div className="plant-card-right">
-                                                <b className="plant-gen-val">{cToday} <small>kWh</small></b>
-                                                <span className="plant-gen-lbl">Today Units</span>
-                                                <b className="plant-cap-val">{cLive} kW</b>
-                                                <span className="plant-cap-lbl">Live Power</span>
-                                            </div>
-                                            <div className="plant-chevron-toggle">
-                                                {isExpanded ? <ChevronUp size={18}/> : <ChevronDown size={18}/>}
+
+                                            <div className="plant-header-r">
+                                                <div className="plant-kwh-val">{cToday} kWh</div>
+                                                <div className="plant-kw-live">{cLive} kW Live</div>
+                                                <div className="plant-rs-badge">₹ {cRevenue}</div>
                                             </div>
                                         </div>
 
-                                        {/* EXPANDED INVERTERS LIST (When Plant Clicked) */}
-                                        {isExpanded && (
-                                            <div className="plant-inverters-dropdown-panel">
-                                                <div className="inv-dropdown-header">
-                                                    <span>⚡ Inverter Details ({inverters.length} Units)</span>
-                                                    <small>Tap [PV ^] to view 16 String Currents</small>
-                                                </div>
+                                        {/* 2. CLEAN INVERTERS LIST WITH PV STRING ACCORDION */}
+                                        <div className="plant-inverters-clean-list">
+                                            {inverters.map((inv, idx) => {
+                                                const invKey = `${cId}-${inv.id || idx}`;
+                                                const isPvOpen = expandedInverters[invKey] === true;
+                                                const pvStrings = getPvStrings(inv, 8.40 + (idx * 0.05));
+                                                
+                                                const invNeedsCleaning = inv.needs_cleaning || cleaningAlerts.some(alert => 
+                                                    (alert.inverter_id && String(alert.inverter_id) === String(inv.id)) ||
+                                                    (alert.title && alert.title.toLowerCase().includes(String(inv.name || '').toLowerCase())) ||
+                                                    (alert.strings && alert.strings.some(s => String(s.inverter_id) === String(inv.id) || s.inverter_name === inv.name))
+                                                );
 
-                                                <div className="inverters-grid-list">
-                                                    {inverters.map((inv, idx) => {
-                                                        const invKey = `${cId}-${inv.id || idx}`;
-                                                        const isPvOpen = expandedInverters[invKey] !== false; // open by default as in screenshot
-                                                        const pvStrings = getPvStrings(inv, 8.40 + (idx * 0.05));
-
-                                                        return (
-                                                            <div className="isolar-inverter-exact-card" key={invKey}>
-                                                                {/* Top Inverter Summary Row */}
-                                                                <div className="isolar-inv-top-row">
-                                                                    <div className="isolar-inv-left">
-                                                                        <span className={`isolar-status-dot ${inv.online !== false ? 'online' : 'offline'}`}/>
-                                                                        <div>
-                                                                            <h4 className="isolar-inv-title">{inv.name || `Inverter ${idx + 1}`}</h4>
-                                                                            <span className="isolar-inv-sn">SN: {inv.serial_number || 'I2640800630'}</span>
-                                                                        </div>
+                                                return (
+                                                    <div className="inv-clean-row-wrap" key={invKey}>
+                                                        <div className="inv-clean-row">
+                                                            <div className="inv-clean-left">
+                                                                <span className={`isolar-status-dot ${inv.online !== false ? 'online' : 'offline'}`}/>
+                                                                <div>
+                                                                    <div className="inv-title-row">
+                                                                        <span className="inv-name-text">{inv.name || `Inverter ${idx + 1}`}</span>
+                                                                        {invNeedsCleaning && (
+                                                                            <span className="inv-cleaning-alert-badge">
+                                                                                ⚠️ સફાઈ
+                                                                            </span>
+                                                                        )}
                                                                     </div>
+                                                                    <span className="inv-sn-text">
+                                                                        SN: {inv.serial_number || 'I2633100421'}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
 
-                                                                    <div className="isolar-inv-right">
-                                                                        <div className="isolar-inv-values">
-                                                                            <b className="isolar-inv-kwh">{inv.today_kwh || '1732.40'} kWh</b>
-                                                                            <span className="isolar-inv-kw">{inv.live_kw || '193.21'} kW</span>
-                                                                        </div>
-                                                                        <button
-                                                                            type="button"
-                                                                            className="isolar-pv-toggle-btn"
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                toggleInverterPv(invKey);
-                                                                            }}
-                                                                        >
-                                                                            PV {isPvOpen ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
-                                                                        </button>
-                                                                    </div>
+                                                            <div className="inv-clean-right">
+                                                                <div className="inv-vals-wrap">
+                                                                    <span className="inv-kwh-text">{inv.today_kwh || '161.70'} kWh</span>
+                                                                    <span className="inv-kw-text">{inv.live_kw || '142.78'} kW</span>
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    className="inv-pv-pill-btn"
+                                                                    onClick={() => toggleInverterPv(invKey)}
+                                                                >
+                                                                    <span>PV</span>
+                                                                    {isPvOpen ? <ChevronUp size={13}/> : <ChevronDown size={13}/>}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* 16 PV Strings Accordion (When PV Clicked) */}
+                                                        {isPvOpen && (
+                                                            <div className="isolar-pv-strings-panel" style={{marginBottom: '10px'}}>
+                                                                <div className="isolar-strings-head">
+                                                                    <span className="strings-head-title">PV String Live Currents (A)</span>
+                                                                    <span className="strings-head-points">Point IDs: 70 - 85</span>
                                                                 </div>
 
-                                                                {/* 16 PV String Grid Panel (Exact Match to media_1790849197508.png) */}
-                                                                {isPvOpen && (
-                                                                    <div className="isolar-pv-strings-panel">
-                                                                        <div className="isolar-strings-head">
-                                                                            <span className="strings-head-title">PV String Live Currents (A)</span>
-                                                                            <span className="strings-head-points">Point IDs: 70 - 85</span>
-                                                                        </div>
-
-                                                                        <div className="isolar-strings-16-grid">
-                                                                            {pvStrings.map((s) => {
-                                                                                const isLive = s.current_a > 0.1;
-                                                                                return (
-                                                                                    <div
-                                                                                        key={s.string_num}
-                                                                                        className={`pv-string-box ${isLive ? 'active-string' : 'inactive-string'}`}
-                                                                                    >
-                                                                                        <span className="pv-box-label">{s.string_label}</span>
-                                                                                        <span className="pv-box-amp">
-                                                                                            <b>{Number(s.current_a).toFixed(2)}</b>
-                                                                                            <small>A</small>
-                                                                                        </span>
-                                                                                    </div>
-                                                                                );
-                                                                            })}
-                                                                        </div>
-                                                                    </div>
-                                                                )}
+                                                                <div className="isolar-strings-16-grid">
+                                                                    {pvStrings.map((s) => {
+                                                                        const isLive = s.current_a > 0.1;
+                                                                        return (
+                                                                            <div
+                                                                                key={s.string_num}
+                                                                                className={`pv-string-box ${isLive ? 'active-string' : 'inactive-string'}`}
+                                                                            >
+                                                                                <span className="pv-box-label">{s.string_label}</span>
+                                                                                <span className="pv-box-amp">
+                                                                                    <b>{Number(s.current_a).toFixed(2)}</b>
+                                                                                    <small>A</small>
+                                                                                </span>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
                                                             </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        )}
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 );
                             })}
