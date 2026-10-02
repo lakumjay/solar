@@ -404,11 +404,11 @@ export default function DashboardPage({companyId, currentUser}) {
             
             {/* Generation Predictions Row (Upcoming 1 Hour & End-Of-Day Total & Irradiance) */}
             <div className="prediction-chips-row">
-                <div className="prediction-chip prediction-chip-full" style={{flex: '1.4'}}>
+                <div className="prediction-chip prediction-chip-full">
                     <div className="prediction-chip-header">
                         <div className="prediction-chip-left">
                             <div className="prediction-chip-icon">
-                                <Zap size={18}/>
+                                <Zap size={16}/>
                             </div>
                             <div className="prediction-chip-text">
                                 <small>UPCOMING 1 HOUR PREDICTION ({predictions.time_window || '12:21 PM - 01:21 PM'})</small>
@@ -436,7 +436,7 @@ export default function DashboardPage({companyId, currentUser}) {
                 <div className="prediction-chip">
                     <div className="prediction-chip-left">
                         <div className="prediction-chip-icon eod">
-                            <TrendingUp size={18}/>
+                            <TrendingUp size={16}/>
                         </div>
                         <div className="prediction-chip-text">
                             <small>END OF DAY (EOD) ESTIMATE</small>
@@ -448,10 +448,10 @@ export default function DashboardPage({companyId, currentUser}) {
                     </div>
                 </div>
 
-                <div className="prediction-chip" style={{flex: '0.8'}}>
+                <div className="prediction-chip">
                     <div className="prediction-chip-left">
                         <div className="prediction-chip-icon" style={{background: '#fef3c7', color: '#d97706'}}>
-                            <Sun size={18}/>
+                            <Sun size={16}/>
                         </div>
                         <div className="prediction-chip-text">
                             <small>SOLAR IRRADIANCE</small>
