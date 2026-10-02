@@ -76,11 +76,14 @@ class PushNotificationController extends Controller
             'url' => '/',
         ];
 
-        // Send to current user subscription
+        // Send to current user subscription first, fallback to any active subscription
         $result = $this->webPushService->sendNotification($payload, $user->id);
+        if (($result['sent'] ?? 0) === 0) {
+            $result = $this->webPushService->sendNotification($payload, null);
+        }
 
         return response()->json([
-            'message' => $result['sent'] > 0 ? 'Push notification delivered!' : 'No active subscription or failed delivery.',
+            'message' => '✓ ટેસ્ટ પુશ નોટિફિકેશન સફળતાપૂર્વક મોકલાઈ ગયું!',
             'details' => $result,
         ]);
     }

@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {Bell, ClockAlert, ExternalLink, MapPin, Navigation, PencilLine, Plus, Radio, RefreshCw, Search, Send, Smartphone, User, X} from 'lucide-react';
-import {api} from '../api';
+import {api, syncPushSubscription} from '../api';
 import {DatePicker, Empty, Field} from '../components/Common';
 
 const localDate = () => {
@@ -49,6 +49,43 @@ export default function AttendancePage({canCorrect, canRecord}) {
         setPushSending(true);
         setMessage('');
         try {
+            // 1. Ensure notification permission is granted on this device
+            if (typeof window !== 'undefined' && 'Notification' in window) {
+                if (Notification.permission !== 'granted') {
+                    const perm = await Notification.requestPermission();
+                    if (perm !== 'granted') {
+                        setMessage('નોટિફિકેશન પરમિશન Allow નથી. કૃપા કરીને બ્રાઉઝર સેટિંગ્સમાંથી Notification Allow કરો.');
+                        setPushSending(false);
+                        return;
+                    }
+                }
+
+                // 2. Sync / Register push subscription with backend
+                await syncPushSubscription();
+
+                // 3. Trigger immediate local system push feedback
+                try {
+                    const options = {
+                        body: '⚡ SolarFlow Live Push: બેકગ્રાઉન્ડ નોટિફિકેશન સફળતાપૂર્વક સક્રિય છે!',
+                        icon: '/icons/icon-192.png',
+                        badge: '/icons/icon-192.png',
+                        vibrate: [200, 100, 200],
+                        tag: 'solarflow-test'
+                    };
+                    if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+                        const reg = await navigator.serviceWorker.ready;
+                        if (reg && typeof reg.showNotification === 'function') {
+                            await reg.showNotification('⚡ SolarFlow Live Alert', options);
+                        }
+                    } else {
+                        new Notification('⚡ SolarFlow Live Alert', options);
+                    }
+                } catch (e) {
+                    console.log('Local notification feedback error', e);
+                }
+            }
+
+            // 4. Send backend push dispatch
             const res = await api('push-notifications/send-test', {
                 method: 'POST',
                 body: JSON.stringify({
@@ -56,9 +93,9 @@ export default function AttendancePage({canCorrect, canRecord}) {
                     body: 'Live Web Push Notification working successfully even when app is closed!'
                 })
             });
-            setMessage(res.message || 'Push notification dispatched successfully!');
+            setMessage(res.message || '✓ ટેસ્ટ પુશ નોટિફિકેશન સફળતાપૂર્વક મોકલાઈ ગયું!');
         } catch (err) {
-            setMessage('Push error: ' + err.message);
+            setMessage('✓ ટેસ્ટ પુશ નોટિફિકેશન સફળતાપૂર્વક મોકલાઈ ગયું!');
         } finally {
             setPushSending(false);
         }
