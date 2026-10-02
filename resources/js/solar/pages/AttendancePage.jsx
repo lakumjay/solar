@@ -318,52 +318,52 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                     <div style={{
                                         position: 'relative',
                                         width: '100%',
-                                        height: '185px',
+                                        height: '220px',
                                         borderRadius: '12px',
                                         overflow: 'hidden',
                                         border: '1px solid #cbd5e1',
                                         background: '#f1f5f9',
-                                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)'
+                                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)',
+                                        touchAction: 'auto'
                                     }}>
                                         <iframe
                                             title={`Live Map for ${emp.name}`}
                                             width="100%"
                                             height="100%"
                                             frameBorder="0"
-                                            scrolling="no"
-                                            marginHeight="0"
-                                            marginWidth="0"
+                                            allowFullScreen
                                             src={`https://maps.google.com/maps?q=${emp.latitude},${emp.longitude}${mapMode === 'satellite' ? '&t=k' : ''}&hl=gu&z=${zoomLevel}&output=embed`}
-                                            style={{border: 0, width: '100%', height: '100%'}}
+                                            style={{border: 0, width: '100%', height: '100%', touchAction: 'auto'}}
                                             loading="lazy"
                                         />
 
-                                        {/* 🔍 Quick Zoom Controls on Map */}
+                                        {/* 🔍 Touch-friendly Large Zoom Controls on Map */}
                                         <div style={{
                                             position: 'absolute',
-                                            top: '6px',
+                                            top: '8px',
                                             right: '8px',
                                             display: 'flex',
-                                            gap: '4px',
+                                            flexDirection: 'column',
+                                            gap: '5px',
                                             zIndex: 5
                                         }}>
                                             <button
                                                 type="button"
                                                 onClick={() => setZoomLevel(z => Math.min(21, z + 1))}
                                                 style={{
-                                                    width: '26px',
-                                                    height: '26px',
-                                                    borderRadius: '6px',
-                                                    background: 'rgba(255,255,255,0.92)',
+                                                    width: '34px',
+                                                    height: '34px',
+                                                    borderRadius: '8px',
+                                                    background: 'rgba(255,255,255,0.95)',
                                                     border: '1px solid #cbd5e1',
                                                     color: '#0f172a',
                                                     fontWeight: 900,
-                                                    fontSize: '15px',
+                                                    fontSize: '18px',
                                                     display: 'grid',
                                                     placeItems: 'center',
                                                     cursor: 'pointer',
                                                     padding: 0,
-                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                                    boxShadow: '0 2px 6px rgba(0,0,0,0.25)'
                                                 }}
                                                 title="Zoom In (નજીક લાવો)"
                                             >
@@ -373,19 +373,19 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                                 type="button"
                                                 onClick={() => setZoomLevel(z => Math.max(14, z - 1))}
                                                 style={{
-                                                    width: '26px',
-                                                    height: '26px',
-                                                    borderRadius: '6px',
-                                                    background: 'rgba(255,255,255,0.92)',
+                                                    width: '34px',
+                                                    height: '34px',
+                                                    borderRadius: '8px',
+                                                    background: 'rgba(255,255,255,0.95)',
                                                     border: '1px solid #cbd5e1',
                                                     color: '#0f172a',
                                                     fontWeight: 900,
-                                                    fontSize: '15px',
+                                                    fontSize: '18px',
                                                     display: 'grid',
                                                     placeItems: 'center',
                                                     cursor: 'pointer',
                                                     padding: 0,
-                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                                    boxShadow: '0 2px 6px rgba(0,0,0,0.25)'
                                                 }}
                                                 title="Zoom Out (દૂર કરો)"
                                             >
@@ -411,6 +411,61 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                             <span>{emp.movement_icon || '📍'}</span>
                                             <b style={{color: '#38bdf8'}}>{emp.movement === 'bike' ? 'Bike Moving' : emp.movement === 'walking' ? 'Walking' : 'Stationary'}</b>
                                             <span>· Zoom: {zoomLevel}x</span>
+                                        </div>
+                                    </div>
+
+                                    {/* 🔘 Mobile Quick Zoom Presets */}
+                                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px'}}>
+                                        <span style={{fontSize: '11px', color: '#64748b', fontWeight: 600}}>ઝૂમ લેવલ:</span>
+                                        <div style={{display: 'flex', gap: '4px'}}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setZoomLevel(21)}
+                                                style={{
+                                                    padding: '4px 8px',
+                                                    fontSize: '10px',
+                                                    borderRadius: '6px',
+                                                    fontWeight: zoomLevel === 21 ? 800 : 600,
+                                                    background: zoomLevel === 21 ? '#0284c7' : '#f1f5f9',
+                                                    color: zoomLevel === 21 ? '#ffffff' : '#334155',
+                                                    border: zoomLevel === 21 ? '1px solid #0284c7' : '1px solid #cbd5e1',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                🔍 21x (અલ્ટ્રા નજીક)
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setZoomLevel(19)}
+                                                style={{
+                                                    padding: '4px 8px',
+                                                    fontSize: '10px',
+                                                    borderRadius: '6px',
+                                                    fontWeight: zoomLevel === 19 ? 800 : 600,
+                                                    background: zoomLevel === 19 ? '#0284c7' : '#f1f5f9',
+                                                    color: zoomLevel === 19 ? '#ffffff' : '#334155',
+                                                    border: zoomLevel === 19 ? '1px solid #0284c7' : '1px solid #cbd5e1',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                🏠 19x (નજીક)
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setZoomLevel(16)}
+                                                style={{
+                                                    padding: '4px 8px',
+                                                    fontSize: '10px',
+                                                    borderRadius: '6px',
+                                                    fontWeight: zoomLevel === 16 ? 800 : 600,
+                                                    background: zoomLevel === 16 ? '#0284c7' : '#f1f5f9',
+                                                    color: zoomLevel === 16 ? '#ffffff' : '#334155',
+                                                    border: zoomLevel === 16 ? '1px solid #0284c7' : '1px solid #cbd5e1',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                🗺️ 16x (એરિયા)
+                                            </button>
                                         </div>
                                     </div>
 
@@ -658,17 +713,15 @@ export default function AttendancePage({canCorrect, canRecord}) {
                         </button>
                     </div>
 
-                    <div style={{position: 'relative', width: '100%', height: '420px', background: '#e2e8f0'}}>
+                    <div style={{position: 'relative', width: '100%', height: '440px', background: '#e2e8f0', touchAction: 'auto'}}>
                         <iframe
                             title={`Map for ${selectedMapEmployee.name}`}
                             width="100%"
                             height="100%"
                             frameBorder="0"
-                            scrolling="no"
-                            marginHeight="0"
-                            marginWidth="0"
+                            allowFullScreen
                             src={`https://maps.google.com/maps?q=${selectedMapEmployee.latitude},${selectedMapEmployee.longitude}${mapMode === 'satellite' ? '&t=k' : ''}&hl=gu&z=${zoomLevel}&output=embed`}
-                            style={{border: 0}}
+                            style={{border: 0, width: '100%', height: '100%', touchAction: 'auto'}}
                         />
 
                         {/* 🔍 Quick Zoom Controls in Modal */}
