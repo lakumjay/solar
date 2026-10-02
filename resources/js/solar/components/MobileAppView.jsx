@@ -84,6 +84,19 @@ export default function MobileAppView({
     const [notifToast, setNotifToast] = useState(null);
     const [expandedPlantId, setExpandedPlantId] = useState(null);
     const [expandedInverters, setExpandedInverters] = useState({});
+    const [isSyncing, setIsSyncing] = useState(false);
+
+    const handleManualRefresh = async (e) => {
+        if (e) e.stopPropagation();
+        playNavClickSound();
+        setIsSyncing(true);
+        if (fetchLiveSolar) {
+            try {
+                await fetchLiveSolar(true);
+            } catch (err) {}
+        }
+        setTimeout(() => setIsSyncing(false), 700);
+    };
 
     const handleOpenNotifCenter = () => {
         setNotifCenterOpen(true);
@@ -430,13 +443,10 @@ export default function MobileAppView({
                     <button
                         type="button"
                         className="mobile-refresh-tiny-btn"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            fetchLiveSolar && fetchLiveSolar(true);
-                        }}
+                        onClick={handleManualRefresh}
                         title="Refresh Live Data"
                     >
-                        <RefreshCw size={13} className={refreshing ? 'spin' : ''}/>
+                        <RefreshCw size={13} className={isSyncing ? 'spin' : ''}/>
                     </button>
                     {canSwitchCompanies && <ChevronDown size={16} className="chevron-icon"/>}
                 </div>
@@ -464,9 +474,26 @@ export default function MobileAppView({
                             <div className="plant-pill">
                                 <Leaf size={13} style={{color: '#15803d'}}/>
                                 <span className="plant-name-bold">{displayName}</span>
-                                <span className="live-pulse-badge">
-                                    <span className="pulse-dot"/> Live
-                                </span>
+                                <button
+                                    type="button"
+                                    className="live-pulse-badge"
+                                    onClick={handleManualRefresh}
+                                    title="Click to sync live data"
+                                    style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        padding: 0,
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '5px'
+                                    }}
+                                >
+                                    <span className={`pulse-dot ${isSyncing ? 'pulse-syncing' : ''}`}/>
+                                    <span style={{fontSize: '11px', fontWeight: 600, color: isSyncing ? '#059669' : '#15803d'}}>
+                                        {isSyncing ? 'Syncing...' : 'Live'}
+                                    </span>
+                                </button>
                             </div>
 
                             <div className="timestamp-pill">

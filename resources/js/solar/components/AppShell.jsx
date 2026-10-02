@@ -41,7 +41,20 @@ export default function AppShell({user, page, setPage, companies, companyId, set
     useEffect(() => {
         fetchLiveSolar();
         const timer = setInterval(fetchLiveSolar, 10000);
-        return () => clearInterval(timer);
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                fetchLiveSolar();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('focus', handleVisibilityChange);
+
+        return () => {
+            clearInterval(timer);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('focus', handleVisibilityChange);
+        };
     }, [companyId]);
 
     const can = permission => user.role === 'super_admin' || user.permissions.includes(permission);
