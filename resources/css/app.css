@@ -3178,15 +3178,25 @@
 
 @media (max-width: 640px) {
     .modal-backdrop {
+        display: flex !important;
         align-items: flex-end !important;
+        justify-content: center !important;
         padding: 0 !important;
+        overflow: hidden !important;
     }
     .expense-modal-sheet {
         max-width: 100% !important;
         width: 100% !important;
-        max-height: 88vh !important;
+        height: 90vh !important;
+        height: 90dvh !important;
+        max-height: 90vh !important;
+        max-height: 90dvh !important;
         border-radius: 20px 20px 0 0 !important;
         margin: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+        background: #ffffff !important;
     }
 }
 
@@ -3642,25 +3652,65 @@
 
 /* Sticky Modal Footer */
 .modal-sticky-footer {
-    padding: 12px 18px;
-    border-top: 1px solid #f1f5f9;
+    padding: 12px 18px calc(12px + env(safe-area-inset-bottom, 0px));
+    border-top: 1.5px solid #e2e8f0;
     background: #ffffff;
     display: flex;
+    align-items: center;
     gap: 10px;
+    position: sticky;
+    bottom: 0;
+    z-index: 99;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
+    margin-top: auto;
+}
+
+.modal-cancel-btn {
+    padding: 11px 16px !important;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    border-radius: 10px !important;
+    background: #f1f5f9 !important;
+    color: #475569 !important;
+    border: 1px solid #cbd5e1 !important;
+    cursor: pointer;
+    white-space: nowrap;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-cancel-btn:hover {
+    background: #e2e8f0 !important;
+    color: #1e293b !important;
 }
 
 .expense-submit-btn {
+    flex: 1 1 auto;
     width: 100%;
-    padding: 11px 16px !important;
-    font-size: 13.5px !important;
+    padding: 11px 18px !important;
+    font-size: 14px !important;
     font-weight: 800 !important;
-    border-radius: 12px !important;
+    border-radius: 10px !important;
+    background: #16a34a !important;
     background: linear-gradient(135deg, #16a34a, #15803d) !important;
     color: #ffffff !important;
-    box-shadow: 0 4px 14px rgba(22, 163, 74, 0.25) !important;
+    box-shadow: 0 4px 14px rgba(22, 163, 74, 0.3) !important;
     border: 0 !important;
     cursor: pointer;
     transition: all 0.2s ease;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.expense-submit-btn:hover:not(:disabled) {
+    background: #15803d !important;
+    box-shadow: 0 6px 18px rgba(22, 163, 74, 0.4) !important;
+    transform: translateY(-1px);
 }
 
 .expense-submit-btn:disabled {
@@ -3668,6 +3718,7 @@
     cursor: not-allowed;
     background: #94a3b8 !important;
     box-shadow: none !important;
+    transform: none;
 }
 
 /* ==========================================================================

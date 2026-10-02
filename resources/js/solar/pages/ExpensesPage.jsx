@@ -900,14 +900,21 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
                     {error && <div className="error" style={{marginTop: '10px'}}>{error}</div>}
                 </div>
 
-                {/* Bottom Modal Actions */}
+                {/* Bottom Modal Actions (Always Visible Sticky Footer) */}
                 <div className="modal-sticky-footer">
+                    <button
+                        type="button"
+                        className="secondary modal-cancel-btn"
+                        onClick={onClose}
+                    >
+                        રદ કરો (Cancel)
+                    </button>
                     <button
                         type="submit"
                         className="primary expense-submit-btn"
                         disabled={busy || (payerMode === 'multiple' && !isPaidValid)}
                     >
-                        {busy ? 'Saving…' : entry ? 'Update Expense' : 'Save Shared Expense (ખર્ચ સેવ કરો)'}
+                        {busy ? 'સેવ થઈ રહ્યું છે...' : entry ? 'Update Expense' : '✓ Save Shared Expense (ખર્ચ સેવ કરો)'}
                     </button>
                 </div>
             </form>
@@ -1074,10 +1081,12 @@ function SettlementForm({pair, onClose, onSaved}) {
 
                 {error && <div className="error" style={{marginTop: '10px'}}>{error}</div>}
 
-                <div className="form-actions" style={{marginTop: '16px'}}>
-                    <span>આ સેટલમેન્ટ તારીખ અને સમય સાથે હિસ્ટ્રીમાં સેવ થશે.</span>
-                    <button className="primary" disabled={busy}>
-                        {busy ? 'Saving…' : `Record ${settlementType === 'full' ? 'Full' : 'Partial'} Payment`}
+                <div className="modal-sticky-footer" style={{marginTop: '16px'}}>
+                    <button type="button" className="secondary modal-cancel-btn" onClick={onClose}>
+                        Cancel (રદ કરો)
+                    </button>
+                    <button className="primary expense-submit-btn" disabled={busy}>
+                        {busy ? 'સેવ થઈ રહ્યું છે...' : `✓ Record ${settlementType === 'full' ? 'Full' : 'Partial'} Payment`}
                     </button>
                 </div>
             </form>
