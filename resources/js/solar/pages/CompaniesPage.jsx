@@ -7,6 +7,9 @@ import {fixedTwo} from '../format';
 
 const blankCompany = {
     name: '',
+    owner_name: '',
+    owner_designation: '',
+    owner_photo_url: null,
     admin_email: '',
     password: '',
     logo_url: null,
@@ -26,23 +29,28 @@ export default function CompaniesPage({companies, refresh}) {
     const [form, setForm] = useState({...blankCompany});
     const [logoFile, setLogoFile] = useState(null);
     const [logoPreview, setLogoPreview] = useState(null);
+    const [ownerPhotoFile, setOwnerPhotoFile] = useState(null);
+    const [ownerPhotoPreview, setOwnerPhotoPreview] = useState(null);
     const [showPassword, setShowPassword] = useState(false);
     const [message, setMessage] = useState('');
 
     useEffect(() => () => {
         if (logoPreview?.startsWith('blob:')) URL.revokeObjectURL(logoPreview);
-    }, [logoPreview]);
+        if (ownerPhotoPreview?.startsWith('blob:')) URL.revokeObjectURL(ownerPhotoPreview);
+    }, [logoPreview, ownerPhotoPreview]);
 
-    const resetLogo = preview => {
+    const resetPhotos = (logo, ownerPhoto) => {
         setLogoFile(null);
-        setLogoPreview(preview ?? null);
+        setLogoPreview(logo ?? null);
+        setOwnerPhotoFile(null);
+        setOwnerPhotoPreview(ownerPhoto ?? null);
     };
 
     const choose = company => {
         setSelected(company);
         setForm({...company, password: ''});
         setShowPassword(false);
-        resetLogo(company.logo_url);
+        resetPhotos(company.logo_url, company.owner_photo_url);
         setMessage('');
     };
 
@@ -50,7 +58,7 @@ export default function CompaniesPage({companies, refresh}) {
         setSelected(null);
         setForm({...blankCompany});
         setShowPassword(false);
-        resetLogo(null);
+        resetPhotos(null, null);
         setMessage('');
     };
 
@@ -60,6 +68,12 @@ export default function CompaniesPage({companies, refresh}) {
         setLogoPreview(file ? URL.createObjectURL(file) : form.logo_url);
     };
 
+    const chooseOwnerPhoto = event => {
+        const file = event.target.files?.[0] ?? null;
+        setOwnerPhotoFile(file);
+        setOwnerPhotoPreview(file ? URL.createObjectURL(file) : form.owner_photo_url);
+    };
+
     const save = async event => {
         event.preventDefault();
         setMessage('');
@@ -67,6 +81,8 @@ export default function CompaniesPage({companies, refresh}) {
         const payload = new FormData();
         if (form.id) payload.append('id', form.id);
         payload.append('name', form.name);
+        payload.append('owner_name', form.owner_name ?? '');
+        payload.append('owner_designation', form.owner_designation ?? '');
         payload.append('admin_email', form.admin_email);
         payload.append('password', form.password ?? '');
         payload.append('active', form.active ? '1' : '0');
@@ -76,14 +92,15 @@ export default function CompaniesPage({companies, refresh}) {
         payload.append('longitude', form.longitude ?? '');
         METERS.forEach(([key]) => payload.append(`${key}_multiplier`, form[`${key}_multiplier`]));
         if (logoFile) payload.append('logo', logoFile);
+        if (ownerPhotoFile) payload.append('owner_photo', ownerPhotoFile);
 
         try {
             const saved = await api('companies', {method: 'POST', body: payload});
             setSelected(saved);
             setForm({...saved, password: ''});
             setShowPassword(false);
-            resetLogo(saved.logo_url);
-            setMessage('Company, logo, location and login saved. Historical units were recalculated.');
+            resetPhotos(saved.logo_url, saved.owner_photo_url);
+            setMessage('Company profile, owner details, logo and plant location saved successfully.');
             await refresh();
         } catch (error) {
             setMessage(error.message);
@@ -105,29 +122,51 @@ export default function CompaniesPage({companies, refresh}) {
             <div className="panel-head"><div><h2>Companies</h2><p>{companies.length} configured</p></div><button type="button" className="icon-button" onClick={startNew}>+</button></div>
             {companies.map(company => <button type="button" className={selected?.id === company.id ? 'list-row active' : 'list-row'} onClick={() => choose(company)} key={company.id}>
                 <span className="company-icon">{company.logo_url ? <img src={company.logo_url} alt=""/> : <Building2/>}</span>
-                <span><b>{company.name}</b><small>{company.is_ss_reference ? 'Daily SS reference · ' : ''}{company.admin_email} · {company.inverters.filter(inverter => inverter.active).length} active inverters</small></span>
+                <span>
+                    <b>{company.name}</b>
+                    <small>
+                        {company.owner_name ? `👑 ${company.owner_name} · ` : ''}
+                        {company.is_ss_reference ? 'Daily SS reference · ' : ''}
+                        {company.admin_email} · {company.inverters.filter(inverter => inverter.active).length} active inverters
+                    </small>
+                </span>
                 <i className={company.active ? 'status on' : 'status'}>{company.active ? 'Active' : 'Inactive'}</i>
             </button>)}
         </section>
         <div>
             <form className="panel company-form" onSubmit={save}>
-                <div className="panel-head"><div><h2>{form.id ? 'Edit company' : 'New company'}</h2><p>Company login, logo, plant weather location and four meter multipliers are managed together.</p></div></div>
-                <div className="company-profile-fields">
+                <div className="panel-head"><div><h2>{form.id ? 'Edit company' : 'New company'}</h2><p>Company login, owner branding, logo, plant location and meter multipliers are managed together.</p></div></div>
+                <div className="company-profile-fields" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px'}}>
+                    {/* 1. Company Logo Upload */}
                     <label className="company-logo-upload">
                         <span className="company-logo-preview">{logoPreview ? <img src={logoPreview} alt="Company logo preview"/> : <ImagePlus/>}</span>
-                        <span><b>{logoFile?.name || (form.logo_url ? 'Change company logo' : 'Choose company logo')}</b><small>PNG, JPG or WebP · maximum 4 MB</small></span>
+                        <span><b>{logoFile?.name || (form.logo_url ? 'Change company logo' : 'Choose company logo')}</b><small>Company Brand Logo (PNG/JPG)</small></span>
                         <input type="file" accept="image/png,image/jpeg,image/webp" onChange={chooseLogo} required={!form.id}/>
                     </label>
-                    <div className="company-status-toggles">
-                        <label className="toggle"><input type="checkbox" checked={Boolean(form.active)} disabled={Boolean(form.is_ss_reference)} onChange={event => setForm({...form, active: event.target.checked})}/><span/> Company active</label>
-                        <label className="toggle"><input type="checkbox" checked={Boolean(form.is_ss_reference)} disabled={Boolean(selected?.is_ss_reference)} onChange={event => setForm({...form, is_ss_reference: event.target.checked, active: event.target.checked ? true : form.active})}/><span/> Daily SS reference company</label>
-                    </div>
+
+                    {/* 2. Owner / Director Photo Upload */}
+                    <label className="company-logo-upload" style={{borderColor: '#fbbf24', background: '#fffdfa'}}>
+                        <span className="company-logo-preview" style={{borderRadius: '50%', overflow: 'hidden', border: '2px solid #f59e0b'}}>
+                            {ownerPhotoPreview ? <img src={ownerPhotoPreview} alt="Owner photo preview"/> : <span style={{fontSize: '20px'}}>👑</span>}
+                        </span>
+                        <span><b>{ownerPhotoFile?.name || (form.owner_photo_url ? 'Change owner photo' : 'Upload Owner Photo')}</b><small>Owner VIP Avatar (For Welcome & Celebration)</small></span>
+                        <input type="file" accept="image/png,image/jpeg,image/webp,image/jpg" onChange={chooseOwnerPhoto}/>
+                    </label>
                 </div>
-                <div className="info-banner">Only one active company can be the Daily SS reference. Select this option on another active company to replace the current reference.</div>
-                <div className="form-grid two">
-                    <Field label="Company name"><input value={form.name} onChange={event => setForm({...form, name: event.target.value})} required/></Field>
-                    <Field label="Company login email"><input type="email" value={form.admin_email ?? ''} onChange={event => setForm({...form, admin_email: event.target.value})} autoComplete="off" required/></Field>
-                    <Field label={form.id ? 'New password (optional)' : 'Login password'}><input type={showPassword ? 'text' : 'password'} minLength="8" value={form.password ?? ''} onChange={event => setForm({...form, password: event.target.value})} autoComplete="new-password" required={!form.id}/><button type="button" className="password-visibility" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'} title={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button></Field>
+
+                <div className="company-status-toggles" style={{marginTop: '12px'}}>
+                    <label className="toggle"><input type="checkbox" checked={Boolean(form.active)} disabled={Boolean(form.is_ss_reference)} onChange={event => setForm({...form, active: event.target.checked})}/><span/> Company active</label>
+                    <label className="toggle"><input type="checkbox" checked={Boolean(form.is_ss_reference)} disabled={Boolean(selected?.is_ss_reference)} onChange={event => setForm({...form, is_ss_reference: event.target.checked, active: event.target.checked ? true : form.active})}/><span/> Daily SS reference company</label>
+                </div>
+
+                <div className="info-banner" style={{marginTop: '10px'}}>Only one active company can be the Daily SS reference. Select this option on another active company to replace the current reference.</div>
+                
+                <div className="form-grid two" style={{marginTop: '14px'}}>
+                    <Field label="Company Name"><input value={form.name} onChange={event => setForm({...form, name: event.target.value})} required/></Field>
+                    <Field label="Owner / Director Name (e.g. Lakum Jay)"><input value={form.owner_name ?? ''} placeholder="e.g. Lakum Jay" onChange={event => setForm({...form, owner_name: event.target.value})}/></Field>
+                    <Field label="Owner Designation / Title"><input value={form.owner_designation ?? ''} placeholder="e.g. Founder & Managing Director" onChange={event => setForm({...form, owner_designation: event.target.value})}/></Field>
+                    <Field label="Company Login Email"><input type="email" value={form.admin_email ?? ''} onChange={event => setForm({...form, admin_email: event.target.value})} autoComplete="off" required/></Field>
+                    <Field label={form.id ? 'New Password (optional)' : 'Login Password'}><input type={showPassword ? 'text' : 'password'} minLength="8" value={form.password ?? ''} onChange={event => setForm({...form, password: event.target.value})} autoComplete="new-password" required={!form.id}/><button type="button" className="password-visibility" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'} title={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button></Field>
                     <Field label="Plant Location Name"><input value={form.plant_location ?? ''} placeholder="e.g. Rajkot, Gujarat" onChange={event => setForm({...form, plant_location: event.target.value})}/></Field>
                     <Field label="Latitude (for Weather & Predictions)"><input type="number" step="0.0001" value={form.latitude ?? ''} placeholder="22.3039" onChange={event => setForm({...form, latitude: event.target.value})}/></Field>
                     <Field label="Longitude (for Weather & Predictions)"><input type="number" step="0.0001" value={form.longitude ?? ''} placeholder="70.8022" onChange={event => setForm({...form, longitude: event.target.value})}/></Field>

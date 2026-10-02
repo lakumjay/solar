@@ -4244,6 +4244,646 @@
     border-radius: 99px;
 }
 
+/* =========================================================
+   🌟 APP OPEN SPLASH SCREEN & VIP WELCOME MODAL
+========================================================= */
+.solar-splash-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: radial-gradient(circle at 50% 30%, #1e293b 0%, #0f172a 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: splashFadeIn 0.35s ease-out;
+    cursor: pointer;
+}
+
+@keyframes splashFadeIn {
+    from { opacity: 0; transform: scale(0.98); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.solar-splash-card {
+    background: rgba(30, 41, 59, 0.85);
+    border: 1px solid rgba(251, 191, 36, 0.35);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 24px;
+    padding: 28px 24px;
+    max-width: 380px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 40px rgba(245, 158, 11, 0.2);
+    position: relative;
+    overflow: hidden;
+}
+
+.splash-sun-wrap {
+    position: relative;
+    width: 90px;
+    height: 90px;
+    margin: 0 auto 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.splash-sun-aura {
+    position: absolute;
+    inset: -10px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(245, 158, 11, 0.45) 0%, rgba(245, 158, 11, 0) 70%);
+    animation: auraPulse 2s infinite ease-in-out;
+}
+
+@keyframes auraPulse {
+    0%, 100% { transform: scale(1); opacity: 0.6; }
+    50% { transform: scale(1.3); opacity: 1; }
+}
+
+.splash-sun-icon-box {
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    box-shadow: 0 8px 24px rgba(245, 158, 11, 0.4);
+    position: relative;
+    z-index: 2;
+}
+
+.splash-sparkle-tag {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: #fbbf24;
+    color: #78350f;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3;
+    animation: spin 6s infinite linear;
+}
+
+.splash-brand-row {
+    margin-bottom: 18px;
+}
+
+.splash-brand-title {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 900;
+    color: #ffffff;
+    letter-spacing: -0.5px;
+}
+
+.splash-brand-title .brand-flow {
+    color: #f59e0b;
+}
+
+.splash-brand-pill {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    padding: 2px 10px;
+    border-radius: 12px;
+}
+
+.splash-owner-card {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(251, 191, 36, 0.25);
+    border-radius: 16px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    text-align: left;
+    margin-bottom: 18px;
+}
+
+.splash-owner-avatar-ring {
+    position: relative;
+    width: 54px;
+    height: 54px;
+    flex-shrink: 0;
+}
+
+.splash-owner-img {
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #f59e0b;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+}
+
+.splash-owner-fallback {
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f59e0b, #b45309);
+    border: 2px solid #fbbf24;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-size: 22px;
+    font-weight: 800;
+}
+
+.splash-vip-crown {
+    position: absolute;
+    top: -6px;
+    right: -4px;
+    font-size: 14px;
+}
+
+.splash-owner-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.splash-greeting-label {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #e2e8f0;
+    margin-bottom: 2px;
+}
+
+.splash-greeting-label .splash-highlight {
+    color: #fbbf24;
+    font-weight: 800;
+}
+
+.splash-owner-role {
+    margin: 0;
+    font-size: 11px;
+    color: #94a3b8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.splash-comp-name {
+    margin: 3px 0 0;
+    font-size: 10.5px;
+    color: #38bdf8;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+}
+
+.splash-progress-section {
+    margin-bottom: 12px;
+}
+
+.splash-progress-track {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+
+.splash-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, #34d399);
+    border-radius: 99px;
+    transition: width 0.4s ease;
+}
+
+.splash-progress-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+}
+
+.splash-status-text {
+    color: #cbd5e1;
+    font-weight: 500;
+}
+
+.splash-pct {
+    color: #10b981;
+    font-weight: 700;
+}
+
+.splash-tap-hint {
+    font-size: 10.5px;
+    color: #64748b;
+    margin-top: 8px;
+}
+
+/* =========================================================
+   🎊 MILESTONE CELEBRATION & CONFETTI MODAL
+========================================================= */
+.milestone-celebration-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    animation: fadeInModal 0.3s ease-out;
+}
+
+.milestone-confetti-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.milestone-celebration-card {
+    background: #ffffff;
+    border: 2px solid #fbbf24;
+    border-radius: 24px;
+    padding: 28px 22px 22px;
+    max-width: 400px;
+    width: 100%;
+    text-align: center;
+    position: relative;
+    z-index: 2;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4), 0 0 35px rgba(245, 158, 11, 0.25);
+    animation: bounceInCard 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes bounceInCard {
+    from { opacity: 0; transform: scale(0.85) translateY(20px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.milestone-close-btn {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    background: #f1f5f9;
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.milestone-close-btn:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.milestone-top-trophy-wrap {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.trophy-pulse-aura {
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(245, 158, 11, 0.4) 0%, rgba(245, 158, 11, 0) 70%);
+    animation: auraPulse 1.8s infinite ease-in-out;
+}
+
+.trophy-icon-box {
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    border: 2px solid #f59e0b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);
+    position: relative;
+    z-index: 2;
+}
+
+.trophy-golden-svg {
+    color: #d97706;
+}
+
+.milestone-sparkle-l {
+    position: absolute;
+    top: 4px;
+    left: -4px;
+    color: #f59e0b;
+    animation: spin 5s infinite linear;
+}
+
+.milestone-sparkle-r {
+    position: absolute;
+    bottom: 4px;
+    right: -4px;
+    color: #10b981;
+    animation: spin 5s infinite linear reverse;
+}
+
+.milestone-badge-pill {
+    display: inline-block;
+    background: #fef3c7;
+    color: #b45309;
+    border: 1px solid #fcd34d;
+    font-size: 11.5px;
+    font-weight: 800;
+    padding: 4px 14px;
+    border-radius: 20px;
+    margin-bottom: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.milestone-owner-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 12px 14px;
+    text-align: left;
+    margin-bottom: 16px;
+}
+
+.milestone-avatar-ring {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+}
+
+.milestone-owner-img {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #f59e0b;
+}
+
+.milestone-owner-initial {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f59e0b, #b45309);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 20px;
+    border: 2px solid #fbbf24;
+}
+
+.milestone-crown-badge {
+    position: absolute;
+    top: -6px;
+    right: -4px;
+    font-size: 13px;
+}
+
+.milestone-owner-texts {
+    flex: 1;
+    min-width: 0;
+}
+
+.milestone-heading {
+    margin: 0 0 2px;
+    font-size: 16px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.milestone-subheading {
+    margin: 0;
+    font-size: 12px;
+    color: #64748b;
+    line-height: 1.4;
+}
+
+.milestone-metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.m-metric-box {
+    border-radius: 12px;
+    padding: 12px 10px;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.m-metric-box.green {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+}
+
+.m-metric-box.green .m-metric-lbl { color: #166534; }
+.m-metric-box.green .m-metric-val { color: #15803d; }
+
+.m-metric-box.gold {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+}
+
+.m-metric-box.gold .m-metric-lbl { color: #92400e; }
+.m-metric-box.gold .m-metric-val { color: #b45309; }
+
+.m-metric-lbl {
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.m-metric-val {
+    font-size: 18px;
+    font-weight: 900;
+    line-height: 1.2;
+}
+
+.m-metric-val small {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.milestone-actions-row {
+    display: flex;
+    gap: 10px;
+}
+
+.milestone-btn-whatsapp {
+    flex: 1;
+    background: #25d366;
+    color: #ffffff;
+    border: none;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 13px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(37, 211, 102, 0.3);
+    transition: all 0.15s ease;
+}
+
+.milestone-btn-whatsapp:hover {
+    background: #22c55e;
+    transform: translateY(-1px);
+}
+
+.milestone-btn-dismiss {
+    flex: 1;
+    background: #f1f5f9;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.milestone-btn-dismiss:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+/* VIP Owner Welcome Banner on Mobile Dashboard */
+.mobile-vip-owner-banner {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 16px;
+    padding: 12px 14px;
+    margin: 8px 12px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), 0 0 20px rgba(245, 158, 11, 0.1);
+}
+
+.vip-banner-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.vip-avatar-wrap {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+}
+
+.vip-owner-thumb {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #f59e0b;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+}
+
+.vip-owner-initial {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f59e0b, #b45309);
+    border: 2px solid #fbbf24;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 18px;
+}
+
+.vip-crown-badge {
+    position: absolute;
+    top: -5px;
+    right: -3px;
+    font-size: 12px;
+}
+
+.vip-owner-info {
+    min-width: 0;
+}
+
+.vip-owner-greeting {
+    margin: 0 0 2px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #e2e8f0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vip-gold-name {
+    color: #fbbf24;
+    font-weight: 800;
+}
+
+.vip-owner-sub {
+    margin: 0;
+    font-size: 11px;
+    color: #94a3b8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vip-badge-pill {
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #34d399;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 12px;
+    flex-shrink: 0;
+    letter-spacing: 0.5px;
+}
+
+
 
 
 

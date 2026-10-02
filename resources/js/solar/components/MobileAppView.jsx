@@ -343,8 +343,12 @@ export default function MobileAppView({
                         <Bell size={19}/>
                         {hasUnreadNotif && <span className="notif-red-dot"/>}
                     </button>
-                    <div className="mobile-user-avatar" onClick={() => setMoreMenuOpen(true)}>
-                        {user.name ? user.name.slice(0, 1).toUpperCase() : <User size={16}/>}
+                    <div className="mobile-user-avatar" onClick={() => setMoreMenuOpen(true)} style={{overflow: 'hidden', border: activeCompany?.owner_photo_url ? '2px solid #f59e0b' : 'none'}}>
+                        {activeCompany?.owner_photo_url ? (
+                            <img src={activeCompany.owner_photo_url} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}}/>
+                        ) : (
+                            activeCompany?.owner_name ? activeCompany.owner_name.slice(0, 1).toUpperCase() : (user.name ? user.name.slice(0, 1).toUpperCase() : <User size={16}/>)
+                        )}
                     </div>
                 </div>
             </header>
@@ -431,6 +435,33 @@ export default function MobileAppView({
             ) : (
                 /* MAIN DASHBOARD CONTENT WITH 3D ANIMATED ISOMETRIC VISUALIZER */
                 <main className="mobile-dashboard-scroll">
+                    {/* 0. VIP OWNER WELCOME BANNER (Personalized with Photo & Name) */}
+                    <div className="mobile-vip-owner-banner">
+                        <div className="vip-banner-left">
+                            <div className="vip-avatar-wrap">
+                                {activeCompany?.owner_photo_url ? (
+                                    <img src={activeCompany.owner_photo_url} alt="" className="vip-owner-thumb"/>
+                                ) : (
+                                    <div className="vip-owner-initial">
+                                        {(activeCompany?.owner_name || user.name || 'J').slice(0, 1).toUpperCase()}
+                                    </div>
+                                )}
+                                <span className="vip-crown-badge">👑</span>
+                            </div>
+                            <div className="vip-owner-info">
+                                <h4 className="vip-owner-greeting">
+                                    નમસ્તે, <span className="vip-gold-name">{activeCompany?.owner_name || user.name} સર! 👋</span>
+                                </h4>
+                                <p className="vip-owner-sub">
+                                    {activeCompany?.owner_designation || 'Solar Plant Owner & Director'}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="vip-badge-pill">
+                            <span>⚡ LIVE</span>
+                        </div>
+                    </div>
+
                     {/* Subhead Status Row */}
                     <div className="mobile-subhead-section">
                         <div className="plant-live-status-row">
@@ -1118,12 +1149,19 @@ export default function MobileAppView({
                     <div className="mobile-drawer-sheet" onClick={e => e.stopPropagation()}>
                         <div className="drawer-handle-bar"/>
                         <div className="drawer-user-card">
-                            <div className="drawer-avatar">
-                                {user.name ? user.name.slice(0, 1).toUpperCase() : 'U'}
+                            <div className="drawer-avatar" style={{border: activeCompany?.owner_photo_url ? '2px solid #f59e0b' : 'none', overflow: 'hidden'}}>
+                                {activeCompany?.owner_photo_url ? (
+                                    <img src={activeCompany.owner_photo_url} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}}/>
+                                ) : (
+                                    activeCompany?.owner_name ? activeCompany.owner_name.slice(0, 1).toUpperCase() : (user.name ? user.name.slice(0, 1).toUpperCase() : 'U')
+                                )}
                             </div>
                             <div className="drawer-user-info">
-                                <h4>{user.name}</h4>
-                                <p>{user.role?.replace('_', ' ')} · {displayName}</p>
+                                <h4>
+                                    {activeCompany?.owner_name || user.name}
+                                    <small style={{fontSize: '11px', color: '#f59e0b', marginLeft: '6px', fontWeight: 800}}>👑 VIP</small>
+                                </h4>
+                                <p>{activeCompany?.owner_designation || user.role?.replace('_', ' ')} · {displayName}</p>
                             </div>
                             <button type="button" className="drawer-close-btn" onClick={() => setMoreMenuOpen(false)}>
                                 <X size={18}/>

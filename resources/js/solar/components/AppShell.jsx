@@ -3,11 +3,20 @@ import {Activity, BarChart3, Boxes, Building2, CalendarCheck2, Camera, ChevronRi
 import {api} from '../api';
 import MobileAppView from './MobileAppView';
 import NotificationPermissionModal from './NotificationPermissionModal';
+import AppSplashScreen from './AppSplashScreen';
+import MilestoneCelebrationModal from './MilestoneCelebrationModal';
 
 export default function AppShell({user, page, setPage, companies, companyId, setCompanyId, children}) {
     const [menuOpen, setMenuOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
     const [liveSolarData, setLiveSolarData] = useState(null);
+    const [showSplash, setShowSplash] = useState(() => {
+        try {
+            return !sessionStorage.getItem('solarflow_splash_shown');
+        } catch (e) {
+            return true;
+        }
+    });
 
     useEffect(() => {
         const checkMobile = () => {
@@ -90,41 +99,77 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         setMenuOpen(false);
     };
 
-    // 📱 If on Mobile Screen or Standalone APK View: Render MobileAppView
-    if (isMobile) {
-        return (
-            <MobileAppView
-                user={user}
-                page={page}
-                setPage={setPage}
-                companies={companies}
-                companyId={companyId}
-                setCompanyId={setCompanyId}
-                liveData={liveSolarData}
-                fetchLiveSolar={fetchLiveSolar}
-            >
-                {children({can, activeCompany})}
-            </MobileAppView>
-        );
-    }
+    const handleFinishSplash = () => {
+        try {
+            sessionStorage.setItem('solarflow_splash_shown', 'true');
+        } catch (e) {}
+        setShowSplash(false);
+    };
 
-    // 💻 Desktop Layout
-    return <div className="shell">
-        <aside className={menuOpen ? 'open' : ''}>
-            <div className="brand"><span><Sun size={25}/></span> SolarFlow <button className="mobile-close" onClick={() => setMenuOpen(false)}><X/></button></div>
-            <div className="account"><div className="account-avatar">{user.company_id && activeCompany?.logo_url ? <img src={activeCompany.logo_url} alt=""/> : user.name.slice(0, 1).toUpperCase()}</div><span><b>{user.name}</b><small>{user.role.replaceAll('_', ' ')}</small></span></div>
-            <nav>{navigation.map(([key, label, Icon]) => <button key={key} className={page === key ? 'nav active' : 'nav'} onClick={() => choosePage(key)}><Icon size={18}/><span>{label}</span><ChevronRight size={15}/></button>)}</nav>
-            <button className="nav signout" onClick={() => api('logout', {method: 'POST'}).then(() => window.location.reload())}><LogOut size={18}/><span>Sign out</span></button>
-        </aside>
-        {menuOpen && <div className="scrim" onClick={() => setMenuOpen(false)}/>} 
-        <main className="content">
-            <header className="topbar">
-                <button className="mobile-menu" onClick={() => setMenuOpen(true)}><Menu/></button>
-                <div><p className="eyebrow">{titles[page]?.[1]}</p><h1>{titles[page]?.[0]}</h1></div>
-                {((user.role === 'super_admin' && ['dashboard', 'reports', 'entry', 'activity'].includes(page)) || (user.role === 'employee' && page === 'entry')) && <label className="company-switch"><span>Company</span><select value={companyId} onChange={event => setCompanyId(event.target.value)}>{page !== 'entry' && <option value="all">All Companies</option>}{companies.map(company => <option value={company.id} key={company.id}>{company.name}</option>)}</select></label>}
-            </header>
-            {children({can, activeCompany})}
-        </main>
-        <NotificationPermissionModal />
-    </div>;
+    return (
+        <>
+            {showSplash && (
+                <AppSplashScreen
+                    user={user}
+                    activeCompany={activeCompany}
+                    liveData={liveSolarData}
+                    onFinish={handleFinishSplash}
+                />
+            )}
+
+            <MilestoneCelebrationModal
+                user={user}
+                activeCompany={activeCompany}
+                liveData={liveSolarData}
+            />
+
+            {/* 📱 If on Mobile Screen or Standalone APK View: Render MobileAppView */}
+            {isMobile ? (
+                <MobileAppView
+                    user={user}
+                    page={page}
+                    setPage={setPage}
+                    companies={companies}
+                    companyId={companyId}
+                    setCompanyId={setCompanyId}
+                    liveData={liveSolarData}
+                    fetchLiveSolar={fetchLiveSolar}
+                >
+                    {children({can, activeCompany})}
+                </MobileAppView>
+            ) : (
+                /* 💻 Desktop Layout */
+                <div className="shell">
+                    <aside className={menuOpen ? 'open' : ''}>
+                        <div className="brand"><span><Sun size={25}/></span> SolarFlow <button className="mobile-close" onClick={() => setMenuOpen(false)}><X/></button></div>
+                        <div className="account">
+                            <div className="account-avatar" style={{border: activeCompany?.owner_photo_url ? '2px solid #f59e0b' : 'none', overflow: 'hidden'}}>
+                                {activeCompany?.owner_photo_url ? (
+                                    <img src={activeCompany.owner_photo_url} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}}/>
+                                ) : (
+                                    user.company_id && activeCompany?.logo_url ? <img src={activeCompany.logo_url} alt=""/> : user.name.slice(0, 1).toUpperCase()
+                                )}
+                            </div>
+                            <span>
+                                <b>{activeCompany?.owner_name || user.name}</b>
+                                <small>{activeCompany?.owner_designation || user.role.replaceAll('_', ' ')}</small>
+                            </span>
+                        </div>
+                        <nav>{navigation.map(([key, label, Icon]) => <button key={key} className={page === key ? 'nav active' : 'nav'} onClick={() => choosePage(key)}><Icon size={18}/><span>{label}</span><ChevronRight size={15}/></button>)}</nav>
+                        <button className="nav signout" onClick={() => api('logout', {method: 'POST'}).then(() => window.location.reload())}><LogOut size={18}/><span>Sign out</span></button>
+                    </aside>
+                    {menuOpen && <div className="scrim" onClick={() => setMenuOpen(false)}/>} 
+                    <main className="content">
+                        <header className="topbar">
+                            <button className="mobile-menu" onClick={() => setMenuOpen(true)}><Menu/></button>
+                            <div><p className="eyebrow">{titles[page]?.[1]}</p><h1>{titles[page]?.[0]}</h1></div>
+                            {((user.role === 'super_admin' && ['dashboard', 'reports', 'entry', 'activity'].includes(page)) || (user.role === 'employee' && page === 'entry')) && <label className="company-switch"><span>Company</span><select value={companyId} onChange={event => setCompanyId(event.target.value)}>{page !== 'entry' && <option value="all">All Companies</option>}{companies.map(company => <option value={company.id} key={company.id}>{company.name}</option>)}</select></label>}
+                        </header>
+                        {children({can, activeCompany})}
+                    </main>
+                    <NotificationPermissionModal />
+                </div>
+            )}
+        </>
+    );
 }

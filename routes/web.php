@@ -48,6 +48,7 @@ Route::prefix('api')->group(function () {
         Route::get('companies', [CompanyController::class, 'index']);
         Route::post('companies', [CompanyController::class, 'store']);
         Route::get('companies/{company}/logo', [CompanyController::class, 'logo'])->name('companies.logo');
+        Route::get('companies/{company}/owner-photo', [CompanyController::class, 'ownerPhoto'])->name('companies.owner-photo');
         Route::post('inverters', [InverterController::class, 'store']);
         Route::get('users', [UserController::class, 'index']);
         Route::post('users', [UserController::class, 'store']);

@@ -49,12 +49,14 @@ class CompanyController extends Controller
         $this->access->requireSuperAdmin($request);
         $data = $request->validated();
         $newLogoPath = $request->file('logo')?->store('company-logos', 'public');
+        $newOwnerPhotoPath = $request->file('owner_photo')?->store('owner-photos', 'public');
         $oldLogoPath = null;
+        $oldOwnerPhotoPath = null;
 
         try {
-            $company = DB::transaction(function () use ($request, $data, $newLogoPath, &$oldLogoPath) {
+            $company = DB::transaction(function () use ($request, $data, $newLogoPath, $newOwnerPhotoPath, &$oldLogoPath, &$oldOwnerPhotoPath) {
                 Company::query()->lockForUpdate()->get(['id']);
-                $companyData = collect($data)->except(['id', 'admin_email', 'password', 'logo', 'is_ss_reference'])->all();
+                $companyData = collect($data)->except(['id', 'admin_email', 'password', 'logo', 'owner_photo', 'is_ss_reference'])->all();
                 $company = isset($data['id']) ? Company::findOrFail($data['id']) : new Company;
                 $wasReference = $company->exists && $company->is_ss_reference;
                 $requestedReference = array_key_exists('is_ss_reference', $data)
@@ -74,9 +76,13 @@ class CompanyController extends Controller
                 }
 
                 $oldLogoPath = $company->logo_path;
+                $oldOwnerPhotoPath = $company->owner_photo_path;
                 $company->fill($companyData);
                 if ($newLogoPath) {
                     $company->logo_path = $newLogoPath;
+                }
+                if ($newOwnerPhotoPath) {
+                    $company->owner_photo_path = $newOwnerPhotoPath;
                 }
                 $company->save();
 
@@ -108,7 +114,7 @@ class CompanyController extends Controller
                     'company',
                     $company->id,
                     "Company {$company->name} saved",
-                    collect($data)->except(['password', 'logo'])->all(),
+                    collect($data)->except(['password', 'logo', 'owner_photo'])->all(),
                 );
 
                 return $company;
@@ -117,12 +123,18 @@ class CompanyController extends Controller
             if ($newLogoPath) {
                 Storage::disk('public')->delete($newLogoPath);
             }
+            if ($newOwnerPhotoPath) {
+                Storage::disk('public')->delete($newOwnerPhotoPath);
+            }
 
             throw $error;
         }
 
         if ($newLogoPath && $oldLogoPath && $oldLogoPath !== $newLogoPath) {
             Storage::disk('public')->delete($oldLogoPath);
+        }
+        if ($newOwnerPhotoPath && $oldOwnerPhotoPath && $oldOwnerPhotoPath !== $newOwnerPhotoPath) {
+            Storage::disk('public')->delete($oldOwnerPhotoPath);
         }
 
         return $this->payload($company->load([
@@ -139,13 +151,24 @@ class CompanyController extends Controller
         return Storage::disk('public')->response($company->logo_path);
     }
 
+    public function ownerPhoto(Request $request, Company $company)
+    {
+        $this->access->requireCompany($request, $company->id);
+        abort_unless($company->owner_photo_path && Storage::disk('public')->exists($company->owner_photo_path), 404);
+
+        return Storage::disk('public')->response($company->owner_photo_path);
+    }
+
     private function payload(Company $company): array
     {
         $data = $company->toArray();
-        unset($data['logo_path'], $data['primary_admin']);
+        unset($data['logo_path'], $data['owner_photo_path'], $data['primary_admin']);
         $data['admin_email'] = $company->primaryAdmin?->email;
         $data['logo_url'] = $company->logo_path
             ? '/api/companies/'.$company->id.'/logo?v='.$company->updated_at?->timestamp
+            : null;
+        $data['owner_photo_url'] = $company->owner_photo_path
+            ? '/api/companies/'.$company->id.'/owner-photo?v='.$company->updated_at?->timestamp
             : null;
 
         return $data;

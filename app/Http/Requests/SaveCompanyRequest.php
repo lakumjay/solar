@@ -23,6 +23,9 @@ class SaveCompanyRequest extends FormRequest
         return [
             'id' => ['nullable', 'integer', 'exists:companies,id'],
             'name' => ['required', 'string', 'max:120', Rule::unique('companies')->ignore($this->input('id'))],
+            'owner_name' => ['nullable', 'string', 'max:120'],
+            'owner_designation' => ['nullable', 'string', 'max:150'],
+            'owner_photo' => ['nullable', 'image', 'mimes:jpeg,png,webp,jpg', 'max:5120'],
             'admin_email' => ['required', 'email', 'max:150', Rule::unique('users', 'email')->ignore($adminId)],
             'password' => [$adminId ? 'nullable' : 'required', 'nullable', 'string', 'min:8'],
             'logo' => [$companyId ? 'nullable' : 'required', 'image', 'mimes:jpeg,png,webp', 'max:4096'],
