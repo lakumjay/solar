@@ -974,8 +974,8 @@ function SettlementForm({pair, onClose, onSaved}) {
     };
 
     return (
-        <div className="modal-backdrop">
-            <form className="modal settlement-modal" onSubmit={save} style={{maxWidth: '520px'}}>
+        <div className="modal-backdrop" onClick={onClose}>
+            <form className="modal modal-sheet settlement-modal" onSubmit={save} onClick={e => e.stopPropagation()} style={{maxWidth: '540px'}}>
                 <div className="panel-head">
                     <div>
                         <h2>Record balance settlement (ચૂકવણી / સેટલમેન્ટ)</h2>
@@ -983,105 +983,133 @@ function SettlementForm({pair, onClose, onSaved}) {
                             <b>{pair.debtor_company.name}</b> pays <b>{pair.creditor_company.name}</b>
                         </p>
                     </div>
-                    <button type="button" className="icon-button ghost" onClick={onClose}><X/></button>
+                    <button type="button" className="icon-button ghost" onClick={onClose}><X size={18}/></button>
                 </div>
 
-                <div className="settlement-balance" style={{background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: '10px', padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px'}}>
-                    <div>
-                        <small style={{fontWeight: 700, textTransform: 'uppercase', fontSize: '10.5px'}}>Total Open Balance</small>
-                        <div style={{fontSize: '22px', fontWeight: 800}}>₹{number(totalOpen)}</div>
+                <div className="modal-body-scroll">
+                    <div className="settlement-balance" style={{background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: '12px', padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                        <div>
+                            <small style={{fontWeight: 700, textTransform: 'uppercase', fontSize: '10px', color: '#b45309'}}>TOTAL OPEN BALANCE</small>
+                            <div style={{fontSize: '22px', fontWeight: 850, color: '#78350f', letterSpacing: '-0.02em'}}>₹{number(totalOpen)}</div>
+                        </div>
+                        <span className="status warning" style={{fontSize: '11px', padding: '4px 10px', borderRadius: '20px', fontWeight: 750}}>
+                            બાકી લેવાના નીકળે છે
+                        </span>
                     </div>
-                    <span className="status warning" style={{fontSize: '11px', padding: '4px 8px'}}>
-                        બાકી લેવાના નીકળે છે
-                    </span>
-                </div>
 
-                {/* Quick Presets (100% Full, 50% Half, 25%) */}
-                <div style={{marginBottom: '12px'}}>
-                    <span style={{fontSize: '11.5px', color: '#475569', fontWeight: 600, display: 'block', marginBottom: '4px'}}>
-                        ઝડપી રકમ પસંદગી (Quick Amount Presets):
-                    </span>
-                    <div style={{display: 'flex', gap: '6px', flexWrap: 'wrap'}}>
-                        <button
-                            type="button"
-                            className="secondary"
-                            onClick={() => handlePreset(1.0)}
-                            style={{padding: '4px 10px', fontSize: '11.5px', fontWeight: 700, background: parsedAmount === totalOpen ? '#15803d' : '#f1f5f9', color: parsedAmount === totalOpen ? '#fff' : '#1e293b'}}
-                        >
-                            ૧૦૦% Full (₹{number(totalOpen)})
-                        </button>
-                        <button
-                            type="button"
-                            className="secondary"
-                            onClick={() => handlePreset(0.5)}
-                            style={{padding: '4px 10px', fontSize: '11.5px', fontWeight: 700}}
-                        >
-                            ૫૦% Half (₹{number(totalOpen / 2)})
-                        </button>
-                        <button
-                            type="button"
-                            className="secondary"
-                            onClick={() => handlePreset(0.25)}
-                            style={{padding: '4px 10px', fontSize: '11.5px', fontWeight: 700}}
-                        >
-                            ૨૫% (₹{number(totalOpen / 4)})
-                        </button>
+                    {/* Quick Presets (100% Full, 50% Half, 25%) */}
+                    <div style={{marginTop: '2px'}}>
+                        <span style={{fontSize: '11.5px', color: '#475569', fontWeight: 700, display: 'block', marginBottom: '6px'}}>
+                            ઝડપી રકમ પસંદગી (Quick Amount Presets):
+                        </span>
+                        <div style={{display: 'flex', gap: '6px', flexWrap: 'wrap'}}>
+                            <button
+                                type="button"
+                                className="secondary"
+                                onClick={() => handlePreset(1.0)}
+                                style={{
+                                    padding: '6px 12px',
+                                    fontSize: '11.5px',
+                                    fontWeight: 800,
+                                    borderRadius: '8px',
+                                    background: parsedAmount === totalOpen ? '#15803d' : '#f1f5f9',
+                                    color: parsedAmount === totalOpen ? '#ffffff' : '#1e293b',
+                                    border: parsedAmount === totalOpen ? '1px solid #15803d' : '1px solid #e2e8f0',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                ૧૦૦% Full (₹{number(totalOpen)})
+                            </button>
+                            <button
+                                type="button"
+                                className="secondary"
+                                onClick={() => handlePreset(0.5)}
+                                style={{
+                                    padding: '6px 12px',
+                                    fontSize: '11.5px',
+                                    fontWeight: 700,
+                                    borderRadius: '8px',
+                                    background: '#f8fafc',
+                                    border: '1px solid #e2e8f0',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                ૫૦% Half (₹{number(totalOpen / 2)})
+                            </button>
+                            <button
+                                type="button"
+                                className="secondary"
+                                onClick={() => handlePreset(0.25)}
+                                style={{
+                                    padding: '6px 12px',
+                                    fontSize: '11.5px',
+                                    fontWeight: 700,
+                                    borderRadius: '8px',
+                                    background: '#f8fafc',
+                                    border: '1px solid #e2e8f0',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                ૨૫% (₹{number(totalOpen / 4)})
+                            </button>
+                        </div>
                     </div>
+
+                    <div className="form-grid two">
+                        <Field label="Payment date (ચૂકવણી તારીખ)">
+                            <input type="date" max={today()} value={settledOn} onChange={e => setSettledOn(e.target.value)} required/>
+                        </Field>
+                        <Field label="Amount to settle (ચૂકવવાની રકમ ₹)">
+                            <input
+                                type="number"
+                                min="0.01"
+                                max={totalOpen}
+                                step="0.01"
+                                inputMode="decimal"
+                                value={amount}
+                                onChange={e => setAmount(e.target.value)}
+                                style={{fontSize: '15px', fontWeight: 800, color: '#0f172a'}}
+                                required
+                            />
+                        </Field>
+                    </div>
+
+                    <div className="form-grid two">
+                        <Field label="Payment mode (ચૂકવણી પદ્ધતિ)">
+                            <select value={paymentMode} onChange={e => setPaymentMode(e.target.value)}>
+                                <option value="bank_transfer">Bank Transfer / NEFT / RTGS</option>
+                                <option value="cash">Cash (રોકડ)</option>
+                                <option value="upi">UPI / GPay / PhonePe</option>
+                                <option value="cheque">Cheque</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </Field>
+                        <Field label="Settlement status (સેટલમેન્ટ સ્થિતિ)">
+                            <input
+                                type="text"
+                                value={settlementType === 'full' ? '૧૦૦% Full Settlement (ખાતું ક્લિયર)' : `Partial (બાકી ₹${number(remainingBalance)})`}
+                                disabled
+                                style={{fontWeight: 750, color: settlementType === 'full' ? '#15803d' : '#b45309'}}
+                            />
+                        </Field>
+                    </div>
+
+                    <Field label="Reference / Notes (વિગત / UTR ટ્રાન્ઝેક્શન નંબર)">
+                        <textarea rows="2" value={notes} onChange={e => setNotes(e.target.value)} placeholder="દા.ત. ICICI Bank UTR #123456 / ચેક નંબર..."/>
+                    </Field>
+
+                    {/* Remaining Balance Indicator */}
+                    <div style={{background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px'}}>
+                        <span style={{color: '#64748b', fontWeight: 600}}>ચૂકવણી બાદ બાકી રહેતું બેલેન્સ:</span>
+                        <b style={{fontSize: '14px', color: remainingBalance > 0 ? '#b91c1c' : '#15803d', fontWeight: 800}}>
+                            {remainingBalance > 0 ? `₹${number(remainingBalance)}` : '₹0.00 (સંપૂર્ણ ક્લિયર)'}
+                        </b>
+                    </div>
+
+                    {error && <div className="error">{error}</div>}
                 </div>
 
-                <div className="form-grid two">
-                    <Field label="Payment date (તારીખ)">
-                        <input type="date" max={today()} value={settledOn} onChange={e => setSettledOn(e.target.value)} required/>
-                    </Field>
-                    <Field label="Amount to settle (ચૂકવવાની રકમ ₹)">
-                        <input
-                            type="number"
-                            min="0.01"
-                            max={totalOpen}
-                            step="0.01"
-                            inputMode="decimal"
-                            value={amount}
-                            onChange={e => setAmount(e.target.value)}
-                            required
-                        />
-                    </Field>
-                </div>
-
-                <div className="form-grid two" style={{marginTop: '10px'}}>
-                    <Field label="Payment mode (ચૂકવણી પદ્ધતિ)">
-                        <select value={paymentMode} onChange={e => setPaymentMode(e.target.value)}>
-                            <option value="bank_transfer">Bank Transfer / NEFT / RTGS</option>
-                            <option value="cash">Cash (રોકડ)</option>
-                            <option value="upi">UPI / GPay / PhonePe</option>
-                            <option value="cheque">Cheque</option>
-                            <option value="other">Other</option>
-                        </select>
-                    </Field>
-                    <Field label="Settlement status">
-                        <input
-                            type="text"
-                            value={settlementType === 'full' ? '૧૦૦% Full Settlement (ખાતું ક્લિયર)' : `Partial (બાકી ₹${number(remainingBalance)})`}
-                            disabled
-                            style={{fontWeight: 700, color: settlementType === 'full' ? '#15803d' : '#b45309'}}
-                        />
-                    </Field>
-                </div>
-
-                <Field label="Reference / Notes (વિગત અથવા ટ્રાન્ઝેક્શન નંબર)">
-                    <textarea rows="2" value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. Paid via ICICI Bank UTR #123456"/>
-                </Field>
-
-                {/* Remaining Balance Indicator */}
-                <div style={{background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', fontSize: '12px'}}>
-                    <span style={{color: '#64748b'}}>ચૂકવણી બાદ બાકી રહેતું બેલેન્સ:</span>
-                    <b style={{fontSize: '14px', color: remainingBalance > 0 ? '#b91c1c' : '#15803d'}}>
-                        {remainingBalance > 0 ? `₹${number(remainingBalance)}` : '₹0.00 (સંપૂર્ણ ક્લિયર)'}
-                    </b>
-                </div>
-
-                {error && <div className="error" style={{marginTop: '10px'}}>{error}</div>}
-
-                <div className="modal-sticky-footer" style={{marginTop: '16px'}}>
+                <div className="modal-sticky-footer">
                     <button type="button" className="secondary modal-cancel-btn" onClick={onClose}>
                         Cancel (રદ કરો)
                     </button>
