@@ -15,7 +15,7 @@ class WeatherService
      */
     public function getWeather(float $latitude = 22.201360, float $longitude = 71.494960, string $locationName = 'Sarva, Botad'): array
     {
-        $cacheKey = "solar_weather_{$latitude}_{$longitude}_v3";
+        $cacheKey = "solar_weather_{$latitude}_{$longitude}_v4";
 
         return Cache::remember($cacheKey, 300, function () use ($latitude, $longitude, $locationName) {
             try {
@@ -23,7 +23,7 @@ class WeatherService
                 $response = Http::timeout(8)->get($url, [
                     'latitude' => $latitude,
                     'longitude' => $longitude,
-                    'current' => 'temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_gusts_10m,precipitation',
+                    'current' => 'temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_gusts_10m,precipitation,shortwave_radiation_instant',
                     'hourly' => 'precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,shortwave_radiation_instant,temperature_2m',
                     'forecast_days' => 2,
                     'timezone' => 'Asia/Kolkata',
@@ -46,6 +46,8 @@ class WeatherService
 
                 $now = Carbon::now();
                 $currentHourInt = (int) $now->format('H');
+                $currentMinInt = (int) $now->format('i');
+                $currentHourFloat = (float) $currentHourInt + ($currentMinInt / 60.0);
                 $isCurrentlyRaining = $precipMm > 0.1 || in_array($weatherCode, [51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99]);
 
                 // 1. Rain Analysis (Live & Advance)
@@ -57,18 +59,20 @@ class WeatherService
                 $hourlyTemps = $hourly['temperature_2m'] ?? [];
 
                 if ($isCurrentlyRaining) {
-                    $stopHourIndex = null;
-                    for ($i = 1; $i < min(24, count($precipMmList)); $i++) {
-                        $pMm = $precipMmList[$i] ?? 0.0;
-                        $pProb = $precipProbList[$i] ?? 0;
+                    $stopHourOffset = null;
+                    $maxLook = min(24, count($precipMmList) - $currentHourInt);
+                    for ($i = 1; $i < $maxLook; $i++) {
+                        $idx = $currentHourInt + $i;
+                        $pMm = $precipMmList[$idx] ?? 0.0;
+                        $pProb = $precipProbList[$idx] ?? 0;
                         if ($pMm < 0.1 && $pProb < 30) {
-                            $stopHourIndex = $i;
+                            $stopHourOffset = $i;
                             break;
                         }
                     }
 
-                    $stopTimeStr = $stopHourIndex !== null
-                        ? $now->copy()->addHours($stopHourIndex)->format('h:i A')
+                    $stopTimeStr = $stopHourOffset !== null
+                        ? $now->copy()->addHours($stopHourOffset)->format('h:i A')
                         : $now->copy()->addHours(2)->format('h:i A');
 
                     $rainAlert = [
@@ -81,9 +85,11 @@ class WeatherService
                         'message' => "તમારા પ્લાન્ટ પર અત્યારે વરસાદ ચાલુ છે. અંદાજે {$stopTimeStr} વાગ્યા સુધીમાં વરસાદ રોકાવાની સંભાવના છે.",
                     ];
                 } else {
-                    for ($i = 1; $i < min(12, count($precipProbList)); $i++) {
-                        $prob = $precipProbList[$i] ?? 0;
-                        $code = $hourlyCodes[$i] ?? 0;
+                    $maxLook = min(12, count($precipProbList) - $currentHourInt);
+                    for ($i = 1; $i < $maxLook; $i++) {
+                        $idx = $currentHourInt + $i;
+                        $prob = $precipProbList[$idx] ?? 0;
+                        $code = $hourlyCodes[$idx] ?? 0;
                         $isRainCode = in_array($code, [51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99]);
 
                         if ($prob >= 35 || $isRainCode) {
@@ -123,12 +129,14 @@ class WeatherService
                 // 3. Smart Plate Washing Recommendation (આગામી 48 કલાક વેધર આધારિત સલાહ)
                 $next48hRainMaxProb = 0;
                 $rainHoursAhead = null;
-                for ($i = 0; $i < min(48, count($precipProbList)); $i++) {
-                    $prob = $precipProbList[$i] ?? 0;
+                $lookahead48 = min(48, count($precipProbList) - $currentHourInt);
+                for ($i = 0; $i < $lookahead48; $i++) {
+                    $idx = $currentHourInt + $i;
+                    $prob = $precipProbList[$idx] ?? 0;
                     if ($prob > $next48hRainMaxProb) {
                         $next48hRainMaxProb = $prob;
                     }
-                    if ($prob >= 40 && $rainHoursAhead === null) {
+                    if ($prob >= 40 && $rainHoursAhead === null && $i > 0) {
                         $rainHoursAhead = $i;
                     }
                 }
@@ -164,8 +172,30 @@ class WeatherService
                 }
 
                 // 4. Solar Irradiance & Temperature Heat Loss Analysis
-                $radiationNow = (float) ($hourlyRadiation[0] ?? 750.0);
-                $radiationNext = (float) ($hourlyRadiation[1] ?? 700.0);
+                // Check live current shortwave radiation first
+                $currentRadRaw = $current['shortwave_radiation_instant'] ?? null;
+                if ($currentRadRaw !== null && is_numeric($currentRadRaw) && (float) $currentRadRaw > 0) {
+                    $radiationNow = (float) $currentRadRaw;
+                } elseif (isset($hourlyRadiation[$currentHourInt]) && (float) $hourlyRadiation[$currentHourInt] > 0) {
+                    $radiationNow = (float) $hourlyRadiation[$currentHourInt];
+                } elseif ($currentHourFloat >= 6.0 && $currentHourFloat <= 18.5) {
+                    // Accurate solar elevation bell-curve calculation
+                    $sunFactor = sin(deg2rad(max(0, min(180, ($currentHourFloat - 6.0) / 12.5 * 180))));
+                    $radiationNow = round($sunFactor * 890.0, 1);
+                } else {
+                    $radiationNow = 0.0;
+                }
+
+                // Next hour radiation estimate
+                $nextHourInt = $currentHourInt + 1;
+                if (isset($hourlyRadiation[$nextHourInt]) && (float) $hourlyRadiation[$nextHourInt] > 0) {
+                    $radiationNext = (float) $hourlyRadiation[$nextHourInt];
+                } elseif ($nextHourInt >= 6 && $nextHourInt <= 18) {
+                    $sunFactor = sin(deg2rad(max(0, min(180, ($nextHourInt - 6.0) / 12.5 * 180))));
+                    $radiationNext = round($sunFactor * 840.0, 1);
+                } else {
+                    $radiationNext = 0.0;
+                }
 
                 // Cell Temperature Estimate: T_cell = T_amb + (Irradiance / 800) * 28°C
                 $cellTempC = round($tempC + ($radiationNow / 800.0) * 28.0, 1);
@@ -181,22 +211,18 @@ class WeatherService
                     'description' => "પેનલ સેલ તાપમાન ~{$cellTempC}°C છે, જેથી ગરમીના લીધે અંદાજે {$heatLossPct}% પાવર લોસ થાય છે.",
                 ];
 
-                // 5. Hourly Radiation Profile for Today (Daylight 06:00 to 18:30)
+                // 5. Hourly Daylight Profile for Today (06:00 to 18:00)
                 $hourlyDaylightProfile = [];
                 for ($h = 6; $h <= 18; $h++) {
-                    $indexOffset = $h - $currentHourInt;
-                    $rad = 0;
-                    if ($indexOffset >= 0 && isset($hourlyRadiation[$indexOffset])) {
-                        $rad = max(0, (float) $hourlyRadiation[$indexOffset]);
-                    } elseif ($indexOffset < 0) {
-                        // Past hour estimation for curve continuity
-                        $sunFactor = sin(deg2rad(max(0, min(180, ($h - 6) * 15))));
-                        $rad = round($sunFactor * 850, 0);
+                    $rad = isset($hourlyRadiation[$h]) ? (float) $hourlyRadiation[$h] : 0.0;
+                    if ($rad <= 10.0 && $h >= 7 && $h <= 17) {
+                        $sunFactor = sin(deg2rad(max(0, min(180, ($h - 6.0) / 12.0 * 180))));
+                        $rad = round($sunFactor * 860.0, 0);
                     }
                     $hourlyDaylightProfile[$h] = [
                         'hour' => $h,
                         'time_label' => Carbon::createFromTime($h, 0)->format('h A'),
-                        'radiation_w_m2' => round($rad, 0),
+                        'radiation_w_m2' => round(max(0, $rad), 0),
                     ];
                 }
 
