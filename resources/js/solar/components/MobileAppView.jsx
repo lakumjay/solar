@@ -35,6 +35,9 @@ import {
     Users,
     Volume2,
     WalletCards,
+    Wind,
+    Thermometer,
+    Droplets,
     X,
     Zap,
     Camera
@@ -549,7 +552,7 @@ export default function MobileAppView({
                             )}
                         </div>
 
-                        {/* Dual Row for EOD & Solar Irradiance */}
+                        {/* Dual Row for EOD & Solar Irradiance & Heat Loss */}
                         <div className="mob-pred-duo-grid">
                             <div className="mob-pred-mini-card">
                                 <div className="mob-pred-mini-left">
@@ -557,7 +560,7 @@ export default function MobileAppView({
                                         <TrendingUp size={15}/>
                                     </div>
                                     <div className="mob-pred-titles">
-                                        <small className="mob-pred-kicker">EOD ESTIMATE</small>
+                                        <small className="mob-pred-kicker">EOD ESTIMATE (BELL-CURVE)</small>
                                         <strong className="mob-pred-heading">
                                             Sunset ({predictions.eod_target_time ? predictions.eod_target_time.replace(' (Sunset)', '') : '06:30 PM'})
                                         </strong>
@@ -584,7 +587,48 @@ export default function MobileAppView({
                                     <span className="mob-pred-unit">W/m²</span>
                                 </div>
                             </div>
+
+                            {/* Heat Loss Card in Mobile */}
+                            {predictions.heat_loss_pct !== undefined && (
+                                <div className="mob-pred-mini-card mob-pred-full-width">
+                                    <div className="mob-pred-mini-left">
+                                        <div className="mob-pred-icon-box red" style={{background: '#fee2e2', color: '#dc2626'}}>
+                                            <Thermometer size={15}/>
+                                        </div>
+                                        <div className="mob-pred-titles">
+                                            <small className="mob-pred-kicker">HEAT EFFICIENCY LOSS</small>
+                                            <strong className="mob-pred-heading">Cell Temp: ~{weather.heat_loss?.cell_temp_c || 50}°C</strong>
+                                        </div>
+                                    </div>
+                                    <div className="mob-pred-val-badge" style={{color: '#dc2626'}}>
+                                        <span className="mob-pred-num">-{predictions.heat_loss_pct}%</span>
+                                        <span className="mob-pred-unit">({predictions.heat_loss_kw || 0} kW)</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
+
+                        {/* 📊 Hourly Generation Forecast Timeline (Horizon Bar for Mobile) */}
+                        {predictions.hourly_forecast && predictions.hourly_forecast.length > 0 && (
+                            <div className="hourly-forecast-strip" style={{marginTop: '10px'}}>
+                                <div className="hourly-forecast-head">
+                                    <div className="hourly-forecast-title">
+                                        <Sparkles size={13} style={{color: '#0284c7'}}/>
+                                        <b>કલાકવાર ઉત્પાદન અંદાજ (Hourly Forecast)</b>
+                                    </div>
+                                    <span className="hourly-forecast-sub">સાંજ સુધી</span>
+                                </div>
+                                <div className="hourly-forecast-pills-row">
+                                    {predictions.hourly_forecast.map((hf, hIdx) => (
+                                        <div key={hIdx} className={`hourly-pred-card ${hf.status === 'current' ? 'is-current' : ''}`}>
+                                            <span className="hourly-card-time">{hf.hour}</span>
+                                            <b className="hourly-card-kwh">{hf.kwh} <small>kWh</small></b>
+                                            <span className="hourly-card-rad">☀️ {hf.irradiance} W/m²</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* 4. GUJARATI CLEANING & WEATHER ALERTS SECTION */}
@@ -608,35 +652,31 @@ export default function MobileAppView({
 
                         {/* 🚨 Severe High Wind Storm Damage Warning Alert Banner */}
                         {weather.storm_alert && weather.storm_alert.active && (
-                            <div style={{
-                                background: '#fef2f2',
-                                border: '2px solid #ef4444',
-                                borderRadius: '10px',
-                                padding: '10px 14px',
-                                marginBottom: '10px',
-                                boxShadow: '0 4px 14px rgba(239, 68, 68, 0.15)',
-                            }}>
-                                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', flexWrap: 'wrap', gap: '4px'}}>
-                                    <span style={{
-                                        background: '#dc2626',
-                                        color: '#ffffff',
-                                        fontSize: '11px',
-                                        fontWeight: 800,
-                                        padding: '3px 8px',
-                                        borderRadius: '6px',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '5px'
-                                    }}>
-                                        🚨 વાવાઝોડું & પવન ચેતવણી
+                            <div className="weather-storm-banner" style={{marginBottom: '8px'}}>
+                                <div className="weather-storm-head">
+                                    <span className="weather-storm-tag">
+                                        <Wind size={13}/> 🚨 તેજ પવન એલર્ટ (Wind Storm)
                                     </span>
-                                    <span style={{fontSize: '11.5px', fontWeight: 800, color: '#991b1b'}}>
-                                        પવન: {weather.storm_alert.wind_speed}
+                                    <span className="weather-storm-speed">
+                                        {weather.storm_alert.wind_speed} (ઝાટકા: {weather.storm_alert.wind_gusts})
                                     </span>
                                 </div>
-                                <p style={{margin: '4px 0 0', fontSize: '12px', color: '#7f1d1d', fontWeight: 600, lineHeight: 1.4}}>
+                                <p className="weather-storm-msg">
                                     {weather.storm_alert.message}
                                 </p>
+                            </div>
+                        )}
+
+                        {/* 🚿 Smart Plate Washing Advice Banner in Mobile */}
+                        {cleaningSystem.washing_advice && (
+                            <div className={`smart-washing-banner ${cleaningSystem.washing_advice.theme}`} style={{marginBottom: '8px'}}>
+                                <div className="smart-washing-left">
+                                    <span className="smart-washing-badge">{cleaningSystem.washing_advice.badge}</span>
+                                    <div className="smart-washing-text">
+                                        <b>{cleaningSystem.washing_advice.title}:</b> <span>{cleaningSystem.washing_advice.message}</span>
+                                    </div>
+                                </div>
+                                <Droplets size={18} className="smart-washing-icon"/>
                             </div>
                         )}
 

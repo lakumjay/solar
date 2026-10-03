@@ -5457,6 +5457,207 @@
     }
 }
 
+/* ── 5 Weather & Smart Prediction Enhancements ── */
 
+/* 1. Storm & High Wind Safety Alert Banner */
+.weather-storm-banner {
+    background: #fef2f2;
+    border: 2px solid #ef4444;
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.15);
+    animation: storm-pulse 2s infinite ease-in-out;
+}
 
+@keyframes storm-pulse {
+    0%, 100% { border-color: #ef4444; }
+    50% { border-color: #b91c1c; }
+}
 
+.weather-storm-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.weather-storm-tag {
+    background: #dc2626;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.weather-storm-speed {
+    font-size: 12px;
+    font-weight: 800;
+    color: #991b1b;
+}
+
+.weather-storm-msg {
+    margin: 4px 0 0;
+    font-size: 12.5px;
+    color: #7f1d1d;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+/* 2. Smart Plate Washing Advice Banner */
+.smart-washing-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 11px 16px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    gap: 12px;
+    border: 1.5px solid transparent;
+}
+
+.smart-washing-banner.success {
+    background: #f0fdf4;
+    border-color: #86efac;
+    color: #166534;
+}
+
+.smart-washing-banner.warning {
+    background: #fffbeb;
+    border-color: #fde68a;
+    color: #92400e;
+}
+
+.smart-washing-banner.info {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    color: #1e40af;
+}
+
+.smart-washing-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.smart-washing-badge {
+    font-size: 11px;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.85);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.smart-washing-text {
+    font-size: 12.5px;
+    line-height: 1.4;
+}
+
+.smart-washing-text b {
+    font-weight: 800;
+}
+
+.smart-washing-icon {
+    flex-shrink: 0;
+    opacity: 0.85;
+}
+
+/* 3. Hourly Generation Forecast Timeline Strip */
+.hourly-forecast-strip {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin-top: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.hourly-forecast-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.hourly-forecast-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 750;
+    color: #0f172a;
+}
+
+.hourly-forecast-sub {
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.hourly-forecast-pills-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(85px, 1fr));
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+.hourly-pred-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    text-align: center;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.hourly-pred-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.06);
+}
+
+.hourly-pred-card.is-current {
+    background: #f0fdf4;
+    border-color: #86efac;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+}
+
+.hourly-card-time {
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+}
+
+.hourly-card-kwh {
+    font-size: 13.5px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.hourly-card-kwh small {
+    font-size: 9.5px;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.hourly-card-rad {
+    font-size: 10px;
+    font-weight: 700;
+    color: #d97706;
+}
+
+.mob-pred-full-width {
+    grid-column: 1 / -1 !important;
+}

@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {AlertTriangle, Bell, CheckCircle, ChevronDown, ChevronUp, Cloud, CloudLightning, CloudRain, Crosshair, DollarSign, Factory, Home, MapPin, RefreshCw, Sun, TrendingUp, X, Zap} from 'lucide-react';
+import {AlertTriangle, Bell, CheckCircle, ChevronDown, ChevronUp, Cloud, CloudLightning, CloudRain, Crosshair, DollarSign, Droplets, Factory, Home, MapPin, RefreshCw, Sparkles, Sun, Thermometer, TrendingUp, Wind, X, Zap} from 'lucide-react';
 import {api} from '../api';
 import {Loading} from '../components/Common';
 import ISolarCloudVisualizer from '../components/ISolarCloudVisualizer';
@@ -307,33 +307,16 @@ export default function DashboardPage({companyId, currentUser}) {
 
                 {/* 🚨 Severe High Wind Storm Damage Warning Alert Banner */}
                 {weather.storm_alert && weather.storm_alert.active && (
-                    <div style={{
-                        background: '#fef2f2',
-                        border: '2px solid #ef4444',
-                        borderRadius: '10px',
-                        padding: '12px 16px',
-                        marginBottom: '10px',
-                        boxShadow: '0 4px 14px rgba(239, 68, 68, 0.15)',
-                    }}>
-                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px'}}>
-                            <span style={{
-                                background: '#dc2626',
-                                color: '#ffffff',
-                                fontSize: '11px',
-                                fontWeight: 800,
-                                padding: '3px 8px',
-                                borderRadius: '6px',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '5px'
-                            }}>
-                                🚨 વાવાઝોડું & પવન ડેમેજ ચેતવણી (Storm Damage Alert)
+                    <div className="weather-storm-banner">
+                        <div className="weather-storm-head">
+                            <span className="weather-storm-tag">
+                                <Wind size={13}/> 🚨 તેજ પવન & વાવાઝોડું એલર્ટ (Wind Damage Warning)
                             </span>
-                            <span style={{fontSize: '12px', fontWeight: 800, color: '#991b1b'}}>
-                                પવનની ઝડપ: {weather.storm_alert.wind_speed} (ઝાટકા: {weather.storm_alert.wind_gusts})
+                            <span className="weather-storm-speed">
+                                ઝડપ: {weather.storm_alert.wind_speed} (ઝાટકા: {weather.storm_alert.wind_gusts})
                             </span>
                         </div>
-                        <p style={{margin: '4px 0 0', fontSize: '12.5px', color: '#7f1d1d', fontWeight: 600, lineHeight: 1.4}}>
+                        <p className="weather-storm-msg">
                             {weather.storm_alert.message}
                         </p>
                     </div>
@@ -362,6 +345,19 @@ export default function DashboardPage({companyId, currentUser}) {
                             <span>રોકાવાનો અંદાજ (Stop Time): <b>{rainAlert.stop_time}</b></span>
                             <span>શક્યતા: <b>{rainAlert.probability}%</b></span>
                         </div>
+                    </div>
+                )}
+
+                {/* 🚿 Smart Plate Washing Advice Banner (48h Weather Forecast Recommendation) */}
+                {cleaningSystem.washing_advice && (
+                    <div className={`smart-washing-banner ${cleaningSystem.washing_advice.theme}`}>
+                        <div className="smart-washing-left">
+                            <span className="smart-washing-badge">{cleaningSystem.washing_advice.badge}</span>
+                            <div className="smart-washing-text">
+                                <b>{cleaningSystem.washing_advice.title}:</b> <span>{cleaningSystem.washing_advice.message}</span>
+                            </div>
+                        </div>
+                        <Droplets size={18} className="smart-washing-icon"/>
                     </div>
                 )}
 
@@ -402,7 +398,7 @@ export default function DashboardPage({companyId, currentUser}) {
 
             {/* 2. SECOND: Live Solar Generation & Real-Time Flow */}
             
-            {/* Generation Predictions Row (Upcoming 1 Hour & End-Of-Day Total & Irradiance) */}
+            {/* Generation Predictions Row (Upcoming 1 Hour & Accurate EOD Total & Irradiance & Heat Loss) */}
             <div className="prediction-chips-row">
                 <div className="prediction-chip prediction-chip-full">
                     <div className="prediction-chip-header">
@@ -439,7 +435,7 @@ export default function DashboardPage({companyId, currentUser}) {
                             <TrendingUp size={15}/>
                         </div>
                         <div className="prediction-chip-text">
-                            <small>EOD ESTIMATE</small>
+                            <small>EOD ESTIMATE (ACCURATE BELL-CURVE)</small>
                             <b>Sunset ({predictions.eod_target_time ? predictions.eod_target_time.replace(' (Sunset)', '') : '06:30 PM'})</b>
                         </div>
                     </div>
@@ -462,7 +458,48 @@ export default function DashboardPage({companyId, currentUser}) {
                         {predictions.irradiance_w_m2 !== undefined && predictions.irradiance_w_m2 !== null ? predictions.irradiance_w_m2 : 0} <span>W/m²</span>
                     </div>
                 </div>
+
+                {/* 🌡️ Temperature & Heat Loss Prediction Chip */}
+                {predictions.heat_loss_pct !== undefined && (
+                    <div className="prediction-chip">
+                        <div className="prediction-chip-left">
+                            <div className="prediction-chip-icon" style={{background: '#fee2e2', color: '#dc2626'}}>
+                                <Thermometer size={15}/>
+                            </div>
+                            <div className="prediction-chip-text">
+                                <small>HEAT EFFICIENCY LOSS</small>
+                                <b>Cell Temp: ~{weather.heat_loss?.cell_temp_c || 50}°C</b>
+                            </div>
+                        </div>
+                        <div className="prediction-chip-val" style={{color: '#dc2626'}}>
+                            -{predictions.heat_loss_pct}% <span>({predictions.heat_loss_kw || 0} kW)</span>
+                        </div>
+                    </div>
+                )}
             </div>
+
+            {/* 📊 Hourly Generation Forecast Timeline (Horizon Bar for Today's Remaining Sun Hours) */}
+            {predictions.hourly_forecast && predictions.hourly_forecast.length > 0 && (
+                <div className="hourly-forecast-strip">
+                    <div className="hourly-forecast-head">
+                        <div className="hourly-forecast-title">
+                            <Sparkles size={14} style={{color: '#0284c7'}}/>
+                            <b>કલાકવાર ઉત્પાદન અંદાજ (Hourly Generation Forecast)</b>
+                        </div>
+                        <span className="hourly-forecast-sub">સૂર્યાસ્ત સુધીનું અનુમાન</span>
+                    </div>
+                    <div className="hourly-forecast-pills-row">
+                        {predictions.hourly_forecast.map((hf, hIdx) => (
+                            <div key={hIdx} className={`hourly-pred-card ${hf.status === 'current' ? 'is-current' : ''}`}>
+                                <span className="hourly-card-time">{hf.hour}</span>
+                                <b className="hourly-card-kwh">{hf.kwh} <small>kWh</small></b>
+                                <span className="hourly-card-rad">☀️ {hf.irradiance} W/m²</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
 
             {/* Main iSolarCloud Real-Time Flow Visualizer Card (3D Isometric Animation matching official app) */}
             <ISolarCloudVisualizer data={data} weather={weather} isEmployee={isEmployee} />

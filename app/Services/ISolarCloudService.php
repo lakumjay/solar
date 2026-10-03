@@ -551,7 +551,6 @@ class ISolarCloudService
         $realtimePowerMw = round($totalLiveKw / 1000, 2);
         $totalRevenueRs = round($totalTodayKwh * $unitRate, 2);
 
-        // Predictions:
         // 1. Next 1 hour generation prediction (kWh):
         $irradianceNext = (float) ($weatherData['solar_irradiance_next'] ?? 700);
         $irradianceFactor = $irradianceNow > 50 ? min(1.3, max(0.2, $irradianceNext / $irradianceNow)) : 0.8;
@@ -572,18 +571,63 @@ class ISolarCloudService
         }
         unset($cData);
 
-        // 2. End-of-Day (EOD) predicted total units (kWh):
-        $remainingSunHours = max(0, 18.5 - $currentHour);
-        if ($remainingSunHours > 0 && $currentHour >= 6.0) {
-            $avgRemainingPowerKw = $totalLiveKw * ($remainingSunHours / 12.0) * ($weatherData['type'] === 'rain' ? 0.35 : ($weatherData['type'] === 'cloudy' ? 0.65 : 0.90));
-            $estimatedRemainingKwh = $avgRemainingPowerKw * $remainingSunHours;
-            $predictedEodKwh = round($totalTodayKwh + $estimatedRemainingKwh, 2);
+        // 2. Solar Radiation Bell-Curve Model for Accurate End-of-Day (EOD) Total Units
+        $now = Carbon::now();
+        $nowHour = (int) $now->format('H');
+        $currentHourFloat = (float) $nowHour + ((float) $now->format('i') / 60.0);
+        $remainingSunHours = max(0, 18.5 - $currentHourFloat);
+
+        $activeKw = max(0, $totalLiveKw);
+        $kwPerIrradiance = ($irradianceNow > 80) ? ($activeKw / $irradianceNow) : (max(1, $totalOnline) * 250.0 / 800.0);
+        $kwPerIrradiance = max(0.5, min(3.8, $kwPerIrradiance));
+
+        $remainingHoursProfile = [];
+        $totalRemainingPredictedKwh = 0.0;
+        $daylightProfile = $weatherData['hourly_daylight_profile'] ?? [];
+        $wFactor = ($weatherData['type'] === 'rain' ? 0.35 : ($weatherData['type'] === 'cloudy' ? 0.65 : 0.95));
+
+        if ($currentHourFloat < 18.5 && $currentHourFloat >= 6.0) {
+            for ($h = $nowHour; $h <= 18; $h++) {
+                $rad = isset($daylightProfile[$h]['radiation_w_m2']) ? (float) $daylightProfile[$h]['radiation_w_m2'] : 0.0;
+                if ($rad <= 10) {
+                    $sunAngleFactor = sin(deg2rad(max(0, min(180, ($h - 6) * 15))));
+                    $rad = max(0, round($sunAngleFactor * 850, 0));
+                }
+
+                $estHourKw = min(3000.0, $rad * $kwPerIrradiance * $wFactor);
+
+                if ($h === $nowHour) {
+                    $minLeft = max(0, 60 - (int) $now->format('i'));
+                    $frac = $minLeft / 60.0;
+                    $thisHourRemainingKwh = round($activeKw * $frac, 1);
+                    $totalRemainingPredictedKwh += $thisHourRemainingKwh;
+                    $remainingHoursProfile[] = [
+                        'hour' => Carbon::createFromTime($h, 0)->format('h A'),
+                        'kwh' => $thisHourRemainingKwh,
+                        'irradiance' => (int) $rad,
+                        'status' => 'current',
+                    ];
+                } else {
+                    $estKwh = round($estHourKw, 1);
+                    $totalRemainingPredictedKwh += $estKwh;
+                    $remainingHoursProfile[] = [
+                        'hour' => Carbon::createFromTime($h, 0)->format('h A'),
+                        'kwh' => $estKwh,
+                        'irradiance' => (int) $rad,
+                        'status' => 'upcoming',
+                    ];
+                }
+            }
+            $predictedEodKwh = round($totalTodayKwh + $totalRemainingPredictedKwh, 2);
         } else {
             $predictedEodKwh = $totalTodayKwh;
         }
 
+        // Heat loss live power calculation
+        $heatLossPct = (float) ($weatherData['heat_loss']['heat_loss_pct'] ?? 0.0);
+        $heatLossKw = $activeKw > 0 ? round($activeKw * ($heatLossPct / 100.0), 1) : 0.0;
+
         // Time windows for predictions:
-        $now = Carbon::now();
         $nextHour = $now->copy()->addHour();
         $startTimeStr = $now->format('h:i A');
         $endTimeStr = $nextHour->format('h:i A');
@@ -614,6 +658,9 @@ class ISolarCloudService
                 'irradiance_w_m2' => round($irradianceNow, 0),
                 'sun_hours_left' => round($remainingSunHours, 1),
                 'companies' => $companyPredictions,
+                'hourly_forecast' => $remainingHoursProfile,
+                'heat_loss_kw' => $heatLossKw,
+                'heat_loss_pct' => $heatLossPct,
             ],
             'cleaning_system' => [
                 'is_window_active' => $isSoilingWindowActive,
@@ -623,6 +670,7 @@ class ISolarCloudService
                 'is_irradiance_sufficient' => $isIrradianceSufficient,
                 'alerts_count' => count($allCleaningAlerts),
                 'alerts' => $allCleaningAlerts,
+                'washing_advice' => $weatherData['washing_advice'] ?? null,
             ],
             'realtime_power_mw' => number_format($realtimePowerMw, 2, '.', ''),
             'realtime_power_kw' => number_format($totalLiveKw, 2, '.', ''),
