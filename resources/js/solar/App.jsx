@@ -67,6 +67,30 @@ export default function App() {
         if (user?.id) window.localStorage.setItem(`solarflow.activePage.${user.id}`, page);
     }, [page, user?.id]);
 
+    // Global keyboard typing sound for app-like feel
+    useEffect(() => {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const playClick = () => {
+            try {
+                const oscillator = ctx.createOscillator();
+                const gainNode = ctx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(ctx.destination);
+                oscillator.frequency.setValueAtTime(1200, ctx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.03);
+                gainNode.gain.setValueAtTime(0.06, ctx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+                oscillator.start(ctx.currentTime);
+                oscillator.stop(ctx.currentTime + 0.04);
+            } catch (_) {}
+        };
+        const handler = (e) => {
+            if (e.target.matches('input, textarea, select')) playClick();
+        };
+        document.addEventListener('keydown', handler);
+        return () => document.removeEventListener('keydown', handler);
+    }, []);
+
     if (user === undefined) return <div className="app-loading"><Sun className="spin"/> Loading SolarFlow…</div>;
     if (!user) return <LoginPage onLogin={async current => {const preferredPage = window.localStorage.getItem(`solarflow.activePage.${current.id}`) || 'dashboard'; setUser(current); setPage(preferredPage); await loadCompanies(current, preferredPage);}}/>;
 

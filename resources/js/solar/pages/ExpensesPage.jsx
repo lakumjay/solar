@@ -3,7 +3,7 @@ import {ArrowRight, CheckCircle2, Clock, FileSpreadsheet, FileText, HandCoins, H
 import {api} from '../api';
 import {Empty, Field, Loading, Metric} from '../components/Common';
 import {monthStart, today} from '../config';
-import {number, shortDate} from '../format';
+import {number, indianAmount, shortDate} from '../format';
 
 export default function ExpensesPage({currentUser}) {
     const [from, setFrom] = useState(monthStart());
@@ -435,7 +435,11 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
     const [receipt, setReceipt] = useState(null);
     const [removeReceipt, setRemoveReceipt] = useState(false);
 
-    // 1. Allocation Scope (ખર્ચ કોના માટે છે)
+    // Step state: 1=Info, 2=Beneficiary, 3=Payer, 4=Preview/Confirm
+    const [step, setStep] = useState(1);
+    const TOTAL_STEPS = entry ? 3 : 4; // Edit mode has 3 steps (no confirm step shown differently)
+
+    // 1. Allocation Scope
     const initialScope = entry?.allocation_scope || 'all';
     const [allocationScope, setAllocationScope] = useState(initialScope);
     const [selectedBeneficiaries, setSelectedBeneficiaries] = useState(() => {
@@ -452,14 +456,12 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
         return String(companies[0]?.id || '');
     });
 
-    // 2. Paying Company Mode (Single Payer vs Multi-Payer Split)
+    // 2. Paying Company Mode
     const [payerMode, setPayerMode] = useState(() => {
         if (entry?.payers && entry.payers.length > 1) return 'multiple';
         return 'single';
     });
     const [singlePayerId, setSinglePayerId] = useState(String(entry?.payer_company?.id || companies[0]?.id || ''));
-    
-    // Multiple payers state: map of { [companyId]: amountPaid }
     const [payerAmounts, setPayerAmounts] = useState(() => {
         const init = {};
         companies.forEach(c => {
@@ -480,21 +482,17 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
 
     const parsedAmount = Number(amount) || 0;
 
-    // Toggle Beneficiary Checkbox for 2-company mode
     const toggleBeneficiary = (cid) => {
         setSelectedBeneficiaries(prev => {
             if (prev.includes(cid)) {
-                if (prev.length <= 1) return prev; // keep at least 1
+                if (prev.length <= 1) return prev;
                 return prev.filter(id => id !== cid);
             }
-            if (prev.length >= 2) {
-                return [prev[1], cid]; // replace first with new
-            }
+            if (prev.length >= 2) return [prev[1], cid];
             return [...prev, cid];
         });
     };
 
-    // Toggle Payer Checkbox for multiple payers
     const togglePayer = (cid) => {
         setSelectedPayers(prev => {
             if (prev.includes(cid)) {
@@ -505,18 +503,15 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
         });
     };
 
-    // "Split Equally" Action for Multiple Payers (૫૦-૫૦% વહેંચો)
     const handleSplitEqually = () => {
         if (!selectedPayers.length || parsedAmount <= 0) return;
         const count = selectedPayers.length;
         const splitVal = Number((parsedAmount / count).toFixed(2));
-        
         setPayerAmounts(prev => {
             const next = {...prev};
             let runningSum = 0;
             selectedPayers.forEach((cid, idx) => {
                 if (idx === count - 1) {
-                    // last takes residual
                     next[cid] = String(Number((parsedAmount - runningSum).toFixed(2)));
                 } else {
                     next[cid] = String(splitVal);
@@ -527,13 +522,11 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
         });
     };
 
-    // Calculate live allocation percentages & rupee shares
     const previewAllocations = useMemo(() => {
         if (allocationScope === 'single') {
             const targetId = Number(singleBeneficiaryId);
             return companies.map(c => ({
-                id: c.id,
-                name: c.name,
+                id: c.id, name: c.name,
                 percentage: c.id === targetId ? 100 : 0,
                 shareAmount: c.id === targetId ? parsedAmount : 0,
             }));
@@ -542,31 +535,17 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
             const activeSel = companies.filter(c => selectedBeneficiaries.includes(c.id));
             const sumMaster = activeSel.reduce((s, c) => s + (Number(c.percentage) || 0), 0);
             return companies.map(c => {
-                if (!selectedBeneficiaries.includes(c.id)) {
-                    return {id: c.id, name: c.name, percentage: 0, shareAmount: 0};
-                }
+                if (!selectedBeneficiaries.includes(c.id)) return {id: c.id, name: c.name, percentage: 0, shareAmount: 0};
                 const pct = sumMaster > 0 ? ((Number(c.percentage) || 0) / sumMaster) * 100 : 50;
-                return {
-                    id: c.id,
-                    name: c.name,
-                    percentage: Number(pct.toFixed(2)),
-                    shareAmount: Number((parsedAmount * (pct / 100)).toFixed(2)),
-                };
+                return {id: c.id, name: c.name, percentage: Number(pct.toFixed(2)), shareAmount: Number((parsedAmount * (pct / 100)).toFixed(2))};
             });
         }
-        // Default All 3
         return companies.map(c => {
             const pct = Number(c.percentage) || 0;
-            return {
-                id: c.id,
-                name: c.name,
-                percentage: pct,
-                shareAmount: Number((parsedAmount * (pct / 100)).toFixed(2)),
-            };
+            return {id: c.id, name: c.name, percentage: pct, shareAmount: Number((parsedAmount * (pct / 100)).toFixed(2))};
         });
     }, [allocationScope, selectedBeneficiaries, singleBeneficiaryId, companies, parsedAmount]);
 
-    // Calculate live paid amounts per company
     const previewPaidMap = useMemo(() => {
         const map = {};
         if (payerMode === 'single') {
@@ -584,23 +563,26 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
     const paidDiff = Number((parsedAmount - totalPaidSum).toFixed(2));
     const isPaidValid = Math.abs(paidDiff) <= 0.01;
 
-    // Submit handler
+    // Step validation
+    const step1Valid = expenseDate && purchaserName.trim() && description.trim() && parsedAmount > 0;
+    const step3Valid = payerMode === 'single' ? true : isPaidValid;
+
+    const scopeLabel = allocationScope === 'single' ? '૧ કંપની (100% Direct)'
+        : allocationScope === 'two' ? '૨ કંપનીઓ (2 Companies)'
+        : 'ત્રણેય કંપનીઓ (All 3 Master %)';
+
+    const payerLabel = payerMode === 'single'
+        ? companies.find(c => String(c.id) === String(singlePayerId))?.name || '—'
+        : `${selectedPayers.length} કંપનીઓ`;
+
     const save = async event => {
         event.preventDefault();
+        if (!isPaidValid && payerMode === 'multiple') {
+            setError(`Total paid (₹${number(totalPaidSum)}) ≠ Total amount (₹${number(parsedAmount)})`);
+            return;
+        }
         setBusy(true);
         setError('');
-
-        if (parsedAmount <= 0) {
-            setError('Please enter a valid expense amount.');
-            setBusy(false);
-            return;
-        }
-
-        if (payerMode === 'multiple' && !isPaidValid) {
-            setError(`Total paid amounts (₹${totalPaidSum}) must equal total amount (₹${parsedAmount}). Difference: ₹${paidDiff}`);
-            setBusy(false);
-            return;
-        }
 
         const payload = new FormData();
         payload.append('expense_date', expenseDate);
@@ -631,23 +613,24 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
         if (removeReceipt) payload.append('remove_receipt', '1');
 
         try {
-            await api(entry ? `expenses/${entry.id}` : 'expenses', {
-                method: 'POST',
-                body: payload,
-            });
+            await api(entry ? `expenses/${entry.id}` : 'expenses', {method: 'POST', body: payload});
             await onSaved(entry ? 'Expense updated successfully.' : 'Shared expense added successfully.');
         } catch (failure) {
             setError(failure.message);
+            setStep(1);
         } finally {
             setBusy(false);
         }
     };
 
+    const amountWord = indianAmount(parsedAmount);
+
     return (
         <div className="modal-backdrop" onClick={onClose}>
             <form className="modal expense-modal expense-modal-sheet" onSubmit={save} onClick={e => e.stopPropagation()}>
                 <div className="mobile-modal-handle-bar"/>
-                
+
+                {/* Header */}
                 <div className="panel-head expense-sheet-head">
                     <div>
                         <h2>{entry ? 'Edit Shared Expense' : 'Add Shared Expense (શેર્ડ ખર્ચ)'}</h2>
@@ -656,97 +639,136 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
                     <button type="button" className="icon-button ghost modal-close-chip" onClick={onClose}><X size={18}/></button>
                 </div>
 
-                <div className="expense-form-body-scroll">
-                    {/* Basic Info Fields */}
-                    <div className="form-grid two expense-base-grid">
-                        <Field label="Expense Date (ખર્ચની તારીખ)">
-                            <input type="date" max={today()} value={expenseDate} onChange={e => setExpenseDate(e.target.value)} required/>
-                        </Field>
-                        <Field label="Total Amount (કુલ રકમ ₹)">
-                            <input
-                                type="number"
-                                min="0.01"
-                                step="0.01"
-                                inputMode="decimal"
-                                value={amount}
-                                onChange={e => setAmount(e.target.value)}
-                                className="highlight-amount-input"
-                                required
-                            />
-                        </Field>
-                        <Field label="Purchased By (ખર્ચ કરનારનું નામ)">
-                            <input value={purchaserName} maxLength="150" onChange={e => setPurchaserName(e.target.value)} required/>
-                        </Field>
-                        <Field label="Description (ખર્ચની વિગત)">
-                            <input value={description} maxLength="255" onChange={e => setDescription(e.target.value)} required/>
-                        </Field>
-                    </div>
+                {/* Step Progress Bar */}
+                <div className="expense-step-progress">
+                    {['માહિતી', 'ખર્ચ કોનો?', 'ચૂકવ્યા?', 'Confirm'].map((label, i) => (
+                        <div key={i} className={`step-prog-item ${step === i + 1 ? 'active' : step > i + 1 ? 'done' : ''}`}>
+                            <div className="step-prog-circle">{step > i + 1 ? '✓' : i + 1}</div>
+                            <span>{label}</span>
+                        </div>
+                    ))}
+                </div>
 
-                    {/* STEP 1: BENEFICIARY SCOPE */}
-                    <div className="expense-step-card step-scope-card">
-                        <div className="step-card-header">
-                            <div className="step-badge-title">
+                <div className="expense-form-body-scroll">
+
+                    {/* ── STEP 1: Basic Info ── */}
+                    {step === 1 && (
+                        <div className="wizard-step-panel">
+                            <div className="wizard-step-title">
                                 <span className="step-num-badge">1</span>
+                                <b>ખર્ચની મૂળ માહિતી</b>
+                            </div>
+
+                            <Field label="Expense Date (ખર્ચની તારીખ)">
+                                <input type="date" max={today()} value={expenseDate} onChange={e => setExpenseDate(e.target.value)} required/>
+                            </Field>
+
+                            <Field label="Total Amount (કુલ રકમ ₹)">
+                                <input
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    inputMode="decimal"
+                                    value={amount}
+                                    onChange={e => setAmount(e.target.value)}
+                                    className="highlight-amount-input"
+                                    required
+                                />
+                                {amountWord && (
+                                    <div className="amount-gujarati-word">
+                                        ₹ {Number(parsedAmount).toLocaleString('en-IN')} · <b>{amountWord}</b>
+                                    </div>
+                                )}
+                            </Field>
+
+                            <Field label="Purchased By (ખર્ચ કરનારનું નામ)">
+                                <input value={purchaserName} maxLength="150" onChange={e => setPurchaserName(e.target.value)} required/>
+                            </Field>
+
+                            <Field label="Description (ખર્ચની વિગત)">
+                                <input value={description} maxLength="255" onChange={e => setDescription(e.target.value)} required/>
+                            </Field>
+
+                            <Field label="Notes (નોંધ / Remarks)">
+                                <input value={notes} onChange={e => setNotes(e.target.value)}/>
+                            </Field>
+
+                            <Field label="Receipt upload (બિલની રસીદ)">
+                                <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={e => setReceipt(e.target.files?.[0] || null)}/>
+                            </Field>
+
+                            {entry?.receipt_url && (
+                                <label className="toggle" style={{marginTop: '4px'}}>
+                                    <input type="checkbox" checked={removeReceipt} onChange={e => setRemoveReceipt(e.target.checked)}/>
+                                    <span/> Remove existing receipt
+                                </label>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ── STEP 2: Beneficiary Scope ── */}
+                    {step === 2 && (
+                        <div className="wizard-step-panel">
+                            <div className="wizard-step-title">
+                                <span className="step-num-badge">2</span>
                                 <b>ખર્ચ કોના માટે થયો છે? (Beneficiary Scope)</b>
                             </div>
-                        </div>
-                        
-                        <div className="scope-pills-row">
-                            <label className={`scope-pill-btn ${allocationScope === 'all' ? 'active' : ''}`}>
-                                <input type="radio" name="alloc_scope" checked={allocationScope === 'all'} onChange={() => setAllocationScope('all')}/>
-                                <span>ત્રણેય કંપનીઓ (All 3 Master %)</span>
-                            </label>
 
-                            <label className={`scope-pill-btn ${allocationScope === 'two' ? 'active' : ''}`}>
-                                <input type="radio" name="alloc_scope" checked={allocationScope === 'two'} onChange={() => setAllocationScope('two')}/>
-                                <span>૨ કંપનીઓ (2 Companies)</span>
-                            </label>
+                            <div className="scope-pills-row">
+                                <label className={`scope-pill-btn ${allocationScope === 'all' ? 'active' : ''}`}>
+                                    <input type="radio" name="alloc_scope" checked={allocationScope === 'all'} onChange={() => setAllocationScope('all')}/>
+                                    <span>ત્રણેય કંપનીઓ (All 3 Master %)</span>
+                                </label>
+                                <label className={`scope-pill-btn ${allocationScope === 'two' ? 'active' : ''}`}>
+                                    <input type="radio" name="alloc_scope" checked={allocationScope === 'two'} onChange={() => setAllocationScope('two')}/>
+                                    <span>૨ કંપનીઓ (2 Companies)</span>
+                                </label>
+                                <label className={`scope-pill-btn ${allocationScope === 'single' ? 'active' : ''}`}>
+                                    <input type="radio" name="alloc_scope" checked={allocationScope === 'single'} onChange={() => setAllocationScope('single')}/>
+                                    <span>૧ કંપની (100% Direct)</span>
+                                </label>
+                            </div>
 
-                            <label className={`scope-pill-btn ${allocationScope === 'single' ? 'active' : ''}`}>
-                                <input type="radio" name="alloc_scope" checked={allocationScope === 'single'} onChange={() => setAllocationScope('single')}/>
-                                <span>૧ કંપની (100% Direct)</span>
-                            </label>
-                        </div>
-
-                        {/* Sub-selector for 2 Companies */}
-                        {allocationScope === 'two' && (
-                            <div className="scope-sub-panel">
-                                <span className="sub-panel-label">કોઈપણ ૨ કંપની પસંદ કરો:</span>
-                                <div className="companies-chips-list">
-                                    {companies.map(c => (
-                                        <label key={c.id} className={`company-check-chip ${selectedBeneficiaries.includes(c.id) ? 'checked' : ''}`}>
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedBeneficiaries.includes(c.id)}
-                                                onChange={() => toggleBeneficiary(c.id)}
-                                            />
-                                            <span>{c.name}</span>
-                                        </label>
-                                    ))}
+                            {allocationScope === 'two' && (
+                                <div className="scope-sub-panel">
+                                    <span className="sub-panel-label">કોઈપણ ૨ કંપની પસંદ કરો:</span>
+                                    <div className="companies-chips-list">
+                                        {companies.map(c => (
+                                            <label key={c.id} className={`company-check-chip ${selectedBeneficiaries.includes(c.id) ? 'checked' : ''}`}>
+                                                <input type="checkbox" checked={selectedBeneficiaries.includes(c.id)} onChange={() => toggleBeneficiary(c.id)}/>
+                                                <span>{c.name}</span>
+                                            </label>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
-                        {/* Sub-selector for 1 Company */}
-                        {allocationScope === 'single' && (
-                            <div className="scope-sub-panel">
-                                <span className="sub-panel-label">કઈ કંપનીનો પોતાનો ખર્ચ છે?</span>
-                                <select
-                                    value={singleBeneficiaryId}
-                                    onChange={e => setSingleBeneficiaryId(e.target.value)}
-                                    className="clean-select-box"
-                                >
-                                    {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
-                            </div>
-                        )}
-                    </div>
+                            {allocationScope === 'single' && (
+                                <div className="scope-sub-panel">
+                                    <span className="sub-panel-label">કઈ કંપનીનો પોતાનો ખર્ચ છે?</span>
+                                    <select value={singleBeneficiaryId} onChange={e => setSingleBeneficiaryId(e.target.value)} className="clean-select-box">
+                                        {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+                                </div>
+                            )}
 
-                    {/* STEP 2: PAYING COMPANY SELECTION */}
-                    <div className="expense-step-card step-payers-card">
-                        <div className="step-card-header">
-                            <div className="step-badge-title">
-                                <span className="step-num-badge green-badge">2</span>
+                            {/* Live share preview */}
+                            <div className="wizard-alloc-preview">
+                                {previewAllocations.filter(r => r.shareAmount > 0).map(r => (
+                                    <div key={r.id} className="wizard-alloc-row">
+                                        <span>{r.name}</span>
+                                        <span>{number(r.percentage)}% · <b>₹{number(r.shareAmount)}</b></span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── STEP 3: Payer ── */}
+                    {step === 3 && (
+                        <div className="wizard-step-panel">
+                            <div className="wizard-step-title">
+                                <span className="step-num-badge green-badge">3</span>
                                 <b>પૈસા કોણે ચૂકવ્યા? (Who Paid the Bill?)</b>
                             </div>
 
@@ -760,157 +782,156 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
                                     <span>બે કે વધુ કંપનીઓએ</span>
                                 </label>
                             </div>
-                        </div>
 
-                        {payerMode === 'single' ? (
-                            <div className="single-payer-wrap">
-                                <span className="sub-panel-label">ચૂકવનાર કંપની:</span>
-                                <select
-                                    value={singlePayerId}
-                                    onChange={e => setSinglePayerId(e.target.value)}
-                                    className="clean-select-box"
-                                >
-                                    {companies.map(c => <option key={c.id} value={c.id}>{c.name} (૧૦૦% = ₹{number(parsedAmount)})</option>)}
-                                </select>
-                            </div>
-                        ) : (
-                            <div className="multiple-payers-wrap">
-                                <div className="split-action-header">
-                                    <span className="sub-panel-label">દરેક કંપનીએ ચૂકવેલ રકમ દાખલ કરો:</span>
-                                    <button
-                                        type="button"
-                                        onClick={handleSplitEqually}
-                                        className="quick-split-pill-btn"
-                                        title="Divide total amount equally among selected payers"
-                                    >
-                                        <Split size={13}/>
-                                        <span>⚡ Split Equally (૫૦-૫૦%)</span>
-                                    </button>
+                            {payerMode === 'single' ? (
+                                <div className="single-payer-wrap">
+                                    <span className="sub-panel-label">ચૂકવનાર કંપની:</span>
+                                    <select value={singlePayerId} onChange={e => setSinglePayerId(e.target.value)} className="clean-select-box">
+                                        {companies.map(c => <option key={c.id} value={c.id}>{c.name} (૧૦૦% = ₹{number(parsedAmount)})</option>)}
+                                    </select>
                                 </div>
-
-                                <div className="payers-grid-cards">
-                                    {companies.map(c => {
-                                        const isChecked = selectedPayers.includes(c.id);
-                                        return (
-                                            <div key={c.id} className={`payer-input-row-card ${isChecked ? 'active-payer' : ''}`}>
-                                                <label className="payer-chk-label">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isChecked}
-                                                        onChange={() => togglePayer(c.id)}
-                                                    />
-                                                    <span className="payer-name-text">{c.name}</span>
-                                                </label>
-                                                {isChecked && (
-                                                    <div className="payer-amount-input-wrap">
-                                                        <span>₹</span>
-                                                        <input
-                                                            type="number"
-                                                            step="0.01"
-                                                            value={payerAmounts[c.id] ?? ''}
-                                                            onChange={e => {
-                                                                const val = e.target.value;
-                                                                setPayerAmounts(prev => ({...prev, [c.id]: val}));
-                                                            }}
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-
-                                {/* Live Split Total Validation Bar */}
-                                <div className={`split-validation-status-bar ${isPaidValid ? 'valid-status' : 'invalid-status'}`}>
-                                    <span>કુલ ચૂકવેલ: <b>₹{number(totalPaidSum)}</b> / ₹{number(parsedAmount)}</span>
-                                    <span>
-                                        {isPaidValid
-                                            ? '✓ રકમ પરફેક્ટ મેચ છે'
-                                            : paidDiff > 0
-                                                ? `બાકી ₹${number(paidDiff)} ચૂકવવાના છે`
+                            ) : (
+                                <div className="multiple-payers-wrap">
+                                    <div className="split-action-header">
+                                        <span className="sub-panel-label">દરેક કંપનીએ ચૂકવેલ રકમ દાખલ કરો:</span>
+                                        <button type="button" onClick={handleSplitEqually} className="quick-split-pill-btn" title="Divide equally">
+                                            <Split size={13}/> <span>⚡ Split Equally</span>
+                                        </button>
+                                    </div>
+                                    <div className="payers-grid-cards">
+                                        {companies.map(c => {
+                                            const isChecked = selectedPayers.includes(c.id);
+                                            return (
+                                                <div key={c.id} className={`payer-input-row-card ${isChecked ? 'active-payer' : ''}`}>
+                                                    <label className="payer-chk-label">
+                                                        <input type="checkbox" checked={isChecked} onChange={() => togglePayer(c.id)}/>
+                                                        <span className="payer-name-text">{c.name}</span>
+                                                    </label>
+                                                    {isChecked && (
+                                                        <div className="payer-amount-input-wrap">
+                                                            <span>₹</span>
+                                                            <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                value={payerAmounts[c.id] ?? ''}
+                                                                onChange={e => {
+                                                                    const val = e.target.value;
+                                                                    setPayerAmounts(prev => ({...prev, [c.id]: val}));
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className={`split-validation-status-bar ${isPaidValid ? 'valid-status' : 'invalid-status'}`}>
+                                        <span>કુલ ચૂકવેલ: <b>₹{number(totalPaidSum)}</b> / ₹{number(parsedAmount)}</span>
+                                        <span>
+                                            {isPaidValid ? '✓ રકમ પરફેક્ટ મેચ છે'
+                                                : paidDiff > 0 ? `બાકી ₹${number(paidDiff)} ચૂકવવાના છે`
                                                 : `₹${number(Math.abs(paidDiff))} વધારે લખાયા છે`}
-                                    </span>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* STEP 3: DYNAMIC PREVIEW & LIVE NET CALCULATION */}
-                    <div className="expense-step-card step-preview-card">
-                        <div className="step-card-header">
-                            <div className="step-badge-title">
-                                <Sparkles size={15} style={{color: '#d97706'}}/>
-                                <b>૩. લાઈવ વહેંચણી અને હિસાબ પ્રિવ્યુ</b>
-                            </div>
-                        </div>
-
-                        <div className="preview-alloc-cards-list">
-                            {previewAllocations.map(row => {
-                                const paid = previewPaidMap[row.id] || 0;
-                                const share = row.shareAmount || 0;
-                                const net = Number((paid - share).toFixed(2));
-                                const netText = net > 0.001
-                                    ? `+₹${number(net)} (લેવાના)`
-                                    : net < -0.001
-                                        ? `-₹${number(Math.abs(net))} (દેવાના)`
-                                        : '₹0.00 (સરભર)';
-                                const netClass = net > 0.001 ? 'net-receivable' : net < -0.001 ? 'net-payable' : 'net-even';
-
-                                return (
-                                    <div key={row.id} className="preview-alloc-row-card">
-                                        <div className="alloc-comp-name">
-                                            <b>{row.name}</b>
-                                            <small>({number(row.percentage)}%)</small>
-                                        </div>
-                                        <div className="alloc-amounts-col">
-                                            <span>ચૂકવ્યા: <b>₹{number(paid)}</b></span>
-                                            <span>હિસ્સો: <b>₹{number(share)}</b></span>
-                                        </div>
-                                        <span className={`net-status-badge ${netClass}`}>
-                                            {netText}
                                         </span>
                                     </div>
-                                );
-                            })}
+                                </div>
+                            )}
                         </div>
-                    </div>
-
-                    {/* Receipt & Notes */}
-                    <div className="form-grid two" style={{marginTop: '10px'}}>
-                        <Field label="Receipt upload (બિલની રસીદ)">
-                            <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={e => setReceipt(e.target.files?.[0] || null)}/>
-                        </Field>
-                        <Field label="Notes (નોંધ / Remarks)">
-                            <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Payment reference or remarks"/>
-                        </Field>
-                    </div>
-
-                    {entry?.receipt_url && (
-                        <label className="toggle" style={{marginTop: '6px'}}>
-                            <input type="checkbox" checked={removeReceipt} onChange={e => setRemoveReceipt(e.target.checked)}/>
-                            <span/> Remove existing receipt
-                        </label>
                     )}
 
-                    {error && <div className="error" style={{marginTop: '10px'}}>{error}</div>}
+                    {/* ── STEP 4: Confirm Preview ── */}
+                    {step === 4 && (
+                        <div className="wizard-step-panel">
+                            <div className="wizard-step-title">
+                                <Sparkles size={15} style={{color: '#d97706'}}/>
+                                <b>Confirm & Submit — સઘળી વિગત ચકાસો</b>
+                            </div>
+
+                            {/* Summary card */}
+                            <div className="confirm-summary-card">
+                                <div className="confirm-summary-row"><span>📅 તારીખ</span><b>{expenseDate}</b></div>
+                                <div className="confirm-summary-row highlight-row">
+                                    <span>💰 કુલ રકમ</span>
+                                    <div>
+                                        <b style={{fontSize: '18px', color: '#15803d'}}>₹{Number(parsedAmount).toLocaleString('en-IN')}</b>
+                                        {amountWord && <small style={{color: '#16a34a', display: 'block'}}>{amountWord}</small>}
+                                    </div>
+                                </div>
+                                <div className="confirm-summary-row"><span>👤 ખર્ચ કરનાર</span><b>{purchaserName}</b></div>
+                                <div className="confirm-summary-row"><span>📝 વિગત</span><b>{description}</b></div>
+                                <div className="confirm-summary-row"><span>🏢 ખર્ચ Scope</span><b>{scopeLabel}</b></div>
+                                <div className="confirm-summary-row"><span>💳 ચૂકવ્યા</span><b>{payerLabel}</b></div>
+                            </div>
+
+                            {/* Live allocation preview */}
+                            <div className="wizard-step-title" style={{marginTop: '10px'}}>
+                                <span style={{fontSize: '12px', fontWeight: 700, color: '#64748b'}}>📊 Company-wise હિસ્સો:</span>
+                            </div>
+                            <div className="preview-alloc-cards-list">
+                                {previewAllocations.map(row => {
+                                    const paid = previewPaidMap[row.id] || 0;
+                                    const share = row.shareAmount || 0;
+                                    const net = Number((paid - share).toFixed(2));
+                                    const netText = net > 0.001 ? `+₹${number(net)} (લેવાના)` : net < -0.001 ? `-₹${number(Math.abs(net))} (દેવાના)` : '₹0.00 (સરભર)';
+                                    const netClass = net > 0.001 ? 'net-receivable' : net < -0.001 ? 'net-payable' : 'net-even';
+                                    return (
+                                        <div key={row.id} className="preview-alloc-row-card">
+                                            <div className="alloc-comp-name">
+                                                <b>{row.name}</b>
+                                                <small>({number(row.percentage)}%)</small>
+                                            </div>
+                                            <div className="alloc-amounts-col">
+                                                <span>ચૂકવ્યા: <b>₹{number(paid)}</b></span>
+                                                <span>હિસ્સો: <b>₹{number(share)}</b></span>
+                                            </div>
+                                            <span className={`net-status-badge ${netClass}`}>{netText}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {error && <div className="error" style={{marginTop: '8px'}}>{error}</div>}
+                        </div>
+                    )}
+
+                    {error && step !== 4 && <div className="error" style={{marginTop: '8px'}}>{error}</div>}
                 </div>
 
-                {/* Bottom Modal Actions (Always Visible Sticky Footer) */}
-                <div className="modal-sticky-footer">
-                    <button
-                        type="button"
-                        className="secondary modal-cancel-btn"
-                        onClick={onClose}
-                    >
-                        રદ કરો (Cancel)
-                    </button>
-                    <button
-                        type="submit"
-                        className="primary expense-submit-btn"
-                        disabled={busy || (payerMode === 'multiple' && !isPaidValid)}
-                    >
-                        {busy ? 'સેવ થઈ રહ્યું છે...' : entry ? 'Update Expense' : '✓ Save Shared Expense (ખર્ચ સેવ કરો)'}
-                    </button>
+                {/* Sticky Footer Navigation */}
+                <div className="modal-sticky-footer expense-wizard-footer">
+                    {step > 1 ? (
+                        <button type="button" className="secondary modal-cancel-btn" onClick={() => setStep(s => s - 1)}>
+                            ← Back
+                        </button>
+                    ) : (
+                        <button type="button" className="secondary modal-cancel-btn" onClick={onClose}>
+                            રદ કરો
+                        </button>
+                    )}
+
+                    <div className="step-dots">
+                        {[1,2,3,4].map(s => (
+                            <span key={s} className={`step-dot ${step === s ? 'active' : step > s ? 'done' : ''}`}/>
+                        ))}
+                    </div>
+
+                    {step < 4 ? (
+                        <button
+                            type="button"
+                            className="primary expense-submit-btn"
+                            disabled={step === 1 && !step1Valid}
+                            onClick={() => setStep(s => s + 1)}
+                        >
+                            Next →
+                        </button>
+                    ) : (
+                        <button
+                            type="submit"
+                            className="primary expense-submit-btn"
+                            disabled={busy || (payerMode === 'multiple' && !isPaidValid)}
+                        >
+                            {busy ? 'સેવ થઈ રહ્યું છે...' : entry ? '✓ Update Expense' : '✓ ખર્ચ સેવ કરો'}
+                        </button>
+                    )}
                 </div>
             </form>
         </div>

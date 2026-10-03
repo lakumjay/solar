@@ -1,5 +1,14 @@
 export const number = value => Number(value || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 
+export const indianAmount = value => {
+    const n = Number(value || 0);
+    if (n === 0) return '';
+    if (n >= 10000000) return `${(n / 10000000).toFixed(2).replace(/\.?0+$/, '')} કરોડ`;
+    if (n >= 100000) return `${(n / 100000).toFixed(2).replace(/\.?0+$/, '')} લાખ`;
+    if (n >= 1000) return `${(n / 1000).toFixed(2).replace(/\.?0+$/, '')} હજાર`;
+    return `₹${n.toLocaleString('en-IN')}`;
+};
+
 export const fixedTwo = value => value === '' || value === null || value === undefined
     ? ''
     : Number(value).toFixed(2);
