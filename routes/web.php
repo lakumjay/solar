@@ -18,6 +18,7 @@ use App\Http\Controllers\ReadingController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SalaryController;
 use App\Http\Controllers\SharedExpenseController;
+use App\Http\Controllers\SolarCurtailmentController;
 use App\Http\Controllers\EmployeeLocationController;
 use App\Http\Controllers\PushNotificationController;
 use App\Http\Controllers\StockBorrowingController;
@@ -43,6 +44,10 @@ Route::prefix('api')->group(function () {
         Route::post('isolarcloud/manual-token', [ISolarCloudController::class, 'manualToken']);
         Route::get('isolarcloud/live', [ISolarCloudController::class, 'liveData']);
         Route::post('isolarcloud/sync', [ISolarCloudController::class, 'sync']);
+        Route::get('curtailments', [SolarCurtailmentController::class, 'index']);
+        Route::post('curtailments', [SolarCurtailmentController::class, 'store']);
+        Route::post('curtailments/restore-all', [SolarCurtailmentController::class, 'restoreAll']);
+        Route::delete('curtailments/{curtailment}', [SolarCurtailmentController::class, 'destroy']);
         Route::post('isolarcloud/sync-daily', [ISolarCloudController::class, 'sync']);
         Route::get('plant-photos/tasks', [PlantPhotoController::class, 'tasks']);
         Route::post('plant-photos/tasks', [PlantPhotoController::class, 'saveTask']);

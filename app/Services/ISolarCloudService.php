@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Company;
 use App\Models\Inverter;
 use App\Models\ISolarCloudToken;
+use App\Models\SolarCurtailment;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\Http;
@@ -360,6 +361,10 @@ class ISolarCloudService
         $companiesData = [];
         $allCleaningAlerts = [];
 
+        // Active Curtailment Tracking & False Alarm Suppression Engine
+        $activeCurtailments = SolarCurtailment::where('status', 'active')->with(['company', 'user'])->get();
+        $curtailmentByCompany = $activeCurtailments->keyBy('company_id');
+
         // Primary company location for weather
         $primaryCompany = $companies->first();
         $lat = (float) ($primaryCompany?->latitude ?? 22.3039);
@@ -379,11 +384,13 @@ class ISolarCloudService
             $companyLiveKw = 0.0;
             $companyOnline = 0;
             $invertersList = [];
+            $companyCurtailment = $curtailmentByCompany->get($company->id);
 
             foreach ($company->inverters as $inv) {
                 $dp = ! empty($inv->serial_number) ? ($snMap[$inv->serial_number] ?? null) : null;
                 $pvStrings = [];
                 $inverterAlerts = [];
+                $isInverterCurtailed = $companyCurtailment && ! empty($companyCurtailment->inverter_ids) && in_array($inv->id, (array) $companyCurtailment->inverter_ids);
 
                 if ($dp) {
                     $isOnline = ($dp['dev_status'] ?? 0) === 1;
@@ -408,20 +415,23 @@ class ISolarCloudService
                     for ($s = 1; $s <= 16; $s++) {
                         $pKey = 'p' . (69 + $s);
                         $currentA = isset($dp[$pKey]) ? round((float) $dp[$pKey], 2) : 0.0;
+                        $isStrCurtailed = $isInverterCurtailed || ($companyCurtailment && ! empty($companyCurtailment->pv_strings) && in_array('PV' . $s, (array) $companyCurtailment->pv_strings));
+
                         $pvStrings[$s] = [
                             'string_num' => $s,
                             'string_label' => 'PV' . $s,
                             'current_a' => $currentA,
                             'is_connected' => $currentA > 0.1,
-                            'status' => 'normal',
+                            'is_curtailed' => $isStrCurtailed,
+                            'status' => $isStrCurtailed ? 'curtailed' : 'normal',
                         ];
-                        if ($currentA > 0.5) {
+                        if ($currentA > 0.5 && ! $isStrCurtailed) {
                             $activeStringCurrents[] = $currentA;
                         }
                     }
 
                     // Smart Seasonal Soiling / Dew / Fog / Zero Current Notice Engine
-                    if ($isOnline && ! empty($activeStringCurrents) && count($activeStringCurrents) >= 2) {
+                    if ($isOnline && ! empty($activeStringCurrents) && count($activeStringCurrents) >= 2 && ! $isInverterCurtailed) {
                         // Healthy baseline = average of top 75% strings
                         sort($activeStringCurrents);
                         $sliceCount = max(1, (int) ceil(count($activeStringCurrents) * 0.7));
@@ -443,6 +453,9 @@ class ISolarCloudService
                             $totalConnectedStrings = count($activeStringCurrents);
 
                             for ($s = 1; $s <= 16; $s++) {
+                                if ($pvStrings[$s]['is_curtailed'] ?? false) {
+                                    continue; // Intentionally curtailed by PGVCL -> suppress false alarm!
+                                }
                                 $cVal = $pvStrings[$s]['current_a'];
                                 $cacheKey = "solar_soiling_since_{$company->id}_{$inv->id}_{$s}";
 
@@ -569,6 +582,7 @@ class ISolarCloudService
                     'serial_number' => $inv->serial_number ?: 'N/A',
                     'device_name' => $deviceName,
                     'online' => $isOnline,
+                    'is_curtailed' => $isInverterCurtailed,
                     'today_kwh' => number_format($todayKwh, 2, '.', ''),
                     'live_kw' => number_format($liveKw, 2, '.', ''),
                     'pv_strings' => array_values($pvStrings),
@@ -588,6 +602,12 @@ class ISolarCloudService
                 'today_revenue_rs' => number_format($companyRevenueRs, 2, '.', ''),
                 'online_count' => $companyOnline,
                 'total_count' => $company->inverters->count(),
+                'is_curtailed' => $companyCurtailment !== null,
+                'curtailment' => $companyCurtailment ? [
+                    'percentage' => (int) $companyCurtailment->percentage,
+                    'started_at_human' => $companyCurtailment->started_at?->format('h:i A'),
+                    'step_history' => $companyCurtailment->step_history ?? [],
+                ] : null,
                 'inverters' => $invertersList,
             ];
         }
@@ -852,6 +872,33 @@ class ISolarCloudService
                 'cloud_vs_fault' => $cloudVsFault,
                 'grid_downtime' => $gridDowntimeTracker,
                 'cleaning_roi' => $cleaningRoiTracker,
+            ],
+            'curtailment_system' => [
+                'is_any_active' => $activeCurtailments->isNotEmpty(),
+                'active_count' => $activeCurtailments->count(),
+                'active_list' => $activeCurtailments->map(function ($c) use ($now, $unitRate) {
+                    $startedAt = $c->started_at ?: $now;
+                    $durationMinutes = max(1, (int) round($startedAt->diffInMinutes($now)));
+                    $companyCapacityKw = (float) ($c->company?->total_capacity_kw ?? 500.0);
+                    $percentage = (int) $c->percentage;
+                    $lostKwh = round(($companyCapacityKw * ($percentage / 100.0) * ($durationMinutes / 60.0) * 0.75), 1);
+                    $lostRevenueRs = round($lostKwh * $unitRate, 2);
+                    return [
+                        'id' => $c->id,
+                        'company_id' => $c->company_id,
+                        'company_name' => $c->company?->name ?? 'Solar Company',
+                        'percentage' => $percentage,
+                        'inverter_ids' => $c->inverter_ids ?? [],
+                        'pv_strings' => $c->pv_strings ?? [],
+                        'step_history' => $c->step_history ?? [],
+                        'started_at_human' => $c->started_at?->format('h:i A'),
+                        'duration_minutes' => $durationMinutes,
+                        'duration_human' => $durationMinutes < 60 ? "{$durationMinutes} મિનિટ" : floor($durationMinutes / 60) . " કલાક " . ($durationMinutes % 60) . " મિનિટ",
+                        'lost_kwh' => $lostKwh,
+                        'lost_revenue_rs' => $lostRevenueRs,
+                        'user_name' => $c->user?->name ?? 'System',
+                    ];
+                })->values(),
             ],
             'realtime_power_mw' => number_format($realtimePowerMw, 2, '.', ''),
             'realtime_power_kw' => number_format($totalLiveKw, 2, '.', ''),
