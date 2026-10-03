@@ -12,9 +12,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('companies', function (Blueprint $table) {
-            $table->string('owner_name')->nullable()->after('name');
-            $table->string('owner_designation')->nullable()->after('owner_name');
-            $table->string('owner_photo_path')->nullable()->after('owner_designation');
+            if (!Schema::hasColumn('companies', 'owner_name')) {
+                $table->string('owner_name')->nullable()->after('name');
+            }
+            if (!Schema::hasColumn('companies', 'owner_designation')) {
+                $table->string('owner_designation')->nullable()->after('owner_name');
+            }
+            if (!Schema::hasColumn('companies', 'owner_photo_path')) {
+                $table->string('owner_photo_path')->nullable()->after('owner_designation');
+            }
         });
     }
 
