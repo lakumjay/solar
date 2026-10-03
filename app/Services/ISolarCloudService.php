@@ -420,7 +420,7 @@ class ISolarCloudService
                         }
                     }
 
-                    // PV Cleaning / Dust Soiling Check (Smart Filters: 15-min Persistence + Cross-String Comparison + Irradiance > 600 W/m²)
+                    // Smart Seasonal Soiling / Dew / Fog / Zero Current Notice Engine
                     if ($isOnline && ! empty($activeStringCurrents) && count($activeStringCurrents) >= 2) {
                         // Healthy baseline = average of top 75% strings
                         sort($activeStringCurrents);
@@ -428,17 +428,30 @@ class ISolarCloudService
                         $topStrings = array_slice($activeStringCurrents, -$sliceCount);
                         $healthyAvg = count($topStrings) > 0 ? (array_sum($topStrings) / count($topStrings)) : 0.0;
 
+                        $tempC = (float) ($weatherData['temperature'] ?? 30.0);
+                        $humidity = (float) ($weatherData['humidity'] ?? 50.0);
+                        $weatherCode = (int) ($weatherData['weather_code'] ?? 0);
+                        $currentMonth = (int) Carbon::now()->format('n');
+                        $isWinterMorning = ($currentMonth >= 11 || $currentMonth <= 2 || ($tempC < 22.0 && $humidity >= 80)) && ($currentHour >= 6.5 && $currentHour <= 9.5);
+                        $isActualFog = in_array($weatherCode, [45, 48]) || ($humidity >= 92 && $tempC <= 18.0 && $currentHour <= 10.0);
+                        $isSummerOrDry = ($tempC >= 28.0) || ($currentMonth >= 3 && $currentMonth <= 10 && ! $isWinterMorning);
+
                         if ($healthyAvg >= 3.0) { // Only evaluate when healthy current is strong (clear sunshine)
-                            $formattedHealthyAvg = number_format($healthyAvg, 2);
+                            $formattedHealthyAvg = number_format($healthyAvg, 1);
                             $inverterProblemStrings = [];
+                            $inverterZeroStrings = [];
                             $totalConnectedStrings = count($activeStringCurrents);
 
                             for ($s = 1; $s <= 16; $s++) {
                                 $cVal = $pvStrings[$s]['current_a'];
                                 $cacheKey = "solar_soiling_since_{$company->id}_{$inv->id}_{$s}";
 
-                                // Check if this string is connected (current > 1.0A) and has a severe drop of 50% or more compared to healthy average
-                                if ($cVal > 1.0 && $cVal < ($healthyAvg * 0.50)) {
+                                // 1. Zero current check (0.0A on an expected string)
+                                if ($cVal <= 0.2) {
+                                    $inverterZeroStrings[] = 'PV ' . $s;
+                                }
+                                // 2. Severe drop (drop >= 50% compared to healthy average)
+                                elseif ($cVal > 0.5 && $cVal < ($healthyAvg * 0.50)) {
                                     $dropPct = round((1 - ($cVal / $healthyAvg)) * 100);
                                     $pvStrings[$s]['status'] = 'critical_cleaning';
                                     $pvStrings[$s]['drop_pct'] = $dropPct;
@@ -450,48 +463,79 @@ class ISolarCloudService
 
                                     $inverterProblemStrings[] = [
                                         'string_num' => $s,
-                                        'string_label' => 'PV String ' . $s,
+                                        'string_label' => 'PV ' . $s,
                                         'current_a' => $cVal,
                                         'drop_pct' => $dropPct,
                                         'persist_minutes' => $persistMinutes,
                                     ];
                                 } else {
-                                    // Current is normal or recovered -> clear persistence tracking
                                     \Illuminate\Support\Facades\Cache::forget($cacheKey);
                                 }
                             }
 
-                            // Cloud vs Dust Filter: If more than 50% of strings dropped together, it is a passing cloud over the whole plant
-                            $isIsolatedDustIssue = ! empty($inverterProblemStrings) && (count($inverterProblemStrings) <= max(2, (int) round($totalConnectedStrings * 0.45)));
+                            // Cloud vs Dust Filter: If more than 50% of strings dropped together, it is a passing cloud
+                            $isIsolatedIssue = ! empty($inverterProblemStrings) && (count($inverterProblemStrings) <= max(2, (int) round($totalConnectedStrings * 0.45)));
 
-                            if ($isIsolatedDustIssue && $canRunSoilingCheck) {
-                                $strNums = array_column($inverterProblemStrings, 'string_num');
+                            if ($isIsolatedIssue && $canRunSoilingCheck) {
+                                $strNums = array_map(fn($item) => 'PV ' . $item['string_num'], $inverterProblemStrings);
                                 $dropPcts = array_column($inverterProblemStrings, 'drop_pct');
+                                $currents = array_column($inverterProblemStrings, 'current_a');
                                 $maxDrop = ! empty($dropPcts) ? max($dropPcts) : 50;
+                                $worstCurrent = ! empty($currents) ? min($currents) : 2.1;
+                                $strText = implode(', ', $strNums);
 
-                                if (count($strNums) === 1) {
-                                    $strText = $strNums[0];
-                                } elseif (count($strNums) === 2) {
-                                    $strText = $strNums[0] . ' અને ' . $strNums[1];
+                                if ($isWinterMorning) {
+                                    $noticeType = 'winter_dew';
+                                    $noticeBadge = '❄️ સવારની ઝાકળ';
+                                    $noticeMessage = "{$company->name} ના {$inv->name} માં {$strText} પર સવારની ભારે ઝાકળ હોવાથી પાવર {$maxDrop}% ઓછો આવી રહ્યો છે. (સામાન્ય: {$formattedHealthyAvg}A | {$strText}: {$worstCurrent}A) - વાઇપર વડે સાફ કરવી.";
                                 } else {
-                                    $last = array_pop($strNums);
-                                    $strText = implode(', ', $strNums) . ' અને ' . $last;
+                                    $noticeType = 'dust_soiling';
+                                    $noticeBadge = '⚠️ ધૂળ / કચરો';
+                                    $noticeMessage = "{$company->name} ના {$inv->name} માં {$strText} પર ધૂળ/કચરાના કારણે પાવર {$maxDrop}% ઓછો આવી રહ્યો છે. (સામાન્ય: {$formattedHealthyAvg}A | {$strText}: {$worstCurrent}A) - પ્લેટો વોશ કરવી.";
                                 }
 
                                 $alertItem = [
+                                    'type' => $noticeType,
+                                    'badge' => $noticeBadge,
                                     'company_id' => $company->id,
                                     'company_name' => $company->name,
                                     'inverter_id' => $inv->id,
                                     'inverter_name' => $inv->name,
                                     'device_name' => $deviceName ?: $inv->name,
                                     'serial_number' => $inv->serial_number,
+                                    'string_label' => $strText,
                                     'healthy_avg' => (float) $formattedHealthyAvg,
-                                    'title' => "{$company->name} - {$inv->name}: PV String {$strText} ની પ્લેટો પર વધુ પડતી ધૂળ/કચરો અથવા છાંયડો હોવાથી તેમાંથી {$maxDrop}% સુધી પાવર વેડફાઈ રહ્યો છે - તે ટેબલની પ્લેટો તાત્કાલિક ધોવાની જરૂર છે.",
+                                    'worst_current' => (float) $worstCurrent,
+                                    'drop_pct' => $maxDrop,
+                                    'title' => $noticeMessage,
+                                    'message' => $noticeMessage,
                                     'strings' => $inverterProblemStrings,
                                 ];
 
                                 $inverterAlerts[] = $alertItem;
                                 $allCleaningAlerts[] = $alertItem;
+                            }
+
+                            // Zero Current Fault Alert
+                            if (! empty($inverterZeroStrings) && count($inverterZeroStrings) <= 3 && $canRunSoilingCheck) {
+                                $zeroStrText = implode(', ', $inverterZeroStrings);
+                                $zeroNoticeMessage = "{$company->name} ના {$inv->name} માં {$zeroStrText} માંથી ૦.૦ Amps કરંટ આવે છે. MC4 કનેક્ટર અથવા DC ફ્યુઝ ચેક કરો.";
+                                $zeroAlertItem = [
+                                    'type' => 'zero_current',
+                                    'badge' => '🚨 ૦.૦ Amps ફોલ્ટ',
+                                    'company_id' => $company->id,
+                                    'company_name' => $company->name,
+                                    'inverter_id' => $inv->id,
+                                    'inverter_name' => $inv->name,
+                                    'device_name' => $deviceName ?: $inv->name,
+                                    'serial_number' => $inv->serial_number,
+                                    'string_label' => $zeroStrText,
+                                    'title' => $zeroNoticeMessage,
+                                    'message' => $zeroNoticeMessage,
+                                    'strings' => [],
+                                ];
+                                $inverterAlerts[] = $zeroAlertItem;
+                                $allCleaningAlerts[] = $zeroAlertItem;
                             }
                         }
                     }

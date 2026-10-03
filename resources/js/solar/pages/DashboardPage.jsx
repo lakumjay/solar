@@ -319,24 +319,59 @@ export default function DashboardPage({companyId, currentUser}) {
                     </div>
                 </div>
 
-                {/* 📉 Grid Downtime & Revenue Loss Alert Banner */}
-                {gridDowntime && gridDowntime.is_down && (
-                    <div className="grid-downtime-alert-banner">
-                        <div className="grid-downtime-head">
-                            <span className="grid-downtime-tag">
-                                <Activity size={13}/> 🚨 ગ્રીડ ટ્રીપિંગ / લાઈન કટ ({gridDowntime.downtime_minutes} મિનિટ)
-                            </span>
-                            <span className="grid-downtime-loss-val">
-                                અંદાજિત નુકસાન: -{gridDowntime.lost_units_kwh} kWh (₹{gridDowntime.lost_revenue_rs})
-                            </span>
+                {/* 🔌 PGVCL / DISCOM Grid Outage & Power Loss Tracker Card */}
+                {gridDowntime && (
+                    <div style={{
+                        marginBottom: '12px',
+                        background: gridDowntime.is_down ? '#fef2f2' : '#f0fdf4',
+                        border: gridDowntime.is_down ? '1.5px solid #ef4444' : '1px solid #86efac',
+                        borderRadius: '12px',
+                        padding: '12px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '10px'
+                    }}>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '10px', minWidth: '240px'}}>
+                            <div style={{
+                                width: '38px',
+                                height: '38px',
+                                borderRadius: '10px',
+                                background: gridDowntime.is_down ? '#fee2e2' : '#dcfce7',
+                                color: gridDowntime.is_down ? '#dc2626' : '#16a34a',
+                                display: 'grid',
+                                placeItems: 'center',
+                                flexShrink: 0
+                            }}>
+                                <Zap size={20}/>
+                            </div>
+                            <div>
+                                <b style={{fontSize: '13px', color: gridDowntime.is_down ? '#991b1b' : '#166534', display: 'block'}}>
+                                    {gridDowntime.title || (gridDowntime.is_down ? '🚨 PGVCL લાઈટ કપાત ચાલુ છે' : '⚡ PGVCL ગ્રીડ પાવર સામાન્ય છે')}
+                                </b>
+                                <span style={{fontSize: '11.5px', color: gridDowntime.is_down ? '#b91c1c' : '#15803d'}}>
+                                    {gridDowntime.message}
+                                </span>
+                            </div>
                         </div>
-                        <p className="grid-downtime-msg">{gridDowntime.message}</p>
+
+                        {gridDowntime.is_down && (
+                            <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
+                                <span style={{background: '#dc2626', color: '#fff', fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: '6px'}}>
+                                    -{gridDowntime.lost_units_kwh} kWh
+                                </span>
+                                <span style={{background: '#991b1b', color: '#fff', fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: '6px'}}>
+                                    -₹{gridDowntime.lost_revenue_rs}
+                                </span>
+                            </div>
+                        )}
                     </div>
                 )}
 
                 {/* 🚨 Severe High Wind Storm Damage Warning Alert Banner */}
                 {weather.storm_alert && weather.storm_alert.active && (
-                    <div className="weather-storm-banner">
+                    <div className="weather-storm-banner" style={{marginBottom: '10px'}}>
                         <div className="weather-storm-head">
                             <span className="weather-storm-tag">
                                 <Wind size={13}/> 🚨 તેજ પવન & વાવાઝોડું એલર્ટ (Wind Damage Warning)
@@ -353,7 +388,7 @@ export default function DashboardPage({companyId, currentUser}) {
 
                 {/* 🔍 Inverter Underperformance Alert Cards */}
                 {underperformingInverters.length > 0 && (
-                    <div className="underperf-inverters-list">
+                    <div className="underperf-inverters-list" style={{marginBottom: '10px'}}>
                         {underperformingInverters.map((uInv, uIdx) => (
                             <div key={uIdx} className="underperf-inverter-card">
                                 <div className="underperf-card-head">
@@ -402,54 +437,52 @@ export default function DashboardPage({companyId, currentUser}) {
                     </div>
                 )}
 
-                {/* 🧼 Cleaning Gain & ROI Tracker Banner */}
-                {cleaningRoi && (
-                    <div className="cleaning-roi-card">
-                        <div className="cleaning-roi-left">
-                            <span className="cleaning-roi-badge">🧼 {cleaningRoi.payback_text}</span>
-                            <div className="cleaning-roi-text">
-                                <b>{cleaningRoi.title}:</b> <span>{cleaningRoi.message}</span>
-                            </div>
-                        </div>
-                        <div className="cleaning-roi-stat">
-                            <span>+{cleaningRoi.gain_percentage}%</span>
-                            <small>વધારો</small>
-                        </div>
-                    </div>
-                )}
-
-
-                {/* 🚿 Smart Plate Washing Advice Banner (48h Weather Forecast Recommendation) */}
-                {cleaningSystem.washing_advice && (
-                    <div className={`smart-washing-banner ${cleaningSystem.washing_advice.theme}`}>
-                        <div className="smart-washing-left">
-                            <span className="smart-washing-badge">{cleaningSystem.washing_advice.badge}</span>
-                            <div className="smart-washing-text">
-                                <b>{cleaningSystem.washing_advice.title}:</b> <span>{cleaningSystem.washing_advice.message}</span>
-                            </div>
-                        </div>
-                        <Droplets size={18} className="smart-washing-icon"/>
-                    </div>
-                )}
-
+                {/* 🚿 Smart Seasonal / Dew / Soiling / Zero Current Notices */}
                 {cleaningAlerts.length > 0 ? (
-                    <div className="cleaning-alert-list-stacked">
+                    <div className="cleaning-alert-list-stacked" style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
                         {cleaningAlerts.map((alert, idx) => (
-                            <div key={idx} className="cleaning-banner-card">
-                                <div className="cleaning-banner-title">
-                                    <span style={{color: '#dc2626'}}>⚠️</span>
-                                    <span>"{alert.title}"</span>
-                                </div>
-                                <div className="cleaning-banner-pills-row">
-                                    <span className="pill-healthy-baseline">
-                                        સામાન્ય સ્ટ્રિંગ કરંટ: {alert.healthy_avg} A
-                                    </span>
-                                    {alert.strings && alert.strings.map((str, sIdx) => (
-                                        <span key={sIdx} className="pill-problem-string">
-                                            {str.string_label}: {str.current_a} A ({str.drop_pct}% પાવર લોસ - ધોવાની જરૂર)
+                            <div key={idx} style={{
+                                background: alert.type === 'winter_dew' ? '#f0f9ff' : alert.type === 'zero_current' ? '#fef2f2' : '#fffbeb',
+                                border: alert.type === 'winter_dew' ? '1.5px solid #38bdf8' : alert.type === 'zero_current' ? '1.5px solid #ef4444' : '1.5px solid #f59e0b',
+                                borderRadius: '12px',
+                                padding: '14px 16px',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                            }}>
+                                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', marginBottom: '8px', borderBottom: '1px dashed #cbd5e1', paddingBottom: '6px'}}>
+                                    <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                                        <span style={{
+                                            background: alert.type === 'winter_dew' ? '#0284c7' : alert.type === 'zero_current' ? '#dc2626' : '#d97706',
+                                            color: '#ffffff',
+                                            fontWeight: 800,
+                                            fontSize: '11px',
+                                            padding: '3px 8px',
+                                            borderRadius: '6px'
+                                        }}>
+                                            {alert.badge || '⚠️ લાઈવ નોટિસ'}
                                         </span>
-                                    ))}
+                                        <b style={{fontSize: '13px', color: '#0f172a'}}>🏢 {alert.company_name}</b>
+                                    </div>
+                                    {alert.inverter_name && (
+                                        <span style={{fontSize: '12px', color: '#475569', fontWeight: 700}}>
+                                            ⚡ {alert.inverter_name} {alert.string_label ? `· 🛑 ${alert.string_label}` : ''}
+                                        </span>
+                                    )}
                                 </div>
+                                
+                                <p style={{margin: '0 0 8px', fontSize: '13px', color: '#1e293b', lineHeight: 1.5, fontWeight: 600}}>
+                                    "{alert.message || alert.title}"
+                                </p>
+
+                                {alert.healthy_avg > 0 && alert.worst_current !== undefined && (
+                                    <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '11px'}}>
+                                        <span style={{background: '#ecfdf5', color: '#166534', padding: '3px 8px', borderRadius: '4px', border: '1px solid #86efac', fontWeight: 700}}>
+                                            સામાન્ય કરંટ: {alert.healthy_avg} Amps
+                                        </span>
+                                        <span style={{background: '#fee2e2', color: '#991b1b', padding: '3px 8px', borderRadius: '4px', border: '1px solid #fca5a5', fontWeight: 700}}>
+                                            {alert.string_label || 'ખામીવાળો'} કરંટ: {alert.worst_current} Amps ({alert.drop_pct || 50}% પાવર ડ્રોપ)
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
