@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {Activity, BarChart3, Boxes, Building2, CalendarCheck2, Camera, ChevronRight, ClipboardPlus, Clock3, CloudSun, Gauge, IndianRupee, LogOut, Menu, Sun, UserCheck, Users, WalletCards, X} from 'lucide-react';
+import {Activity, BarChart3, Boxes, Building2, CalendarCheck2, Camera, ChevronRight, ClipboardPlus, Clock3, CloudSun, Film, Gauge, IndianRupee, LogOut, Menu, Sun, UserCheck, Users, WalletCards, X} from 'lucide-react';
 import {api} from '../api';
 import MobileAppView from './MobileAppView';
 import NotificationPermissionModal from './NotificationPermissionModal';
@@ -57,52 +57,114 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         };
     }, [companyId]);
 
-    // 📍 Periodic Employee Live Location Background Ping (Active when App is open or minimized)
+    // 📍 Real-Time Employee Live Location Tracking (Continuous watchPosition + multi-trigger ping)
     useEffect(() => {
         if (!user) return;
 
-        const pingLocation = () => {
+        let watchId = null;
+        let lastPingTime = 0;
+        let lastLat = null;
+        let lastLng = null;
+
+        const sendPing = (latitude, longitude, accuracy = null, speed = null, heading = null, force = false) => {
+            const now = Date.now();
+            // Throttle pings to at most once per 15s unless forced or moved > 25 meters
+            if (!force && (now - lastPingTime < 15000)) {
+                return;
+            }
+
+            lastPingTime = now;
+            lastLat = latitude;
+            lastLng = longitude;
+
+            api('employee-locations/ping', {
+                method: 'POST',
+                body: JSON.stringify({
+                    latitude,
+                    longitude,
+                    accuracy,
+                    speed,
+                    heading,
+                    status_label: 'App Active'
+                })
+            }).catch(() => {});
+        };
+
+        const triggerInstantGps = (force = false) => {
             if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return;
 
             navigator.geolocation.getCurrentPosition(
-                position => {
-                    const rawSpeed = position.coords.speed; // meters/sec
+                pos => {
+                    const rawSpeed = pos.coords.speed;
                     const speedKmh = rawSpeed !== null && rawSpeed >= 0 ? Math.round(rawSpeed * 3.6) : null;
-                    api('employee-locations/ping', {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            latitude: position.coords.latitude,
-                            longitude: position.coords.longitude,
-                            accuracy: position.coords.accuracy,
-                            speed: speedKmh,
-                            heading: position.coords.heading,
-                            status_label: 'App Active'
-                        })
-                    }).catch(() => {});
+                    sendPing(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, speedKmh, pos.coords.heading, force);
                 },
-                () => {},
-                {enableHighAccuracy: true, timeout: 15000, maximumAge: 15000}
+                () => {
+                    // Fallback to low accuracy if satellite GPS takes long
+                    navigator.geolocation.getCurrentPosition(
+                        pos => {
+                            sendPing(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, null, null, force);
+                        },
+                        () => {},
+                        {enableHighAccuracy: false, timeout: 10000, maximumAge: 60000}
+                    );
+                },
+                {enableHighAccuracy: true, timeout: 12000, maximumAge: 10000}
             );
         };
 
-        // Ping immediately
-        pingLocation();
+        // 1. Start continuous hardware GPS watch
+        if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+            try {
+                watchId = navigator.geolocation.watchPosition(
+                    pos => {
+                        const rawSpeed = pos.coords.speed;
+                        const speedKmh = rawSpeed !== null && rawSpeed >= 0 ? Math.round(rawSpeed * 3.6) : null;
+                        sendPing(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, speedKmh, pos.coords.heading);
+                    },
+                    () => {},
+                    {enableHighAccuracy: true, timeout: 20000, maximumAge: 10000}
+                );
+            } catch (e) {}
+        }
 
-        // Periodic background interval (every 30 seconds for live movement tracking)
-        const locationInterval = setInterval(pingLocation, 30 * 1000);
+        // 2. Immediate ping on load
+        triggerInstantGps(true);
 
-        const handleFocus = () => {
+        // 3. Keepalive interval every 30s
+        const intervalId = setInterval(() => triggerInstantGps(false), 30000);
+
+        // 4. Instant ping whenever app becomes visible / focused / resumed
+        const handleResume = () => {
             if (document.visibilityState === 'visible') {
-                pingLocation();
+                triggerInstantGps(true);
             }
         };
-        document.addEventListener('visibilitychange', handleFocus);
-        window.addEventListener('focus', handleFocus);
+
+        // 5. Throttled ping on user interaction (tap/touch/click when using the app)
+        const handleUserInteraction = () => {
+            const now = Date.now();
+            if (now - lastPingTime > 25000) {
+                triggerInstantGps(false);
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleResume);
+        window.addEventListener('focus', handleResume);
+        window.addEventListener('pageshow', handleResume);
+        window.addEventListener('touchend', handleUserInteraction, {passive: true});
+        window.addEventListener('click', handleUserInteraction, {passive: true});
 
         return () => {
-            clearInterval(locationInterval);
-            document.removeEventListener('visibilitychange', handleFocus);
-            window.removeEventListener('focus', handleFocus);
+            if (watchId !== null && typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+                navigator.geolocation.clearWatch(watchId);
+            }
+            clearInterval(intervalId);
+            document.removeEventListener('visibilitychange', handleResume);
+            window.removeEventListener('focus', handleResume);
+            window.removeEventListener('pageshow', handleResume);
+            window.removeEventListener('touchend', handleUserInteraction);
+            window.removeEventListener('click', handleUserInteraction);
         };
     }, [user?.id]);
 
@@ -113,6 +175,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         can('enter_readings') && ['entry', 'Daily Entry', ClipboardPlus],
         can('view_reports') && ['reports', 'Reports', BarChart3],
         ['gallery', 'Gallery', Camera],
+        ['reels', 'Reels', Film],
         ['expenses', 'Expenses', IndianRupee],
         user.role === 'super_admin' && ['companies', 'Companies', Building2],
         (user.role === 'super_admin' || can('manage_company_users')) && ['users', 'Users & Access', Users],
@@ -131,6 +194,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         entry: ['Daily reading entry', activeCompany?.name],
         reports: ['Reports', companyId === 'all' ? 'All companies combined' : activeCompany?.name],
         gallery: ['Plant Photo Gallery', 'Daily scheduled inspection records and photo log'],
+        reels: ['Plant Solar Reels', 'Cinematic video hub with auto slow-mo, trending beats & Instagram share'],
         expenses: ['Shared expenses', 'Company-wise balances and settlements'],
         companies: ['Company configuration', 'Multipliers and inverters'],
         users: ['Users & access', 'Roles and custom permissions'],

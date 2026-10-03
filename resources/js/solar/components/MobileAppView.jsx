@@ -18,6 +18,7 @@ import {
     CheckCircle,
     Download,
     Factory,
+    Film,
     Home,
     IndianRupee,
     Leaf,
@@ -1007,91 +1008,93 @@ export default function MobileAppView({
             )}
 
             {/* 7. MODERN FLOATING BOTTOM NAVIGATION BAR WITH HAPTIC TOUCH & AUDIO TICK */}
-            <nav className="mobile-bottom-navbar">
-                {can('view_dashboard') && (
+            {page !== 'reels' && (
+                <nav className="mobile-bottom-navbar">
+                    {can('view_dashboard') && (
+                        <button
+                            type="button"
+                            className={`bnav-item ${page === 'dashboard' ? 'active' : ''}`}
+                            onClick={() => {
+                                playNavClickSound();
+                                setPage('dashboard');
+                            }}
+                        >
+                            <Home size={19}/>
+                            <span>Home</span>
+                        </button>
+                    )}
+
+                    {can('enter_readings') && (
+                        <button
+                            type="button"
+                            className={`bnav-item ${page === 'entry' ? 'active' : ''}`}
+                            onClick={() => {
+                                playNavClickSound();
+                                if ((companyId === 'all' || !companyId) && companies.length > 0) {
+                                    const validComp = companies.find(c => String(c.id) !== 'all') || companies[0];
+                                    if (validComp) setCompanyId(String(validComp.id));
+                                }
+                                setPage('entry');
+                            }}
+                        >
+                            <ClipboardPlus size={19}/>
+                            <span>Entry</span>
+                        </button>
+                    )}
+
+                    {(user.role === 'employee' || can('view_attendance')) && (
+                        <button
+                            type="button"
+                            className={`bnav-item ${[attendanceTargetPage, 'attendance', 'my-attendance'].includes(page) ? 'active' : ''}`}
+                            onClick={() => {
+                                playNavClickSound();
+                                setPage(attendanceTargetPage);
+                            }}
+                        >
+                            <UserCheck size={19}/>
+                            <span>Attendance</span>
+                        </button>
+                    )}
+
+                    {can('view_reports') && (
+                        <button
+                            type="button"
+                            className={`bnav-item ${page === 'reports' ? 'active' : ''}`}
+                            onClick={() => {
+                                playNavClickSound();
+                                setPage('reports');
+                            }}
+                        >
+                            <BarChart3 size={19}/>
+                            <span>Reports</span>
+                        </button>
+                    )}
+
                     <button
                         type="button"
-                        className={`bnav-item ${page === 'dashboard' ? 'active' : ''}`}
+                        className={`bnav-item ${page === 'gallery' ? 'active' : ''}`}
                         onClick={() => {
                             playNavClickSound();
-                            setPage('dashboard');
+                            setPage('gallery');
                         }}
                     >
-                        <Home size={19}/>
-                        <span>Home</span>
+                        <Camera size={19}/>
+                        <span>Gallery</span>
                     </button>
-                )}
 
-                {can('enter_readings') && (
                     <button
                         type="button"
-                        className={`bnav-item ${page === 'entry' ? 'active' : ''}`}
+                        className={`bnav-item ${moreMenuOpen ? 'active' : ''}`}
                         onClick={() => {
                             playNavClickSound();
-                            if ((companyId === 'all' || !companyId) && companies.length > 0) {
-                                const validComp = companies.find(c => String(c.id) !== 'all') || companies[0];
-                                if (validComp) setCompanyId(String(validComp.id));
-                            }
-                            setPage('entry');
+                            setMoreMenuOpen(true);
                         }}
                     >
-                        <ClipboardPlus size={19}/>
-                        <span>Entry</span>
+                        <MoreHorizontal size={19}/>
+                        <span>More</span>
                     </button>
-                )}
-
-                {(user.role === 'employee' || can('view_attendance')) && (
-                    <button
-                        type="button"
-                        className={`bnav-item ${[attendanceTargetPage, 'attendance', 'my-attendance'].includes(page) ? 'active' : ''}`}
-                        onClick={() => {
-                            playNavClickSound();
-                            setPage(attendanceTargetPage);
-                        }}
-                    >
-                        <UserCheck size={19}/>
-                        <span>Attendance</span>
-                    </button>
-                )}
-
-                {can('view_reports') && (
-                    <button
-                        type="button"
-                        className={`bnav-item ${page === 'reports' ? 'active' : ''}`}
-                        onClick={() => {
-                            playNavClickSound();
-                            setPage('reports');
-                        }}
-                    >
-                        <BarChart3 size={19}/>
-                        <span>Reports</span>
-                    </button>
-                )}
-
-                <button
-                    type="button"
-                    className={`bnav-item ${page === 'gallery' ? 'active' : ''}`}
-                    onClick={() => {
-                        playNavClickSound();
-                        setPage('gallery');
-                    }}
-                >
-                    <Camera size={19}/>
-                    <span>Gallery</span>
-                </button>
-
-                <button
-                    type="button"
-                    className={`bnav-item ${moreMenuOpen ? 'active' : ''}`}
-                    onClick={() => {
-                        playNavClickSound();
-                        setMoreMenuOpen(true);
-                    }}
-                >
-                    <MoreHorizontal size={19}/>
-                    <span>More</span>
-                </button>
-            </nav>
+                </nav>
+            )}
 
             {/* 🔔 Slide-up Notification Center & Alerts Drawer */}
             {notifCenterOpen && (
@@ -1307,6 +1310,16 @@ export default function MobileAppView({
                             >
                                 <Camera size={18}/>
                                 <span>Gallery (પ્લાન્ટ ફોટા)</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                className="dmenu-item"
+                                onClick={() => { setPage('reels'); setMoreMenuOpen(false); }}
+                                style={{background: '#f0fdf4', border: '1px solid #86efac'}}
+                            >
+                                <Film size={18} style={{color: '#16a34a'}}/>
+                                <span style={{color: '#166534', fontWeight: 700}}>🎬 Reels Hub</span>
                             </button>
 
                             {(isSuperAdmin || user.role === 'company_admin' || can('view_expenses')) && (

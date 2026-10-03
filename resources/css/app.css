@@ -5875,3 +5875,378 @@
     font-weight: 700;
     color: #166534;
 }
+
+/* ══════════════════════════════════════════════════════
+   🎬 INSTAGRAM-STYLE SOLAR REELS & STUDIO STYLES
+══════════════════════════════════════════════════════ */
+.reels-page-container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding-bottom: 30px;
+}
+
+.reels-vertical-viewport {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.reel-card-main {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    height: 75vh;
+    min-height: 520px;
+    max-height: 780px;
+    background: #000000;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.reel-video-element {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    cursor: pointer;
+}
+
+.reel-play-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.45);
+    border-radius: 50%;
+    width: 76px;
+    height: 76px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    z-index: 10;
+    pointer-events: none;
+}
+
+.reel-top-bar {
+    position: relative;
+    z-index: 20;
+    padding: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+}
+
+.reel-pill-badge {
+    background: rgba(22, 163, 74, 0.85);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    backdrop-filter: blur(4px);
+    letter-spacing: 0.5px;
+}
+
+.reel-icon-btn {
+    background: rgba(0, 0, 0, 0.4);
+    color: #ffffff;
+    border: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+}
+
+.reel-actions-sidebar {
+    position: absolute;
+    right: 12px;
+    bottom: 90px;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    align-items: center;
+}
+
+.reel-action-item {
+    background: transparent;
+    border: 0;
+    color: #ffffff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+    transition: transform 0.15s ease;
+}
+
+.reel-action-item:hover {
+    transform: scale(1.1);
+}
+
+.reel-action-item span {
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.reel-action-item.liked {
+    color: #ef4444;
+}
+
+.reel-action-item.delete-btn {
+    color: #fca5a5;
+    background: rgba(220, 38, 38, 0.35);
+    padding: 6px;
+    border-radius: 50%;
+}
+
+.reel-bottom-info {
+    position: relative;
+    z-index: 20;
+    padding: 16px 70px 16px 16px;
+    background: linear-gradient(to top, rgba(0,0,0,0.85), transparent);
+    color: #ffffff;
+}
+
+.reel-author-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.reel-author-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #16a34a;
+    color: #ffffff;
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    font-size: 13px;
+    border: 2px solid #ffffff;
+}
+
+.reel-author-name {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.reel-company-tag {
+    font-size: 10.5px;
+    color: #86efac;
+}
+
+.reel-title-text {
+    margin: 4px 0 2px;
+    font-size: 13.5px;
+    font-weight: 800;
+    line-height: 1.3;
+    color: #f8fafc;
+}
+
+.reel-caption-text {
+    margin: 0 0 6px;
+    font-size: 11.5px;
+    color: #cbd5e1;
+    line-height: 1.3;
+}
+
+.reel-music-ticker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.15);
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    color: #f1f5f9;
+    backdrop-filter: blur(4px);
+}
+
+.reel-nav-arrows {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 25;
+}
+
+.reel-arrow {
+    background: rgba(0, 0, 0, 0.45);
+    color: #ffffff;
+    border: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    transition: background 0.15s;
+}
+
+.reel-arrow:hover {
+    background: rgba(0, 0, 0, 0.75);
+}
+
+.reels-grid-view {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+}
+
+.reel-grid-item {
+    position: relative;
+    aspect-ratio: 9 / 16;
+    background: #0f172a;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.reel-grid-item video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.reel-grid-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 10px 8px;
+    background: linear-gradient(to top, rgba(0,0,0,0.85), transparent);
+    color: #ffffff;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.grid-reel-title {
+    font-size: 11.5px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.grid-reel-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #94a3b8;
+}
+
+/* 🎬 Full-Screen Dedicated Reel Creation Studio Modal (Desktop & Mobile 100% Fixed) */
+.reel-studio-backdrop {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    background: rgba(0, 0, 0, 0.82) !important;
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+    z-index: 999999 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+}
+
+.reel-studio-container {
+    position: relative !important;
+    width: 100% !important;
+    max-width: 680px !important;
+    height: 94vh !important;
+    height: 94dvh !important;
+    max-height: 94dvh !important;
+    background: #ffffff !important;
+    border-radius: 20px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    box-shadow: 0 25px 70px rgba(0, 0, 0, 0.4) !important;
+    margin: 0 auto !important;
+}
+
+.reel-studio-header {
+    padding: 14px 18px !important;
+    background: #ffffff !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    flex-shrink: 0 !important;
+    z-index: 10 !important;
+}
+
+.reel-studio-body {
+    flex: 1 1 auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 16px 18px !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+}
+
+.reel-studio-footer {
+    padding: 12px 18px calc(14px + env(safe-area-inset-bottom, 12px)) !important;
+    background: #ffffff !important;
+    border-top: 1.5px solid #e2e8f0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+    flex-shrink: 0 !important;
+    z-index: 50 !important;
+    box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.08) !important;
+}
+
+@media (max-width: 768px) {
+    .reel-studio-backdrop {
+        padding: 0 !important;
+    }
+
+    .reel-studio-container {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        height: 100vh !important;
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        border-radius: 0 !important;
+        margin: 0 !important;
+    }
+}
+
+

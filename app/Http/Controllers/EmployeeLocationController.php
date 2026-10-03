@@ -186,7 +186,7 @@ class EmployeeLocationController extends Controller
             if ($recordedAt) {
                 $carbonDate = $recordedAt instanceof Carbon ? $recordedAt : Carbon::parse($recordedAt);
                 $elapsedMinutes = $now->diffInMinutes($carbonDate);
-                $isLive = $elapsedMinutes <= 20;
+                $isLive = $elapsedMinutes <= 45;
                 $lastSeenHuman = $carbonDate->diffForHumans();
             }
 
