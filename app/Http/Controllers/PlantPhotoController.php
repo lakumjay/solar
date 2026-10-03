@@ -194,19 +194,41 @@ class PlantPhotoController extends Controller
     }
 
     /**
-     * Stream compressed photo binary with cache headers.
+     * Stream compressed photo binary with multi-path fallback and resilient caching.
      */
     public function image(PlantPhoto $photo)
     {
-        $fullPath = storage_path('app/private/' . $photo->photo_path);
+        $possiblePaths = [
+            storage_path('app/private/' . $photo->photo_path),
+            storage_path('app/' . $photo->photo_path),
+            storage_path('app/public/' . $photo->photo_path),
+            public_path('storage/' . $photo->photo_path),
+            public_path($photo->photo_path),
+        ];
 
-        if (! file_exists($fullPath)) {
-            abort(404, 'Plant photo expired or not found.');
+        $fullPath = null;
+        foreach ($possiblePaths as $p) {
+            if ($p && file_exists($p)) {
+                $fullPath = $p;
+                break;
+            }
         }
 
+        if (! $fullPath) {
+            // Return an inline SVG placeholder so client image doesn't break with a hard 404
+            $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"><rect fill="#f1f5f9" width="400" height="300"/><text fill="#94a3b8" font-family="sans-serif" font-size="13" font-weight="bold" x="50%" y="50%" text-anchor="middle" dominant-baseline="middle">📸 Photo Syncing or Archived</text></svg>';
+            return response($svg, 200, [
+                'Content-Type' => 'image/svg+xml',
+                'Cache-Control' => 'no-cache',
+            ]);
+        }
+
+        $mime = @mime_content_type($fullPath) ?: 'image/jpeg';
+
         return Response::file($fullPath, [
-            'Content-Type' => 'image/jpeg',
-            'Cache-Control' => 'public, max-age=86400',
+            'Content-Type' => $mime,
+            'Cache-Control' => 'public, max-age=604800, immutable',
+            'ETag' => md5_file($fullPath),
         ]);
     }
 

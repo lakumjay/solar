@@ -6,7 +6,7 @@ import LiveBackCameraModal from '../components/LiveBackCameraModal';
 
 export default function GalleryPage({currentUser, companyId}) {
     const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-    const [selectedCompany, setSelectedCompany] = useState(companyId || '');
+    const [selectedCompany, setSelectedCompany] = useState(companyId === 'all' ? '' : (companyId || ''));
     const [selectedTask, setSelectedTask] = useState('');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -276,6 +276,14 @@ export default function GalleryPage({currentUser, companyId}) {
                                     src={p.photo_url}
                                     alt={p.task_title}
                                     loading="lazy"
+                                    onError={(e) => {
+                                        if (!e.currentTarget.dataset.retried) {
+                                            e.currentTarget.dataset.retried = '1';
+                                            setTimeout(() => {
+                                                e.currentTarget.src = p.photo_url + (p.photo_url.includes('?') ? '&' : '?') + 'retry=' + Date.now();
+                                            }, 1000);
+                                        }
+                                    }}
                                 />
                                 <div className="photo-thumb-overlay" style={{
                                     position: 'absolute',
@@ -467,6 +475,14 @@ export default function GalleryPage({currentUser, companyId}) {
                                 key={lightboxPhoto.id}
                                 src={lightboxPhoto.photo_url}
                                 alt="Plant Photo High Resolution"
+                                onError={(e) => {
+                                    if (!e.currentTarget.dataset.retried) {
+                                        e.currentTarget.dataset.retried = '1';
+                                        setTimeout(() => {
+                                            e.currentTarget.src = lightboxPhoto.photo_url + (lightboxPhoto.photo_url.includes('?') ? '&' : '?') + 'retry=' + Date.now();
+                                        }, 800);
+                                    }
+                                }}
                                 style={{
                                     maxHeight: '68vh',
                                     maxWidth: '100%',
