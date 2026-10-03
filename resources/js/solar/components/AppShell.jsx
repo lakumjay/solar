@@ -171,7 +171,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
     const can = permission => user.role === 'super_admin' || user.permissions.includes(permission);
     const activeCompany = companies.find(company => String(company.id) === String(companyId));
     const navigation = [
-        can('view_dashboard') && ['dashboard', 'Dashboard', Gauge],
+        ['dashboard', '⚡ Live Solar', Zap],
         can('enter_readings') && ['entry', 'Daily Entry', ClipboardPlus],
         can('view_reports') && ['reports', 'Reports', BarChart3],
         ['gallery', 'Gallery', Camera],

@@ -1010,19 +1010,17 @@ export default function MobileAppView({
             {/* 7. MODERN FLOATING BOTTOM NAVIGATION BAR WITH HAPTIC TOUCH & AUDIO TICK */}
             {page !== 'reels' && (
                 <nav className="mobile-bottom-navbar">
-                    {can('view_dashboard') && (
-                        <button
-                            type="button"
-                            className={`bnav-item ${page === 'dashboard' ? 'active' : ''}`}
-                            onClick={() => {
-                                playNavClickSound();
-                                setPage('dashboard');
-                            }}
-                        >
-                            <Home size={19}/>
-                            <span>Home</span>
-                        </button>
-                    )}
+                    <button
+                        type="button"
+                        className={`bnav-item ${page === 'dashboard' ? 'active' : ''}`}
+                        onClick={() => {
+                            playNavClickSound();
+                            setPage('dashboard');
+                        }}
+                    >
+                        <Zap size={19}/>
+                        <span>Live Solar</span>
+                    </button>
 
                     {can('enter_readings') && (
                         <button
