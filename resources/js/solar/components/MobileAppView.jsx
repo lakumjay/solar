@@ -108,6 +108,7 @@ export default function MobileAppView({
     const [curtailMessage, setCurtailMessage] = useState('');
     const [historyList, setHistoryList] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
+    const [inlineCustomPct, setInlineCustomPct] = useState({});
 
     const openCurtailModal = (company = null, initialPct = 20) => {
         const targetComp = company || (liveData?.companies && liveData.companies[0]);
@@ -774,8 +775,8 @@ export default function MobileAppView({
                                         </div>
 
                                         {/* Step Control Buttons on Mobile */}
-                                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', marginTop: '6px', paddingTop: '6px', borderTop: '1px dashed #fed7aa'}}>
-                                            <div style={{display: 'flex', alignItems: 'center', gap: '3px'}}>
+                                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px', marginTop: '6px', paddingTop: '6px', borderTop: '1px dashed #fed7aa'}}>
+                                            <div style={{display: 'flex', alignItems: 'center', gap: '3px', flexWrap: 'wrap'}}>
                                                 {[40, 20, 10].map(pct => {
                                                     const isCurrent = curt.percentage === pct;
                                                     return (
@@ -798,6 +799,34 @@ export default function MobileAppView({
                                                         </button>
                                                     );
                                                 })}
+
+                                                {/* Inline Custom % Input for Mobile */}
+                                                <div style={{display: 'inline-flex', alignItems: 'center', gap: '2px', background: '#f8fafc', padding: '1px 3px', borderRadius: '4px', border: '1px solid #cbd5e1'}}>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        max="100"
+                                                        placeholder="22"
+                                                        value={inlineCustomPct[curt.company_id] !== undefined ? inlineCustomPct[curt.company_id] : ''}
+                                                        onChange={e => setInlineCustomPct({...inlineCustomPct, [curt.company_id]: e.target.value})}
+                                                        style={{width: '38px', padding: '1px 2px', fontSize: '10px', borderRadius: '3px', border: '1px solid #cbd5e1', fontWeight: 700, textAlign: 'center'}}
+                                                    />
+                                                    <span style={{fontSize: '9.5px', fontWeight: 700, color: '#64748b'}}>%</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const val = parseInt(inlineCustomPct[curt.company_id]);
+                                                            if (val >= 1 && val <= 100) {
+                                                                handleQuickStepChange(curt.company_id, val);
+                                                            } else {
+                                                                alert('ટકાવારી ૧ થી ૧૦૦ વચ્ચે લખો (દા.ત. 22).');
+                                                            }
+                                                        }}
+                                                        style={{fontSize: '9.5px', padding: '1px 5px', borderRadius: '3px', border: 'none', background: '#ea580c', color: '#fff', fontWeight: 700, cursor: 'pointer'}}
+                                                    >
+                                                        ➔
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             <button
@@ -953,16 +982,22 @@ export default function MobileAppView({
                         <div className="cleaning-section-header">
                             <div className="cleaning-head-left">
                                 <h3>
-                                    <span style={{color: '#d97706'}}>⚠️</span>
-                                    પ્લાન્ટ સ્માર્ટ ડાયગ્નોસ્ટિક & સફાઈ એલર્ટ
-                                    {((cleaningAlerts.length > 0) || (data?.smart_insights?.underperforming_inverters?.length > 0) || data?.smart_insights?.grid_downtime?.is_down) && (
+                                    <span style={{color: (data?.smart_insights?.cloud_vs_fault?.type === 'night_standby') ? '#0284c7' : '#d97706'}}>
+                                        {(data?.smart_insights?.cloud_vs_fault?.type === 'night_standby') ? '🌙' : '⚠️'}
+                                    </span>
+                                    {(data?.smart_insights?.cloud_vs_fault?.type === 'night_standby')
+                                        ? 'પ્લાન્ટ સ્માર્ટ સ્ટેટસ (રાત્રિ સ્લીપ મોડ)'
+                                        : 'પ્લાન્ટ સ્માર્ટ ડાયગ્નોસ્ટિક & સફાઈ એલર્ટ'}
+                                    {!(data?.smart_insights?.cloud_vs_fault?.type === 'night_standby') && ((cleaningAlerts.length > 0) || (data?.smart_insights?.underperforming_inverters?.length > 0) || data?.smart_insights?.grid_downtime?.is_down) && (
                                         <span className="cleaning-head-badge">
                                             🔴 {(cleaningAlerts.length || 0) + (data?.smart_insights?.underperforming_inverters?.length || 0) + (data?.smart_insights?.grid_downtime?.is_down ? 1 : 0)} ચેતવણી
                                         </span>
                                     )}
                                 </h3>
                                 <p className="cleaning-head-subtitle">
-                                    નબળા ઇન્વર્ટર, પાવર લોસ, ગ્રીડ ટ્રીપિંગ અને ધૂળનું ઓટોમેટિક AI નિદાન
+                                    {(data?.smart_insights?.cloud_vs_fault?.type === 'night_standby')
+                                        ? 'સૂર્યાસ્ત બાદ પ્લાન્ટ બંધ છે. આવતીકાલે સવારે સૂર્યોદય સાથે લાઈવ AI ડાયગ્નોસ્ટિક્સ સક્રિય થશે.'
+                                        : 'નબળા ઇન્વર્ટર, પાવર લોસ, ગ્રીડ ટ્રીપિંગ અને ધૂળનું ઓટોમેટિક AI નિદાન'}
                                 </p>
                             </div>
                         </div>
@@ -1831,10 +1866,22 @@ export default function MobileAppView({
 
                                 <div className="solar-field-group">
                                     <label style={{display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#334155', marginBottom: '4px'}}>
-                                        કેટલા ટકા ઉત્પાદન ચાલુ રાખવું છે?
+                                        કેટલા ટકા (%) કર્ટલમેન્ટ કરવું છે? (કસ્ટમ ટકા લખો અથવા બટન દબાવો)
                                     </label>
-                                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px'}}>
-                                        {[40, 20, 10, 5].map(pct => {
+                                    <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px'}}>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="100"
+                                            value={curtailForm.percentage}
+                                            onChange={e => setCurtailForm(prev => ({ ...prev, percentage: Math.min(100, Math.max(1, parseInt(e.target.value) || 0)) }))}
+                                            required
+                                            style={{width: '80px', padding: '6px 8px', borderRadius: '7px', border: '2px solid #ea580c', fontSize: '15px', fontWeight: 800, color: '#9a3412', textAlign: 'center'}}
+                                        />
+                                        <span style={{fontSize: '12px', fontWeight: 800, color: '#ea580c'}}>% ક્ષમતા બંધ (Curtailment)</span>
+                                    </div>
+                                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '5px'}}>
+                                        {[80, 50, 40, 30, 25, 22, 20, 15, 10, 5].map(pct => {
                                             const isSel = Number(curtailForm.percentage) === pct;
                                             return (
                                                 <button
@@ -1842,13 +1889,13 @@ export default function MobileAppView({
                                                     type="button"
                                                     onClick={() => setCurtailForm(prev => ({ ...prev, percentage: pct }))}
                                                     style={{
-                                                        padding: '8px 4px',
-                                                        borderRadius: '7px',
+                                                        padding: '6px 2px',
+                                                        borderRadius: '6px',
                                                         border: isSel ? '2px solid #ea580c' : '1px solid #cbd5e1',
                                                         background: isSel ? '#ffedd5' : '#f8fafc',
                                                         color: isSel ? '#9a3412' : '#334155',
                                                         fontWeight: 800,
-                                                        fontSize: '13px',
+                                                        fontSize: '11.5px',
                                                         cursor: 'pointer'
                                                     }}
                                                 >

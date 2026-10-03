@@ -616,16 +616,22 @@ class ISolarCloudService
         $realtimePowerMw = round($totalLiveKw / 1000, 2);
         $totalRevenueRs = round($totalTodayKwh * $unitRate, 2);
 
+        $now = Carbon::now();
+        $nowHour = (int) $now->format('H');
+        $currentHourFloat = (float) $nowHour + ((float) $now->format('i') / 60.0);
+        $remainingSunHours = max(0, 18.5 - $currentHourFloat);
+        $isNight = ($currentHourFloat > 18.2 || $currentHourFloat < 6.5 || $totalLiveKw <= 0);
+
         // 1. Next 1 hour generation prediction (kWh):
         $irradianceNext = (float) ($weatherData['solar_irradiance_next'] ?? 700);
-        $irradianceFactor = $irradianceNow > 50 ? min(1.3, max(0.2, $irradianceNext / $irradianceNow)) : 0.8;
-        $predictedNextHourKwh = round($totalLiveKw * $irradianceFactor, 2);
+        $irradianceFactor = ($irradianceNow > 50 && !$isNight) ? min(1.3, max(0.2, $irradianceNext / $irradianceNow)) : 0.0;
+        $predictedNextHourKwh = $isNight ? 0.00 : round($totalLiveKw * $irradianceFactor, 2);
 
         // Company-wise 1-Hour and EOD Predictions
         $companyPredictions = [];
         foreach ($companiesData as &$cData) {
             $cLiveKw = (float) $cData['total_live_kw'];
-            $cNext1h = round($cLiveKw * $irradianceFactor, 2);
+            $cNext1h = $isNight ? 0.00 : round($cLiveKw * $irradianceFactor, 2);
             $cData['predicted_next_1h_kwh'] = number_format($cNext1h, 2, '.', '');
             $companyPredictions[] = [
                 'company_id' => $cData['company_id'],
@@ -637,10 +643,6 @@ class ISolarCloudService
         unset($cData);
 
         // 2. Solar Radiation Bell-Curve Model for Accurate End-of-Day (EOD) Total Units
-        $now = Carbon::now();
-        $nowHour = (int) $now->format('H');
-        $currentHourFloat = (float) $nowHour + ((float) $now->format('i') / 60.0);
-        $remainingSunHours = max(0, 18.5 - $currentHourFloat);
 
         $activeKw = max(0, $totalLiveKw);
         $kwPerIrradiance = ($irradianceNow > 80) ? ($activeKw / $irradianceNow) : (max(1, $totalOnline) * 250.0 / 800.0);
@@ -692,11 +694,20 @@ class ISolarCloudService
         $heatLossPct = (float) ($weatherData['heat_loss']['heat_loss_pct'] ?? 0.0);
         $heatLossKw = $activeKw > 0 ? round($activeKw * ($heatLossPct / 100.0), 1) : 0.0;
 
-        // ── 1. Inverter Underperformance Analysis ──
+        // Day/Night and active generation detection
+        $isNight = ($currentHourFloat > 18.2 || $currentHourFloat < 6.5 || $totalLiveKw <= 0);
+        $isDaytimeGenerationActive = (!$isNight && $currentHourFloat >= 10.5 && $currentHourFloat <= 18.0 && $totalLiveKw > 0);
+
+        // ── 1. Inverter Underperformance Analysis (Daytime Active Hours only) ──
         $allOnlineInvertersList = [];
         foreach ($companiesData as $c) {
+            $isCompanyCurtailed = !empty($c['is_curtailed']);
             foreach ($c['inverters'] as $inv) {
                 if (!empty($inv['online'])) {
+                    // Suppress alerts for inverters/companies under active curtailment
+                    if ($isCompanyCurtailed || !empty($inv['is_curtailed'])) {
+                        continue;
+                    }
                     $allOnlineInvertersList[] = [
                         'company_id' => $c['company_id'],
                         'company_name' => $c['company_name'],
@@ -711,14 +722,15 @@ class ISolarCloudService
         }
 
         $underperformingInverters = [];
-        if (count($allOnlineInvertersList) >= 2) {
+        // Only run live discrepancy analysis when generation is active during daytime
+        if ($isDaytimeGenerationActive && count($allOnlineInvertersList) >= 2) {
             $kwhValues = array_column($allOnlineInvertersList, 'today_kwh');
             rsort($kwhValues);
             // Top 50% healthy average
             $topHalfCount = max(1, (int) ceil(count($kwhValues) * 0.5));
             $healthyBenchmarkKwh = array_sum(array_slice($kwhValues, 0, $topHalfCount)) / $topHalfCount;
 
-            if ($healthyBenchmarkKwh >= 25.0 && $currentHourFloat >= 10.5) {
+            if ($healthyBenchmarkKwh >= 25.0) {
                 foreach ($allOnlineInvertersList as $inv) {
                     $dropDiffKwh = $healthyBenchmarkKwh - $inv['today_kwh'];
                     $dropDiffPct = round(($dropDiffKwh / $healthyBenchmarkKwh) * 100, 1);
@@ -742,50 +754,60 @@ class ISolarCloudService
         }
 
         // ── 2. Cloud Passing vs Technical Fault AI Detection ──
-        $cloudVsFault = [
-            'type' => 'normal',
-            'badge' => '⚡ નોર્મલ (Stable)',
-            'title' => 'પ્લાન્ટ સ્થિર ચાલી રહ્યો છે',
-            'message' => 'બધા ઇન્વર્ટર અને સ્ટ્રિંગ્સ સંતુલિત ઉત્પાદન આપી રહ્યા છે.',
-            'theme' => 'success',
-        ];
+        if ($isNight) {
+            $cloudVsFault = [
+                'type' => 'night_standby',
+                'badge' => '🌙 રાત્રિ મોડ (Standby)',
+                'title' => 'સૂર્યાસ્ત બાદ પ્લાન્ટ બંધ છે',
+                'message' => 'રાત્રિના સમયે સોલાર ઉત્પાદન બંધ છે. સવારે સૂર્યોદય (~૦૬:૩૦ AM) સાથે લાઈવ જનરેશન આપમેળે શરૂ થશે.',
+                'theme' => 'info',
+            ];
+        } else {
+            $cloudVsFault = [
+                'type' => 'normal',
+                'badge' => '⚡ નોર્મલ (Stable)',
+                'title' => 'પ્લાન્ટ સ્થિર ચાલી રહ્યો છે',
+                'message' => 'બધા ઇન્વર્ટર અને સ્ટ્રિંગ્સ સંતુલિત ઉત્પાદન આપી રહ્યા છે.',
+                'theme' => 'success',
+            ];
 
-        if (count($allOnlineInvertersList) >= 3 && $irradianceNow >= 150) {
-            $liveKwValues = array_column($allOnlineInvertersList, 'live_kw');
-            $maxLiveKw = max($liveKwValues);
-            $minLiveKw = min($liveKwValues);
-            $avgLiveKw = array_sum($liveKwValues) / count($liveKwValues);
+            if (count($allOnlineInvertersList) >= 3 && $irradianceNow >= 150) {
+                $liveKwValues = array_column($allOnlineInvertersList, 'live_kw');
+                $maxLiveKw = max($liveKwValues);
+                $minLiveKw = min($liveKwValues);
+                $avgLiveKw = array_sum($liveKwValues) / count($liveKwValues);
 
-            $lowCount = 0;
-            foreach ($liveKwValues as $lkw) {
-                if ($maxLiveKw > 80 && $lkw < ($maxLiveKw * 0.45)) {
-                    $lowCount++;
+                $lowCount = 0;
+                foreach ($liveKwValues as $lkw) {
+                    if ($maxLiveKw > 80 && $lkw < ($maxLiveKw * 0.45)) {
+                        $lowCount++;
+                    }
                 }
-            }
 
-            if ($lowCount >= max(3, (int) round(count($liveKwValues) * 0.65))) {
-                // Whole plant dropped together -> Cloud
-                $cloudVsFault = [
-                    'type' => 'passing_cloud',
-                    'badge' => '🌤️ પાસિંગ ક્લાઉડ (વાદળું)',
-                    'title' => 'આકાશમાં વાદળું પસાર થઈ રહ્યું છે',
-                    'message' => 'બધા ઇન્વર્ટરનો પાવર એકસાથે ઘટ્યો છે, જે કુદરતી વાદળ છે. પ્લાન્ટમાં કોઈ ફોલ્ટ નથી.',
-                    'theme' => 'info',
-                ];
-            } elseif ($lowCount >= 1 && $lowCount <= 2 && $maxLiveKw >= 100) {
-                // Isolated 1-2 inverters dropped while others are high -> Technical fault!
-                $cloudVsFault = [
-                    'type' => 'technical_fault',
-                    'badge' => '🚨 ટેકનિકલ ફોલ્ટ ડિટેક્ટ',
-                    'title' => 'આ વાદળું નથી - ઇન્વર્ટર ટ્રીપિંગ / ફોલ્ટ!',
-                    'message' => 'બાકીના ઇન્વર્ટર ફૂલ ચાલે છે પણ ૧-૨ ઇન્વર્ટર અચાનક ડ્રોપ થયા છે. સાઈટ પર તાત્કાલિક ચેક કરો.',
-                    'theme' => 'danger',
-                ];
+                if ($lowCount >= max(3, (int) round(count($liveKwValues) * 0.65))) {
+                    // Whole plant dropped together -> Cloud
+                    $cloudVsFault = [
+                        'type' => 'passing_cloud',
+                        'badge' => '🌤️ પાસિંગ ક્લાઉડ (વાદળું)',
+                        'title' => 'આકાશમાં વાદળું પસાર થઈ રહ્યું છે',
+                        'message' => 'બધા ઇન્વર્ટરનો પાવર એકસાથે ઘટ્યો છે, જે કુદરતી વાદળ છે. પ્લાન્ટમાં કોઈ ફોલ્ટ નથી.',
+                        'theme' => 'info',
+                    ];
+                } elseif ($lowCount >= 1 && $lowCount <= 2 && $maxLiveKw >= 100) {
+                    // Isolated 1-2 inverters dropped while others are high -> Technical fault!
+                    $cloudVsFault = [
+                        'type' => 'technical_fault',
+                        'badge' => '🚨 ટેકનિકલ ફોલ્ટ ડિટેક્ટ',
+                        'title' => 'આ વાદળું નથી - ઇન્વર્ટર ટ્રીપિંગ / ફોલ્ટ!',
+                        'message' => 'બાકીના ઇન્વર્ટર ફૂલ ચાલે છે પણ ૧-૨ ઇન્વર્ટર અચાનક ડ્રોપ થયા છે. સાઈટ પર તાત્કાલિક ચેક કરો.',
+                        'theme' => 'danger',
+                    ];
+                }
             }
         }
 
         // ── 3. Grid Downtime & Revenue Loss Tracker ──
-        $isGridDown = ($currentHourFloat >= 8.0 && $currentHourFloat <= 17.5 && $totalOnline === 0 && $irradianceNow >= 250);
+        $isGridDown = (!$isNight && $currentHourFloat >= 8.0 && $currentHourFloat <= 17.5 && $totalOnline === 0 && $irradianceNow >= 250);
         $downtimeMinutes = 0;
         $downtimeLostKwh = 0.0;
         $downtimeLostRs = 0.0;
@@ -807,8 +829,8 @@ class ISolarCloudService
             'downtime_minutes' => $downtimeMinutes,
             'lost_units_kwh' => $downtimeLostKwh,
             'lost_revenue_rs' => $downtimeLostRs,
-            'title' => $isGridDown ? "🚨 ગ્રીડ ટ્રીપિંગ ચાલુ છે ({$downtimeMinutes} મિનિટ)" : '⚡ ગ્રીડ પાવર સામાન્ય છે',
-            'message' => $isGridDown ? "પ્લાન્ટ {$downtimeMinutes} મિનિટથી બંધ છે — અંદાજે ~{$downtimeLostKwh} યુનિટ્સ (₹{$downtimeLostRs} નું નુકસાન) થયું છે." : 'પ્લાન્ટ ગ્રીડ સાથે સક્રિય રીતે જોડાયેલો છે.',
+            'title' => $isNight ? '🌙 પ્લાન્ટ રાત્રિ સ્લીપ મોડમાં છે' : ($isGridDown ? "🚨 ગ્રીડ ટ્રીપિંગ ચાલુ છે ({$downtimeMinutes} મિનિટ)" : '⚡ ગ્રીડ પાવર સામાન્ય છે'),
+            'message' => $isNight ? 'રાત્રિના સમયે ગ્રીડ ટ્રીપિંગ કે લોસ લાગુ થતો નથી.' : ($isGridDown ? "પ્લાન્ટ {$downtimeMinutes} મિનિટથી બંધ છે — અંદાજે ~{$downtimeLostKwh} યુનિટ્સ (₹{$downtimeLostRs} નું નુકસાન) થયું છે." : 'પ્લાન્ટ ગ્રીડ સાથે સક્રિય રીતે જોડાયેલો છે.'),
         ];
 
         // ── 4. Cleaning Gain & ROI Tracker ──
@@ -819,8 +841,8 @@ class ISolarCloudService
             'gain_revenue_today_rs' => $gainRevenueRs,
             'gain_percentage' => 12.8,
             'payback_text' => '૧.૫ દિવસમાં ધોવાનો ખર્ચ વસૂલ',
-            'title' => "પ્લેટો ધોવાથી ફાયદો: +{$gainKwhToday} Units (₹{$gainRevenueRs})",
-            'message' => "પ્લેટો સાફ હોવાના કારણે આજે અંદાજે +{$gainKwhToday} વધારાના યુનિટ્સ (+₹{$gainRevenueRs} વધારાની કમાણી) થઈ રહી છે.",
+            'title' => $isNight ? "પ્લેટો ધોવાથી આજનો ફાયદો: +{$gainKwhToday} Units (₹{$gainRevenueRs})" : "પ્લેટો ધોવાથી ફાયદો: +{$gainKwhToday} Units (₹{$gainRevenueRs})",
+            'message' => $isNight ? "પ્લેટો સાફ હોવાના કારણે આજના દિવસ દરમિયાન કુલ અંદાજે +{$gainKwhToday} વધારાના યુનિટ્સ (+₹{$gainRevenueRs} કમાણી) નો ફાયદો થયો." : "પ્લેટો સાફ હોવાના કારણે આજે અંદાજે +{$gainKwhToday} વધારાના યુનિટ્સ (+₹{$gainRevenueRs} વધારાની કમાણી) થઈ રહી છે.",
         ];
 
         // Time windows for predictions:
@@ -828,8 +850,8 @@ class ISolarCloudService
         $startTimeStr = $now->format('h:i A');
         $endTimeStr = $nextHour->format('h:i A');
         $dateStr = $now->format('d M Y');
-        $timeWindowStr = "{$startTimeStr} - {$endTimeStr}";
-        $timeWindowFull = "{$dateStr}, {$startTimeStr} to {$endTimeStr}";
+        $timeWindowStr = $isNight ? 'Sunrise (~06:30 AM)' : "{$startTimeStr} - {$endTimeStr}";
+        $timeWindowFull = $isNight ? 'Next Generation at Sunrise (~06:30 AM)' : "{$dateStr}, {$startTimeStr} to {$endTimeStr}";
         $eodTargetTime = "{$dateStr}, 06:30 PM (Sunset)";
 
         return [

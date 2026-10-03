@@ -35,6 +35,7 @@ export default function DashboardPage({companyId, currentUser}) {
     const [curtailMessage, setCurtailMessage] = useState('');
     const [historyList, setHistoryList] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
+    const [inlineCustomPct, setInlineCustomPct] = useState({});
 
     const openCurtailModal = (company = null, initialPct = 20) => {
         const targetComp = company || (liveData?.companies && liveData.companies[0]);
@@ -592,7 +593,7 @@ export default function DashboardPage({companyId, currentUser}) {
 
                                 {/* Quick Step Selector Chips + Actions Bar */}
                                 <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', marginTop: '6px', paddingTop: '6px', borderTop: '1px dashed #fed7aa'}}>
-                                    <div style={{display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
+                                    <div style={{display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap'}}>
                                         <span style={{fontSize: '10.5px', fontWeight: 700, color: '#475569'}}>સ્ટેપ બદલો:</span>
                                         {[10, 20, 40, 80].map(pct => (
                                             <button
@@ -613,6 +614,53 @@ export default function DashboardPage({companyId, currentUser}) {
                                                 {pct}%
                                             </button>
                                         ))}
+
+                                        {/* Direct Custom % Input Box */}
+                                        <div style={{display: 'inline-flex', alignItems: 'center', gap: '3px', background: '#f8fafc', padding: '1px 4px', borderRadius: '5px', border: '1px solid #cbd5e1'}}>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max="100"
+                                                placeholder="દા.ત. 22"
+                                                value={inlineCustomPct[curt.company_id] !== undefined ? inlineCustomPct[curt.company_id] : ''}
+                                                onChange={e => setInlineCustomPct({...inlineCustomPct, [curt.company_id]: e.target.value})}
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter') {
+                                                        const val = parseInt(inlineCustomPct[curt.company_id]);
+                                                        if (val >= 1 && val <= 100) {
+                                                            handleQuickStepChange(curt.company_id, val);
+                                                        }
+                                                    }
+                                                }}
+                                                style={{width: '52px', padding: '2px 4px', fontSize: '11px', borderRadius: '3px', border: '1px solid #cbd5e1', fontWeight: 700, textAlign: 'center'}}
+                                                title="પોતાની કસ્ટમ ટકાવારી લખો (જેમ કે 22%)"
+                                            />
+                                            <span style={{fontSize: '10.5px', fontWeight: 700, color: '#64748b'}}>%</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const val = parseInt(inlineCustomPct[curt.company_id]);
+                                                    if (val >= 1 && val <= 100) {
+                                                        handleQuickStepChange(curt.company_id, val);
+                                                    } else {
+                                                        alert('કૃપા કરી ૧ થી ૧૦૦ વચ્ચે ટકાવારી લખો (દા.ત. 22).');
+                                                    }
+                                                }}
+                                                style={{
+                                                    fontSize: '10px',
+                                                    padding: '2px 6px',
+                                                    borderRadius: '3px',
+                                                    border: 'none',
+                                                    background: '#ea580c',
+                                                    color: '#ffffff',
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                બદલો
+                                            </button>
+                                        </div>
+
                                         <button
                                             type="button"
                                             onClick={() => openCurtailModal(companies.find(c => c.company_id === curt.company_id), curt.percentage)}
@@ -626,7 +674,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                                 cursor: 'pointer'
                                             }}
                                         >
-                                            ✏️ કસ્ટમ %
+                                            ⚙️ સંપૂર્ણ સેટિંગ
                                         </button>
                                     </div>
 
@@ -662,16 +710,22 @@ export default function DashboardPage({companyId, currentUser}) {
                 <div className="cleaning-section-header">
                     <div className="cleaning-head-left">
                         <h3>
-                            <span style={{color: '#d97706'}}>⚠️</span>
-                            પ્લાન્ટ સ્માર્ટ ડાયગ્નોસ્ટિક & સફાઈ એલર્ટ
-                            {(cleaningAlerts.length > 0 || underperformingInverters.length > 0 || gridDowntime?.is_down) && (
+                            <span style={{color: (smartInsights.cloud_vs_fault?.type === 'night_standby') ? '#0284c7' : '#d97706'}}>
+                                {(smartInsights.cloud_vs_fault?.type === 'night_standby') ? '🌙' : '⚠️'}
+                            </span>
+                            {(smartInsights.cloud_vs_fault?.type === 'night_standby')
+                                ? 'પ્લાન્ટ સ્માર્ટ સ્ટેટસ (રાત્રિ સ્લીપ મોડ - પ્લાન્ટ બંધ છે)'
+                                : 'પ્લાન્ટ સ્માર્ટ ડાયગ્નોસ્ટિક & સફાઈ એલર્ટ'}
+                            {!(smartInsights.cloud_vs_fault?.type === 'night_standby') && (cleaningAlerts.length > 0 || underperformingInverters.length > 0 || gridDowntime?.is_down) && (
                                 <span className="cleaning-head-badge">
                                     🔴 {cleaningAlerts.length + underperformingInverters.length + (gridDowntime?.is_down ? 1 : 0)} ચેતવણી
                                 </span>
                             )}
                         </h3>
                         <p className="cleaning-head-subtitle">
-                            નબળા ઇન્વર્ટર, પાવર લોસ, ગ્રીડ ટ્રીપિંગ અને ધૂળનું ઓટોમેટિક AI નિદાન
+                            {(smartInsights.cloud_vs_fault?.type === 'night_standby')
+                                ? 'સૂર્યાસ્ત બાદ ઉત્પાદન બંધ છે. આવતીકાલે સવારે સૂર્યોદય સાથે ઓટોમેટિક AI ડાયગ્નોસ્ટિક્સ સક્રિય થશે.'
+                                : 'નબળા ઇન્વર્ટર, પાવર લોસ, ગ્રીડ ટ્રીપિંગ અને ધૂળનું ઓટોમેટિક AI નિદાન'}
                         </p>
                     </div>
 
@@ -1270,7 +1324,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                         કેટલા ટકા (%) કર્ટલમેન્ટ કરવું છે?
                                     </label>
                                     <div style={{display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px'}}>
-                                        {[10, 20, 30, 40, 50, 80].map(pct => (
+                                        {[80, 50, 40, 30, 25, 22, 20, 15, 10, 5].map(pct => (
                                             <button
                                                 key={pct}
                                                 type="button"
