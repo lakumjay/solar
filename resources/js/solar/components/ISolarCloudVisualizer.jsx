@@ -15,6 +15,7 @@ export default function ISolarCloudVisualizer({data, weather, isEmployee}) {
 
     const realtimeMw = data.realtime_power_mw || '0.00';
     const realtimeKw = data.realtime_power_kw || '0.00';
+    const todayKwh = data.today_units_kwh || '0.00';
     const rawInstalled = String(data.installed_capacity_mwp || '3.00');
     const installedMwpNum = parseFloat(rawInstalled.replace(/[^0-9.]/g, '')) || 3.00;
     const installedMwp = installedMwpNum.toFixed(2);

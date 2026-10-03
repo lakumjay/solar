@@ -1,5 +1,5 @@
 // SolarFlow PWA Service Worker
-const CACHE_NAME = 'solarflow-cache-v8';
+const CACHE_NAME = 'solarflow-cache-v9';
 const ASSETS_TO_CACHE = [
   '/',
   '/site.webmanifest',
