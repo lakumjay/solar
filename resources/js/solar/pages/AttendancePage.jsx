@@ -7,6 +7,7 @@ const localDate = () => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 };
+const today = localDate;
 const localDateTime = (value, date, fallback = '18:00') => {
     if (!value) return `${date}T${fallback}`;
     const parsed = new Date(value);
@@ -147,11 +148,12 @@ export default function AttendancePage({canCorrect, canRecord}) {
             await load();
         } catch (error) { setMessage(error.message); }
     };
-    const isToday = date === today();
+    const todayDate = localDate();
+    const isToday = date === todayDate;
     const totals = {
         present: rows.filter(row => row.clock_out_at && row.status === 'present').length,
-        working_now: rows.filter(row => !row.clock_out_at && (isToday || row.attendance_date === today())).length,
-        missing_out: rows.filter(row => !row.clock_out_at && !isToday && row.attendance_date !== today()).length,
+        working_now: rows.filter(row => !row.clock_out_at && (isToday || row.attendance_date === todayDate)).length,
+        missing_out: rows.filter(row => !row.clock_out_at && !isToday && row.attendance_date !== todayDate).length,
         late: rows.filter(row => row.is_late).length,
         corrected: rows.filter(row => row.manual_correction).length,
     };
