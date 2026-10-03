@@ -66,10 +66,22 @@ class EmployeeLocationController extends Controller
         $this->ensureTableExists();
 
         $user = $request->user();
-        $employee = Employee::where('user_id', $user->id)->first();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthenticated.'], 401);
+        }
 
-        // If user is directly linked to an employee profile
+        $employee = Employee::where('user_id', $user->id)
+            ->orWhere(function ($q) use ($user) {
+                if (!empty($user->phone)) $q->where('phone', $user->phone);
+                if (!empty($user->email)) $q->orWhere('email', $user->email);
+            })->first();
+
+        // If user is linked or found
         if ($employee) {
+            if (empty($employee->user_id) || $employee->user_id !== $user->id) {
+                $employee->update(['user_id' => $user->id]);
+            }
+
             try {
                 $location = EmployeeLocation::create([
                     'employee_id' => $employee->id,
@@ -97,7 +109,7 @@ class EmployeeLocationController extends Controller
         }
 
         return response()->json([
-            'message' => 'Admin ping acknowledged.',
+            'message' => 'User ping acknowledged.',
             'recorded_at' => now()->toIso8601String(),
         ]);
     }
