@@ -373,11 +373,11 @@ export default function MyAttendancePage({companyId}) {
                     {activeBreak && <div className="info-banner">Break out before completing your day.</div>}
 
                     <Field label="What did you do today? (આજે શું કામ કર્યું?)">
-                        <textarea value={clockOutForm.work_done} onChange={event => setClockOutForm({...clockOutForm, work_done: event.target.value})} rows="4" placeholder="e.g. Inverter 1-4 string inspection, washed table 3 panels, checked grid voltages..." required/>
+                        <textarea value={clockOutForm.work_done} onChange={event => setClockOutForm({...clockOutForm, work_done: event.target.value})} rows="4" required/>
                     </Field>
 
                     <Field label="What did you learn today? (આજે નવું શું શીખ્યા?)">
-                        <textarea value={clockOutForm.learned} onChange={event => setClockOutForm({...clockOutForm, learned: event.target.value})} rows="4" placeholder="e.g. Learned MC4 connector crimping and fault identification..." required/>
+                        <textarea value={clockOutForm.learned} onChange={event => setClockOutForm({...clockOutForm, learned: event.target.value})} rows="4" required/>
                     </Field>
 
                     <div className="form-actions">

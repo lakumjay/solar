@@ -598,7 +598,6 @@ export default function AttendancePage({canCorrect, canRecord}) {
                             value={manual.work_done}
                             onChange={event => setManual({...manual, work_done: event.target.value})}
                             rows="3"
-                            placeholder="દા.ત. સોલાર પેનલ સાફ કરી, ઇન્વર્ટર 3 ચેક કર્યું, અર્થિંગ વેરિફિકેશન કર્યું..."
                             required
                         />
                     </Field>
@@ -608,7 +607,6 @@ export default function AttendancePage({canCorrect, canRecord}) {
                             value={manual.learned}
                             onChange={event => setManual({...manual, learned: event.target.value})}
                             rows="3"
-                            placeholder="દા.ત. DC ફ્યુઝ ટેસ્ટિંગ, SCADA મોનિટરિંગ ટૂલ શીખ્યા..."
                             required
                         />
                     </Field>
@@ -618,7 +616,6 @@ export default function AttendancePage({canCorrect, canRecord}) {
                             value={manual.entry_reason}
                             onChange={event => setManual({...manual, entry_reason: event.target.value})}
                             rows="2"
-                            placeholder="દા.ત. સ્માર્ટફોન બેટરી ડાઉન હતી / સાઇટ પર ઇન્ટરનેટ નેટવર્ક ન હતું..."
                             required
                         />
                     </Field>
@@ -667,7 +664,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                     </Field>
 
                     <Field label="સુધારાનું કારણ (Correction Reason)">
-                        <textarea value={correction.correction_reason} onChange={event => setCorrection({...correction, correction_reason: event.target.value})} rows="2" placeholder="દા.ત. કર્મચારી સાંજે પંચ આઉટ કરવાનું ભૂલી ગયેલ..." required/>
+                        <textarea value={correction.correction_reason} onChange={event => setCorrection({...correction, correction_reason: event.target.value})} rows="2" required/>
                     </Field>
                 </div>
 

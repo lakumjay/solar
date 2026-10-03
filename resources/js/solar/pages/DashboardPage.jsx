@@ -588,7 +588,6 @@ export default function DashboardPage({companyId, currentUser}) {
                                         type="text"
                                         value={locForm.plant_location}
                                         onChange={e => setLocForm({...locForm, plant_location: e.target.value})}
-                                        placeholder="e.g. Sarva, Botad"
                                         required
                                         style={{width: '100%'}}
                                     />
@@ -645,7 +644,6 @@ export default function DashboardPage({companyId, currentUser}) {
                                             step="0.000001"
                                             value={locForm.latitude}
                                             onChange={e => setLocForm({...locForm, latitude: e.target.value})}
-                                            placeholder="22.1704"
                                             required
                                             style={{width: '100%'}}
                                         />
@@ -659,7 +657,6 @@ export default function DashboardPage({companyId, currentUser}) {
                                             step="0.000001"
                                             value={locForm.longitude}
                                             onChange={e => setLocForm({...locForm, longitude: e.target.value})}
-                                            placeholder="71.6684"
                                             required
                                             style={{width: '100%'}}
                                         />

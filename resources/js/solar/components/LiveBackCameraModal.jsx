@@ -232,7 +232,7 @@ export default function LiveBackCameraModal({task, companyId, onClose, onUploade
                             type="text"
                             value={notes}
                             onChange={e => setNotes(e.target.value)}
-                            placeholder="Add note (e.g. Table 4 string washed, inverter OK)..."
+                            placeholder="Add note..."
                             style={{
                                 width: '100%',
                                 background: '#133e32',

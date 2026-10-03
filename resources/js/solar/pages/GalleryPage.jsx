@@ -645,7 +645,6 @@ export default function GalleryPage({currentUser, companyId}) {
                                             type="text"
                                             value={editingTask.title}
                                             onChange={e => setEditingTask({...editingTask, title: e.target.value})}
-                                            placeholder="e.g. Afternoon Substation & Grid Inspection"
                                             required
                                             style={{width: '100%'}}
                                         />

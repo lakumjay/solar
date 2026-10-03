@@ -247,7 +247,6 @@ export default function ISolarCloudPage({company, companies, user}) {
                         <div className="field">
                             <label>OAuth Authorization Code (from callback URL ?code=...)</label>
                             <input
-                                placeholder="e.g. AzWdIN"
                                 value={manualCode}
                                 onChange={e => setManualCode(e.target.value)}
                             />
@@ -256,7 +255,6 @@ export default function ISolarCloudPage({company, companies, user}) {
                         <div className="field">
                             <label>Or Direct Access Token (from Postman)</label>
                             <input
-                                placeholder="e.g. b64a3868-3bf0-446d-b0f4-25b7a7ef4f2e"
                                 value={manualToken}
                                 onChange={e => setManualToken(e.target.value)}
                             />
@@ -265,7 +263,6 @@ export default function ISolarCloudPage({company, companies, user}) {
                         <div className="field">
                             <label>Refresh Token (optional)</label>
                             <input
-                                placeholder="e.g. 778d5fba-6864-420d-9e8c-fc26aebf6bf0"
                                 value={manualRefreshToken}
                                 onChange={e => setManualRefreshToken(e.target.value)}
                             />

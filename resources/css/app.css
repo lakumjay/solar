@@ -3513,7 +3513,7 @@
 }
 
 .highlight-amount-input {
-    padding-left: 28px !important;
+    padding: 10px 14px !important;
     font-size: 16px !important;
     font-weight: 800 !important;
     color: #0f172a !important;

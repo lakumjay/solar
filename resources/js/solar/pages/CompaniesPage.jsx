@@ -163,13 +163,13 @@ export default function CompaniesPage({companies, refresh}) {
                 
                 <div className="form-grid two" style={{marginTop: '14px'}}>
                     <Field label="Company Name"><input value={form.name} onChange={event => setForm({...form, name: event.target.value})} required/></Field>
-                    <Field label="Owner / Director Name (e.g. Lakum Jay)"><input value={form.owner_name ?? ''} placeholder="e.g. Lakum Jay" onChange={event => setForm({...form, owner_name: event.target.value})}/></Field>
-                    <Field label="Owner Designation / Title"><input value={form.owner_designation ?? ''} placeholder="e.g. Founder & Managing Director" onChange={event => setForm({...form, owner_designation: event.target.value})}/></Field>
+                    <Field label="Owner / Director Name"><input value={form.owner_name ?? ''} onChange={event => setForm({...form, owner_name: event.target.value})}/></Field>
+                    <Field label="Owner Designation / Title"><input value={form.owner_designation ?? ''} onChange={event => setForm({...form, owner_designation: event.target.value})}/></Field>
                     <Field label="Company Login Email"><input type="email" value={form.admin_email ?? ''} onChange={event => setForm({...form, admin_email: event.target.value})} autoComplete="off" required/></Field>
                     <Field label={form.id ? 'New Password (optional)' : 'Login Password'}><input type={showPassword ? 'text' : 'password'} minLength="8" value={form.password ?? ''} onChange={event => setForm({...form, password: event.target.value})} autoComplete="new-password" required={!form.id}/><button type="button" className="password-visibility" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'} title={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button></Field>
-                    <Field label="Plant Location Name"><input value={form.plant_location ?? ''} placeholder="e.g. Rajkot, Gujarat" onChange={event => setForm({...form, plant_location: event.target.value})}/></Field>
-                    <Field label="Latitude (for Weather & Predictions)"><input type="number" step="0.0001" value={form.latitude ?? ''} placeholder="22.3039" onChange={event => setForm({...form, latitude: event.target.value})}/></Field>
-                    <Field label="Longitude (for Weather & Predictions)"><input type="number" step="0.0001" value={form.longitude ?? ''} placeholder="70.8022" onChange={event => setForm({...form, longitude: event.target.value})}/></Field>
+                    <Field label="Plant Location Name"><input value={form.plant_location ?? ''} onChange={event => setForm({...form, plant_location: event.target.value})}/></Field>
+                    <Field label="Latitude (for Weather & Predictions)"><input type="number" step="0.0001" value={form.latitude ?? ''} onChange={event => setForm({...form, latitude: event.target.value})}/></Field>
+                    <Field label="Longitude (for Weather & Predictions)"><input type="number" step="0.0001" value={form.longitude ?? ''} onChange={event => setForm({...form, longitude: event.target.value})}/></Field>
                     {METERS.map(([key, label]) => <Field key={key} label={`${label} Unit Multiplier`}><input type="number" min="0" step="0.01" inputMode="decimal" value={form[`${key}_multiplier`]} onChange={event => setForm({...form, [`${key}_multiplier`]: event.target.value})} onBlur={event => setForm(current => ({...current, [`${key}_multiplier`]: fixedTwo(event.target.value)}))} required/></Field>)}
                 </div>
                 {message && <div className={message.includes('saved') ? 'success' : 'error'}>{message}</div>}
@@ -225,7 +225,7 @@ function Inverters({company, save}) {
                 <b style={{minWidth: '100px'}}>{inverter.name}</b>
                 <input
                     type="text"
-                    placeholder="iSolarCloud SN (e.g. I2640800649)"
+                    placeholder="iSolarCloud SN"
                     defaultValue={inverter.serial_number || ''}
                     onBlur={event => {
                         if (event.target.value !== (inverter.serial_number || '')) {
@@ -242,7 +242,7 @@ function Inverters({company, save}) {
             </div>)}
         </div>
         <div className="inline-add" style={{marginTop: '12px'}}>
-            <input placeholder="Inverter Name (e.g. Inverter 5)" value={name} onChange={event => setName(event.target.value)}/>
+            <input placeholder="Inverter Name" value={name} onChange={event => setName(event.target.value)}/>
             <input placeholder="Serial Number (optional)" value={serialNumber} onChange={event => setSerialNumber(event.target.value)} style={{maxWidth: '220px'}}/>
             <button type="button" className="secondary" onClick={async () => {
                 if (!name.trim()) return;

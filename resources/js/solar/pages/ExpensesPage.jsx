@@ -663,26 +663,22 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
                             <input type="date" max={today()} value={expenseDate} onChange={e => setExpenseDate(e.target.value)} required/>
                         </Field>
                         <Field label="Total Amount (કુલ રકમ ₹)">
-                            <div className="amount-input-prefix-wrap">
-                                <span className="input-rupee-symbol">₹</span>
-                                <input
-                                    type="number"
-                                    min="0.01"
-                                    step="0.01"
-                                    inputMode="decimal"
-                                    value={amount}
-                                    onChange={e => setAmount(e.target.value)}
-                                    placeholder="0.00"
-                                    className="highlight-amount-input"
-                                    required
-                                />
-                            </div>
+                            <input
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                inputMode="decimal"
+                                value={amount}
+                                onChange={e => setAmount(e.target.value)}
+                                className="highlight-amount-input"
+                                required
+                            />
                         </Field>
                         <Field label="Purchased By (ખર્ચ કરનારનું નામ)">
-                            <input value={purchaserName} maxLength="150" onChange={e => setPurchaserName(e.target.value)} placeholder="e.g. Jay / Rajesh" required/>
+                            <input value={purchaserName} maxLength="150" onChange={e => setPurchaserName(e.target.value)} required/>
                         </Field>
                         <Field label="Description (ખર્ચની વિગત)">
-                            <input value={description} maxLength="255" onChange={e => setDescription(e.target.value)} placeholder="e.g. Solar panel cleaning chemicals / spares" required/>
+                            <input value={description} maxLength="255" onChange={e => setDescription(e.target.value)} required/>
                         </Field>
                     </div>
 
@@ -816,7 +812,6 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
                                                                 const val = e.target.value;
                                                                 setPayerAmounts(prev => ({...prev, [c.id]: val}));
                                                             }}
-                                                            placeholder="0.00"
                                                         />
                                                     </div>
                                                 )}
@@ -1095,7 +1090,7 @@ function SettlementForm({pair, onClose, onSaved}) {
                     </div>
 
                     <Field label="Reference / Notes (વિગત / UTR ટ્રાન્ઝેક્શન નંબર)">
-                        <textarea rows="2" value={notes} onChange={e => setNotes(e.target.value)} placeholder="દા.ત. ICICI Bank UTR #123456 / ચેક નંબર..."/>
+                        <textarea rows="2" value={notes} onChange={e => setNotes(e.target.value)}/>
                     </Field>
 
                     {/* Remaining Balance Indicator */}

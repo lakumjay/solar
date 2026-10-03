@@ -67,7 +67,7 @@ function AdjustmentForm({form, setForm, onClose, onSaved}) {
             <Field label="Work Date"><input type="date" value={form.work_date || ''} onChange={event => setForm({...form, work_date: event.target.value})}/></Field>
         </div>
         <div className="form-grid two">
-            <Field label="Amount (₹)"><input type="number" min="0.01" step="0.01" inputMode="decimal" placeholder="e.g. 1000" value={form.amount} onChange={event => setForm({...form, amount: event.target.value})} required/></Field>
+            <Field label="Amount (₹)"><input type="number" min="0.01" step="0.01" inputMode="decimal" value={form.amount} onChange={event => setForm({...form, amount: event.target.value})} required/></Field>
             <Field label="Company (Optional)"><select value={form.company_id || ''} onChange={event => setForm({...form, company_id: event.target.value ? Number(event.target.value) : ''})}><option value="">All / None (Company neutral)</option>{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
         </div>
         <Field label="Work details / Reason"><textarea rows="3" maxLength="1000" placeholder="Explain the extra work performed or reason for addition..." value={form.reason} onChange={event => setForm({...form, reason: event.target.value})} required/></Field>
