@@ -999,10 +999,10 @@
 .isolar-app-card {
     background: #ffffff;
     border: 1px solid #e2e8f0;
-    border-radius: 16px;
-    padding: 12px 14px 14px;
-    box-shadow: 0 3px 16px rgba(15, 23, 42, 0.04);
-    margin-bottom: 12px;
+    border-radius: 12px;
+    padding: 8px 10px 10px;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+    margin-bottom: 8px;
     transition: all 0.25s ease;
     position: relative;
     overflow: hidden;
@@ -1141,17 +1141,18 @@
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* 3D Flow Canvas & SVG */
+/* 3D Flow Canvas & SVG (Compact Mobile Friendly) */
 .isolar-canvas-wrapper {
     width: 100%;
-    max-width: 440px;
+    max-width: 360px;
     margin: 0 auto;
     position: relative;
-    padding: 2px 0 0;
+    padding: 0;
 }
 
 .isolar-flow-svg {
     width: 100%;
+    max-height: 195px;
     height: auto;
     display: block;
     overflow: visible;
@@ -1261,13 +1262,13 @@
     fill: #475569;
 }
 
-/* 3-Column Bottom KPI Footer (Normal, Clean & Crisp Font Sizes) */
+/* 3-Column Bottom KPI Footer (Compact, Clean & Crisp Font Sizes) */
 .isolar-kpi-footer {
     display: grid;
-    grid-template-columns: 1fr 1.2fr 1fr;
+    grid-template-columns: 1fr 1.15fr 1fr;
     align-items: center;
-    padding-top: 10px;
-    margin-top: 6px;
+    padding-top: 6px;
+    margin-top: 4px;
     border-top: 1px solid #f1f5f9;
 }
 
@@ -1276,7 +1277,7 @@
     flex-direction: column;
     align-items: center;
     text-align: center;
-    padding: 2px 4px;
+    padding: 1px 3px;
     position: relative;
 }
 
@@ -1284,44 +1285,47 @@
     content: "";
     position: absolute;
     right: 0;
-    top: 4px;
-    bottom: 4px;
+    top: 2px;
+    bottom: 2px;
     width: 1px;
     background: #e2e8f0;
 }
 
 .isolar-kpi-label {
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 600;
     color: #64748b;
-    margin-bottom: 2px;
+    margin-bottom: 1px;
     white-space: nowrap;
 }
 
 .isolar-kpi-num {
-    font-size: 17px;
+    font-size: 14.5px;
     font-weight: 850;
     color: #0f172a;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
     line-height: 1.15;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
 }
 
 .isolar-kpi-num.highlight-units {
-    font-size: 17.5px;
+    font-size: 15px;
     font-weight: 900;
     color: #b91c1c;
 }
 
 .isolar-kpi-num .unit-tag {
-    font-size: 10.5px;
+    font-size: 9.5px;
     font-weight: 700;
     color: #64748b;
 }
 
 .isolar-kpi-sub {
-    font-size: 9.5px;
+    font-size: 8.5px;
     color: #64748b;
-    margin-top: 2px;
+    margin-top: 1px;
     white-space: nowrap;
 }
 

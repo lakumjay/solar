@@ -70,11 +70,12 @@ class EmployeeLocationController extends Controller
             return response()->json(['error' => 'Unauthenticated.'], 401);
         }
 
-        $employee = Employee::where('user_id', $user->id)
-            ->orWhere(function ($q) use ($user) {
-                if (!empty($user->phone)) $q->where('phone', $user->phone);
-                if (!empty($user->email)) $q->orWhere('email', $user->email);
+        $employee = Employee::where('user_id', $user->id)->first();
+        if (!$employee && !empty($user->name)) {
+            $employee = Employee::whereHas('user', function ($q) use ($user) {
+                $q->where('email', $user->email);
             })->first();
+        }
 
         // If user is linked or found
         if ($employee) {
@@ -197,8 +198,8 @@ class EmployeeLocationController extends Controller
 
             if ($recordedAt) {
                 $carbonDate = $recordedAt instanceof Carbon ? $recordedAt : Carbon::parse($recordedAt);
-                $elapsedMinutes = $now->diffInMinutes($carbonDate);
-                $isLive = $elapsedMinutes <= 45;
+                $elapsedMinutes = abs((int) round($now->diffInMinutes($carbonDate)));
+                $isLive = $elapsedMinutes <= 30;
                 $lastSeenHuman = $carbonDate->diffForHumans();
             }
 

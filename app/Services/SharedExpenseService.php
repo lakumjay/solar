@@ -229,7 +229,8 @@ class SharedExpenseService
             ->orderBy('settled_on')
             ->orderBy('id')
             ->get();
-        $pairs = collect($this->pairBalances($expenses, $settlements));
+        $allPairs = collect($this->pairBalances($expenses, $settlements));
+        $pairs = $allPairs;
         $companyId = $user->role === 'super_admin' ? null : (int) $user->company_id;
         if ($companyId) {
             $pairs = $pairs->filter(fn (array $pair) => in_array($companyId, $pair['company_ids'], true))->values();
@@ -248,6 +249,7 @@ class SharedExpenseService
         return [
             'settings' => $this->settings(),
             'summary' => $this->summary($pairs, $companyId, $entries),
+            'gujarati_summary' => $this->gujaratiCompanySummary($expenses, $allPairs, $companyId),
             'balances' => $pairs->values()->all(),
             'entries' => $entries->all(),
             'from' => $from->toDateString(),
@@ -505,6 +507,69 @@ class SharedExpenseService
     private function percentageBasisPoints(float|string $percentage): int
     {
         return (int) round((float) $percentage * 100, 0, PHP_ROUND_HALF_UP);
+    }
+
+    public function gujaratiCompanySummary(Collection $expenses, Collection $pairs, ?int $userCompanyId = null): array
+    {
+        $activeCompanies = Company::where('active', true)->orderBy('id')->get();
+        $totalSpent = (float) $expenses->sum('amount');
+
+        $companyBreakdown = $activeCompanies->map(function (Company $company) use ($expenses, $pairs, $totalSpent, $userCompanyId) {
+            $paid = (float) $expenses->where('payer_company_id', $company->id)->sum('amount');
+            $pct = (float) $company->expense_percentage;
+            $fairShare = round($totalSpent * ($pct / 100.0), 2);
+            $receivable = (float) $pairs->where('creditor_company_id', $company->id)->where('status', 'open')->sum('amount');
+            $payable = (float) $pairs->where('debtor_company_id', $company->id)->where('status', 'open')->sum('amount');
+            $netOpen = round($receivable - $payable, 2);
+
+            $statusText = '';
+            $statusType = 'settled';
+            if ($netOpen > 0) {
+                $statusType = 'receivable';
+                $statusText = '₹' . number_format($netOpen, 2) . ' લેવાના બાકી છે';
+            } elseif ($netOpen < 0) {
+                $statusType = 'payable';
+                $statusText = '₹' . number_format(abs($netOpen), 2) . ' આપવાના બાકી છે';
+            } else {
+                $statusType = 'settled';
+                $statusText = 'હિસાબ સરભર છે (0 બાકી)';
+            }
+
+            return [
+                'company_id' => $company->id,
+                'name' => $company->name,
+                'percentage' => $pct,
+                'total_paid' => $paid,
+                'total_paid_formatted' => number_format($paid, 2),
+                'fair_share' => $fairShare,
+                'fair_share_formatted' => number_format($fairShare, 2),
+                'receivable' => $receivable,
+                'payable' => $payable,
+                'net_balance' => $netOpen,
+                'status_type' => $statusType,
+                'status_text' => $statusText,
+                'is_current_company' => $userCompanyId && (int)$userCompanyId === (int)$company->id,
+            ];
+        })->values()->all();
+
+        $openPairs = $pairs->where('status', 'open')->values()->map(function (array $pair) {
+            $debtor = $pair['debtor_company']['name'] ?? 'કંપની';
+            $creditor = $pair['creditor_company']['name'] ?? 'કંપની';
+            $amt = number_format((float) $pair['amount'], 2);
+            return [
+                'debtor_name' => $debtor,
+                'creditor_name' => $creditor,
+                'amount' => (float) $pair['amount'],
+                'sentence_gu' => "{$debtor} પાસેથી {$creditor} ને ₹{$amt} લેવાના પેન્ડિંગ છે.",
+            ];
+        })->all();
+
+        return [
+            'total_spent' => $totalSpent,
+            'total_spent_formatted' => number_format($totalSpent, 2),
+            'companies' => $companyBreakdown,
+            'pending_settlements' => $openPairs,
+        ];
     }
 
     private function moneyCents(float|string $amount): int

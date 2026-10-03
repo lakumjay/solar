@@ -147,19 +147,37 @@ export default function AttendancePage({canCorrect, canRecord}) {
             await load();
         } catch (error) { setMessage(error.message); }
     };
+    const isToday = date === today();
     const totals = {
         present: rows.filter(row => row.clock_out_at && row.status === 'present').length,
-        open: rows.filter(row => !row.clock_out_at).length,
+        working_now: rows.filter(row => !row.clock_out_at && (isToday || row.attendance_date === today())).length,
+        missing_out: rows.filter(row => !row.clock_out_at && !isToday && row.attendance_date !== today()).length,
         late: rows.filter(row => row.is_late).length,
         corrected: rows.filter(row => row.manual_correction).length,
     };
 
     return <div className="attendance-admin">
         <div className="cards attendance-cards">
-            <article className="metric"><span>Completed present</span><strong>{totals.present}</strong><small>selected date</small></article>
-            <article className="metric amber"><span>Missing Time Out</span><strong>{totals.open}</strong><small>needs attention</small></article>
-            <article className="metric"><span>Late arrivals</span><strong>{totals.late}</strong><small>after grace period</small></article>
-            <article className="metric"><span>Manual corrections</span><strong>{totals.corrected}</strong><small>audited records</small></article>
+            <article className="metric">
+                <span>{isToday ? 'પૂર્ણ શિફ્ટ (Completed)' : 'Completed present'}</span>
+                <strong>{totals.present}</strong>
+                <small>{isToday ? 'આજે પૂર્ણ થયેલ' : 'selected date'}</small>
+            </article>
+            <article className={`metric ${isToday ? 'on' : 'amber'}`} style={isToday ? {background: '#ecfdf5', borderColor: '#a7f3d0'} : {}}>
+                <span style={isToday ? {color: '#065f46'} : {}}>{isToday ? '🟢 ચાલુ શિફ્ટ (Working Now)' : 'Missing Time Out'}</span>
+                <strong style={isToday ? {color: '#047857'} : {}}>{isToday ? totals.working_now : totals.missing_out}</strong>
+                <small style={isToday ? {color: '#059669'} : {}}>{isToday ? 'હાલ સાઇટ પર કાર્યરત' : 'needs attention'}</small>
+            </article>
+            <article className="metric">
+                <span>Late arrivals</span>
+                <strong>{totals.late}</strong>
+                <small>after grace period</small>
+            </article>
+            <article className="metric">
+                <span>Manual corrections</span>
+                <strong>{totals.corrected}</strong>
+                <small>audited records</small>
+            </article>
         </div>
         {message && <div className={message.includes('saved') || message.includes('dispatched') || message.includes('delivered') ? 'success' : 'error'}>{message}</div>}
 
@@ -312,7 +330,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                 </div>
                             </div>
 
-                            {emp.latitude && emp.longitude ? (
+                            {emp.is_live && emp.latitude && emp.longitude ? (
                                 <div style={{display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '2px'}}>
                                     {/* 🗺️ Default Embedded Small Interactive Map */}
                                     <div style={{
@@ -515,11 +533,17 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                     color: '#64748b',
                                     background: '#f8fafc',
                                     borderRadius: '10px',
-                                    padding: '16px',
+                                    padding: '14px 16px',
                                     textAlign: 'center',
-                                    border: '1px dashed #cbd5e1'
+                                    border: '1px dashed #cbd5e1',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    gap: '4px'
                                 }}>
-                                    📍 એમ્પ્લોયીનું લાઈવ GPS પિંગ મળતા જ અહીં લાઈવ મેપ આપોઆપ ખુલી જશે.
+                                    <span style={{fontSize: '16px'}}>⚪</span>
+                                    <b style={{color: '#475569'}}>કર્મચારી હાલમાં ઑફલાઇન છે</b>
+                                    <span style={{fontSize: '10.5px', color: '#94a3b8'}}>જ્યારે કર્મચારી એપ ઓપન કરશે ત્યારે જ તેમનો લાઈવ લોકેશન મેપ અહીં દેખાશે.</span>
                                 </div>
                             )}
                         </div>
@@ -546,8 +570,22 @@ export default function AttendancePage({canCorrect, canRecord}) {
                     <td>{row.selfie_url ? <button type="button" className="photo-preview-button" onClick={() => setSelfiePreview({url: row.selfie_url, employee: row.employee.user.name, date: row.attendance_date})}><img className="selfie-thumb" src={row.selfie_url} alt={`${row.employee.user.name} Time In selfie`}/></button> : <small>Not provided — manager entry</small>}</td>
                     <td><span className="break-selfies">{row.breaks.filter(item => item.return_selfie_url).map((item, index) => <a key={item.id} href={item.return_selfie_url} target="_blank" rel="noreferrer"><img className="selfie-thumb" src={item.return_selfie_url} alt={`Break return ${index + 1}`}/></a>)}{!row.breaks.some(item => item.return_selfie_url) && '—'}</span></td>
                     <td>{displayTime(row.clock_in_at)}{row.is_late && <small className="danger-text">Late</small>}</td>
-                    <td>{displayTime(row.clock_out_at)}</td><td>{(row.work_minutes / 60).toFixed(2)}</td><td>{(Number(row.break_minutes) / 60).toFixed(2)}</td>
-                    <td><i className={`status ${row.status === 'present' ? 'on' : row.status === 'open' ? 'warning' : ''}`}>{row.status.replaceAll('_', ' ')}</i></td>
+                    <td>{row.clock_out_at ? displayTime(row.clock_out_at) : (isToday ? <span className="status on" style={{fontSize: '11px', padding: '2px 7px'}}>🟢 ચાલુ શિફ્ટ</span> : <span className="status warning" style={{fontSize: '11px', padding: '2px 7px'}}>⚠️ Time Out બાકી</span>)}</td>
+                    <td>{(() => {
+                        if (row.clock_out_at) {
+                            return (row.work_minutes / 60).toFixed(2);
+                        }
+                        if (isToday && row.clock_in_at) {
+                            const inMs = new Date(row.clock_in_at).getTime();
+                            const diffMins = Math.max(0, Math.floor((Date.now() - inMs) / 60000));
+                            const breakMins = Number(row.break_minutes || 0);
+                            const netMins = Math.max(0, diffMins - breakMins);
+                            return <span style={{color: '#16a34a', fontWeight: 700}} title="Shift in progress">{(netMins / 60).toFixed(2)} <small style={{fontSize: '10px'}}>(ચાલુ)</small></span>;
+                        }
+                        return (row.work_minutes / 60).toFixed(2);
+                    })()}</td>
+                    <td>{(Number(row.break_minutes) / 60).toFixed(2)}</td>
+                    <td><i className={`status ${row.status === 'present' ? 'on' : (!row.clock_out_at && isToday ? 'on' : 'warning')}`}>{!row.clock_out_at && isToday ? 'ચાલુ શિફ્ટ (Active)' : row.status.replaceAll('_', ' ')}</i></td>
                     <td>{row.clock_in_latitude !== null && row.clock_in_longitude !== null ? <a className="map-link" href={`https://maps.google.com/?q=${row.clock_in_latitude},${row.clock_in_longitude}`} target="_blank" rel="noreferrer"><MapPin size={14}/> Map</a> : <small>Not provided — manager entry</small>}</td>
                     <td><span className="note-preview" title={`${row.work_done || ''}\n${row.learned || ''}${row.entry_reason ? `\nReason: ${row.entry_reason}` : ''}`}>{row.work_done || '—'}{row.entry_source === 'manager' && <small>By {row.recorded_by?.name || 'authorized user'} · {row.entry_reason}</small>}</span></td>
                     {canCorrect && <td><button className="link" onClick={() => openCorrection(row)}><PencilLine size={15}/> Correct</button></td>}

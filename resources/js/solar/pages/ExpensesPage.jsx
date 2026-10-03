@@ -84,6 +84,144 @@ export default function ExpensesPage({currentUser}) {
                 </div>
             )}
 
+            {/* 🏢 ગુજરાતી કંપની રોકાણ & હિસાબ સારાંશ (Gujarati Investment & Settlement Box) */}
+            {data?.gujarati_summary && (
+                <section className="panel" style={{
+                    background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+                    border: '1.5px solid #cbd5e1',
+                    borderRadius: '14px',
+                    padding: '16px 18px',
+                    marginBottom: '16px',
+                    boxShadow: '0 3px 12px rgba(15, 23, 42, 0.05)'
+                }}>
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '14px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px'}}>
+                        <div>
+                            <h2 style={{margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                                <span>📑</span> કંપની વાઇઝ રોકાણ & લેતી-દેતી હિસાબ (ગુજરાતી સારાંશ)
+                            </h2>
+                            <p style={{margin: '3px 0 0', fontSize: '12px', color: '#64748b'}}>
+                                દરેક ભાગીદાર કંપનીએ અત્યાર સુધીમાં કેટલા રૂપિયા ચૂકવ્યા અને કોની પાસેથી કેટલા લેવાના/આપવાના બાકી છે તેનો ચોખ્ખો હિસાબ.
+                            </p>
+                        </div>
+                        <div style={{
+                            background: '#ecfdf5',
+                            border: '1px solid #6ee7b7',
+                            borderRadius: '10px',
+                            padding: '6px 14px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'flex-end'
+                        }}>
+                            <span style={{fontSize: '10.5px', fontWeight: 700, color: '#047857'}}>અત્યાર સુધીનો કુલ શેરિંગ ખર્ચ પૂલ</span>
+                            <strong style={{fontSize: '18px', fontWeight: 900, color: '#065f46'}}>₹{data.gujarati_summary.total_spent_formatted}</strong>
+                        </div>
+                    </div>
+
+                    {/* 🏢 3-Column / Responsive Company Cards */}
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                        gap: '12px',
+                        marginBottom: '14px'
+                    }}>
+                        {data.gujarati_summary.companies.map(comp => {
+                            const isReceivable = comp.status_type === 'receivable';
+                            const isPayable = comp.status_type === 'payable';
+                            const themeBg = isReceivable ? '#f0fdf4' : isPayable ? '#fef2f2' : '#f8fafc';
+                            const themeBorder = isReceivable ? '#86efac' : isPayable ? '#fca5a5' : '#cbd5e1';
+                            const badgeColor = isReceivable ? '#15803d' : isPayable ? '#b91c1c' : '#475569';
+                            const badgeBg = isReceivable ? '#dcfce7' : isPayable ? '#fee2e2' : '#e2e8f0';
+
+                            return (
+                                <div key={comp.company_id} style={{
+                                    background: themeBg,
+                                    border: `1.5px solid ${themeBorder}`,
+                                    borderRadius: '12px',
+                                    padding: '12px 14px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '8px',
+                                    position: 'relative'
+                                }}>
+                                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px'}}>
+                                        <div>
+                                            <b style={{fontSize: '14px', color: '#0f172a'}}>{comp.name}</b>
+                                            <div style={{fontSize: '11px', color: '#64748b'}}>ભાગીદારી હિસ્સો: <b>{comp.percentage}%</b></div>
+                                        </div>
+                                        <span style={{
+                                            fontSize: '10.5px',
+                                            fontWeight: 800,
+                                            background: badgeBg,
+                                            color: badgeColor,
+                                            padding: '3px 8px',
+                                            borderRadius: '6px'
+                                        }}>
+                                            {comp.status_text}
+                                        </span>
+                                    </div>
+
+                                    <div style={{
+                                        background: 'rgba(255,255,255,0.85)',
+                                        borderRadius: '8px',
+                                        padding: '8px 10px',
+                                        display: 'grid',
+                                        gridTemplateColumns: '1fr 1fr',
+                                        gap: '8px',
+                                        border: '1px solid rgba(0,0,0,0.05)'
+                                    }}>
+                                        <div>
+                                            <div style={{fontSize: '10px', color: '#64748b', fontWeight: 600}}>કુલ કાઢેલ રકમ (આપ્યા):</div>
+                                            <div style={{fontSize: '14px', fontWeight: 850, color: '#0f172a'}}>₹{comp.total_paid_formatted}</div>
+                                        </div>
+                                        <div>
+                                            <div style={{fontSize: '10px', color: '#64748b', fontWeight: 600}}>ટકાવારી મુજબ હિસ્સો:</div>
+                                            <div style={{fontSize: '13px', fontWeight: 750, color: '#475569'}}>₹{comp.fair_share_formatted}</div>
+                                        </div>
+                                    </div>
+
+                                    <div style={{fontSize: '11.5px', color: '#334155', lineHeight: '1.4', marginTop: '2px'}}>
+                                        {isReceivable && (
+                                            <span>🟢 <b>{comp.name}</b> એ પોતાના હિસ્સા કરતાં વધુ ખર્ચ કર્યો હોવાથી બીજી કંપનીઓ પાસેથી <b>₹{Math.abs(comp.net_balance).toLocaleString('en-IN', {minimumFractionDigits: 2})} લેવાના બાકી</b> છે.</span>
+                                        )}
+                                        {isPayable && (
+                                            <span>🔴 <b>{comp.name}</b> એ પોતાના હિસ્સા કરતાં ઓછો ખર્ચ કર્યો હોવાથી બીજી કંપનીઓને <b>₹{Math.abs(comp.net_balance).toLocaleString('en-IN', {minimumFractionDigits: 2})} આપવાના બાકી</b> છે.</span>
+                                        )}
+                                        {comp.status_type === 'settled' && (
+                                            <span>⚪ બધા હિસાબો સંપૂર્ણ સરભર થયેલા છે.</span>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* ⚖️ પેન્ડિંગ લેતી-દેતીના વાક્યો (Pending Settlement Statements) */}
+                    {data.gujarati_summary.pending_settlements && data.gujarati_summary.pending_settlements.length > 0 && (
+                        <div style={{
+                            background: '#fffbeb',
+                            border: '1px solid #fde68a',
+                            borderRadius: '10px',
+                            padding: '10px 14px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px'
+                        }}>
+                            <b style={{fontSize: '12px', color: '#92400e', display: 'flex', alignItems: 'center', gap: '6px'}}>
+                                <span>📌</span> પેન્ડિંગ ચૂકવણી વિગત (કોણે કોને કેટલા આપવાના છે):
+                            </b>
+                            <div style={{display: 'flex', flexDirection: 'column', gap: '4px'}}>
+                                {data.gujarati_summary.pending_settlements.map((ps, idx) => (
+                                    <div key={idx} style={{fontSize: '12px', color: '#78350f', display: 'flex', alignItems: 'center', gap: '6px'}}>
+                                        <span>👉</span>
+                                        <span>{ps.sentence_gu}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </section>
+            )}
+
             {/* Toolbar */}
             <section className="panel expense-toolbar">
                 <div>

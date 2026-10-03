@@ -607,8 +607,8 @@ export default function MobileAppView({
                                 </button>
                             </div>
 
-                            {/* 🌤️ Cloud vs Technical Fault AI Pill in Mobile */}
-                            {data?.smart_insights?.cloud_vs_fault && (
+                            {/* 🌤️ Cloud vs Technical Fault AI Pill in Mobile (Hidden when plant is normal/stable) */}
+                            {data?.smart_insights?.cloud_vs_fault && data.smart_insights.cloud_vs_fault.type !== 'normal' && (
                                 <span className={`cloud-fault-ai-pill ${data.smart_insights.cloud_vs_fault.theme}`} style={{fontSize: '10.5px', padding: '2px 8px'}}>
                                     {data.smart_insights.cloud_vs_fault.badge}
                                 </span>
