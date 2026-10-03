@@ -29,6 +29,7 @@ import {
     Sparkles,
     Sun,
     Trash2,
+    TrendingDown,
     TrendingUp,
     User,
     UserCheck,
@@ -499,6 +500,13 @@ export default function MobileAppView({
                                 </button>
                             </div>
 
+                            {/* 🌤️ Cloud vs Technical Fault AI Pill in Mobile */}
+                            {data?.smart_insights?.cloud_vs_fault && (
+                                <span className={`cloud-fault-ai-pill ${data.smart_insights.cloud_vs_fault.theme}`} style={{fontSize: '10.5px', padding: '2px 8px'}}>
+                                    {data.smart_insights.cloud_vs_fault.badge}
+                                </span>
+                            )}
+
                             <div className="timestamp-pill">
                                 <Calendar size={12} style={{color: '#475569'}}/>
                                 <span>{currentTime}</span>
@@ -631,24 +639,39 @@ export default function MobileAppView({
                         )}
                     </div>
 
-                    {/* 4. GUJARATI CLEANING & WEATHER ALERTS SECTION */}
+                    {/* 4. GUJARATI CLEANING & SMART DIAGNOSTIC ALERTS SECTION */}
                     <section className="cleaning-alert-section" style={{margin: '12px 0'}}>
                         <div className="cleaning-section-header">
                             <div className="cleaning-head-left">
                                 <h3>
                                     <span style={{color: '#d97706'}}>⚠️</span>
-                                    પેનલ સફાઈ એલર્ટ (Dust / Soiling Indicator)
-                                    {cleaningAlerts.length > 0 && (
+                                    પ્લાન્ટ સ્માર્ટ ડાયગ્નોસ્ટિક & સફાઈ એલર્ટ
+                                    {((cleaningAlerts.length > 0) || (data?.smart_insights?.underperforming_inverters?.length > 0) || data?.smart_insights?.grid_downtime?.is_down) && (
                                         <span className="cleaning-head-badge">
-                                            🔴 {cleaningAlerts.length} ચેતવણી
+                                            🔴 {(cleaningAlerts.length || 0) + (data?.smart_insights?.underperforming_inverters?.length || 0) + (data?.smart_insights?.grid_downtime?.is_down ? 1 : 0)} ચેતવણી
                                         </span>
                                     )}
                                 </h3>
                                 <p className="cleaning-head-subtitle">
-                                    સૂર્યપ્રકાશ પૂરો હોવા છતાં જે PV સ્ટ્રિંગમાં ઓછો કરંટ આવે છે તેનું ઓટોમેટિક નિદાન
+                                    નબળા ઇન્વર્ટર, પાવર લોસ, ગ્રીડ ટ્રીપિંગ અને ધૂળનું ઓટોમેટિક AI નિદાન
                                 </p>
                             </div>
                         </div>
+
+                        {/* 📉 Grid Downtime & Revenue Loss Alert Banner in Mobile */}
+                        {data?.smart_insights?.grid_downtime && data.smart_insights.grid_downtime.is_down && (
+                            <div className="grid-downtime-alert-banner" style={{marginBottom: '8px'}}>
+                                <div className="grid-downtime-head">
+                                    <span className="grid-downtime-tag">
+                                        <Activity size={13}/> 🚨 ગ્રીડ ટ્રીપિંગ ({data.smart_insights.grid_downtime.downtime_minutes} મિનિટ)
+                                    </span>
+                                    <span className="grid-downtime-loss-val">
+                                        -{data.smart_insights.grid_downtime.lost_units_kwh} kWh (₹{data.smart_insights.grid_downtime.lost_revenue_rs})
+                                    </span>
+                                </div>
+                                <p className="grid-downtime-msg">{data.smart_insights.grid_downtime.message}</p>
+                            </div>
+                        )}
 
                         {/* 🚨 Severe High Wind Storm Damage Warning Alert Banner */}
                         {weather.storm_alert && weather.storm_alert.active && (
@@ -664,6 +687,47 @@ export default function MobileAppView({
                                 <p className="weather-storm-msg">
                                     {weather.storm_alert.message}
                                 </p>
+                            </div>
+                        )}
+
+                        {/* 🔍 Inverter Underperformance Alert Cards in Mobile */}
+                        {data?.smart_insights?.underperforming_inverters && data.smart_insights.underperforming_inverters.length > 0 && (
+                            <div className="underperf-inverters-list" style={{marginBottom: '8px'}}>
+                                {data.smart_insights.underperforming_inverters.map((uInv, uIdx) => (
+                                    <div key={uIdx} className="underperf-inverter-card">
+                                        <div className="underperf-card-head">
+                                            <div className="underperf-title">
+                                                <TrendingDown size={14} style={{color: '#dc2626'}}/>
+                                                <b>{uInv.title}</b>
+                                            </div>
+                                            <span className="underperf-loss-chip">
+                                                -{uInv.diff_kwh} kWh (₹{uInv.loss_rs})
+                                            </span>
+                                        </div>
+                                        <div className="underperf-stats-row">
+                                            <span>જનરેશન: <b>{uInv.today_kwh}</b></span>
+                                            <span>એવરેજ: <b>{uInv.benchmark_kwh}</b></span>
+                                            <span>ઓછું: <b style={{color: '#dc2626'}}>-{uInv.diff_pct}%</b></span>
+                                        </div>
+                                        <p className="underperf-advice">💡 {uInv.advice}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* 🧼 Cleaning Gain & ROI Tracker Card in Mobile */}
+                        {data?.smart_insights?.cleaning_roi && (
+                            <div className="cleaning-roi-card" style={{marginBottom: '8px'}}>
+                                <div className="cleaning-roi-left">
+                                    <span className="cleaning-roi-badge">🧼 {data.smart_insights.cleaning_roi.payback_text}</span>
+                                    <div className="cleaning-roi-text">
+                                        <b>{data.smart_insights.cleaning_roi.title}:</b> <span>{data.smart_insights.cleaning_roi.message}</span>
+                                    </div>
+                                </div>
+                                <div className="cleaning-roi-stat">
+                                    <span>+{data.smart_insights.cleaning_roi.gain_percentage}%</span>
+                                    <small>વધારો</small>
+                                </div>
                             </div>
                         )}
 

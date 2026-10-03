@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {AlertTriangle, Bell, CheckCircle, ChevronDown, ChevronUp, Cloud, CloudLightning, CloudRain, Crosshair, DollarSign, Droplets, Factory, Home, MapPin, RefreshCw, Sparkles, Sun, Thermometer, TrendingUp, Wind, X, Zap} from 'lucide-react';
+import {Activity, AlertTriangle, Bell, CheckCircle, ChevronDown, ChevronUp, Cloud, CloudLightning, CloudRain, Crosshair, DollarSign, Droplets, Factory, Home, MapPin, RefreshCw, ShieldAlert, Sparkles, Sun, Thermometer, TrendingDown, TrendingUp, Wind, X, Zap} from 'lucide-react';
 import {api} from '../api';
 import {Loading} from '../components/Common';
 import ISolarCloudVisualizer from '../components/ISolarCloudVisualizer';
@@ -232,15 +232,29 @@ export default function DashboardPage({companyId, currentUser}) {
 
     const weatherTypeClass = `weather-${weather.type || 'sunny'}`;
 
+    const smartInsights = data.smart_insights || {};
+    const underperformingInverters = smartInsights.underperforming_inverters || [];
+    const cloudVsFault = smartInsights.cloud_vs_fault;
+    const gridDowntime = smartInsights.grid_downtime;
+    const cleaningRoi = smartInsights.cleaning_roi;
+
     return (
         <div className="live-solar-container">
-            {/* Top Compact Meta Bar (Zero duplicate title) */}
+            {/* Top Compact Meta Bar */}
             <div className="solar-dashboard-header">
                 <div className="solar-header-meta">
                     <span className="live-pulse-wrapper">
                         <span className="live-pulse-dot" style={{width: '8px', height: '8px'}}/>
                         <span>Auto-updates 10s · <b>{lastUpdated}</b></span>
                     </span>
+
+                    {/* 🌤️ Cloud vs Technical Fault AI Badge */}
+                    {cloudVsFault && (
+                        <span className={`cloud-fault-ai-pill ${cloudVsFault.theme}`} title={cloudVsFault.message}>
+                            {cloudVsFault.badge}
+                        </span>
+                    )}
+
                     <button
                         type="button"
                         className="plant-loc-badge-btn"
@@ -274,21 +288,21 @@ export default function DashboardPage({companyId, currentUser}) {
                 </div>
             </div>
 
-            {/* 1. FIRST: Top Dashboard Notifications (Panel Soiling / Dust Cleaning Alert) */}
+            {/* 1. FIRST: Top Dashboard Notifications & Smart Diagnostic Center */}
             <section className="cleaning-alert-section">
                 <div className="cleaning-section-header">
                     <div className="cleaning-head-left">
                         <h3>
                             <span style={{color: '#d97706'}}>⚠️</span>
-                            પેનલ સફાઈ એલર્ટ (Dust / Soiling Indicator)
-                            {cleaningAlerts.length > 0 && (
+                            પ્લાન્ટ સ્માર્ટ ડાયગ્નોસ્ટિક & સફાઈ એલર્ટ
+                            {(cleaningAlerts.length > 0 || underperformingInverters.length > 0 || gridDowntime?.is_down) && (
                                 <span className="cleaning-head-badge">
-                                    🔴 {cleaningAlerts.length} ચેતવણી
+                                    🔴 {cleaningAlerts.length + underperformingInverters.length + (gridDowntime?.is_down ? 1 : 0)} ચેતવણી
                                 </span>
                             )}
                         </h3>
                         <p className="cleaning-head-subtitle">
-                            સૂર્યપ્રકાશ પૂરો હોવા છતાં જે PV સ્ટ્રિંગમાં ઓછો કરંટ આવે છે તેનું ઓટોમેટિક નિદાન
+                            નબળા ઇન્વર્ટર, પાવર લોસ, ગ્રીડ ટ્રીપિંગ અને ધૂળનું ઓટોમેટિક AI નિદાન
                         </p>
                     </div>
 
@@ -305,6 +319,21 @@ export default function DashboardPage({companyId, currentUser}) {
                     </div>
                 </div>
 
+                {/* 📉 Grid Downtime & Revenue Loss Alert Banner */}
+                {gridDowntime && gridDowntime.is_down && (
+                    <div className="grid-downtime-alert-banner">
+                        <div className="grid-downtime-head">
+                            <span className="grid-downtime-tag">
+                                <Activity size={13}/> 🚨 ગ્રીડ ટ્રીપિંગ / લાઈન કટ ({gridDowntime.downtime_minutes} મિનિટ)
+                            </span>
+                            <span className="grid-downtime-loss-val">
+                                અંદાજિત નુકસાન: -{gridDowntime.lost_units_kwh} kWh (₹{gridDowntime.lost_revenue_rs})
+                            </span>
+                        </div>
+                        <p className="grid-downtime-msg">{gridDowntime.message}</p>
+                    </div>
+                )}
+
                 {/* 🚨 Severe High Wind Storm Damage Warning Alert Banner */}
                 {weather.storm_alert && weather.storm_alert.active && (
                     <div className="weather-storm-banner">
@@ -319,6 +348,31 @@ export default function DashboardPage({companyId, currentUser}) {
                         <p className="weather-storm-msg">
                             {weather.storm_alert.message}
                         </p>
+                    </div>
+                )}
+
+                {/* 🔍 Inverter Underperformance Alert Cards */}
+                {underperformingInverters.length > 0 && (
+                    <div className="underperf-inverters-list">
+                        {underperformingInverters.map((uInv, uIdx) => (
+                            <div key={uIdx} className="underperf-inverter-card">
+                                <div className="underperf-card-head">
+                                    <div className="underperf-title">
+                                        <TrendingDown size={15} style={{color: '#dc2626'}}/>
+                                        <b>{uInv.title}</b>
+                                    </div>
+                                    <span className="underperf-loss-chip">
+                                        -{uInv.diff_kwh} kWh (₹{uInv.loss_rs} લોસ)
+                                    </span>
+                                </div>
+                                <div className="underperf-stats-row">
+                                    <span>આજનું જનરેશન: <b>{uInv.today_kwh} kWh</b></span>
+                                    <span>સામાન્ય એવરેજ: <b>{uInv.benchmark_kwh} kWh</b></span>
+                                    <span>ઓછું: <b style={{color: '#dc2626'}}>-{uInv.diff_pct}%</b></span>
+                                </div>
+                                <p className="underperf-advice">💡 <b>સલાહ:</b> {uInv.advice}</p>
+                            </div>
+                        ))}
                     </div>
                 )}
 
@@ -347,6 +401,23 @@ export default function DashboardPage({companyId, currentUser}) {
                         </div>
                     </div>
                 )}
+
+                {/* 🧼 Cleaning Gain & ROI Tracker Banner */}
+                {cleaningRoi && (
+                    <div className="cleaning-roi-card">
+                        <div className="cleaning-roi-left">
+                            <span className="cleaning-roi-badge">🧼 {cleaningRoi.payback_text}</span>
+                            <div className="cleaning-roi-text">
+                                <b>{cleaningRoi.title}:</b> <span>{cleaningRoi.message}</span>
+                            </div>
+                        </div>
+                        <div className="cleaning-roi-stat">
+                            <span>+{cleaningRoi.gain_percentage}%</span>
+                            <small>વધારો</small>
+                        </div>
+                    </div>
+                )}
+
 
                 {/* 🚿 Smart Plate Washing Advice Banner (48h Weather Forecast Recommendation) */}
                 {cleaningSystem.washing_advice && (
