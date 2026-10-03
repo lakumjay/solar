@@ -42,7 +42,12 @@ import {
     Droplets,
     X,
     Zap,
-    Camera
+    Camera,
+    Power,
+    History,
+    Sliders,
+    ShieldAlert,
+    Check
 } from 'lucide-react';
 import {api} from '../api';
 import ISolarCloudVisualizer from './ISolarCloudVisualizer';
@@ -90,6 +95,104 @@ export default function MobileAppView({
     const [expandedPlantId, setExpandedPlantId] = useState(null);
     const [expandedInverters, setExpandedInverters] = useState({});
     const [isSyncing, setIsSyncing] = useState(false);
+    const [showCurtailModal, setShowCurtailModal] = useState(false);
+    const [showCurtailHistory, setShowCurtailHistory] = useState(false);
+    const [curtailForm, setCurtailForm] = useState({
+        company_id: '',
+        percentage: 20,
+        inverter_ids: [],
+        pv_strings: [],
+        notes: 'PGVCL Order'
+    });
+    const [curtailSaving, setCurtailSaving] = useState(false);
+    const [curtailMessage, setCurtailMessage] = useState('');
+    const [historyList, setHistoryList] = useState([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+
+    const openCurtailModal = (company = null, initialPct = 20) => {
+        const targetComp = company || (liveData?.companies && liveData.companies[0]);
+        const allInvs = targetComp?.inverters || [];
+        const invIds = allInvs.map(i => i.id);
+        const allStrings = [];
+        for (let s = 1; s <= 16; s++) allStrings.push('PV' + s);
+
+        setCurtailForm({
+            company_id: targetComp ? targetComp.company_id : (liveData?.companies?.[0]?.company_id || ''),
+            percentage: initialPct,
+            inverter_ids: invIds,
+            pv_strings: allStrings,
+            notes: 'PGVCL Curtailment Order'
+        });
+        setCurtailMessage('');
+        setShowCurtailModal(true);
+    };
+
+    const handleSaveCurtailment = async (e) => {
+        if (e) e.preventDefault();
+        setCurtailSaving(true);
+        setCurtailMessage('');
+        try {
+            const res = await api('curtailments', {
+                method: 'POST',
+                body: JSON.stringify(curtailForm),
+            });
+            setCurtailMessage(res.message || 'કર્ટલમેન્ટ સફળતાપૂર્વક સેટ થઈ ગયું છે.');
+            setTimeout(() => {
+                setShowCurtailModal(false);
+                setCurtailMessage('');
+                if (fetchLiveSolar) fetchLiveSolar(true);
+            }, 600);
+        } catch (err) {
+            setCurtailMessage(err.message || 'કર્ટલમેન્ટ સેટ કરવામાં ભૂલ આવી.');
+        } finally {
+            setCurtailSaving(false);
+        }
+    };
+
+    const handleQuickStepChange = async (targetCompanyId, newPercentage) => {
+        try {
+            await api('curtailments', {
+                method: 'POST',
+                body: JSON.stringify({
+                    company_id: targetCompanyId,
+                    percentage: newPercentage,
+                }),
+            });
+            if (fetchLiveSolar) fetchLiveSolar(true);
+        } catch (err) {
+            alert('Step update failed: ' + (err.message || 'Error'));
+        }
+    };
+
+    const handleRestoreAll = async (targetCompanyId = null) => {
+        const confirmMsg = targetCompanyId
+            ? 'શું તમે આ કંપની માટે PGVCL કર્ટલમેન્ટ પૂર્ણ કરી ૧૦૦% ફુલ પાવર ચાલુ કરવા માંગો છો?'
+            : 'શું તમે તમામ પ્લાન્ટ માટે PGVCL કર્ટલમેન્ટ પૂર્ણ કરી ૧૦૦% ફુલ પાવર ચાલુ કરવા માંગો છો?';
+        if (!confirm(confirmMsg)) return;
+        try {
+            await api('curtailments/restore-all', {
+                method: 'POST',
+                body: JSON.stringify({ company_id: targetCompanyId || 'all' }),
+            });
+            if (fetchLiveSolar) fetchLiveSolar(true);
+            if (showCurtailHistory) fetchCurtailmentHistory();
+        } catch (err) {
+            alert('Restore failed: ' + (err.message || 'Error'));
+        }
+    };
+
+    const fetchCurtailmentHistory = async () => {
+        setHistoryLoading(true);
+        setShowCurtailHistory(true);
+        try {
+            const res = await api('curtailments');
+            setHistoryList(res.history_curtailments || []);
+        } catch (err) {
+            console.error('Failed to load history', err);
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
 
     const handleManualRefresh = async (e) => {
         if (e) e.stopPropagation();
@@ -316,6 +419,8 @@ export default function MobileAppView({
     const cleaningAlerts = cleaningSystem.alerts || liveData?.cleaning_alerts || [];
     const firstAlert = cleaningAlerts[0];
     const rainAlert = weather?.rain_alert;
+    const curtailmentSystem = data.curtailment_system || { is_any_active: false, active_list: [] };
+    const activeCurtailments = curtailmentSystem.active_list || [];
 
     const attendanceTargetPage = user.role === 'employee' ? 'my-attendance' : 'attendance';
     const salaryTargetPage = (user.role === 'super_admin' || user.role === 'company_admin') ? 'salaries' : 'my-salary';
@@ -513,6 +618,209 @@ export default function MobileAppView({
                                 <span>{currentTime}</span>
                             </div>
                         </div>
+                    </div>
+
+                    {/* ⚡ PGVCL Solar Curtailment Mobile Control Box & Master Restore Switch */}
+                    <div style={{
+                        margin: '0 12px 10px 12px',
+                        background: curtailmentSystem.is_any_active ? '#fff7ed' : '#ffffff',
+                        border: curtailmentSystem.is_any_active ? '1.5px solid #f97316' : '1px solid #e2e8f0',
+                        borderRadius: '12px',
+                        padding: '10px 12px',
+                        boxShadow: curtailmentSystem.is_any_active ? '0 3px 12px rgba(249, 115, 22, 0.15)' : '0 1px 3px rgba(0,0,0,0.03)'
+                    }}>
+                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap'}}>
+                            <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                                <div style={{
+                                    width: '30px',
+                                    height: '30px',
+                                    borderRadius: '8px',
+                                    background: curtailmentSystem.is_any_active ? '#ffedd5' : '#e0f2fe',
+                                    color: curtailmentSystem.is_any_active ? '#ea580c' : '#0284c7',
+                                    display: 'grid',
+                                    placeItems: 'center',
+                                    flexShrink: 0
+                                }}>
+                                    <Power size={16}/>
+                                </div>
+                                <div>
+                                    <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                                        <b style={{fontSize: '12px', color: curtailmentSystem.is_any_active ? '#9a3412' : '#0f172a'}}>
+                                            {curtailmentSystem.is_any_active ? '⚡ PGVCL કર્ટલમેન્ટ ચાલુ છે' : '⚡ PGVCL: ૧૦૦% ફુલ પાવર'}
+                                        </b>
+                                        {curtailmentSystem.is_any_active && (
+                                            <span style={{
+                                                background: '#ea580c',
+                                                color: '#ffffff',
+                                                fontSize: '10px',
+                                                fontWeight: 800,
+                                                padding: '1px 6px',
+                                                borderRadius: '8px'
+                                            }}>
+                                                {curtailmentSystem.active_count} પ્લાન્ટ
+                                            </span>
+                                        )}
+                                    </div>
+                                    <span style={{fontSize: '10.5px', color: curtailmentSystem.is_any_active ? '#c2410c' : '#64748b', display: 'block'}}>
+                                        {curtailmentSystem.is_any_active
+                                            ? 'PGVCL ઓર્ડર મુજબ ઉત્પાદન ઘટાડેલું છે.'
+                                            : 'બધા પ્લાન્ટ ૧૦૦% ક્ષમતાથી ચાલુ છે.'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                                {curtailmentSystem.is_any_active ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRestoreAll('all')}
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            background: '#16a34a',
+                                            color: '#ffffff',
+                                            border: 'none',
+                                            padding: '5px 10px',
+                                            borderRadius: '6px',
+                                            fontSize: '11px',
+                                            fontWeight: 700,
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        <Zap size={12}/>
+                                        ૧૦૦% ફુલ પાવર
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => openCurtailModal(null, 20)}
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            background: '#f97316',
+                                            color: '#ffffff',
+                                            border: 'none',
+                                            padding: '5px 9px',
+                                            borderRadius: '6px',
+                                            fontSize: '11px',
+                                            fontWeight: 700,
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        <Sliders size={12}/>
+                                        ઘટાડો સેટ કરો
+                                    </button>
+                                )}
+
+                                <button
+                                    type="button"
+                                    onClick={fetchCurtailmentHistory}
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '3px',
+                                        background: '#ffffff',
+                                        color: '#475569',
+                                        border: '1px solid #cbd5e1',
+                                        padding: '4px 8px',
+                                        borderRadius: '6px',
+                                        fontSize: '10.5px',
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    <History size={11}/>
+                                    ઇતિહાસ
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Active Curtailments List on Mobile */}
+                        {curtailmentSystem.is_any_active && (
+                            <div style={{display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px'}}>
+                                {activeCurtailments.map((curt, cIdx) => (
+                                    <div key={cIdx} style={{
+                                        background: '#ffffff',
+                                        border: '1px solid #fed7aa',
+                                        borderRadius: '8px',
+                                        padding: '8px 10px'
+                                    }}>
+                                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', marginBottom: '4px'}}>
+                                            <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                                                <span style={{
+                                                    background: '#ea580c',
+                                                    color: '#fff',
+                                                    fontWeight: 800,
+                                                    fontSize: '10px',
+                                                    padding: '1px 5px',
+                                                    borderRadius: '4px'
+                                                }}>
+                                                    {curt.percentage}%
+                                                </span>
+                                                <b style={{fontSize: '11.5px', color: '#0f172a'}}>🏢 {curt.company_name}</b>
+                                            </div>
+                                            <span style={{
+                                                background: '#fef2f2',
+                                                color: '#dc2626',
+                                                fontSize: '10.5px',
+                                                fontWeight: 800,
+                                                padding: '1px 5px',
+                                                borderRadius: '4px'
+                                            }}>
+                                                -{curt.lost_kwh} kWh (~₹{curt.lost_revenue_rs})
+                                            </span>
+                                        </div>
+
+                                        {/* Step Control Buttons on Mobile */}
+                                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', marginTop: '6px', paddingTop: '6px', borderTop: '1px dashed #fed7aa'}}>
+                                            <div style={{display: 'flex', alignItems: 'center', gap: '3px'}}>
+                                                {[40, 20, 10].map(pct => {
+                                                    const isCurrent = curt.percentage === pct;
+                                                    return (
+                                                        <button
+                                                            key={pct}
+                                                            type="button"
+                                                            onClick={() => !isCurrent && handleQuickStepChange(curt.company_id, pct)}
+                                                            style={{
+                                                                background: isCurrent ? '#ea580c' : '#f1f5f9',
+                                                                color: isCurrent ? '#ffffff' : '#334155',
+                                                                border: isCurrent ? '1px solid #ea580c' : '1px solid #cbd5e1',
+                                                                borderRadius: '4px',
+                                                                padding: '2px 5px',
+                                                                fontSize: '10px',
+                                                                fontWeight: isCurrent ? 800 : 600,
+                                                                cursor: isCurrent ? 'default' : 'pointer'
+                                                            }}
+                                                        >
+                                                            {pct}%
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRestoreAll(curt.company_id)}
+                                                style={{
+                                                    background: '#15803d',
+                                                    color: '#ffffff',
+                                                    border: 'none',
+                                                    borderRadius: '4px',
+                                                    padding: '2px 7px',
+                                                    fontSize: '10px',
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                ૧૦૦% Restore
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* 3. 3D ANIMATED ISOLARCLOUD ENERGY FLOW VISUALIZER */}
@@ -1457,6 +1765,238 @@ export default function MobileAppView({
                                     <span>{c.name}</span>
                                 </button>
                             ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ⚡ PGVCL Curtailment Setup Modal for Mobile */}
+            {showCurtailModal && (
+                <div className="solar-modal-backdrop" onClick={() => setShowCurtailModal(false)}>
+                    <div className="solar-compact-modal" onClick={e => e.stopPropagation()} style={{maxWidth: '460px', width: '92%'}}>
+                        <div className="solar-modal-head" style={{background: '#fff7ed', borderBottom: '1px solid #fed7aa', padding: '12px 14px'}}>
+                            <h3 style={{display: 'flex', alignItems: 'center', gap: '6px', color: '#9a3412', fontSize: '14px', margin: 0}}>
+                                <Sliders size={16} style={{color: '#ea580c'}}/>
+                                PGVCL પાવર ઘટાડો સેટ કરો (Curtailment)
+                            </h3>
+                            <button
+                                type="button"
+                                className="icon-button ghost"
+                                onClick={() => setShowCurtailModal(false)}
+                                style={{background: 'transparent', border: 'none', cursor: 'pointer'}}
+                            >
+                                <X size={18}/>
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveCurtailment}>
+                            <div className="solar-modal-body" style={{padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px'}}>
+                                <div style={{
+                                    background: '#fffbeb',
+                                    border: '1px solid #fef3c7',
+                                    borderRadius: '8px',
+                                    padding: '8px 10px',
+                                    fontSize: '11px',
+                                    color: '#92400e',
+                                    lineHeight: '1.4'
+                                }}>
+                                    💡 <b>PGVCL આદેશ મુજબ:</b> જ્યારે PGVCL તરફથી ઉત્પાદન ઘટાડવાની સૂચના મળે, ત્યારે અહીંથી ટકાવારી સેટ કરો.
+                                </div>
+
+                                <div className="solar-field-group">
+                                    <label style={{display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#334155', marginBottom: '4px'}}>
+                                        કંપની / પ્લાન્ટ પસંદ કરો:
+                                    </label>
+                                    <select
+                                        value={curtailForm.company_id}
+                                        onChange={e => {
+                                            const compId = e.target.value;
+                                            const comp = (liveData?.companies || []).find(c => String(c.company_id) === String(compId));
+                                            const invIds = (comp?.inverters || []).map(i => i.id);
+                                            setCurtailForm(prev => ({
+                                                ...prev,
+                                                company_id: compId,
+                                                inverter_ids: invIds
+                                            }));
+                                        }}
+                                        style={{width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #cbd5e1', fontSize: '13px'}}
+                                    >
+                                        {(liveData?.companies || companies || []).map(c => (
+                                            <option key={c.company_id || c.id} value={c.company_id || c.id}>
+                                                {c.name || c.company_name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="solar-field-group">
+                                    <label style={{display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#334155', marginBottom: '4px'}}>
+                                        કેટલા ટકા ઉત્પાદન ચાલુ રાખવું છે?
+                                    </label>
+                                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px'}}>
+                                        {[40, 20, 10, 5].map(pct => {
+                                            const isSel = Number(curtailForm.percentage) === pct;
+                                            return (
+                                                <button
+                                                    key={pct}
+                                                    type="button"
+                                                    onClick={() => setCurtailForm(prev => ({ ...prev, percentage: pct }))}
+                                                    style={{
+                                                        padding: '8px 4px',
+                                                        borderRadius: '7px',
+                                                        border: isSel ? '2px solid #ea580c' : '1px solid #cbd5e1',
+                                                        background: isSel ? '#ffedd5' : '#f8fafc',
+                                                        color: isSel ? '#9a3412' : '#334155',
+                                                        fontWeight: 800,
+                                                        fontSize: '13px',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    {pct}%
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                <div className="solar-field-group">
+                                    <label style={{display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#334155', marginBottom: '4px'}}>
+                                        નોંધ (Notes / Reason):
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={curtailForm.notes}
+                                        onChange={e => setCurtailForm(prev => ({ ...prev, notes: e.target.value }))}
+                                        placeholder="દા.ત. PGVCL Grid Curtailment Order"
+                                        style={{width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #cbd5e1', fontSize: '12px'}}
+                                    />
+                                </div>
+
+                                {curtailMessage && (
+                                    <div style={{
+                                        padding: '8px',
+                                        borderRadius: '6px',
+                                        background: curtailMessage.includes('ભૂલ') ? '#fef2f2' : '#f0fdf4',
+                                        color: curtailMessage.includes('ભૂલ') ? '#b91c1c' : '#15803d',
+                                        fontSize: '11.5px',
+                                        fontWeight: 600
+                                    }}>
+                                        {curtailMessage}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="solar-modal-foot" style={{padding: '10px 14px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '8px'}}>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCurtailModal(false)}
+                                    style={{padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', cursor: 'pointer'}}
+                                >
+                                    રદ કરો (Cancel)
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={curtailSaving}
+                                    style={{
+                                        padding: '6px 14px',
+                                        borderRadius: '6px',
+                                        border: 'none',
+                                        background: '#ea580c',
+                                        color: '#ffffff',
+                                        fontSize: '12px',
+                                        fontWeight: 700,
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    {curtailSaving ? 'લાગુ થઈ રહ્યું છે...' : '⚡ PGVCL ઘટાડો સેટ કરો'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* 📜 PGVCL Curtailment History Modal for Mobile */}
+            {showCurtailHistory && (
+                <div className="solar-modal-backdrop" onClick={() => setShowCurtailHistory(false)}>
+                    <div className="solar-compact-modal" onClick={e => e.stopPropagation()} style={{maxWidth: '540px', width: '94%'}}>
+                        <div className="solar-modal-head" style={{background: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '12px 14px'}}>
+                            <h3 style={{display: 'flex', alignItems: 'center', gap: '6px', color: '#0f172a', fontSize: '14px', margin: 0}}>
+                                <History size={16} style={{color: '#0284c7'}}/>
+                                PGVCL કર્ટલમેન્ટ & લોસ હિસાબ (History)
+                            </h3>
+                            <button
+                                type="button"
+                                className="icon-button ghost"
+                                onClick={() => setShowCurtailHistory(false)}
+                                style={{background: 'transparent', border: 'none', cursor: 'pointer'}}
+                            >
+                                <X size={18}/>
+                            </button>
+                        </div>
+
+                        <div className="solar-modal-body" style={{padding: '12px', maxHeight: '60vh', overflowY: 'auto'}}>
+                            {historyLoading ? (
+                                <div style={{padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '12px'}}>
+                                    ઇતિહાસ લોડ થઈ રહ્યો છે...
+                                </div>
+                            ) : historyList.length === 0 ? (
+                                <div style={{padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '12px'}}>
+                                    અત્યાર સુધી કોઈ પાછલો કર્ટલમેન્ટ રેકોર્ડ નથી.
+                                </div>
+                            ) : (
+                                <div style={{display: 'flex', flexDirection: 'column', gap: '6px'}}>
+                                    {historyList.map((hItem, hIdx) => (
+                                        <div key={hIdx} style={{
+                                            background: '#ffffff',
+                                            border: '1px solid #e2e8f0',
+                                            borderRadius: '7px',
+                                            padding: '8px 10px'
+                                        }}>
+                                            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', marginBottom: '4px'}}>
+                                                <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                                                    <span style={{
+                                                        background: '#e0f2fe',
+                                                        color: '#0369a1',
+                                                        fontWeight: 800,
+                                                        fontSize: '10.5px',
+                                                        padding: '1px 5px',
+                                                        borderRadius: '3px'
+                                                    }}>
+                                                        {hItem.percentage}%
+                                                    </span>
+                                                    <b style={{fontSize: '12px', color: '#0f172a'}}>🏢 {hItem.company_name}</b>
+                                                </div>
+                                                <span style={{fontSize: '10.5px', color: '#64748b'}}>
+                                                    {hItem.date}
+                                                </span>
+                                            </div>
+
+                                            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', fontSize: '10.5px', marginTop: '4px', paddingTop: '4px', borderTop: '1px dashed #f1f5f9'}}>
+                                                <span style={{color: '#475569'}}>સમય: <b>{hItem.duration_human}</b></span>
+                                                <div style={{display: 'flex', gap: '4px'}}>
+                                                    <span style={{background: '#fef2f2', color: '#dc2626', padding: '1px 5px', borderRadius: '3px', fontWeight: 800}}>
+                                                        -{hItem.lost_kwh} kWh
+                                                    </span>
+                                                    <span style={{background: '#fee2e2', color: '#991b1b', padding: '1px 5px', borderRadius: '3px', fontWeight: 800}}>
+                                                        -₹{hItem.lost_revenue_rs}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="solar-modal-foot" style={{padding: '10px 14px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end'}}>
+                            <button
+                                type="button"
+                                onClick={() => setShowCurtailHistory(false)}
+                                style={{fontSize: '11.5px', padding: '5px 12px', borderRadius: '5px', border: '1px solid #cbd5e1', background: '#ffffff', cursor: 'pointer'}}
+                            >
+                                બંધ કરો (Close)
+                            </button>
                         </div>
                     </div>
                 </div>
