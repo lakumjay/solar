@@ -122,10 +122,12 @@ class EmployeeLocationController extends Controller
     {
         $this->ensureTableExists();
 
-        // Common shared employees are accessible across all companies
-        $employees = Employee::with(['user.company', 'attendanceRecords' => function ($q) {
-            $q->whereDate('attendance_date', Carbon::today())->latest('id');
-        }])->orderBy('employee_code')->get();
+        // Only field employees who punch attendance themselves (exclude manager-only manual attendance)
+        $employees = Employee::where('manager_attendance_only', false)
+            ->where('active', true)
+            ->with(['user.company', 'attendanceRecords' => function ($q) {
+                $q->whereDate('attendance_date', Carbon::today())->latest('id');
+            }])->orderBy('employee_code')->get();
 
         $employeeIds = $employees->pluck('id');
 

@@ -52,7 +52,9 @@ export default function AttendancePage({canCorrect, canRecord}) {
             return liveLocations;
         }
         if (employees && employees.length > 0) {
-            return employees.map(emp => {
+            return employees
+                .filter(emp => !emp.manager_attendance_only)
+                .map(emp => {
                 const row = rows.find(r => String(r.employee_id) === String(emp.id) || String(r.employee?.id) === String(emp.id));
                 const lat = row && row.clock_in_latitude && Number(row.clock_in_latitude) !== 0 ? Number(row.clock_in_latitude) : null;
                 const lng = row && row.clock_in_longitude && Number(row.clock_in_longitude) !== 0 ? Number(row.clock_in_longitude) : null;
