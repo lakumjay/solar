@@ -8,6 +8,7 @@ use App\Models\ISolarCloudToken;
 use App\Models\SolarCurtailment;
 use Carbon\Carbon;
 use Exception;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 

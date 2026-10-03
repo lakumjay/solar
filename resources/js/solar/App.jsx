@@ -38,7 +38,7 @@ export default function App() {
             } else {
                 setCompanyId(prev => (prev && prev !== 'all' && rows.some(r => String(r.id) === String(prev)) ? prev : (preferredPage === 'entry' && rows[0] ? String(rows[0].id) : 'all')));
             }
-            setPage(['entry', 'stock', 'gallery', 'reels', 'my-attendance', 'my-salary'].includes(preferredPage) ? preferredPage : 'my-attendance');
+            setPage(['dashboard', 'entry', 'stock', 'gallery', 'reels', 'my-attendance', 'my-salary'].includes(preferredPage) ? preferredPage : 'dashboard');
             return rows;
         }
         const rows = await api('companies');
