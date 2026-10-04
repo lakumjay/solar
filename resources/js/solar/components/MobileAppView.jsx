@@ -52,6 +52,7 @@ import {
 import {api} from '../api';
 import ISolarCloudVisualizer from './ISolarCloudVisualizer';
 import NotificationPermissionModal from './NotificationPermissionModal';
+import {getPanchangDetails, getTomorrowBankHolidayAlert} from '../utils/panchang';
 
 export default function MobileAppView({
     user,
@@ -742,6 +743,9 @@ export default function MobileAppView({
         ? `${rawKw.toFixed(2)} kW`
         : (rawMw > 0 ? `${rawMw.toFixed(2)} MW` : `${(rawKw / 1000).toFixed(2)} MW`);
 
+    const todayPanchang = getPanchangDetails(new Date());
+    const tomorrowBankHoliday = getTomorrowBankHolidayAlert(new Date());
+
     return (
         <div className={`mobile-app-container ${currentSky.themeClass}`}>
             {/* 1. TOP APP HEADER */}
@@ -893,7 +897,7 @@ export default function MobileAppView({
                         )}
                     </div>
 
-                    {/* Subhead Status Row */}
+                    {/* Subhead Status Row with Gujarati Panchang Day & Tithi */}
                     <div className="mobile-subhead-section">
                         <div className="plant-live-status-row">
                             <div className="plant-pill">
@@ -928,12 +932,43 @@ export default function MobileAppView({
                                 </span>
                             )}
 
-                            <div className="timestamp-pill">
-                                <Calendar size={12} style={{color: '#475569'}}/>
-                                <span>{currentTime}</span>
+                            <div className="timestamp-pill" style={{display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '20px', background: '#ffffff', border: '1px solid #d1e7dd', boxShadow: '0 1px 4px rgba(0,0,0,0.04)'}}>
+                                <Calendar size={12} style={{color: '#15803d'}}/>
+                                <span style={{fontSize: '11px', fontWeight: 700, color: '#0f291e'}}>
+                                    {todayPanchang.dayNameGu} • {todayPanchang.tithiFull}
+                                </span>
                             </div>
                         </div>
                     </div>
+
+                    {/* 🏦 Advance Bank Holiday Warning Banner */}
+                    {tomorrowBankHoliday && tomorrowBankHoliday.active && (
+                        <div style={{
+                            margin: '0 12px 10px 12px',
+                            background: '#fff5f5',
+                            border: '1.5px solid #fca5a5',
+                            borderRadius: '12px',
+                            padding: '10px 14px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '8px',
+                            flexWrap: 'wrap',
+                            boxShadow: '0 2px 8px rgba(220, 38, 38, 0.08)'
+                        }}>
+                            <div style={{display: 'flex', alignItems: 'center', gap: '7px'}}>
+                                <span style={{background: '#dc2626', color: '#ffffff', fontSize: '11px', fontWeight: 800, padding: '2px 7px', borderRadius: '5px'}}>
+                                    🏦 આવતીકાલે બેંક રજા
+                                </span>
+                                <b style={{fontSize: '12px', color: '#991b1b'}}>
+                                    {tomorrowBankHoliday.reason}
+                                </b>
+                            </div>
+                            <span style={{fontSize: '10.5px', color: '#b91c1c', fontWeight: 700}}>
+                                નાણાકીય વ્યવહારનું આયોજન કરો ⚠️
+                            </span>
+                        </div>
+                    )}
 
                     {/* ⚡ PGVCL Solar Curtailment Mobile Control Box & Master Restore Switch */}
                     <div style={{

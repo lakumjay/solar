@@ -1,8 +1,7 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
-import {CalendarDays, ChevronLeft, ChevronRight, Factory, Sun} from 'lucide-react';
+import {CalendarDays, ChevronLeft, ChevronRight, Factory, Sun, Sparkles} from 'lucide-react';
 import {number, shortDate} from '../format';
-
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+import {GUJARATI_WEEKDAYS, GUJARATI_MONTHS, getPanchangDetails, toGujaratiDigits} from '../utils/panchang';
 
 function parseDate(value) {
     if (!value) return null;
@@ -58,39 +57,175 @@ export function DatePicker({label, value, onChange, align = 'left'}) {
         onChange(isoDate(date));
         setOpen(false);
     };
-    const today = isoDate(new Date());
+    const todayObj = new Date();
+    const today = isoDate(todayObj);
+    const todayPanchang = getPanchangDetails(selected || todayObj);
+
     const displayValue = selected
-        ? selected.toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'})
-        : 'Select date';
+        ? `${selected.toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'})} (${todayPanchang.dayNameGu})`
+        : 'તારીખ પસંદ કરો (Select date)';
+
+    const gujaratiMonthName = GUJARATI_MONTHS[visibleMonth.getMonth()];
+    const englishMonthName = visibleMonth.toLocaleDateString('en-GB', {month: 'short', year: 'numeric'});
 
     return <div className={`date-picker ${align === 'right' ? 'align-right' : ''}`} ref={root}>
         <span className="date-picker-label">{label}</span>
-        <button type="button" className={open ? 'date-picker-trigger open' : 'date-picker-trigger'} onClick={() => setOpen(current => !current)} aria-haspopup="dialog" aria-expanded={open}>
-            <CalendarDays size={18}/><span>{displayValue}</span>
-        </button>
-        {open && <div className="calendar-popover" role="dialog" aria-label={`${label} calendar`}>
-            <div className="calendar-header">
-                <button type="button" onClick={() => setVisibleMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))} aria-label="Previous month"><ChevronLeft size={18}/></button>
-                <strong>{visibleMonth.toLocaleDateString('en-GB', {month: 'long', year: 'numeric'})}</strong>
-                <button type="button" onClick={() => setVisibleMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))} aria-label="Next month"><ChevronRight size={18}/></button>
+        <button
+            type="button"
+            className={open ? 'date-picker-trigger open' : 'date-picker-trigger'}
+            onClick={() => setOpen(current => !current)}
+            aria-haspopup="dialog"
+            aria-expanded={open}
+            style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px'}}
+        >
+            <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                <CalendarDays size={18} style={{color: '#15803d', flexShrink: 0}}/>
+                <span style={{fontWeight: 700, color: '#0f291e', fontSize: '13px'}}>{displayValue}</span>
             </div>
-            <div className="calendar-weekdays">{WEEKDAYS.map(day => <span key={day}>{day}</span>)}</div>
-            <div className="calendar-grid">{days.map(day => {
-                const key = isoDate(day);
-                const classes = ['calendar-day'];
-                if (day.getMonth() !== visibleMonth.getMonth()) classes.push('outside');
-                if (key === value) classes.push('selected');
-                if (key === today) classes.push('today');
+            {todayPanchang.festivalName && (
+                <span style={{background: '#fef3c7', color: '#b45309', fontSize: '10px', fontWeight: 800, padding: '1px 6px', borderRadius: '4px', border: '1px solid #fde68a'}}>
+                    {todayPanchang.festivalIcon || '✨'} {todayPanchang.festivalName}
+                </span>
+            )}
+        </button>
 
-                return <button type="button" className={classes.join(' ')} key={key} onClick={() => select(day)} aria-label={day.toLocaleDateString('en-GB', {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'})} aria-pressed={key === value}>{day.getDate()}</button>;
-            })}</div>
-            <div className="calendar-footer"><button type="button" onClick={() => select(new Date())}>Today</button></div>
+        {open && <div className="calendar-popover" role="dialog" aria-label={`${label} calendar`} style={{width: '330px', borderRadius: '16px', border: '1.5px solid #d1e7dd', boxShadow: '0 15px 35px rgba(0,0,0,0.12)'}}>
+            {/* Calendar Header with Gujarati & English Month */}
+            <div className="calendar-header" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', paddingBottom: '6px', borderBottom: '1px solid #eef7f2'}}>
+                <button
+                    type="button"
+                    onClick={() => setVisibleMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+                    aria-label="Previous month"
+                    style={{width: '32px', height: '32px', borderRadius: '8px', border: '1px solid #d1e7dd', background: '#f4faf6', color: '#15803d', display: 'grid', placeItems: 'center'}}
+                >
+                    <ChevronLeft size={16}/>
+                </button>
+                <div style={{textAlign: 'center'}}>
+                    <b style={{fontSize: '14px', color: '#0f291e', display: 'block'}}>{gujaratiMonthName} {visibleMonth.getFullYear()}</b>
+                    <small style={{fontSize: '10px', color: '#64748b', fontWeight: 600}}>{englishMonthName}</small>
+                </div>
+                <button
+                    type="button"
+                    onClick={() => setVisibleMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+                    aria-label="Next month"
+                    style={{width: '32px', height: '32px', borderRadius: '8px', border: '1px solid #d1e7dd', background: '#f4faf6', color: '#15803d', display: 'grid', placeItems: 'center'}}
+                >
+                    <ChevronRight size={16}/>
+                </button>
+            </div>
+
+            {/* Gujarati Weekdays Row */}
+            <div className="calendar-weekdays" style={{display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', textAlign: 'center', marginBottom: '4px'}}>
+                {GUJARATI_WEEKDAYS.map((day, idx) => (
+                    <span key={day} style={{fontSize: '11px', fontWeight: 800, color: idx === 6 ? '#dc2626' : '#15803d', padding: '4px 0'}}>
+                        {day}
+                    </span>
+                ))}
+            </div>
+
+            {/* Calendar Days Grid with Tithi Subscripts */}
+            <div className="calendar-grid" style={{display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '3px'}}>
+                {days.map(day => {
+                    const key = isoDate(day);
+                    const isOutside = day.getMonth() !== visibleMonth.getMonth();
+                    const isSelected = key === value;
+                    const isToday = key === today;
+                    const panchang = getPanchangDetails(day);
+
+                    return (
+                        <button
+                            type="button"
+                            key={key}
+                            onClick={() => select(day)}
+                            style={{
+                                height: '42px',
+                                padding: '2px 1px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '8px',
+                                border: isSelected ? '1.5px solid #15803d' : isToday ? '1.5px solid #3b82f6' : panchang.isBankHoliday && !isOutside ? '1px solid #fecaca' : '1px solid transparent',
+                                background: isSelected ? 'linear-gradient(135deg, #16a34a, #15803d)' : isToday ? '#eff6ff' : isOutside ? '#f8fafc' : panchang.isSpecialTithi ? '#fefce8' : panchang.isBankHoliday ? '#fff5f5' : '#ffffff',
+                                color: isSelected ? '#ffffff' : isOutside ? '#cbd5e1' : panchang.isBankHoliday ? '#dc2626' : '#1e293b',
+                                cursor: 'pointer',
+                                position: 'relative',
+                                transition: 'all 0.1s ease'
+                            }}
+                            title={`${panchang.dayNameGu} - ${panchang.tithiFull}${panchang.festivalName ? ` (${panchang.festivalName})` : ''}${panchang.bankHolidayReason ? ` [${panchang.bankHolidayReason}]` : ''}`}
+                        >
+                            <span style={{fontSize: '12px', fontWeight: isSelected || isToday ? 800 : 700, lineHeight: 1.1}}>
+                                {day.getDate()}
+                            </span>
+                            <span style={{fontSize: '8px', fontWeight: 600, color: isSelected ? '#dcfce7' : panchang.isSpecialTithi ? '#b45309' : panchang.isBankHoliday ? '#ef4444' : '#64748b', lineHeight: 1, marginTop: '2px', whiteSpace: 'nowrap'}}>
+                                {panchang.festivalIcon ? panchang.festivalIcon : panchang.isEkadashi ? 'અગિ.' : panchang.isPoonam ? 'પૂનમ' : panchang.isAmavasya ? 'અમાસ' : panchang.tithiName.slice(0, 3)}
+                            </span>
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* Selected Date Panchang & Holiday Detail Footer */}
+            <div style={{marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #eef7f2', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', fontSize: '11px'}}>
+                <div style={{display: 'flex', flexDirection: 'column', gap: '2px'}}>
+                    <span style={{color: '#15803d', fontWeight: 700}}>
+                        🗓️ {todayPanchang.tithiFull} {todayPanchang.festivalName ? `• ${todayPanchang.festivalName}` : ''}
+                    </span>
+                    {todayPanchang.isBankHoliday && (
+                        <span style={{color: '#dc2626', fontWeight: 800, fontSize: '10px'}}>
+                            🏦 {todayPanchang.bankHolidayReason}
+                        </span>
+                    )}
+                </div>
+                <button
+                    type="button"
+                    onClick={() => select(new Date())}
+                    style={{
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        border: '1px solid #16a34a',
+                        background: '#f0fdf4',
+                        color: '#15803d',
+                        fontWeight: 800,
+                        fontSize: '11px',
+                        cursor: 'pointer'
+                    }}
+                >
+                    આજે (Today)
+                </button>
+            </div>
         </div>}
     </div>;
 }
 
 export function Field({label, suffix, children}) {
-    return <label className="field"><span>{label}</span><div>{children}{suffix && <small>{suffix}</small>}</div></label>;
+    return (
+        <label className="field">
+            <span>{label}</span>
+            <div className="field-control-wrap" style={{position: 'relative', width: '100%'}}>
+                {children}
+                {suffix && (
+                    <span className="field-suffix-badge" style={{
+                        position: 'absolute',
+                        right: '8px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        fontWeight: 800,
+                        fontSize: '11px',
+                        color: '#15803d',
+                        background: '#f0fdf4',
+                        border: '1px solid #bbf7d0',
+                        borderRadius: '6px',
+                        padding: '2px 8px',
+                        pointerEvents: 'none',
+                        zIndex: 10
+                    }}>
+                        {suffix}
+                    </span>
+                )}
+            </div>
+        </label>
+    );
 }
 
 export function Metric({icon: Icon = Factory, title, value, unit = 'units', color = 'green'}) {

@@ -111,7 +111,7 @@ export default function App() {
     return <AppShell user={user} page={page} setPage={setPage} companies={companies} companyId={companyId} setCompanyId={setCompanyId}>
         {({can, activeCompany}) => <>
             {page === 'dashboard' && <DashboardPage companyId={companyId} currentUser={user}/>}
-            {page === 'entry' && <DailyEntryPage company={activeCompany} canEdit={can('edit_readings')}/>}
+            {page === 'entry' && <DailyEntryPage company={activeCompany} companies={companies} companyId={companyId} setCompanyId={setCompanyId} user={user} canEdit={can('edit_readings')}/>}
             {page === 'reports' && <ReportsPage companyId={companyId} companies={companies}/>}
             {page === 'gallery' && <GalleryPage companyId={companyId} currentUser={user}/>}
             {page === 'reels' && <ReelsPage companyId={companyId} currentUser={user}/>}

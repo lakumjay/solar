@@ -5,7 +5,7 @@ import {METERS, today} from '../config';
 import {DatePicker, Empty, Field} from '../components/Common';
 import {fixedTwo} from '../format';
 
-export default function DailyEntryPage({company, canEdit = true}) {
+export default function DailyEntryPage({company, companies = [], companyId, setCompanyId, user, canEdit = true}) {
     const [date, setDate] = useState(today());
     const [readings, setReadings] = useState({});
     const [outputs, setOutputs] = useState({});
@@ -202,6 +202,53 @@ export default function DailyEntryPage({company, canEdit = true}) {
     };
 
     return <form className="entry" onSubmit={save}>
+        {companies.length > 1 && (user?.role === 'super_admin' || !user?.company_id) && (
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '12px',
+                padding: '10px 14px',
+                background: '#ffffff',
+                border: '1.5px solid #d1e7dd',
+                borderRadius: '14px',
+                flexWrap: 'wrap',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+            }}>
+                <span style={{fontSize: '12px', fontWeight: 800, color: '#15803d', display: 'flex', alignItems: 'center', gap: '5px'}}>
+                    🏢 કંપની પસંદ કરો (Company):
+                </span>
+                <div style={{display: 'flex', gap: '6px', flexWrap: 'wrap'}}>
+                    {companies.filter(c => String(c.id) !== 'all').map(comp => {
+                        const isSelected = String(comp.id) === String(company?.id);
+                        return (
+                            <button
+                                key={comp.id}
+                                type="button"
+                                onClick={() => {
+                                    if (setCompanyId) setCompanyId(String(comp.id));
+                                }}
+                                style={{
+                                    padding: '6px 14px',
+                                    borderRadius: '8px',
+                                    border: isSelected ? '1.5px solid #16a34a' : '1px solid #cbd5e1',
+                                    background: isSelected ? 'linear-gradient(135deg, #16a34a, #15803d)' : '#f8fafc',
+                                    color: isSelected ? '#ffffff' : '#334155',
+                                    fontWeight: isSelected ? 800 : 600,
+                                    fontSize: '12px',
+                                    cursor: 'pointer',
+                                    boxShadow: isSelected ? '0 2px 8px rgba(22, 163, 74, 0.25)' : 'none',
+                                    transition: 'all 0.15s ease'
+                                }}
+                            >
+                                {isSelected ? '✓ ' : ''}{comp.name}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+        )}
+
         <section className="panel entry-date" style={{borderRadius: '16px', background: '#ffffff', border: '1.5px solid #d1e7dd', boxShadow: '0 4px 14px rgba(0, 0, 0, 0.04)'}}>
             <div>
                 <p className="step" style={{color: '#15803d', fontWeight: 800}}>STEP 1</p>
