@@ -107,6 +107,25 @@ export default function MobileAppView({
     const [historyList, setHistoryList] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [inlineCustomPct, setInlineCustomPct] = useState({});
+    const [cleaningFanLoading, setCleaningFanLoading] = useState(false);
+
+    const handleFanCleaned = async () => {
+        if (!confirm('શું તમે ઇન્વર્ટર કૂલિંગ ફેન અને જાળીની ધૂળ (Dust) બ્લોઅરથી સાફ કરી લીધી છે? આનાથી ૧૦ દિવસનું નવું સાઇકલ શરૂ થશે.')) {
+            return;
+        }
+        setCleaningFanLoading(true);
+        try {
+            await api('inverters/maintenance/fan-cleaned', {
+                method: 'POST',
+                body: JSON.stringify({ notes: 'કૂલિંગ ફેન અને જાળી બ્લોઅરથી સાફ કરવામાં આવી.' })
+            });
+            if (fetchLiveSolar) await fetchLiveSolar(true);
+        } catch (err) {
+            alert('સેવ કરવામાં ભૂલ આવી: ' + (err.message || 'Error'));
+        } finally {
+            setCleaningFanLoading(false);
+        }
+    };
 
     const getMasterCompanies = () => {
         const allComps = (companies || []).filter(c => String(c.id) !== 'all');
@@ -617,6 +636,13 @@ export default function MobileAppView({
     const rainAlert = weather?.rain_alert;
     const curtailmentSystem = data.curtailment_system || { is_any_active: false, active_list: [] };
     const activeCurtailments = curtailmentSystem.active_list || [];
+    const systemAlerts = data.system_alerts || {};
+    const gridOutageAlert = systemAlerts.grid_outage;
+    const curtailmentReminders = systemAlerts.curtailment_reminders || [];
+    const dailyReadingStatus = systemAlerts.daily_reading_status;
+    const pastReadingMissing = systemAlerts.past_reading_missing;
+    const fanCleaningStatus = systemAlerts.fan_cleaning || data.fan_cleaning_status;
+    const overheatAlerts = systemAlerts.overheat_alerts || [];
 
     const attendanceTargetPage = user.role === 'employee' ? 'my-attendance' : 'attendance';
     const salaryTargetPage = (user.role === 'super_admin' || user.role === 'company_admin') ? 'salaries' : 'my-salary';
@@ -1280,6 +1306,348 @@ export default function MobileAppView({
                             </div>
                         </div>
 
+                        {/* ⏰ Daily Reading Status (Confirmation when saved OR Reminder / Missing Meter Alert) */}
+                        {dailyReadingStatus && dailyReadingStatus.active && (
+                            <div style={{
+                                marginBottom: '10px',
+                                background: dailyReadingStatus.status === 'completed'
+                                    ? '#f0fdf4'
+                                    : dailyReadingStatus.status === 'meter_missing'
+                                        ? '#fffbeb'
+                                        : dailyReadingStatus.status === 'due_now'
+                                            ? '#f0f9ff'
+                                            : '#fef2f2',
+                                border: dailyReadingStatus.status === 'completed'
+                                    ? '1.5px solid #22c55e'
+                                    : dailyReadingStatus.status === 'meter_missing'
+                                        ? '1.5px solid #f59e0b'
+                                        : dailyReadingStatus.status === 'due_now'
+                                            ? '1.5px solid #38bdf8'
+                                            : '1.5px solid #ef4444',
+                                borderRadius: '12px',
+                                padding: '12px 14px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '8px'
+                            }}>
+                                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap'}}>
+                                    <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                                        <span style={{
+                                            fontSize: '11px',
+                                            fontWeight: 800,
+                                            background: dailyReadingStatus.status === 'completed'
+                                                ? '#16a34a'
+                                                : dailyReadingStatus.status === 'meter_missing'
+                                                    ? '#d97706'
+                                                    : dailyReadingStatus.status === 'due_now'
+                                                        ? '#0284c7'
+                                                        : '#dc2626',
+                                            color: '#ffffff',
+                                            padding: '2px 8px',
+                                            borderRadius: '5px'
+                                        }}>
+                                            {dailyReadingStatus.badge}
+                                        </span>
+                                        <b style={{
+                                            fontSize: '13px',
+                                            color: dailyReadingStatus.status === 'completed'
+                                                ? '#15803d'
+                                                : dailyReadingStatus.status === 'meter_missing'
+                                                    ? '#92400e'
+                                                    : dailyReadingStatus.status === 'due_now'
+                                                        ? '#0369a1'
+                                                        : '#991b1b'
+                                        }}>
+                                            {dailyReadingStatus.title}
+                                        </b>
+                                    </div>
+                                    {dailyReadingStatus.status === 'completed' ? (
+                                        <span style={{
+                                            background: '#16a34a',
+                                            color: '#ffffff',
+                                            padding: '4px 10px',
+                                            borderRadius: '6px',
+                                            fontSize: '11px',
+                                            fontWeight: 800
+                                        }}>
+                                            કમ્પ્લીટ સેવ ✅
+                                        </span>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => setPage('entry')}
+                                            style={{
+                                                background: dailyReadingStatus.status === 'meter_missing'
+                                                    ? '#ea580c'
+                                                    : dailyReadingStatus.status === 'due_now'
+                                                        ? '#0284c7'
+                                                        : '#dc2626',
+                                                color: '#ffffff',
+                                                border: 'none',
+                                                padding: '6px 12px',
+                                                borderRadius: '6px',
+                                                fontSize: '11.5px',
+                                                fontWeight: 800,
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            {dailyReadingStatus.status === 'meter_missing'
+                                                ? '➕ મીટર રીડિંગ ભરો'
+                                                : dailyReadingStatus.status === 'due_now'
+                                                    ? '➕ રીડિંગ ભરો'
+                                                    : '➕ ડેઇલી એન્ટ્રી ભરો'}
+                                        </button>
+                                    )}
+                                </div>
+                                <p style={{
+                                    fontSize: '11.5px',
+                                    lineHeight: 1.45,
+                                    margin: 0,
+                                    color: dailyReadingStatus.status === 'completed'
+                                        ? '#166534'
+                                        : dailyReadingStatus.status === 'meter_missing'
+                                            ? '#b45309'
+                                            : dailyReadingStatus.status === 'due_now'
+                                                ? '#075985'
+                                                : '#b91c1c'
+                                }}>
+                                    {dailyReadingStatus.message}
+                                </p>
+                            </div>
+                        )}
+
+                        {/* 🚨 Past Days Missing Reading Alert (Shows exact missing dates) */}
+                        {pastReadingMissing && pastReadingMissing.active && (
+                            <div style={{
+                                marginBottom: '10px',
+                                background: '#fef2f2',
+                                border: '1.5px solid #ef4444',
+                                borderRadius: '12px',
+                                padding: '12px 14px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '8px'
+                            }}>
+                                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap'}}>
+                                    <div style={{display: 'flex', alignItems: 'center', gap: '7px'}}>
+                                        <span style={{
+                                            fontSize: '11px',
+                                            fontWeight: 800,
+                                            background: '#dc2626',
+                                            color: '#ffffff',
+                                            padding: '2px 7px',
+                                            borderRadius: '4px'
+                                        }}>
+                                            {pastReadingMissing.badge}
+                                        </span>
+                                        <b style={{fontSize: '12.5px', color: '#991b1b'}}>
+                                            {pastReadingMissing.title}
+                                        </b>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPage('entry')}
+                                        style={{
+                                            background: '#dc2626',
+                                            color: '#ffffff',
+                                            border: 'none',
+                                            padding: '5px 11px',
+                                            borderRadius: '6px',
+                                            fontSize: '11.5px',
+                                            fontWeight: 800,
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        ➕ બાકી રીડિંગ ભરો
+                                    </button>
+                                </div>
+                                <span style={{fontSize: '11.5px', color: '#b91c1c'}}>
+                                    નીચેની તારીખનું ડેઇલી રીડિંગ અથવા મીટર રીડિંગ ભરવાનું બાકી છે:
+                                </span>
+                                <div style={{display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '2px'}}>
+                                    {pastReadingMissing.missing_dates?.map((mDate, dIdx) => (
+                                        <span key={dIdx} style={{
+                                            background: '#ffffff',
+                                            border: '1px solid #fca5a5',
+                                            color: '#991b1b',
+                                            padding: '3px 8px',
+                                            borderRadius: '6px',
+                                            fontSize: '10.5px',
+                                            fontWeight: 700
+                                        }}>
+                                            📅 <b>{mDate.date_formatted}</b>: {mDate.companies_label}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 💨 10-Day Routine Inverter Fan & Filter Dust Cleaning Cycle Card */}
+                        {fanCleaningStatus && (
+                            <div style={{
+                                marginBottom: '10px',
+                                background: fanCleaningStatus.is_overdue
+                                    ? '#fef2f2'
+                                    : fanCleaningStatus.is_approaching
+                                        ? '#fffbeb'
+                                        : '#f0fdf4',
+                                border: fanCleaningStatus.is_overdue
+                                    ? '1.5px solid #ef4444'
+                                    : fanCleaningStatus.is_approaching
+                                        ? '1.5px solid #f59e0b'
+                                        : '1px solid #86efac',
+                                borderRadius: '12px',
+                                padding: '12px 14px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '8px'
+                            }}>
+                                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap'}}>
+                                    <div style={{display: 'flex', alignItems: 'center', gap: '7px'}}>
+                                        <Wind size={18} style={{color: fanCleaningStatus.is_overdue ? '#dc2626' : fanCleaningStatus.is_approaching ? '#d97706' : '#16a34a'}}/>
+                                        <span style={{
+                                            fontSize: '11px',
+                                            fontWeight: 800,
+                                            background: fanCleaningStatus.is_overdue ? '#dc2626' : fanCleaningStatus.is_approaching ? '#d97706' : '#16a34a',
+                                            color: '#ffffff',
+                                            padding: '2px 7px',
+                                            borderRadius: '4px'
+                                        }}>
+                                            {fanCleaningStatus.badge}
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        disabled={cleaningFanLoading}
+                                        onClick={handleFanCleaned}
+                                        style={{
+                                            background: fanCleaningStatus.is_overdue ? '#dc2626' : '#16a34a',
+                                            color: '#ffffff',
+                                            border: 'none',
+                                            padding: '6px 12px',
+                                            borderRadius: '6px',
+                                            fontSize: '11.5px',
+                                            fontWeight: 800,
+                                            cursor: cleaningFanLoading ? 'wait' : 'pointer',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '5px'
+                                        }}
+                                    >
+                                        <Wind size={13}/>
+                                        {cleaningFanLoading ? 'સેવ થાય છે...' : 'આજે ફેન સાફ કર્યો (તારીખ સેવ કરો)'}
+                                    </button>
+                                </div>
+                                <div>
+                                    <b style={{fontSize: '12.5px', color: fanCleaningStatus.is_overdue ? '#991b1b' : fanCleaningStatus.is_approaching ? '#92400e' : '#166534', display: 'block', marginBottom: '2px'}}>
+                                        {fanCleaningStatus.title}
+                                    </b>
+                                    <span style={{fontSize: '11px', color: fanCleaningStatus.is_overdue ? '#b91c1c' : fanCleaningStatus.is_approaching ? '#b45309' : '#15803d', lineHeight: 1.4}}>
+                                        {fanCleaningStatus.message} (છેલ્લી સફાઈ: <b>{fanCleaningStatus.last_cleaned_at}</b>)
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ⚡ Grid Outage / Line Trip Alert */}
+                        {gridOutageAlert && gridOutageAlert.active && (
+                            <div style={{
+                                marginBottom: '10px',
+                                background: '#fef2f2',
+                                border: '1.5px solid #ef4444',
+                                borderRadius: '12px',
+                                padding: '12px 14px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '6px'
+                            }}>
+                                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                                    <span style={{background: '#dc2626', color: '#fff', fontSize: '11px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px'}}>
+                                        {gridOutageAlert.badge || '⚡ ગ્રીડ સપ્લાય ટ્રીપ'}
+                                    </span>
+                                    <b style={{fontSize: '12.5px', color: '#991b1b'}}>
+                                        {gridOutageAlert.title}
+                                    </b>
+                                </div>
+                                <p style={{margin: 0, fontSize: '11.5px', color: '#b91c1c', lineHeight: 1.4}}>
+                                    {gridOutageAlert.message}
+                                </p>
+                            </div>
+                        )}
+
+                        {/* 🔔 Prolonged Curtailment Reminder Cards */}
+                        {curtailmentReminders && curtailmentReminders.length > 0 && (
+                            <div style={{display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px'}}>
+                                {curtailmentReminders.map((cRem, rIdx) => (
+                                    <div key={rIdx} style={{
+                                        background: '#fff7ed',
+                                        border: '1.5px solid #ea580c',
+                                        borderRadius: '12px',
+                                        padding: '10px 12px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        flexWrap: 'wrap',
+                                        gap: '8px'
+                                    }}>
+                                        <div>
+                                            <b style={{fontSize: '12.5px', color: '#9a3412', display: 'block'}}>
+                                                🔔 {cRem.title} ({cRem.company_name})
+                                            </b>
+                                            <span style={{fontSize: '11px', color: '#c2410c'}}>
+                                                {cRem.message}
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRestoreAll(cRem.company_id)}
+                                            style={{
+                                                background: '#ea580c',
+                                                color: '#ffffff',
+                                                border: 'none',
+                                                padding: '5px 10px',
+                                                borderRadius: '6px',
+                                                fontSize: '11.5px',
+                                                fontWeight: 800,
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            🟢 ૧૦૦% Restore
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* 🔥 Inverter Overheat / High Heat Load Alerts */}
+                        {overheatAlerts && overheatAlerts.length > 0 && (
+                            <div style={{display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px'}}>
+                                {overheatAlerts.map((oAlert, oIdx) => (
+                                    <div key={oIdx} style={{
+                                        background: '#fff1f2',
+                                        border: '1.5px solid #f43f5e',
+                                        borderRadius: '12px',
+                                        padding: '10px 12px',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '5px'
+                                    }}>
+                                        <div style={{display: 'flex', alignItems: 'center', gap: '7px'}}>
+                                            <span style={{background: '#e11d48', color: '#fff', fontSize: '11px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px'}}>
+                                                {oAlert.badge || '🔥 ઇન્વર્ટર હીટ એલર્ટ'}
+                                            </span>
+                                            <b style={{fontSize: '12.5px', color: '#9f1239'}}>
+                                                {oAlert.title}
+                                            </b>
+                                        </div>
+                                        <p style={{margin: 0, fontSize: '11px', color: '#be123c', lineHeight: 1.4}}>
+                                            {oAlert.message}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
                         {/* 📉 Grid Downtime & Revenue Loss Alert Banner in Mobile */}
                         {data?.smart_insights?.grid_downtime && data.smart_insights.grid_downtime.is_down && (
                             <div className="grid-downtime-alert-banner" style={{marginBottom: '8px'}}>
@@ -1752,6 +2120,105 @@ export default function MobileAppView({
                             </div>
                         ) : (
                             <div className="notif-items-list">
+                                {/* 0. Daily Reading & Inverter Fan Maintenance Alert Cards */}
+                                {dailyReadingStatus && dailyReadingStatus.active && dailyReadingStatus.status !== 'completed' && (
+                                    <div className="notif-item-card alert-type" style={{background: dailyReadingStatus.status === 'meter_missing' ? '#fffbeb' : '#fef2f2', borderColor: dailyReadingStatus.status === 'meter_missing' ? '#fde68a' : '#fca5a5'}}>
+                                        <div className="notif-icon-col" style={{background: dailyReadingStatus.status === 'meter_missing' ? '#fef3c7' : '#fee2e2', color: dailyReadingStatus.status === 'meter_missing' ? '#d97706' : '#dc2626'}}>
+                                            <AlertTriangle size={18}/>
+                                        </div>
+                                        <div className="notif-text-col">
+                                            <h4 style={{color: dailyReadingStatus.status === 'meter_missing' ? '#92400e' : '#991b1b'}}>
+                                                {dailyReadingStatus.title}
+                                            </h4>
+                                            <p style={{color: dailyReadingStatus.status === 'meter_missing' ? '#b45309' : '#7f1d1d', margin: '3px 0'}}>
+                                                {dailyReadingStatus.message}
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setNotifCenterOpen(false);
+                                                    setPage('entry');
+                                                }}
+                                                style={{
+                                                    marginTop: '6px',
+                                                    background: dailyReadingStatus.status === 'meter_missing' ? '#ea580c' : '#dc2626',
+                                                    color: '#fff',
+                                                    border: 'none',
+                                                    borderRadius: '6px',
+                                                    padding: '4px 10px',
+                                                    fontSize: '11px',
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                {dailyReadingStatus.status === 'meter_missing' ? '➕ મીટર રીડિંગ ભરો' : '➕ ડેઇલી એન્ટ્રી ભરો'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {pastReadingMissing && pastReadingMissing.active && (
+                                    <div className="notif-item-card alert-type" style={{background: '#fef2f2', borderColor: '#fca5a5'}}>
+                                        <div className="notif-icon-col" style={{background: '#fee2e2', color: '#dc2626'}}>
+                                            <Clock size={18}/>
+                                        </div>
+                                        <div className="notif-text-col">
+                                            <h4 style={{color: '#991b1b'}}>🚨 પાછલી તારીખનું રીડિંગ/મીટર બાકી</h4>
+                                            <p style={{color: '#7f1d1d', margin: '3px 0'}}>{pastReadingMissing.message}</p>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setNotifCenterOpen(false);
+                                                    setPage('entry');
+                                                }}
+                                                style={{
+                                                    marginTop: '6px',
+                                                    background: '#dc2626',
+                                                    color: '#fff',
+                                                    border: 'none',
+                                                    borderRadius: '6px',
+                                                    padding: '4px 10px',
+                                                    fontSize: '11px',
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                ➕ બાકી રીડિંગ ભરો
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {fanCleaningStatus && fanCleaningStatus.is_overdue && (
+                                    <div className="notif-item-card alert-type" style={{background: '#fff1f2', borderColor: '#fda4af'}}>
+                                        <div className="notif-icon-col" style={{background: '#ffe4e6', color: '#e11d48'}}>
+                                            <Wind size={18}/>
+                                        </div>
+                                        <div className="notif-text-col">
+                                            <h4 style={{color: '#9f1239'}}>💨 ૧૦ દિવસ પૂરા: ઇન્વર્ટર ફેન સાફ કરો</h4>
+                                            <p style={{color: '#881337', margin: '3px 0'}}>{fanCleaningStatus.message}</p>
+                                            <button
+                                                type="button"
+                                                disabled={cleaningFanLoading}
+                                                onClick={handleFanCleaned}
+                                                style={{
+                                                    marginTop: '6px',
+                                                    background: '#e11d48',
+                                                    color: '#fff',
+                                                    border: 'none',
+                                                    borderRadius: '6px',
+                                                    padding: '4px 10px',
+                                                    fontSize: '11px',
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                {cleaningFanLoading ? 'સેવ થાય છે...' : 'આજે ફેન સાફ કર્યો (તારીખ સેવ કરો)'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* 1. Daily 8:00 PM Production & Revenue Report */}
                                 <div className="notif-item-card info-type">
                                     <div className="notif-icon-col success">

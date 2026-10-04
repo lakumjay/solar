@@ -769,12 +769,24 @@ export default function DashboardPage({companyId, currentUser}) {
                     </div>
                 </div>
 
-                {/* ⏰ Daily Reading Status (Confirmation when saved OR Reminder after 7:30 PM) */}
+                {/* ⏰ Daily Reading Status (Confirmation when saved OR Reminder / Missing Meter Alert) */}
                 {dailyReadingStatus && dailyReadingStatus.active && (
                     <div style={{
                         marginBottom: '12px',
-                        background: dailyReadingStatus.status === 'completed' ? '#f0fdf4' : '#fffbeb',
-                        border: dailyReadingStatus.status === 'completed' ? '1.5px solid #22c55e' : '1.5px solid #f59e0b',
+                        background: dailyReadingStatus.status === 'completed'
+                            ? '#f0fdf4'
+                            : dailyReadingStatus.status === 'meter_missing'
+                                ? '#fffbeb'
+                                : dailyReadingStatus.status === 'due_now'
+                                    ? '#f0f9ff'
+                                    : '#fef2f2',
+                        border: dailyReadingStatus.status === 'completed'
+                            ? '1.5px solid #22c55e'
+                            : dailyReadingStatus.status === 'meter_missing'
+                                ? '1.5px solid #f59e0b'
+                                : dailyReadingStatus.status === 'due_now'
+                                    ? '1.5px solid #38bdf8'
+                                    : '1.5px solid #ef4444',
                         borderRadius: '12px',
                         padding: '12px 16px',
                         display: 'flex',
@@ -788,25 +800,73 @@ export default function DashboardPage({companyId, currentUser}) {
                                 width: '38px',
                                 height: '38px',
                                 borderRadius: '10px',
-                                background: dailyReadingStatus.status === 'completed' ? '#dcfce7' : '#fef3c7',
-                                color: dailyReadingStatus.status === 'completed' ? '#16a34a' : '#d97706',
+                                background: dailyReadingStatus.status === 'completed'
+                                    ? '#dcfce7'
+                                    : dailyReadingStatus.status === 'meter_missing'
+                                        ? '#fef3c7'
+                                        : dailyReadingStatus.status === 'due_now'
+                                            ? '#e0f2fe'
+                                            : '#fee2e2',
+                                color: dailyReadingStatus.status === 'completed'
+                                    ? '#16a34a'
+                                    : dailyReadingStatus.status === 'meter_missing'
+                                        ? '#d97706'
+                                        : dailyReadingStatus.status === 'due_now'
+                                            ? '#0284c7'
+                                            : '#dc2626',
                                 display: 'grid',
                                 placeItems: 'center',
                                 flexShrink: 0
                             }}>
-                                {dailyReadingStatus.status === 'completed' ? <CheckCircle size={20}/> : <Clock size={20}/>}
+                                {dailyReadingStatus.status === 'completed' ? (
+                                    <CheckCircle size={20}/>
+                                ) : dailyReadingStatus.status === 'meter_missing' ? (
+                                    <AlertTriangle size={20}/>
+                                ) : (
+                                    <Clock size={20}/>
+                                )}
                             </div>
                             <div>
-                                <b style={{
-                                    fontSize: '13px',
-                                    color: dailyReadingStatus.status === 'completed' ? '#15803d' : '#92400e',
-                                    display: 'block'
-                                }}>
-                                    {dailyReadingStatus.title}
-                                </b>
+                                <div style={{display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px', flexWrap: 'wrap'}}>
+                                    <span style={{
+                                        fontSize: '11px',
+                                        fontWeight: 800,
+                                        background: dailyReadingStatus.status === 'completed'
+                                            ? '#16a34a'
+                                            : dailyReadingStatus.status === 'meter_missing'
+                                                ? '#d97706'
+                                                : dailyReadingStatus.status === 'due_now'
+                                                    ? '#0284c7'
+                                                    : '#dc2626',
+                                        color: '#ffffff',
+                                        padding: '2px 7px',
+                                        borderRadius: '4px'
+                                    }}>
+                                        {dailyReadingStatus.badge}
+                                    </span>
+                                    <b style={{
+                                        fontSize: '13px',
+                                        color: dailyReadingStatus.status === 'completed'
+                                            ? '#15803d'
+                                            : dailyReadingStatus.status === 'meter_missing'
+                                                ? '#92400e'
+                                                : dailyReadingStatus.status === 'due_now'
+                                                    ? '#0369a1'
+                                                    : '#991b1b',
+                                        display: 'inline'
+                                    }}>
+                                        {dailyReadingStatus.title}
+                                    </b>
+                                </div>
                                 <span style={{
                                     fontSize: '11.5px',
-                                    color: dailyReadingStatus.status === 'completed' ? '#166534' : '#b45309'
+                                    color: dailyReadingStatus.status === 'completed'
+                                        ? '#166534'
+                                        : dailyReadingStatus.status === 'meter_missing'
+                                            ? '#b45309'
+                                            : dailyReadingStatus.status === 'due_now'
+                                                ? '#075985'
+                                                : '#b91c1c'
                                 }}>
                                     {dailyReadingStatus.message}
                                 </span>
@@ -828,7 +888,11 @@ export default function DashboardPage({companyId, currentUser}) {
                             <a
                                 href="/readings"
                                 style={{
-                                    background: '#d97706',
+                                    background: dailyReadingStatus.status === 'meter_missing'
+                                        ? '#ea580c'
+                                        : dailyReadingStatus.status === 'due_now'
+                                            ? '#0284c7'
+                                            : '#dc2626',
                                     color: '#ffffff',
                                     padding: '6px 12px',
                                     borderRadius: '6px',
@@ -840,7 +904,11 @@ export default function DashboardPage({companyId, currentUser}) {
                                     gap: '4px'
                                 }}
                             >
-                                ➕ ડેઇલી એન્ટ્રી ભરો
+                                {dailyReadingStatus.status === 'meter_missing'
+                                    ? '➕ મીટર રીડિંગ ભરો'
+                                    : dailyReadingStatus.status === 'due_now'
+                                        ? '➕ રીડિંગ ભરો'
+                                        : '➕ ડેઇલી એન્ટ્રી ભરો'}
                             </a>
                         )}
                     </div>

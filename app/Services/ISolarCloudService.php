@@ -587,11 +587,14 @@ class ISolarCloudService
                         }
 
                         // 3. Inverter High Heat Load & Overheating Alert
-                        $invRatedKw = (float) ($inv->capacity_kw ?: 100.0);
+                        // Solar plant inverters are 250 kW rated (Sungrow SG250HX / similar central string inverters).
+                        $invRatedKw = (float) ($inv->capacity_kw ?: 250.0);
                         $loadPct = $invRatedKw > 0 ? round(($liveKw / $invRatedKw) * 100, 1) : 0;
                         $tempAmbient = (float) ($weatherData['temperature'] ?? 30.0);
-                        $estimatedInvTemp = round($tempAmbient + (($loadPct / 100.0) * 26.0), 1);
-                        if ($isOnline && ! $isInverterCurtailed && ($estimatedInvTemp >= 64.0 || ($loadPct >= 85.0 && $tempAmbient >= 35.0))) {
+                        // Normal heatsink temperature rise is ~15-18°C above ambient under full load when cooling fan is clear.
+                        // Overheating alert only triggers if heatsink exceeds 68°C or load > 95% with extreme ambient (> 38°C).
+                        $estimatedInvTemp = round($tempAmbient + (($loadPct / 100.0) * 18.0), 1);
+                        if ($isOnline && ! $isInverterCurtailed && ($estimatedInvTemp >= 68.0 || ($loadPct >= 95.0 && $tempAmbient >= 38.0))) {
                             $heatNoticeMessage = "{$company->name} ના {$inv->name} પર ભારે હીટ લોડ (~{$estimatedInvTemp}°C, {$loadPct}% લોડ) છે. કૂલિંગ ફેન જામ કે એર ફિલ્ટર જાળીમાં ધૂળ બ્લોક હોઈ શકે છે. સાઈટ પર ફેન ચેક કરો.";
                             $heatAlertItem = [
                                 'type' => 'inverter_overheat',
@@ -938,26 +941,63 @@ class ISolarCloudService
         }
 
         // (C) Daily Reading Tracker & Alerts (Deadline: 7:30 PM / 19:30, confirmation when saved, and check for past missing dates)
+        // A complete reading requires BOTH: Inverter generation outputs AND Physical Meter readings (Plant & Sub Export)
         $todayDateStr = Carbon::today()->toDateString();
-        $enteredTodayCompanyIds = DailyReading::whereDate('reading_date', $todayDateStr)->pluck('company_id')->toArray();
-        $missingTodayCompanies = $companies->reject(fn($c) => in_array($c->id, $enteredTodayCompanyIds))->values();
+        $todayReadings = DailyReading::whereDate('reading_date', $todayDateStr)->with('outputs')->get()->keyBy('company_id');
         $isPast730Pm = ($currentHourFloat >= 19.5 || ($isNight && $currentHourFloat < 5.0));
 
+        $todayMissingComps = [];
+        $todayMeterMissingComps = [];
+        $todayCompletedComps = [];
+
+        foreach ($companies as $comp) {
+            $rd = $todayReadings->get($comp->id);
+            if (! $rd) {
+                $todayMissingComps[] = $comp->name;
+            } else {
+                $hasInverters = $rd->outputs && $rd->outputs->isNotEmpty() && $rd->outputs->sum('generation') > 0;
+                $hasMeters = (float) $rd->plant_export_reading > 0.01 || (float) $rd->sub_export_reading > 0.01;
+
+                if ($hasInverters && $hasMeters) {
+                    $todayCompletedComps[] = $comp->name;
+                } elseif ($hasInverters && ! $hasMeters) {
+                    $todayMeterMissingComps[] = $comp->name;
+                } else {
+                    $todayMissingComps[] = $comp->name;
+                }
+            }
+        }
+
         $todayReadingStatus = null;
-        if ($missingTodayCompanies->isEmpty()) {
-            // All companies entered or auto-saved!
+        $isBetween615And730 = ($currentHourFloat >= 18.25 && $currentHourFloat < 19.5);
+
+        if (count($todayCompletedComps) === $companies->count() && empty($todayMeterMissingComps) && empty($todayMissingComps)) {
+            // All companies entered completely (both inverters and physical meters)!
             $todayReadingStatus = [
                 'status' => 'completed',
                 'active' => true,
                 'type' => 'daily_reading_completed',
                 'badge' => '✅ સેવ થઈ ગયું',
                 'title' => 'આજના રીડિંગ અને યુનિટ કમ્પ્લીટ સેવ થઈ ગયા છે!',
-                'message' => 'તમામ કંપનીઓના મીટર અને ઇન્વર્ટર રીડિંગ સફળતાપૂર્વક સિસ્ટમમાં સેવ થઈ ગયા છે (બધો ડેટા ઓકે છે).',
+                'message' => 'આજના રીડિંગના યુનિટ કમ્પ્લીટ સેવ કરી નાખ્યા આવી ગયા છે કમ્પ્લીટ (તમામ મીટર અને ઇન્વર્ટર ડેટા ઓકે છે).',
                 'theme' => 'success',
             ];
-        } elseif ($isPast730Pm) {
-            // After 7:30 PM and still missing
-            $missingNames = $missingTodayCompanies->pluck('name')->implode(', ');
+        } elseif (! empty($todayMeterMissingComps)) {
+            // Inverter generation entered/synced, but physical meter numbers are still 0.00 / missing!
+            $mNames = implode(', ', $todayMeterMissingComps);
+            $todayReadingStatus = [
+                'status' => 'meter_missing',
+                'active' => true,
+                'type' => 'daily_reading_meter_missing',
+                'badge' => '⚠️ મીટર રીડિંગ બાકી',
+                'title' => "ઇન્વર્ટર ડેટા ભરાયો છે પણ મીટર રીડિંગ બાકી છે!",
+                'message' => "{$mNames} ના ઇન્વર્ટર યુનિટ સિસ્ટમમાં સેવ થયેલા છે, પરંતુ પ્લાન્ટ / સબ-સ્ટેશન એક્સપોર્ટ મીટર રીડિંગ (Plant & Sub Export Meter) ભરવાનું બાકી છે. કૃપા કરી મીટર રીડિંગ સબમિટ કરો.",
+                'missing_companies' => $todayMeterMissingComps,
+                'theme' => 'warning',
+            ];
+        } elseif (! empty($todayMissingComps) && $isPast730Pm) {
+            // After 7:30 PM and reading not entered at all
+            $missingNames = implode(', ', $todayMissingComps);
             $todayReadingStatus = [
                 'status' => 'missing',
                 'active' => true,
@@ -965,37 +1005,67 @@ class ISolarCloudService
                 'badge' => '⏰ રીડિંગ બાકી છે (૭:૩૦ સમય પૂર્ણ)',
                 'title' => 'આજનું ડેઇલી રીડિંગ હજુ ભરાયું નથી!',
                 'message' => "સાંજે ૭:૩૦ વાગ્યા સુધીમાં રીડિંગ ભરવાનો સમય પૂર્ણ થયો છે. {$missingNames} નું મીટર/ઇન્વર્ટર રીડિંગ ભરવાનું બાકી છે. કૃપા કરી તાત્કાલિક એન્ટ્રી પૂરી કરો.",
-                'missing_companies' => $missingTodayCompanies->pluck('name')->toArray(),
+                'missing_companies' => $todayMissingComps,
                 'theme' => 'warning',
+            ];
+        } elseif (! empty($todayMissingComps) && $isBetween615And730) {
+            // Between 6:15 PM and 7:30 PM: Reading collection window is open
+            $missingNames = implode(', ', $todayMissingComps);
+            $todayReadingStatus = [
+                'status' => 'due_now',
+                'active' => true,
+                'type' => 'daily_reading_due_now',
+                'badge' => '⏰ રીડિંગ સમય (૬:૧૫ થી ૭:૩૦)',
+                'title' => 'આજનું ડેઇલી રીડિંગ ભરવાનો સમય થઈ ગયો છે!',
+                'message' => "સાંજે ૬:૧૫ પછી મીટર અને ઇન્વર્ટરનું રીડિંગ લેવાનું હોય છે. {$missingNames} નું રીડિંગ ૭:૩૦ વાગ્યા સુધીમાં સિસ્ટમમાં સબમિટ કરો.",
+                'missing_companies' => $todayMissingComps,
+                'theme' => 'info',
             ];
         }
 
-        // Check past 5 days for any missing readings
+        // Check past 5 days for any missing readings or meter readings
         $pastMissingDates = [];
         for ($dayOffset = 1; $dayOffset <= 5; $dayOffset++) {
             $pastDate = Carbon::today()->subDays($dayOffset);
             $pastDateStr = $pastDate->toDateString();
-            $enteredPastIds = DailyReading::whereDate('reading_date', $pastDateStr)->pluck('company_id')->toArray();
-            $missingPastComps = $companies->reject(fn($c) => in_array($c->id, $enteredPastIds))->values();
-            if ($missingPastComps->isNotEmpty()) {
+            $pastReadings = DailyReading::whereDate('reading_date', $pastDateStr)->with('outputs')->get()->keyBy('company_id');
+
+            $dateMissingDetails = [];
+            foreach ($companies as $comp) {
+                $rd = $pastReadings->get($comp->id);
+                if (! $rd) {
+                    $dateMissingDetails[] = "{$comp->name} (રીડિંગ બાકી)";
+                } else {
+                    $hasInverters = $rd->outputs && $rd->outputs->isNotEmpty() && $rd->outputs->sum('generation') > 0;
+                    $hasMeters = (float) $rd->plant_export_reading > 0.01 || (float) $rd->sub_export_reading > 0.01;
+
+                    if ($hasInverters && ! $hasMeters) {
+                        $dateMissingDetails[] = "{$comp->name} (મીટર રીડિંગ બાકી)";
+                    } elseif (! $hasInverters && ! $hasMeters) {
+                        $dateMissingDetails[] = "{$comp->name} (રીડિંગ બાકી)";
+                    }
+                }
+            }
+
+            if (! empty($dateMissingDetails)) {
                 $pastMissingDates[] = [
                     'date_formatted' => $pastDate->format('d M Y'),
                     'date_ymd' => $pastDateStr,
-                    'companies' => $missingPastComps->pluck('name')->toArray(),
-                    'companies_label' => $missingPastComps->pluck('name')->implode(', '),
+                    'companies' => $dateMissingDetails,
+                    'companies_label' => implode(', ', $dateMissingDetails),
                 ];
             }
         }
 
         $pastReadingMissingAlert = null;
-        if (!empty($pastMissingDates)) {
-            $dateSummaries = array_map(fn($item) => "{$item['date_formatted']} ({$item['companies_label']})", $pastMissingDates);
+        if (! empty($pastMissingDates)) {
+            $dateSummaries = array_map(fn($item) => "{$item['date_formatted']} [{$item['companies_label']}]", $pastMissingDates);
             $pastReadingMissingAlert = [
                 'active' => true,
                 'type' => 'past_reading_missing',
-                'badge' => '🚨 પાછલી તારીખનું રીડિંગ બાકી',
-                'title' => 'પાછલી તારીખનું ડેઇલી રીડિંગ હજુ ભરાયું નથી!',
-                'message' => "નીચેની તારીખનું રીડિંગ સિસ્ટમમાં ભરાયેલું નથી: " . implode(' | ', $dateSummaries) . ". આ તારીખનું રીડિંગ તાત્કાલિક સબમિટ કરો.",
+                'badge' => '🚨 પાછલી તારીખનું રીડિંગ/મીટર બાકી',
+                'title' => 'પાછલી તારીખનું ડેઇલી રીડિંગ અથવા મીટર રીડિંગ અધૂરું છે!',
+                'message' => "નીચેની તારીખનું રીડિંગ સિસ્ટમમાં અધૂરું છે: " . implode(' | ', $dateSummaries) . ". આ તારીખનું મીટર/ઇન્વર્ટર રીડિંગ પૂર્ણ સબમિટ કરો.",
                 'missing_dates' => $pastMissingDates,
                 'theme' => 'danger',
             ];
@@ -1055,6 +1125,7 @@ class ISolarCloudService
                 'fan_cleaning' => $fanCleaningStatus,
                 'overheat_alerts' => array_values(array_filter($allCleaningAlerts, fn($a) => ($a['type'] ?? '') === 'inverter_overheat')),
             ],
+            'fan_cleaning_status' => $fanCleaningStatus,
             'predictions' => [
                 'next_1h_kwh' => number_format($predictedNextHourKwh, 2, '.', ''),
                 'eod_units_kwh' => number_format($predictedEodKwh, 2, '.', ''),
