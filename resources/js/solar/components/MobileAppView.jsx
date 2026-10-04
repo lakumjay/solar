@@ -108,10 +108,43 @@ export default function MobileAppView({
     const [historyLoading, setHistoryLoading] = useState(false);
     const [inlineCustomPct, setInlineCustomPct] = useState({});
 
+    const getMasterCompanies = () => {
+        const allComps = (companies || []).filter(c => String(c.id) !== 'all');
+        if (allComps.length > 0) {
+            return allComps.map(baseComp => {
+                const liveComp = (liveData?.companies || []).find(lc => String(lc.company_id || lc.id) === String(baseComp.id));
+                return {
+                    ...baseComp,
+                    company_id: baseComp.id,
+                    name: baseComp.name || liveComp?.company_name || liveComp?.name,
+                    inverters: (liveComp?.inverters && liveComp.inverters.length > 0)
+                        ? liveComp.inverters
+                        : (baseComp.inverters && baseComp.inverters.length > 0)
+                            ? baseComp.inverters
+                            : [
+                                { id: 1, name: 'Inverter 1' },
+                                { id: 2, name: 'Inverter 2' },
+                                { id: 3, name: 'Inverter 3' },
+                                { id: 4, name: 'Inverter 4' },
+                            ]
+                };
+            });
+        }
+        return (liveData?.companies || []).map(c => ({
+            ...c,
+            company_id: c.company_id || c.id,
+            name: c.company_name || c.name,
+            inverters: (c.inverters && c.inverters.length > 0) ? c.inverters : [
+                { id: 1, name: 'Inverter 1' },
+                { id: 2, name: 'Inverter 2' },
+                { id: 3, name: 'Inverter 3' },
+                { id: 4, name: 'Inverter 4' },
+            ]
+        }));
+    };
+
     const openCurtailModal = (targetCompany = null, initialPct = 20) => {
-        const availableComps = (liveData?.companies && liveData.companies.length > 0)
-            ? liveData.companies
-            : (companies || []);
+        const availableComps = getMasterCompanies();
 
         const configs = {};
         const chosenCompId = targetCompany
@@ -943,25 +976,44 @@ export default function MobileAppView({
                                                     <span style={{color: '#9a3412', fontWeight: 700}}>🔌 બંધ ઇન્વર્ટર:</span>
                                                     <b style={{color: '#1e293b'}}>{curt.inverter_names && curt.inverter_names.length > 0 ? curt.inverter_names.join(', ') : 'તમામ ઇન્વર્ટર'}</b>
                                                 </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        const targetComp = (liveData?.companies || companies || []).find(c => String(c.company_id || c.id) === String(curt.company_id));
-                                                        openCurtailModal(targetComp, curt.percentage);
-                                                    }}
-                                                    style={{
-                                                        background: '#ffedd5',
-                                                        color: '#9a3412',
-                                                        border: '1px solid #fdba74',
-                                                        borderRadius: '4px',
-                                                        padding: '2px 7px',
-                                                        fontSize: '10px',
-                                                        fontWeight: 700,
-                                                        cursor: 'pointer'
-                                                    }}
-                                                >
-                                                    ✏️ બદલો (PV/ઇન્વર્ટર)
-                                                </button>
+                                                <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const targetComp = getMasterCompanies().find(c => String(c.company_id || c.id) === String(curt.company_id));
+                                                            openCurtailModal(targetComp, curt.percentage);
+                                                        }}
+                                                        style={{
+                                                            background: '#ffedd5',
+                                                            color: '#9a3412',
+                                                            border: '1px solid #fdba74',
+                                                            borderRadius: '4px',
+                                                            padding: '2px 7px',
+                                                            fontSize: '10px',
+                                                            fontWeight: 700,
+                                                            cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        ✏️ બદલો
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRestoreAll(curt.company_id)}
+                                                        style={{
+                                                            background: '#dcfce7',
+                                                            color: '#15803d',
+                                                            border: '1px solid #86efac',
+                                                            borderRadius: '4px',
+                                                            padding: '2px 7px',
+                                                            fontSize: '10px',
+                                                            fontWeight: 700,
+                                                            cursor: 'pointer'
+                                                        }}
+                                                        title="આ કંપની માટે પાવર કટ બંધ કરી ૧૦૦% ફુલ પાવર ચાલુ કરો"
+                                                    >
+                                                        🟢 ૧૦૦% Restore
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             {/* If specific PV strings */}
@@ -2029,10 +2081,8 @@ export default function MobileAppView({
 
             {/* ⚡ PGVCL Curtailment Setup Modal for Mobile */}
             {showCurtailModal && (() => {
+                const availableComps = getMasterCompanies();
                 const activeCfg = curtailConfigs[curtailActiveTabId] || Object.values(curtailConfigs)[0];
-                const availableComps = (liveData?.companies && liveData.companies.length > 0)
-                    ? liveData.companies
-                    : (companies || []);
 
                 return (
                     <div className="solar-modal-backdrop" onClick={() => setShowCurtailModal(false)}>
@@ -2059,22 +2109,22 @@ export default function MobileAppView({
                             </div>
 
                             <form onSubmit={handleSaveCurtailment} style={{display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden'}}>
-                                <div className="solar-modal-body" style={{padding: '12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', flex: 1}}>
+                                <div className="solar-modal-body" style={{padding: '12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1}}>
                                     {/* PGVCL Hint Banner */}
                                     <div style={{
                                         background: '#fffbeb',
                                         border: '1px solid #fef3c7',
-                                        borderRadius: '8px',
-                                        padding: '8px 10px',
+                                        borderRadius: '7px',
+                                        padding: '7px 10px',
                                         fontSize: '11px',
                                         color: '#92400e',
                                         lineHeight: '1.4'
                                     }}>
-                                        💡 <b>PGVCL નિયમ:</b> જે PV સ્ટ્રિંગ અથવા ઇન્વર્ટર બંધ કરશો, તેના પર ધૂળ/કચરાની ખોટી ચેતવણી (Dust Alert) આપોઆપ બંધ થઈ જશે.
+                                        💡 <b>PGVCL નિયમ:</b> જે PV સ્ટ્રિંગ અથવા ઇન્વર્ટર બંધ કરશો, તેના પર ધૂળ/કચરાની ચેતવણી (Dust Alert) આપોઆપ બંધ થઈ જશે.
                                     </div>
 
                                     {/* 1. Company Mode Switch (Single vs Multi) */}
-                                    <div style={{background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0'}}>
+                                    <div style={{background: '#f8fafc', padding: '9px 10px', borderRadius: '8px', border: '1px solid #e2e8f0'}}>
                                         <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px'}}>
                                             <span style={{fontSize: '11.5px', fontWeight: 800, color: '#334155'}}>
                                                 🏢 કંપની પસંદગી:
@@ -2086,13 +2136,13 @@ export default function MobileAppView({
                                                     setIsMultiCompanyMode(nextMode);
                                                     if (nextMode) {
                                                         const compIds = availableComps.map(c => String(c.company_id || c.id));
-                                                        setSelectedCurtailCompIds(compIds.slice(0, Math.min(2, compIds.length)));
+                                                        setSelectedCurtailCompIds(compIds);
                                                     } else {
                                                         setSelectedCurtailCompIds([curtailActiveTabId]);
                                                     }
                                                 }}
                                                 style={{
-                                                    fontSize: '11px',
+                                                    fontSize: '10.5px',
                                                     padding: '3px 8px',
                                                     borderRadius: '5px',
                                                     border: isMultiCompanyMode ? '1.5px solid #ea580c' : '1px solid #cbd5e1',
@@ -2102,16 +2152,16 @@ export default function MobileAppView({
                                                     cursor: 'pointer'
                                                 }}
                                             >
-                                                {isMultiCompanyMode ? '✅ બહુવિધ કંપનીઓ (Multi-Company)' : '➕ બહુવિધ કંપનીઓ પસંદ કરો'}
+                                                {isMultiCompanyMode ? '✅ બહુવિધ કંપનીઓ (Multi)' : '➕ બહુવિધ કંપનીઓ પસંદ કરો'}
                                             </button>
                                         </div>
 
                                         {isMultiCompanyMode ? (
                                             <div>
                                                 <div style={{fontSize: '10.5px', color: '#64748b', marginBottom: '6px'}}>
-                                                    બંને કે તેથી વધુ કંપનીઓ પસંદ કરો:
+                                                    બધી કે પસંદગીની કંપનીઓ ટીક કરો:
                                                 </div>
-                                                <div style={{display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px'}}>
+                                                <div style={{display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px'}}>
                                                     {availableComps.map(c => {
                                                         const cId = String(c.company_id || c.id);
                                                         const isChecked = selectedCurtailCompIds.includes(cId);
@@ -2123,13 +2173,13 @@ export default function MobileAppView({
                                                                 style={{
                                                                     display: 'flex',
                                                                     alignItems: 'center',
-                                                                    gap: '6px',
-                                                                    padding: '5px 9px',
+                                                                    gap: '5px',
+                                                                    padding: '4px 8px',
                                                                     borderRadius: '6px',
                                                                     border: isChecked ? '1.5px solid #ea580c' : '1px solid #cbd5e1',
                                                                     background: isChecked ? '#fff7ed' : '#ffffff',
                                                                     color: isChecked ? '#9a3412' : '#475569',
-                                                                    fontSize: '11.5px',
+                                                                    fontSize: '11px',
                                                                     fontWeight: isChecked ? 700 : 500,
                                                                     cursor: 'pointer'
                                                                 }}
@@ -2142,8 +2192,8 @@ export default function MobileAppView({
                                                 </div>
 
                                                 {/* Selected company tabs */}
-                                                <div style={{display: 'flex', alignItems: 'center', gap: '4px', borderTop: '1px dashed #cbd5e1', paddingTop: '8px'}}>
-                                                    <span style={{fontSize: '10.5px', color: '#64748b', whiteSpace: 'nowrap'}}>સેટિંગ્સ:</span>
+                                                <div style={{display: 'flex', alignItems: 'center', gap: '4px', borderTop: '1px dashed #cbd5e1', paddingTop: '6px'}}>
+                                                    <span style={{fontSize: '10px', color: '#64748b', whiteSpace: 'nowrap'}}>સેટિંગ્સ:</span>
                                                     <div style={{display: 'flex', gap: '4px', overflowX: 'auto'}}>
                                                         {selectedCurtailCompIds.map(cId => {
                                                             const cfg = curtailConfigs[cId];
@@ -2154,13 +2204,13 @@ export default function MobileAppView({
                                                                     type="button"
                                                                     onClick={() => setCurtailActiveTabId(cId)}
                                                                     style={{
-                                                                        padding: '4px 8px',
+                                                                        padding: '3px 7px',
                                                                         borderRadius: '5px',
                                                                         border: isTabActive ? '2px solid #ea580c' : '1px solid #cbd5e1',
                                                                         background: isTabActive ? '#ea580c' : '#ffffff',
                                                                         color: isTabActive ? '#ffffff' : '#334155',
                                                                         fontWeight: 700,
-                                                                        fontSize: '11px',
+                                                                        fontSize: '10.5px',
                                                                         cursor: 'pointer',
                                                                         whiteSpace: 'nowrap'
                                                                     }}
@@ -2181,7 +2231,7 @@ export default function MobileAppView({
                                                     setCurtailActiveTabId(cId);
                                                     setSelectedCurtailCompIds([cId]);
                                                 }}
-                                                style={{width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', fontWeight: 600, color: '#1e293b'}}
+                                                style={{width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, color: '#1e293b'}}
                                             >
                                                 {availableComps.map(c => (
                                                     <option key={c.company_id || c.id} value={String(c.company_id || c.id)}>
@@ -2192,14 +2242,57 @@ export default function MobileAppView({
                                         )}
                                     </div>
 
+                                    {/* Individual Company Restore (Turn Off Curtailment for this Company) */}
+                                    {activeCfg && activeCurtailments.some(a => String(a.company_id) === String(activeCfg.company_id)) && (
+                                        <div style={{
+                                            background: '#f0fdf4',
+                                            border: '1px solid #86efac',
+                                            borderRadius: '7px',
+                                            padding: '7px 10px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            gap: '6px'
+                                        }}>
+                                            <div>
+                                                <span style={{fontSize: '11px', fontWeight: 800, color: '#15803d', display: 'block'}}>
+                                                    ⚡ {activeCfg.name} માં પાવર કટ ચાલુ છે
+                                                </span>
+                                                <span style={{fontSize: '9.5px', color: '#166534'}}>
+                                                    માત્ર આ એક જ કંપની માટે પાવર કટ બંધ કરવો છે?
+                                                </span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={async () => {
+                                                    await handleRestoreAll(activeCfg.company_id);
+                                                    setShowCurtailModal(false);
+                                                }}
+                                                style={{
+                                                    background: '#15803d',
+                                                    color: '#ffffff',
+                                                    border: 'none',
+                                                    borderRadius: '5px',
+                                                    padding: '5px 9px',
+                                                    fontSize: '10.5px',
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer',
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                            >
+                                                🟢 ૧૦૦% Restore (ચાલુ કરો)
+                                            </button>
+                                        </div>
+                                    )}
+
                                     {/* 2. Percentage (%) selection for activeCfg */}
                                     {activeCfg && (
-                                        <div style={{background: '#ffffff', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0'}}>
+                                        <div style={{background: '#ffffff', padding: '9px 10px', borderRadius: '8px', border: '1px solid #e2e8f0'}}>
                                             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px'}}>
                                                 <label style={{fontSize: '11.5px', fontWeight: 700, color: '#334155'}}>
-                                                    {activeCfg.name} - પાવર ઘટાડો (%):
+                                                    {activeCfg.name} - પાવર કટ (%):
                                                 </label>
-                                                <div style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                                                <div style={{display: 'flex', alignItems: 'center', gap: '3px'}}>
                                                     <input
                                                         type="number"
                                                         min="1"
@@ -2210,11 +2303,11 @@ export default function MobileAppView({
                                                             updateActiveCurtailConfig('percentage', val);
                                                         }}
                                                         style={{
-                                                            width: '60px',
-                                                            padding: '4px 6px',
-                                                            borderRadius: '6px',
+                                                            width: '52px',
+                                                            padding: '3px 4px',
+                                                            borderRadius: '5px',
                                                             border: '2px solid #ea580c',
-                                                            fontSize: '14px',
+                                                            fontSize: '13px',
                                                             fontWeight: 800,
                                                             color: '#9a3412',
                                                             textAlign: 'center'
@@ -2224,7 +2317,7 @@ export default function MobileAppView({
                                                 </div>
                                             </div>
 
-                                            {/* Presets */}
+                                            {/* Presets - sleek compact 5 columns */}
                                             <div style={{display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px'}}>
                                                 {[80, 50, 40, 30, 25, 22, 20, 15, 10, 5].map(pct => {
                                                     const isSel = Number(activeCfg.percentage) === pct;
@@ -2234,13 +2327,13 @@ export default function MobileAppView({
                                                             type="button"
                                                             onClick={() => updateActiveCurtailConfig('percentage', pct)}
                                                             style={{
-                                                                padding: '5px 2px',
-                                                                borderRadius: '5px',
+                                                                padding: '4px 2px',
+                                                                borderRadius: '4px',
                                                                 border: isSel ? '2px solid #ea580c' : '1px solid #e2e8f0',
                                                                 background: isSel ? '#ffedd5' : '#f8fafc',
                                                                 color: isSel ? '#9a3412' : '#475569',
                                                                 fontWeight: 800,
-                                                                fontSize: '11px',
+                                                                fontSize: '10.5px',
                                                                 cursor: 'pointer'
                                                             }}
                                                         >
@@ -2254,13 +2347,13 @@ export default function MobileAppView({
 
                                     {/* 3. Inverter & PV String level selection for activeCfg */}
                                     {activeCfg && (
-                                        <div style={{background: '#ffffff', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0'}}>
+                                        <div style={{background: '#ffffff', padding: '9px 10px', borderRadius: '8px', border: '1px solid #e2e8f0'}}>
                                             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px'}}>
                                                 <div>
-                                                    <span style={{fontSize: '12px', fontWeight: 800, color: '#1e293b', display: 'block'}}>
+                                                    <span style={{fontSize: '11.5px', fontWeight: 800, color: '#1e293b', display: 'block'}}>
                                                         ઇન્વર્ટર અને PV સ્ટ્રિંગ્સ કંટ્રોલ
                                                     </span>
-                                                    <span style={{fontSize: '10.5px', color: '#64748b'}}>
+                                                    <span style={{fontSize: '10px', color: '#64748b'}}>
                                                         કુલ {(activeCfg.inverters || []).length} ઇન્વર્ટર | {(activeCfg.inverter_ids || []).length} સિલેક્ટ
                                                     </span>
                                                 </div>
@@ -2268,14 +2361,14 @@ export default function MobileAppView({
                                                     <button
                                                         type="button"
                                                         onClick={() => toggleAllInverters(true)}
-                                                        style={{fontSize: '10px', padding: '3px 6px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', color: '#334155'}}
+                                                        style={{fontSize: '9.5px', padding: '2px 5px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', color: '#334155'}}
                                                     >
                                                         બધા પસંદ
                                                     </button>
                                                     <button
                                                         type="button"
                                                         onClick={() => toggleAllInverters(false)}
-                                                        style={{fontSize: '10px', padding: '3px 6px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', color: '#334155'}}
+                                                        style={{fontSize: '9.5px', padding: '2px 5px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', color: '#334155'}}
                                                     >
                                                         બધા રદ
                                                     </button>
@@ -2283,7 +2376,7 @@ export default function MobileAppView({
                                             </div>
 
                                             {/* Inverters List */}
-                                            <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                                            <div style={{display: 'flex', flexDirection: 'column', gap: '6px'}}>
                                                 {(activeCfg.inverters || []).map((inv, iIdx) => {
                                                     const invId = inv.id || (iIdx + 1);
                                                     const isInvChecked = (activeCfg.inverter_ids || []).includes(invId);
@@ -2295,38 +2388,41 @@ export default function MobileAppView({
                                                         <div
                                                             key={invId}
                                                             style={{
-                                                                borderRadius: '7px',
+                                                                borderRadius: '6px',
                                                                 border: isInvChecked ? '1.5px solid #fdba74' : '1px solid #e2e8f0',
                                                                 background: isInvChecked ? '#fffaf5' : '#fafafa',
                                                                 overflow: 'hidden'
                                                             }}
                                                         >
                                                             {/* Inverter Row Header */}
-                                                            <div style={{padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px'}}>
-                                                                <label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', flex: 1}}>
+                                                            <div style={{padding: '6px 9px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px'}}>
+                                                                <label style={{display: 'flex', alignItems: 'center', gap: '7px', cursor: 'pointer', flex: 1}}>
                                                                     <input
                                                                         type="checkbox"
                                                                         checked={isInvChecked}
                                                                         onChange={() => toggleInverterSelection(invId)}
-                                                                        style={{cursor: 'pointer'}}
+                                                                        style={{cursor: 'pointer', width: '15px', height: '15px'}}
                                                                     />
-                                                                    <div>
-                                                                        <span style={{fontSize: '12px', fontWeight: 700, color: '#1e293b'}}>
+                                                                    <div style={{display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap'}}>
+                                                                        <span style={{fontSize: '11.5px', fontWeight: 700, color: '#1e293b'}}>
                                                                             {inv.name || `Inverter ${iIdx + 1}`}
                                                                         </span>
-                                                                        {pvCount > 0 && (
+                                                                        {pvCount > 0 ? (
                                                                             <span style={{
-                                                                                marginLeft: '6px',
-                                                                                fontSize: '10px',
+                                                                                fontSize: '9.5px',
                                                                                 background: '#ffedd5',
                                                                                 color: '#c2410c',
                                                                                 padding: '1px 5px',
                                                                                 borderRadius: '3px',
                                                                                 fontWeight: 700
                                                                             }}>
-                                                                                {pvCount} PV બંધ
+                                                                                {pvCount} PV કટ
                                                                             </span>
-                                                                        )}
+                                                                        ) : isInvChecked ? (
+                                                                            <span style={{fontSize: '9.5px', color: '#16a34a', fontWeight: 600}}>
+                                                                                (બધા PV ચાલુ)
+                                                                            </span>
+                                                                        ) : null}
                                                                     </div>
                                                                 </label>
 
@@ -2335,16 +2431,17 @@ export default function MobileAppView({
                                                                     type="button"
                                                                     onClick={() => toggleCurtailInverterAccordion(invId)}
                                                                     style={{
-                                                                        background: 'transparent',
-                                                                        border: '1px solid #cbd5e1',
+                                                                        background: isAccordionOpen ? '#fff7ed' : '#ffffff',
+                                                                        border: isAccordionOpen ? '1px solid #fdba74' : '1px solid #cbd5e1',
                                                                         borderRadius: '4px',
                                                                         padding: '2px 7px',
-                                                                        fontSize: '10.5px',
-                                                                        color: '#475569',
+                                                                        fontSize: '10px',
+                                                                        color: isAccordionOpen ? '#c2410c' : '#475569',
                                                                         cursor: 'pointer',
                                                                         display: 'flex',
                                                                         alignItems: 'center',
-                                                                        gap: '3px'
+                                                                        gap: '3px',
+                                                                        fontWeight: 600
                                                                     }}
                                                                 >
                                                                     <span>PV સ્ટ્રિંગ્સ</span>
@@ -2352,40 +2449,46 @@ export default function MobileAppView({
                                                                 </button>
                                                             </div>
 
-                                                            {/* PV Strings Accordion Body */}
+                                                            {/* PV Strings Accordion Body - Ultra Compact Mini Grid Pills */}
                                                             {isAccordionOpen && (
                                                                 <div style={{
-                                                                    padding: '8px 10px',
+                                                                    padding: '6px 8px 8px 8px',
                                                                     background: '#ffffff',
                                                                     borderTop: '1px dashed #fed7aa'
                                                                 }}>
                                                                     <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px'}}>
-                                                                        <span style={{fontSize: '10.5px', color: '#64748b'}}>
-                                                                            જે PV સ્ટ્રિંગ બંધ કરવા હોય તે સિલેક્ટ કરો:
-                                                                        </span>
-                                                                        <div style={{display: 'flex', gap: '4px'}}>
+                                                                        <div style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', color: '#64748b'}}>
+                                                                            <span>PV કંટ્રોલ:</span>
+                                                                            <span style={{display: 'inline-flex', alignItems: 'center', gap: '2px'}}>
+                                                                                <span style={{color: '#16a34a', fontSize: '9px'}}>●</span> ચાલુ
+                                                                            </span>
+                                                                            <span style={{display: 'inline-flex', alignItems: 'center', gap: '2px'}}>
+                                                                                <span style={{color: '#ea580c', fontSize: '9px'}}>●</span> કટ
+                                                                            </span>
+                                                                        </div>
+                                                                        <div style={{display: 'flex', gap: '3px'}}>
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={() => toggleAllPvsForInverter(invId, true)}
-                                                                                style={{fontSize: '9.5px', padding: '1px 5px', borderRadius: '3px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer'}}
+                                                                                style={{fontSize: '9px', padding: '1px 5px', borderRadius: '3px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', color: '#334155'}}
                                                                             >
-                                                                                બધા PV પસંદ
+                                                                                બધા કટ
                                                                             </button>
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={() => toggleAllPvsForInverter(invId, false)}
-                                                                                style={{fontSize: '9.5px', padding: '1px 5px', borderRadius: '3px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer'}}
+                                                                                style={{fontSize: '9px', padding: '1px 5px', borderRadius: '3px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', color: '#334155'}}
                                                                             >
-                                                                                સાફ કરો
+                                                                                બધા ચાલુ
                                                                             </button>
                                                                         </div>
                                                                     </div>
 
-                                                                    {/* 16 PV String Chips */}
+                                                                    {/* 16 PV String Mini Grid Pills (Compact ~27px height) */}
                                                                     <div style={{
                                                                         display: 'grid',
                                                                         gridTemplateColumns: 'repeat(4, 1fr)',
-                                                                        gap: '5px'
+                                                                        gap: '4px'
                                                                     }}>
                                                                         {Array.from({length: 16}, (_, sIdx) => {
                                                                             const stringLabel = `PV ${sIdx + 1}`;
@@ -2398,25 +2501,30 @@ export default function MobileAppView({
                                                                                     type="button"
                                                                                     onClick={() => togglePvString(invId, stringLabel)}
                                                                                     style={{
-                                                                                        padding: '5px 2px',
+                                                                                        height: '27px',
+                                                                                        padding: '2px 4px',
                                                                                         borderRadius: '5px',
                                                                                         border: isSelected ? '1.5px solid #ea580c' : '1px solid #e2e8f0',
                                                                                         background: isSelected ? '#ffedd5' : '#f8fafc',
-                                                                                        color: isSelected ? '#c2410c' : '#334155',
+                                                                                        color: isSelected ? '#9a3412' : '#334155',
                                                                                         fontSize: '11px',
-                                                                                        fontWeight: isSelected ? 800 : 500,
+                                                                                        fontWeight: isSelected ? 800 : 600,
                                                                                         cursor: 'pointer',
-                                                                                        display: 'flex',
-                                                                                        flexDirection: 'column',
+                                                                                        display: 'inline-flex',
                                                                                         alignItems: 'center',
                                                                                         justifyContent: 'center',
-                                                                                        gap: '1px'
+                                                                                        gap: '4px'
                                                                                     }}
+                                                                                    title={isSelected ? `${stringLabel} પાવર કટ (બંધ)` : `${stringLabel} સામાન્ય (ચાલુ)`}
                                                                                 >
+                                                                                    <span style={{
+                                                                                        display: 'inline-block',
+                                                                                        width: '6px',
+                                                                                        height: '6px',
+                                                                                        borderRadius: '50%',
+                                                                                        background: isSelected ? '#ea580c' : '#22c55e'
+                                                                                    }}/>
                                                                                     <span>{stringLabel}</span>
-                                                                                    <span style={{fontSize: '8.5px', color: isSelected ? '#ea580c' : '#94a3b8', fontWeight: 600}}>
-                                                                                        {isSelected ? '🚫 બંધ' : 'ચાલુ'}
-                                                                                    </span>
                                                                                 </button>
                                                                             );
                                                                         })}
