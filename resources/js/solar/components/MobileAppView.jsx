@@ -702,38 +702,14 @@ export default function MobileAppView({
         }));
     };
 
-    // 🌤️ Real-Time Dynamic Sky Theming based on actual Solar Hours
+    // 🌿 Universal Eco-Environment Theme (Clean, bright, nature-solar background 24/7)
     const getSkyTheme = () => {
-        const hour = new Date().getHours();
-        if (hour >= 5 && hour < 9) {
-            return {
-                themeClass: 'sky-theme-dawn',
-                label: 'Sunrise Glow',
-                labelGu: '🌅 સોનેરી સૂર્યોદય',
-                icon: '🌅'
-            };
-        } else if (hour >= 9 && hour < 16) {
-            return {
-                themeClass: 'sky-theme-noon',
-                label: 'Peak Solar Azure',
-                labelGu: '☀️ પીક સૂર્યપ્રકાશ (હાઇ જનરેશન)',
-                icon: '☀️'
-            };
-        } else if (hour >= 16 && hour < 19) {
-            return {
-                themeClass: 'sky-theme-sunset',
-                label: 'Amber Sunset Dusk',
-                labelGu: '🌇 સાંધ્ય સોનેરી આકાશ',
-                icon: '🌇'
-            };
-        } else {
-            return {
-                themeClass: 'sky-theme-night',
-                label: 'OLED Midnight Standby',
-                labelGu: '🌙 રાત્રિ સ્ટેન્ડબાય મોડ',
-                icon: '🌙'
-            };
-        }
+        return {
+            themeClass: 'sky-theme-eco',
+            label: 'Solar Eco Flow',
+            labelGu: '🌿 સોલાર લાઇવ મોનિટર',
+            icon: '⚡'
+        };
     };
     const currentSky = getSkyTheme();
 

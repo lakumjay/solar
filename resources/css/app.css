@@ -6354,31 +6354,25 @@ button:active, .mqa-btn:active, .bnav-item:active, .bento-card:active {
     pointer-events: none;
 }
 
-/* 3. 🌓 DYNAMIC SKY THEME GRADIENTS */
-.sky-theme-dawn {
-    background: linear-gradient(180deg, #fff1f2 0%, #fffbeb 50%, #f8fafc 100%) !important;
-}
-
-.sky-theme-noon {
-    background: linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 45%, #f8fafc 100%) !important;
-}
-
-.sky-theme-sunset {
-    background: linear-gradient(180deg, #fff7ed 0%, #ffedd5 45%, #f8fafc 100%) !important;
-}
-
-.sky-theme-night {
-    background: linear-gradient(180deg, #090d16 0%, #0f172a 45%, #1e293b 100%) !important;
-    color: #f1f5f9;
+/* 3. 🌿 UNIFIED ECO-ENVIRONMENT THEME (24/7 Consistent Nature & Solar Clean Palette) */
+.sky-theme-dawn,
+.sky-theme-noon,
+.sky-theme-sunset,
+.sky-theme-night,
+.sky-theme-eco,
+.standby-theme {
+    background: linear-gradient(180deg, #F3F9F4 0%, #EAF5EC 40%, #F4FAF4 75%, #FCFDF9 100%) !important;
+    color: #14211A !important;
 }
 
 .sky-theme-night .bento-card,
 .sky-theme-night .mobile-company-selector-bar,
 .sky-theme-night .mobile-subpage-wrap,
-.sky-theme-night .mobile-action-grid-section {
-    background: rgba(15, 23, 42, 0.85) !important;
-    border-color: rgba(51, 65, 85, 0.8) !important;
-    color: #f8fafc !important;
+.sky-theme-night .mobile-action-grid-section,
+.sky-theme-eco .bento-card {
+    background: rgba(255, 255, 255, 0.82) !important;
+    border-color: rgba(255, 255, 255, 0.95) !important;
+    color: #14211A !important;
 }
 
 .sky-theme-night .bento-card strong,
@@ -6386,20 +6380,20 @@ button:active, .mqa-btn:active, .bnav-item:active, .bento-card:active {
 .sky-theme-night h2,
 .sky-theme-night h3,
 .sky-theme-night h4 {
-    color: #ffffff !important;
+    color: #14211A !important;
 }
 
-/* 4. 🏝️ FLOATING DYNAMIC ISLAND CAPSULE WIDGET */
+/* 4. 🏝️ FLOATING DYNAMIC ISLAND CAPSULE WIDGET (Emerald Forest Glass) */
 .dynamic-island-pill {
     margin: 8px 12px 10px 12px;
-    background: rgba(15, 23, 42, 0.94);
+    background: linear-gradient(135deg, rgba(20, 83, 45, 0.96), rgba(22, 101, 52, 0.92));
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.25);
     border-radius: 26px;
     padding: 8px 14px;
     color: #ffffff;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+    box-shadow: 0 8px 24px rgba(20, 83, 45, 0.22);
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     position: relative;
@@ -6650,9 +6644,9 @@ button:active, .mqa-btn:active, .bnav-item:active, .bento-card:active {
     --font-gujarati: "Noto Sans Gujarati", "Hind Vadodara", "Inter", sans-serif;
     --font-mono: "Space Grotesk", ui-monospace, monospace;
 
-    /* Theme Backgrounds */
-    --color-bg-day: linear-gradient(180deg, #F7FBF4 0%, #E8F5E9 50%, #FFF8E1 100%);
-    --color-bg-night: linear-gradient(180deg, #0B1A12 0%, #10241A 100%);
+    /* Theme Backgrounds (Universal Eco-Environment Palette - 24/7 Day & Night) */
+    --color-bg-day: linear-gradient(180deg, #F3F9F4 0%, #EAF5EC 40%, #F4FAF4 75%, #FCFDF9 100%);
+    --color-bg-night: linear-gradient(180deg, #F3F9F4 0%, #EAF5EC 40%, #F4FAF4 75%, #FCFDF9 100%);
     
     /* Core Brand Colors */
     --color-primary: #15803D;
@@ -6762,10 +6756,10 @@ h1, h2, h3, h4, h5, h6, .page-title, .section-title {
     z-index: 0;
 }
 
-/* Night / Standby Theme */
+/* Night / Standby Theme (Unified with Eco-Environment Palette) */
 .sky-theme-night, .standby-theme {
-    background: var(--color-bg-night) !important;
-    color: #F1F5F9 !important;
+    background: var(--color-bg-day) !important;
+    color: var(--color-text) !important;
 }
 
 .sky-theme-night .solar-glass-card,
@@ -6774,23 +6768,23 @@ h1, h2, h3, h4, h5, h6, .page-title, .section-title {
 .sky-theme-night .isolar-app-card,
 .sky-theme-night .mob-pred-card-main,
 .sky-theme-night .mob-pred-mini-card {
-    background: rgba(255, 255, 255, 0.06) !important;
-    border: 1px solid rgba(255, 255, 255, 0.12) !important;
-    color: #F1F5F9 !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35) !important;
+    background: var(--glass-bg) !important;
+    border: var(--glass-border) !important;
+    color: var(--color-text) !important;
+    box-shadow: var(--glass-shadow) !important;
 }
 
 .sky-theme-night h1, .sky-theme-night h2, .sky-theme-night h3, .sky-theme-night h4, .sky-theme-night strong, .sky-theme-night b {
-    color: #FFFFFF !important;
+    color: var(--color-text) !important;
 }
 
 .sky-theme-night p, .sky-theme-night span, .sky-theme-night small {
-    color: #94A3B8 !important;
+    color: var(--color-text-muted) !important;
 }
 
 .sky-theme-night .mobile-bottom-navbar {
-    background: rgba(11, 26, 18, 0.94) !important;
-    border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+    background: rgba(255, 255, 255, 0.88) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.9) !important;
 }
 
 /* ==========================================================================
