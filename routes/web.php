@@ -139,3 +139,7 @@ Route::prefix('api')->group(function () {
         Route::get('expenses/{expense}/receipt', [SharedExpenseController::class, 'receipt'])->name('expenses.receipt');
     });
 });
+
+Route::fallback(function () {
+    return view('welcome');
+});

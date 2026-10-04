@@ -5,6 +5,12 @@
 
     RewriteEngine On
 
+    # Redirect HTTP or non-www to https://www.rns.snwebkarma.in for live domain
+    RewriteCond %{HTTP_HOST} ^rns\.snwebkarma\.in$ [NC,OR]
+    RewriteCond %{HTTPS} off
+    RewriteCond %{HTTP_HOST} ^(?:www\.)?rns\.snwebkarma\.in$ [NC]
+    RewriteRule ^ https://www.rns.snwebkarma.in%{REQUEST_URI} [L,R=301]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

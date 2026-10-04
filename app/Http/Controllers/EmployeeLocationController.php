@@ -168,6 +168,7 @@ class EmployeeLocationController extends Controller
             $currentHour = (float) $now->format('G') + ((float) $now->format('i') / 60);
 
             if (!$todayAttendance) {
+                $empName = $emp->user?->name ?? 'કર્મચારી';
                 if ($leaveReq) {
                     $isApproved = $leaveReq->status === 'approved';
                     $leaveTypeTitle = $leaveReq->leaveType?->name ?? 'રજા';
@@ -177,8 +178,8 @@ class EmployeeLocationController extends Controller
                         'status' => $isApproved ? 'approved_leave' : 'unapproved_leave',
                         'badge' => $isApproved ? '🌴 મંજૂર રજા (Approved)' : '⚠️ મંજૂરી વિના રજા',
                         'message' => $isApproved
-                            ? "{$emp->user?->name ?? 'કર્મચારી'} આજે રજા પર છે (આજે રજા મંજૂર થયેલ છે - {$leaveTypeTitle})"
-                            : "{$emp->user?->name ?? 'કર્મચારી'} રજા પર છે (રજા અપ્રૂવલ લીધી નહોતી)",
+                            ? "{$empName} આજે રજા પર છે (આજે રજા મંજૂર થયેલ છે - {$leaveTypeTitle})"
+                            : "{$empName} રજા પર છે (રજા અપ્રૂવલ લીધી નહોતી)",
                     ];
                 } elseif ($currentHour >= 11.0) {
                     $leaveInfo = [
@@ -186,7 +187,7 @@ class EmployeeLocationController extends Controller
                         'is_approved' => false,
                         'status' => 'unapproved_absence',
                         'badge' => '⚠️ રજા અપ્રૂવલ વગર (ગેરહાજર)',
-                        'message' => "{$emp->user?->name ?? 'કર્મચારી'} આજે ૧૧:૦૦ વાગ્યા સુધી હાજર થયા નથી (રજા અપ્રૂવલ લીધી નહોતી - રજા પર છે)",
+                        'message' => "{$empName} આજે ૧૧:૦૦ વાગ્યા સુધી હાજર થયા નથી (રજા અપ્રૂવલ લીધી નહોતી - રજા પર છે)",
                     ];
                 }
             }

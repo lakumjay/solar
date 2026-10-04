@@ -108,6 +108,13 @@ class ISolarCloudService
         }
 
         Log::warning('iSolarCloud refreshToken failed', ['response' => $json]);
+
+        // If the refresh token is invalid or rejected by Sungrow, nullify it to avoid repeated failing requests
+        $errorMsg = strtolower(($json['result_msg'] ?? '') . ' ' . ($json['error_description'] ?? '') . ' ' . ($json['error'] ?? ''));
+        if (str_contains($errorMsg, 'invalid') || str_contains($errorMsg, 'invalid_grant') || str_contains($errorMsg, 'expired')) {
+            ISolarCloudToken::where('refresh_token', $refreshToken)->update(['refresh_token' => null]);
+        }
+
         return null;
     }
 
@@ -155,13 +162,17 @@ class ISolarCloudService
             || $token->isExpired();
 
         if ($needsRefresh && $token->refresh_token) {
-            try {
-                $refreshed = $this->refreshToken($token->refresh_token);
-                if ($refreshed) {
-                    $token = ISolarCloudToken::latest()->first();
+            $cacheKey = 'isolarcloud_token_refresh_attempt_' . md5($token->refresh_token);
+            if (! Cache::has($cacheKey)) {
+                Cache::put($cacheKey, true, now()->addMinutes(10));
+                try {
+                    $refreshed = $this->refreshToken($token->refresh_token);
+                    if ($refreshed) {
+                        $token = ISolarCloudToken::latest()->first();
+                    }
+                } catch (Exception $e) {
+                    Log::warning('Automatic token refresh failed in getValidToken: ' . $e->getMessage());
                 }
-            } catch (Exception $e) {
-                Log::warning('Automatic token refresh failed in getValidToken: ' . $e->getMessage());
             }
         }
 
