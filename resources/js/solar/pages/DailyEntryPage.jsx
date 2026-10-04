@@ -202,11 +202,11 @@ export default function DailyEntryPage({company, canEdit = true}) {
     };
 
     return <form className="entry" onSubmit={save}>
-        <section className="panel entry-date" style={{borderRadius: '16px', background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(10px)'}}>
+        <section className="panel entry-date" style={{borderRadius: '16px', background: '#ffffff', border: '1.5px solid #d1e7dd', boxShadow: '0 4px 14px rgba(0, 0, 0, 0.04)'}}>
             <div>
-                <p className="step">STEP 1</p>
-                <h2>તારીખ પસંદ કરો (Entry Date)</h2>
-                <p>જો આ તારીખનો ડેટા પહેલેથી હશે, તો તે આપોઆપ એડિટિંગ માટે લોડ થશે.</p>
+                <p className="step" style={{color: '#15803d', fontWeight: 800}}>STEP 1</p>
+                <h2 style={{color: '#0f291e', fontWeight: 800}}>તારીખ પસંદ કરો (Entry Date)</h2>
+                <p style={{color: '#475569'}}>જો આ તારીખનો ડેટા પહેલેથી હશે, તો તે આપોઆપ એડિટિંગ માટે લોડ થશે.</p>
             </div>
             <DatePicker label="Entry date" value={date} onChange={setDate} align="right"/>
         </section>
@@ -223,12 +223,12 @@ export default function DailyEntryPage({company, canEdit = true}) {
             </div>
         )}
 
-        <section className="panel" style={{borderRadius: '16px', background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(10px)'}}>
+        <section className="panel" style={{borderRadius: '16px', background: '#ffffff', border: '1.5px solid #d1e7dd', boxShadow: '0 4px 14px rgba(0, 0, 0, 0.04)'}}>
             <div className="panel-head" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px'}}>
                 <div>
-                    <p className="step">STEP 2</p>
-                    <h2>ઇન્વર્ટર દૈનિક ઉત્પાદન (Inverter Generation)</h2>
-                    <p>ઓટો-સેવ થયેલા અથવા લાઇવ યુનિટ્સ (kWh). કુલ અંદાજિત જનરેશન: <b style={{color: '#059669'}}>{totalInverterGeneration} kWh</b></p>
+                    <p className="step" style={{color: '#15803d', fontWeight: 800}}>STEP 2</p>
+                    <h2 style={{color: '#0f291e', fontWeight: 800}}>ઇન્વર્ટર દૈનિક ઉત્પાદન (Inverter Generation)</h2>
+                    <p style={{color: '#475569'}}>ઓટો-સેવ થયેલા અથવા લાઇવ યુનિટ્સ (kWh). કુલ અંદાજિત જનરેશન: <b style={{color: '#059669'}}>{totalInverterGeneration} kWh</b></p>
                 </div>
                 <button
                     type="button"
@@ -241,15 +241,16 @@ export default function DailyEntryPage({company, canEdit = true}) {
                         display: 'flex',
                         alignItems: 'center',
                         gap: '6px',
-                        padding: '7px 14px',
+                        padding: '8px 15px',
                         borderRadius: '10px',
-                        border: '1px solid #0284c7',
-                        background: '#f0f9ff',
-                        color: '#0369a1',
+                        border: 'none',
+                        background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                        color: '#ffffff',
                         fontSize: '12px',
-                        fontWeight: 750,
+                        fontWeight: 800,
                         cursor: syncingCloud ? 'not-allowed' : 'pointer',
-                        boxShadow: '0 2px 8px rgba(2, 132, 199, 0.1)'
+                        boxShadow: '0 3px 10px rgba(217, 119, 6, 0.25)',
+                        transition: 'all 0.15s ease'
                     }}
                 >
                     <RefreshCw size={14} className={syncingCloud ? 'spin' : ''}/>
@@ -296,12 +297,12 @@ export default function DailyEntryPage({company, canEdit = true}) {
             </div>
         </section>
 
-        <section className="panel" style={{borderRadius: '16px', background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(10px)'}}>
+        <section className="panel" style={{borderRadius: '16px', background: '#ffffff', border: '1.5px solid #d1e7dd', boxShadow: '0 4px 14px rgba(0, 0, 0, 0.04)'}}>
             <div className="panel-head">
                 <div>
-                    <p className="step">STEP 3</p>
-                    <h2>કુલ મીટર રીડિંગ્સ (Cumulative meter readings)</h2>
-                    <p>સાંજે ૭:૦૦ વાગ્યા પછી ફિઝિકલ મીટર રીડિંગ નાખો (અગાઉના રીડિંગ × મલ્ટીપ્લાયરના આધારે પાવર ગણાશે).</p>
+                    <p className="step" style={{color: '#15803d', fontWeight: 800}}>STEP 3</p>
+                    <h2 style={{color: '#0f291e', fontWeight: 800}}>કુલ મીટર રીડિંગ્સ (Cumulative meter readings)</h2>
+                    <p style={{color: '#475569'}}>સાંજે ૭:૦૦ વાગ્યા પછી ફિઝિકલ મીટર રીડિંગ નાખો (અગાઉના રીડિંગ × મલ્ટીપ્લાયરના આધારે પાવર ગણાશે).</p>
                 </div>
             </div>
             <div className="form-grid">

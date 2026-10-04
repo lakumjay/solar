@@ -217,9 +217,10 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                 fontSize: '12px',
                                 borderRadius: '10px',
                                 fontWeight: 700,
-                                background: mapMode === 'satellite' ? '#0f172a' : '#f8fafc',
-                                color: mapMode === 'satellite' ? '#38bdf8' : '#334155',
-                                border: mapMode === 'satellite' ? '1.5px solid #38bdf8' : '1px solid #cbd5e1'
+                                background: mapMode === 'satellite' ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : '#ffffff',
+                                color: mapMode === 'satellite' ? '#ffffff' : '#334155',
+                                border: mapMode === 'satellite' ? '1.5px solid #1d4ed8' : '1px solid #cbd5e1',
+                                boxShadow: mapMode === 'satellite' ? '0 3px 10px rgba(37, 99, 235, 0.25)' : 'none'
                             }}
                             title="સેટેલાઇટ / સામાન્ય મેપ મોડ બદલો"
                         >

@@ -6368,17 +6368,17 @@ button:active, .mqa-btn:active, .bnav-item:active, .bento-card:active {
 }
 
 .sky-theme-night {
-    background: linear-gradient(180deg, #090d16 0%, #0f172a 45%, #1e293b 100%) !important;
-    color: #f1f5f9;
+    background: linear-gradient(180deg, #f4faf6 0%, #ebf5ee 45%, #f1f8f4 100%) !important;
+    color: #14211a;
 }
 
 .sky-theme-night .bento-card,
 .sky-theme-night .mobile-company-selector-bar,
 .sky-theme-night .mobile-subpage-wrap,
 .sky-theme-night .mobile-action-grid-section {
-    background: rgba(15, 23, 42, 0.85) !important;
-    border-color: rgba(51, 65, 85, 0.8) !important;
-    color: #f8fafc !important;
+    background: #ffffff !important;
+    border-color: #d1e7dd !important;
+    color: #14211a !important;
 }
 
 .sky-theme-night .bento-card strong,
@@ -6386,7 +6386,30 @@ button:active, .mqa-btn:active, .bnav-item:active, .bento-card:active {
 .sky-theme-night h2,
 .sky-theme-night h3,
 .sky-theme-night h4 {
-    color: #ffffff !important;
+    color: #0f291e !important;
+}
+
+.panel .step {
+    font-size: 11px;
+    font-weight: 800;
+    color: #15803d !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0 0 2px 0;
+}
+
+.panel h2 {
+    font-size: 16px;
+    font-weight: 800;
+    color: #0f291e !important;
+    margin: 0 0 4px 0;
+}
+
+.panel p {
+    font-size: 12px;
+    color: #475569 !important;
+    margin: 0;
+    line-height: 1.45;
 }
 
 /* 4. 🏝️ FLOATING DYNAMIC ISLAND CAPSULE WIDGET */
