@@ -737,22 +737,16 @@ export default function DashboardPage({companyId, currentUser}) {
                 <div className="cleaning-section-header">
                     <div className="cleaning-head-left">
                         <h3>
-                            <span style={{color: (smartInsights.cloud_vs_fault?.type === 'night_standby') ? '#0284c7' : '#d97706'}}>
-                                {(smartInsights.cloud_vs_fault?.type === 'night_standby') ? '🌙' : '⚠️'}
-                            </span>
-                            {(smartInsights.cloud_vs_fault?.type === 'night_standby')
-                                ? 'પ્લાન્ટ સ્માર્ટ સ્ટેટસ (રાત્રિ સ્લીપ મોડ - પ્લાન્ટ બંધ છે)'
-                                : 'પ્લાન્ટ સ્માર્ટ ડાયગ્નોસ્ટિક & સફાઈ એલર્ટ'}
-                            {!(smartInsights.cloud_vs_fault?.type === 'night_standby') && (cleaningAlerts.length > 0 || underperformingInverters.length > 0 || gridDowntime?.is_down) && (
+                            <span style={{color: '#d97706'}}>⚡</span>
+                            પ્લાન્ટ સ્માર્ટ ડાયગ્નોસ્ટિક & સફાઈ એલર્ટ
+                            {(cleaningAlerts.length > 0 || underperformingInverters.length > 0 || gridDowntime?.is_down) && (
                                 <span className="cleaning-head-badge">
                                     🔴 {cleaningAlerts.length + underperformingInverters.length + (gridDowntime?.is_down ? 1 : 0)} ચેતવણી
                                 </span>
                             )}
                         </h3>
                         <p className="cleaning-head-subtitle">
-                            {(smartInsights.cloud_vs_fault?.type === 'night_standby')
-                                ? 'સૂર્યાસ્ત બાદ ઉત્પાદન બંધ છે. આવતીકાલે સવારે સૂર્યોદય સાથે ઓટોમેટિક AI ડાયગ્નોસ્ટિક્સ સક્રિય થશે.'
-                                : 'નબળા ઇન્વર્ટર, પાવર લોસ, ગ્રીડ ટ્રીપિંગ અને ધૂળનું ઓટોમેટિક AI નિદાન'}
+                            નબળા ઇન્વર્ટર, પાવર લોસ, ગ્રીડ ટ્રીપિંગ અને ધૂળનું ઓટોમેટિક AI નિદાન
                         </p>
                     </div>
 

@@ -1405,22 +1405,16 @@ export default function MobileAppView({
                         <div className="cleaning-section-header">
                             <div className="cleaning-head-left">
                                 <h3>
-                                    <span style={{color: (data?.smart_insights?.cloud_vs_fault?.type === 'night_standby') ? '#0284c7' : '#d97706'}}>
-                                        {(data?.smart_insights?.cloud_vs_fault?.type === 'night_standby') ? '🌙' : '⚠️'}
-                                    </span>
-                                    {(data?.smart_insights?.cloud_vs_fault?.type === 'night_standby')
-                                        ? 'પ્લાન્ટ સ્માર્ટ સ્ટેટસ (સ્ટેન્ડબાય)'
-                                        : 'પ્લાન્ટ સ્માર્ટ ડાયગ્નોસ્ટિક & સફાઈ એલર્ટ'}
-                                    {!(data?.smart_insights?.cloud_vs_fault?.type === 'night_standby') && ((cleaningAlerts.length > 0) || (data?.smart_insights?.underperforming_inverters?.length > 0) || data?.smart_insights?.grid_downtime?.is_down) && (
+                                    <span style={{color: '#d97706'}}>⚡</span>
+                                    પ્લાન્ટ સ્માર્ટ ડાયગ્નોસ્ટિક & સફાઈ એલર્ટ
+                                    {((cleaningAlerts.length > 0) || (data?.smart_insights?.underperforming_inverters?.length > 0) || data?.smart_insights?.grid_downtime?.is_down) && (
                                         <span className="cleaning-head-badge">
                                             🔴 {(cleaningAlerts.length || 0) + (data?.smart_insights?.underperforming_inverters?.length || 0) + (data?.smart_insights?.grid_downtime?.is_down ? 1 : 0)} ચેતવણી
                                         </span>
                                     )}
                                 </h3>
                                 <p className="cleaning-head-subtitle">
-                                    {(data?.smart_insights?.cloud_vs_fault?.type === 'night_standby')
-                                        ? 'સૂર્યાસ્ત બાદ પ્લાન્ટ બંધ છે. આવતીકાલે સવારે સૂર્યોદય સાથે લાઈવ AI ડાયગ્નોસ્ટિક્સ સક્રિય થશે.'
-                                        : 'નબળા ઇન્વર્ટર, પાવર લોસ, ગ્રીડ ટ્રીપિંગ અને ધૂળનું ઓટોમેટિક AI નિદાન'}
+                                    નબળા ઇન્વર્ટર, પાવર લોસ, ગ્રીડ ટ્રીપિંગ અને ધૂળનું ઓટોમેટિક AI નિદાન
                                 </p>
                             </div>
                         </div>
