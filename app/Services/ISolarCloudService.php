@@ -922,22 +922,67 @@ class ISolarCloudService
             }
         }
 
-        // (C) Daily Reading Missing Alert (Evening >= 19:00 or Night)
-        $readingMissingAlert = null;
+        // (C) Daily Reading Tracker & Alerts (Deadline: 7:30 PM / 19:30, confirmation when saved, and check for past missing dates)
         $todayDateStr = Carbon::today()->toDateString();
-        $enteredCompanyIds = DailyReading::whereDate('reading_date', $todayDateStr)->pluck('company_id')->toArray();
-        $missingCompanyModels = $companies->reject(fn($c) => in_array($c->id, $enteredCompanyIds))->values();
-        $isEveningOrNight = ($currentHourFloat >= 19.0 || $isNight);
-        if ($isEveningOrNight && $missingCompanyModels->isNotEmpty()) {
-            $missingNames = $missingCompanyModels->pluck('name')->implode(', ');
-            $readingMissingAlert = [
+        $enteredTodayCompanyIds = DailyReading::whereDate('reading_date', $todayDateStr)->pluck('company_id')->toArray();
+        $missingTodayCompanies = $companies->reject(fn($c) => in_array($c->id, $enteredTodayCompanyIds))->values();
+        $isPast730Pm = ($currentHourFloat >= 19.5 || ($isNight && $currentHourFloat < 5.0));
+
+        $todayReadingStatus = null;
+        if ($missingTodayCompanies->isEmpty()) {
+            // All companies entered or auto-saved!
+            $todayReadingStatus = [
+                'status' => 'completed',
+                'active' => true,
+                'type' => 'daily_reading_completed',
+                'badge' => '✅ સેવ થઈ ગયું',
+                'title' => 'આજના રીડિંગ અને યુનિટ કમ્પ્લીટ સેવ થઈ ગયા છે!',
+                'message' => 'તમામ કંપનીઓના મીટર અને ઇન્વર્ટર રીડિંગ સફળતાપૂર્વક સિસ્ટમમાં સેવ થઈ ગયા છે (બધો ડેટા ઓકે છે).',
+                'theme' => 'success',
+            ];
+        } elseif ($isPast730Pm) {
+            // After 7:30 PM and still missing
+            $missingNames = $missingTodayCompanies->pluck('name')->implode(', ');
+            $todayReadingStatus = [
+                'status' => 'missing',
                 'active' => true,
                 'type' => 'daily_reading_missing',
-                'badge' => '⏰ રીડિંગ બાકી છે',
+                'badge' => '⏰ રીડિંગ બાકી છે (૭:૩૦ સમય પૂર્ણ)',
                 'title' => 'આજનું ડેઇલી રીડિંગ હજુ ભરાયું નથી!',
-                'message' => "સાંજે ૭:૦૦ વાગ્યા પછી {$missingNames} નું મીટર/ઇન્વર્ટર રીડિંગ ભરવાનું બાકી છે. કૃપા કરી તાત્કાલિક એન્ટ્રી પૂરી કરો.",
-                'missing_companies' => $missingCompanyModels->pluck('name')->toArray(),
+                'message' => "સાંજે ૭:૩૦ વાગ્યા સુધીમાં રીડિંગ ભરવાનો સમય પૂર્ણ થયો છે. {$missingNames} નું મીટર/ઇન્વર્ટર રીડિંગ ભરવાનું બાકી છે. કૃપા કરી તાત્કાલિક એન્ટ્રી પૂરી કરો.",
+                'missing_companies' => $missingTodayCompanies->pluck('name')->toArray(),
                 'theme' => 'warning',
+            ];
+        }
+
+        // Check past 5 days for any missing readings
+        $pastMissingDates = [];
+        for ($dayOffset = 1; $dayOffset <= 5; $dayOffset++) {
+            $pastDate = Carbon::today()->subDays($dayOffset);
+            $pastDateStr = $pastDate->toDateString();
+            $enteredPastIds = DailyReading::whereDate('reading_date', $pastDateStr)->pluck('company_id')->toArray();
+            $missingPastComps = $companies->reject(fn($c) => in_array($c->id, $enteredPastIds))->values();
+            if ($missingPastComps->isNotEmpty()) {
+                $pastMissingDates[] = [
+                    'date_formatted' => $pastDate->format('d M Y'),
+                    'date_ymd' => $pastDateStr,
+                    'companies' => $missingPastComps->pluck('name')->toArray(),
+                    'companies_label' => $missingPastComps->pluck('name')->implode(', '),
+                ];
+            }
+        }
+
+        $pastReadingMissingAlert = null;
+        if (!empty($pastMissingDates)) {
+            $dateSummaries = array_map(fn($item) => "{$item['date_formatted']} ({$item['companies_label']})", $pastMissingDates);
+            $pastReadingMissingAlert = [
+                'active' => true,
+                'type' => 'past_reading_missing',
+                'badge' => '🚨 પાછલી તારીખનું રીડિંગ બાકી',
+                'title' => 'પાછલી તારીખનું ડેઇલી રીડિંગ હજુ ભરાયું નથી!',
+                'message' => "નીચેની તારીખનું રીડિંગ સિસ્ટમમાં ભરાયેલું નથી: " . implode(' | ', $dateSummaries) . ". આ તારીખનું રીડિંગ તાત્કાલિક સબમિટ કરો.",
+                'missing_dates' => $pastMissingDates,
+                'theme' => 'danger',
             ];
         }
 
@@ -986,7 +1031,8 @@ class ISolarCloudService
             'system_alerts' => [
                 'grid_outage' => $gridOutageAlert,
                 'curtailment_reminders' => $curtailmentReminders,
-                'daily_reading_missing' => $readingMissingAlert,
+                'daily_reading_status' => $todayReadingStatus,
+                'past_reading_missing' => $pastReadingMissingAlert,
                 'fan_cleaning' => $fanCleaningStatus,
                 'overheat_alerts' => array_values(array_filter($allCleaningAlerts, fn($a) => ($a['type'] ?? '') === 'inverter_overheat')),
             ],

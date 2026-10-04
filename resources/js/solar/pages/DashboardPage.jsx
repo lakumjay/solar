@@ -367,7 +367,8 @@ export default function DashboardPage({companyId, currentUser}) {
     const systemAlerts = data.system_alerts || {};
     const gridOutageAlert = systemAlerts.grid_outage;
     const curtailmentReminders = systemAlerts.curtailment_reminders || [];
-    const dailyReadingMissing = systemAlerts.daily_reading_missing;
+    const dailyReadingStatus = systemAlerts.daily_reading_status;
+    const pastReadingMissing = systemAlerts.past_reading_missing;
     const fanCleaningStatus = systemAlerts.fan_cleaning;
     const overheatAlerts = systemAlerts.overheat_alerts || [];
 
@@ -768,12 +769,12 @@ export default function DashboardPage({companyId, currentUser}) {
                     </div>
                 </div>
 
-                {/* ⏰ Daily Reading Missing Alert Card */}
-                {dailyReadingMissing && dailyReadingMissing.active && (
+                {/* ⏰ Daily Reading Status (Confirmation when saved OR Reminder after 7:30 PM) */}
+                {dailyReadingStatus && dailyReadingStatus.active && (
                     <div style={{
                         marginBottom: '12px',
-                        background: '#fffbeb',
-                        border: '1.5px solid #f59e0b',
+                        background: dailyReadingStatus.status === 'completed' ? '#f0fdf4' : '#fffbeb',
+                        border: dailyReadingStatus.status === 'completed' ? '1.5px solid #22c55e' : '1.5px solid #f59e0b',
                         borderRadius: '12px',
                         padding: '12px 16px',
                         display: 'flex',
@@ -787,40 +788,146 @@ export default function DashboardPage({companyId, currentUser}) {
                                 width: '38px',
                                 height: '38px',
                                 borderRadius: '10px',
-                                background: '#fef3c7',
-                                color: '#d97706',
+                                background: dailyReadingStatus.status === 'completed' ? '#dcfce7' : '#fef3c7',
+                                color: dailyReadingStatus.status === 'completed' ? '#16a34a' : '#d97706',
                                 display: 'grid',
                                 placeItems: 'center',
                                 flexShrink: 0
                             }}>
-                                <Clock size={20}/>
+                                {dailyReadingStatus.status === 'completed' ? <CheckCircle size={20}/> : <Clock size={20}/>}
                             </div>
                             <div>
-                                <b style={{fontSize: '13px', color: '#92400e', display: 'block'}}>
-                                    ⏰ {dailyReadingMissing.title}
+                                <b style={{
+                                    fontSize: '13px',
+                                    color: dailyReadingStatus.status === 'completed' ? '#15803d' : '#92400e',
+                                    display: 'block'
+                                }}>
+                                    {dailyReadingStatus.title}
                                 </b>
-                                <span style={{fontSize: '11.5px', color: '#b45309'}}>
-                                    {dailyReadingMissing.message}
+                                <span style={{
+                                    fontSize: '11.5px',
+                                    color: dailyReadingStatus.status === 'completed' ? '#166534' : '#b45309'
+                                }}>
+                                    {dailyReadingStatus.message}
                                 </span>
                             </div>
                         </div>
-                        <a
-                            href="/readings"
-                            style={{
-                                background: '#d97706',
+
+                        {dailyReadingStatus.status === 'completed' ? (
+                            <span style={{
+                                background: '#16a34a',
                                 color: '#ffffff',
-                                padding: '6px 12px',
+                                padding: '5px 12px',
                                 borderRadius: '6px',
-                                fontSize: '12px',
-                                fontWeight: 700,
-                                textDecoration: 'none',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px'
-                            }}
-                        >
-                            ➕ ડેઇલી એન્ટ્રી ભરો
-                        </a>
+                                fontSize: '11.5px',
+                                fontWeight: 700
+                            }}>
+                                કમ્પ્લીટ સેવ ✅
+                            </span>
+                        ) : (
+                            <a
+                                href="/readings"
+                                style={{
+                                    background: '#d97706',
+                                    color: '#ffffff',
+                                    padding: '6px 12px',
+                                    borderRadius: '6px',
+                                    fontSize: '12px',
+                                    fontWeight: 700,
+                                    textDecoration: 'none',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                }}
+                            >
+                                ➕ ડેઇલી એન્ટ્રી ભરો
+                            </a>
+                        )}
+                    </div>
+                )}
+
+                {/* 🚨 Past Days Missing Reading Alert (Shows exact missing dates) */}
+                {pastReadingMissing && pastReadingMissing.active && (
+                    <div style={{
+                        marginBottom: '12px',
+                        background: '#fef2f2',
+                        border: '1.5px solid #ef4444',
+                        borderRadius: '12px',
+                        padding: '12px 16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px'
+                    }}>
+                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px'}}>
+                            <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                                <div style={{
+                                    width: '38px',
+                                    height: '38px',
+                                    borderRadius: '10px',
+                                    background: '#fee2e2',
+                                    color: '#dc2626',
+                                    display: 'grid',
+                                    placeItems: 'center',
+                                    flexShrink: 0
+                                }}>
+                                    <AlertTriangle size={20}/>
+                                </div>
+                                <div>
+                                    <div style={{display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px'}}>
+                                        <span style={{
+                                            fontSize: '11px',
+                                            fontWeight: 800,
+                                            background: '#dc2626',
+                                            color: '#ffffff',
+                                            padding: '2px 7px',
+                                            borderRadius: '4px'
+                                        }}>
+                                            {pastReadingMissing.badge}
+                                        </span>
+                                        <b style={{fontSize: '13px', color: '#991b1b'}}>
+                                            {pastReadingMissing.title}
+                                        </b>
+                                    </div>
+                                    <span style={{fontSize: '11.5px', color: '#b91c1c'}}>
+                                        નીચેની તારીખનું ડેઇલી રીડિંગ સિસ્ટમમાં મળ્યું નથી (ભરવાનું બાકી છે):
+                                    </span>
+                                </div>
+                            </div>
+                            <a
+                                href="/readings"
+                                style={{
+                                    background: '#dc2626',
+                                    color: '#ffffff',
+                                    padding: '6px 12px',
+                                    borderRadius: '6px',
+                                    fontSize: '12px',
+                                    fontWeight: 700,
+                                    textDecoration: 'none',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                }}
+                            >
+                                ➕ બાકી રીડિંગ ભરો
+                            </a>
+                        </div>
+
+                        {/* List of Missing Past Dates with Company Details */}
+                        <div style={{display: 'flex', flexWrap: 'wrap', gap: '6px', paddingLeft: '48px'}}>
+                            {pastReadingMissing.missing_dates?.map((mDate, dIdx) => (
+                                <span key={dIdx} style={{
+                                    background: '#ffffff',
+                                    border: '1px solid #fca5a5',
+                                    color: '#991b1b',
+                                    padding: '4px 10px',
+                                    borderRadius: '6px',
+                                    fontSize: '11px',
+                                    fontWeight: 700
+                                }}>
+                                    📅 <b>{mDate.date_formatted}</b>: {mDate.companies_label}
+                                </span>
+                            ))}
+                        </div>
                     </div>
                 )}
 
