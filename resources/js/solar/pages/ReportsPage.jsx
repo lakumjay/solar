@@ -33,6 +33,8 @@ export default function ReportsPage({companyId, companies}) {
     const [error, setError] = useState('');
     const [weatherIssueData, setWeatherIssueData] = useState(null);
     const [weatherIssueLoading, setWeatherIssueLoading] = useState(false);
+    const [reportLoading, setReportLoading] = useState(false);
+    const [downloadingPdf, setDownloadingPdf] = useState(false);
     const [filterOnlyIssues, setFilterOnlyIssues] = useState(false);
     const [reportCompanyId, setReportCompanyId] = useState(companyId === 'all' ? String(companies[0]?.id || '') : String(companyId));
     const [meterColumns, setMeterColumns] = useState(COMPANY_REPORT_COLUMNS.map(([key]) => key));
@@ -40,7 +42,12 @@ export default function ReportsPage({companyId, companies}) {
     const [inverterIds, setInverterIds] = useState((selectedReportCompany?.inverters || []).map(inverter => String(inverter.id)));
     const load = () => {
         setError('');
-        api(`report?company_id=${companyId}&period=${period}&date_from=${from}&date_to=${to}`).then(setData).catch(error => setError(error.message));
+        setReportLoading(true);
+        api(`report?company_id=${companyId}&period=${period}&date_from=${from}&date_to=${to}`)
+            .then(setData)
+            .catch(error => setError(error.message))
+            .finally(() => setReportLoading(false));
+
         setWeatherIssueLoading(true);
         api(`report/weather-issue?company_id=${companyId}&date_from=${from}&date_to=${to}`)
             .then(setWeatherIssueData)
@@ -61,10 +68,41 @@ export default function ReportsPage({companyId, companies}) {
 
     const weatherIssueQuery = new URLSearchParams({company_id: companyId, date_from: from, date_to: to}).toString();
 
+    const handleDownloadPdf = async (e) => {
+        if (e) e.preventDefault();
+        setDownloadingPdf(true);
+        try {
+            const response = await fetch(`/api/report/export/weather-issue-pdf?${weatherIssueQuery}`, {
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/pdf',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content,
+                }
+            });
+            if (!response.ok) {
+                throw new Error('PDF ડાઉનલોડ નિષ્ફળ થયું (Status: ' + response.status + ')');
+            }
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `weather-issue-report-${from}-${to}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+        } catch (err) {
+            alert('PDF ડાઉનલોડ કરવામાં ભૂલ આવી: ' + (err.message || 'Error'));
+        } finally {
+            setDownloadingPdf(false);
+        }
+    };
+
     return <div className="reports-page">
         <section className="panel report-filter"><div className="segment">{[['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly']].map(([key, label]) => <button className={period === key ? 'active' : ''} onClick={() => setPeriod(key)} key={key}>{label}</button>)}</div><DatePicker label="From" value={from} onChange={setFrom}/><DatePicker label="To" value={to} onChange={setTo} align="right"/><button className="primary" onClick={load}>Apply</button></section>
         {error && <div className="error">{error}</div>}
-        {data && <>
+        {reportLoading && !data && <div className="panel" style={{textAlign: 'center', padding: '16px', color: '#0f766e', fontWeight: 600}}>રિપોર્ટ લોડ થઈ રહ્યો છે... (Loading Report...)</div>}
+        {(data || weatherIssueData || weatherIssueLoading) && <>
             {/* 🌧️ ⚡ Weather & Issue Analysis Report Panel with PDF Export */}
             <section className="panel weather-issue-panel" style={{border: '1.5px solid #0d9488', background: '#f0fdfa'}}>
                 <div className="panel-head" style={{alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px'}}>
@@ -91,8 +129,11 @@ export default function ReportsPage({companyId, companies}) {
                         )}
                     </div>
                     <div className="export-actions">
-                        <a
+                        <button
+                            type="button"
                             className="secondary weather-issue-pdf-btn"
+                            disabled={downloadingPdf}
+                            onClick={handleDownloadPdf}
                             style={{
                                 background: '#0f766e',
                                 color: '#ffffff',
@@ -103,18 +144,20 @@ export default function ReportsPage({companyId, companies}) {
                                 gap: '6px',
                                 padding: '8px 14px',
                                 borderRadius: '6px',
-                                textDecoration: 'none',
-                                cursor: 'pointer'
+                                cursor: downloadingPdf ? 'wait' : 'pointer'
                             }}
-                            href={`/api/report/export/weather-issue-pdf?${weatherIssueQuery}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
                         >
                             <FileText size={16}/>
-                            Weather / Issue Report (PDF)
-                        </a>
+                            {downloadingPdf ? 'PDF ડાઉનલોડ થઈ રહી છે...' : 'Weather / Issue Report (PDF)'}
+                        </button>
                     </div>
                 </div>
+
+                {weatherIssueLoading && !weatherIssueData && (
+                    <div style={{padding: '12px', textAlign: 'center', color: '#0f766e', fontSize: '11.5px', fontWeight: 600}}>
+                        વિશ્લેષણ ડેટા તૈયાર થઈ રહ્યો છે... (Analyzing Weather & Issues...)
+                    </div>
+                )}
 
                 {/* Table preview with interactive filter */}
                 {weatherIssueData?.rows?.length > 0 && (

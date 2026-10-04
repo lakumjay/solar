@@ -71,8 +71,8 @@
                 <th style="width: 13%;">Date</th>
                 <th style="width: 14%;">Units (kWh)</th>
                 <th style="width: 11%;">Status</th>
-                <th style="width: 32%;">Issue / Reason (કારણ)</th>
-                <th style="width: 30%;">Details / Analysis (વિગત)</th>
+                <th style="width: 32%;">Issue / Reason</th>
+                <th style="width: 30%;">Details / Root Cause</th>
             </tr>
         </thead>
         <tbody>
@@ -100,7 +100,7 @@
                         @endif
                     </td>
                     <td>
-                        <div class="reason-box">{{ $row['reason'] }}</div>
+                        <div class="reason-box">{{ $row['reason_en'] ?? $row['reason'] }}</div>
                         @if(!empty($row['inverters']) && count($row['inverters']) > 0)
                             <div class="inverter-tags">
                                 @foreach(array_slice($row['inverters'], 0, 4) as $inv)
@@ -110,7 +110,7 @@
                         @endif
                     </td>
                     <td>
-                        <div class="details-text">{{ $row['details'] }}</div>
+                        <div class="details-text">{{ $row['details_en'] ?? $row['details'] }}</div>
                     </td>
                 </tr>
             @empty

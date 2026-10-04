@@ -55,7 +55,7 @@ class User extends Authenticatable
         $defaults = [
             'company_admin' => ['view_dashboard', 'enter_readings', 'edit_readings', 'view_reports', 'manage_company_users', 'view_employees', 'manage_employees', 'view_attendance', 'approve_leaves', 'manage_attendance_settings', 'view_attendance_reports', 'record_employee_attendance', 'view_stock', 'manage_stock', 'issue_stock', 'return_stock', 'view_expenses'],
             'manager' => ['view_dashboard', 'view_employees', 'view_attendance', 'approve_leaves', 'view_attendance_reports', 'record_employee_attendance', 'view_stock', 'manage_stock', 'issue_stock', 'return_stock', 'view_expenses'],
-            'employee' => ['view_dashboard', 'clock_attendance', 'enter_readings', 'edit_readings', 'view_stock', 'manage_stock', 'issue_stock', 'return_stock'],
+            'employee' => ['view_dashboard', 'clock_attendance', 'enter_readings', 'edit_readings', 'view_reports', 'view_stock', 'manage_stock', 'issue_stock', 'return_stock'],
             'data_entry' => ['view_dashboard', 'enter_readings', 'edit_readings', 'view_reports', 'view_expenses'],
             'viewer' => ['view_dashboard', 'view_reports', 'view_expenses'],
         ];

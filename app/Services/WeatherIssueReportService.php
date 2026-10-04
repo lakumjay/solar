@@ -138,7 +138,9 @@ class WeatherIssueReportService
                 $statusLabel = 'Normal';
                 $badge = '🟢 સામાન્ય (Normal)';
                 $reason = 'સામાન્ય ઉત્પાદન (Clear Sunny Day)';
+                $reasonEn = 'Normal Generation (Clear Sunny Day)';
                 $details = 'બધા ઇન્વર્ટર અને પાવર ગ્રીડ સામાન્ય સ્થિતિમાં સંપૂર્ણ ચાલુ હતા.';
+                $detailsEn = 'All inverters and grid operated at normal full power capacity.';
             } else {
                 $lowDaysCount++;
                 $status = 'low';
@@ -147,28 +149,41 @@ class WeatherIssueReportService
                 if ($curtOnDate) {
                     $badge = "⚡ PGVCL {$curtOnDate->percentage}% કટ";
                     $reason = "⚡ PGVCL {$curtOnDate->percentage}% પાવર કટ (Curtailment)";
+                    $reasonEn = "PGVCL {$curtOnDate->percentage}% Grid Curtailment Order";
                     $lossMsg = $curtOnDate->total_lost_kwh > 0 ? " (અંદાજિત નુકસાન: ~{$curtOnDate->total_lost_kwh} kWh)" : "";
+                    $lossMsgEn = $curtOnDate->total_lost_kwh > 0 ? " (Est. Loss: ~{$curtOnDate->total_lost_kwh} kWh)" : "";
                     $details = "PGVCL Grid Curtailment આદેશ મુજબ પ્લાન્ટનું ઉત્પાદન {$curtOnDate->percentage}% ઘટાડેલું હતું.{$lossMsg}";
+                    $detailsEn = "Power generation reduced by {$curtOnDate->percentage}% as per PGVCL grid instructions.{$lossMsgEn}";
                 } elseif (!empty($deadInverters)) {
                     $badge = '🔌 ઇન્વર્ટર બંધ/ફોલ્ટ';
                     $reason = "🔌 " . implode(', ', $deadInverters) . " બંધ / ફોલ્ટ (Inverter Fault)";
+                    $reasonEn = "Inverter Offline / Tripped: " . implode(', ', $deadInverters);
                     $details = "ચોક્કસ ઇન્વર્ટર બંધ, ઑફલાઇન અથવા ટ્રિપ હોવાના કારણે દૈનિક ઉત્પાદનમાં મોટો ઘટાડો નોંધાયો.";
+                    $detailsEn = "Specific inverter was offline or tripped causing heavy generation loss.";
                 } elseif (!empty($lowInverters)) {
                     $badge = '🔌 ઇન્વર્ટર લો જનરેશન';
                     $reason = "🔌 " . implode(', ', $lowInverters) . " માં ઓછો પાવર";
+                    $reasonEn = "Low Output on Inverter: " . implode(', ', $lowInverters);
                     $details = "આ ઇન્વર્ટરમાં ટેકનિકલ ખામી અથવા સ્ટ્રિંગ ડિસ્કનેક્શનના કારણે ઓછું ઉત્પાદન થયું.";
+                    $detailsEn = "Technical issue or string disconnection resulted in reduced generation.";
                 } elseif ($dayTotalGen <= ($expectedDailyUnits * 0.35)) {
                     $badge = '🌧️ ભારે વરસાદ / વાદળ';
                     $reason = '🌧️ ભારે વરસાદ / વાદળછાયું વાતાવરણ (Rain & Dense Clouds)';
+                    $reasonEn = 'Heavy Rain & Dense Clouds (Weather Issue)';
                     $details = 'આકાશમાં ગાઢ વાદળો અને વરસાદ હોવાથી સૂર્યપ્રકાશ (Solar Irradiance) નહિવત રહ્યો હતો.';
+                    $detailsEn = 'Heavy rainfall and dense overcast sky significantly reduced solar irradiance.';
                 } elseif ($dayTotalGen <= ($expectedDailyUnits * 0.55)) {
                     $badge = '⛅ વાદળછાયું / ધૂંધળું';
                     $reason = '⛅ વાદળછાયું વાતાવરણ / ધૂંધળો તડકો (Cloudy Day)';
+                    $reasonEn = 'Cloudy & Overcast Sky (Weather Issue)';
                     $details = 'દિવસ દરમિયાન સૂર્યપ્રકાશ ઓછો અને વાદળો હોવાથી ઉત્પાદન ઓછું મળ્યું.';
+                    $detailsEn = 'Diffuse sunlight and scattered cloud cover reduced overall daily output.';
                 } else {
                     $badge = '🧼 પ્લેટો ધૂળ / ઓછો તડકો';
                     $reason = '🧼 પ્લેટો પર ધૂળ-માટી / ઓછો સૂર્યપ્રકાશ (Dust Loss)';
+                    $reasonEn = 'Dust on Solar Plates / Hazy Sky (Soiling Loss)';
                     $details = 'સોલાર પ્લેટો ગંદી હોવાના કારણે અથવા વાતાવરણમાં ધૂળના કારણે સૂર્યકિરણો ઓછા મળ્યા.';
+                    $detailsEn = 'Dust accumulation on solar panels or air haze reduced panel efficiency.';
                 }
             }
 
@@ -183,7 +198,9 @@ class WeatherIssueReportService
                 'status_label' => $statusLabel,
                 'badge' => $badge,
                 'reason' => $reason,
+                'reason_en' => $reasonEn,
                 'details' => $details,
+                'details_en' => $detailsEn,
                 'inverters' => $inverterBreakdown,
             ];
         }
