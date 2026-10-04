@@ -13,9 +13,15 @@ export default function DailyEntryPage({company, canEdit = true}) {
     const [message, setMessage] = useState(null);
     const [busy, setBusy] = useState(false);
     const [syncingCloud, setSyncingCloud] = useState(false);
-    const activeInverters = useMemo(() => company?.inverters.filter(inverter => inverter.active) || [], [company]);
-
     const [autoFetched, setAutoFetched] = useState(false);
+    const [saveSuccess, setSaveSuccess] = useState(false);
+
+    const activeInverters = useMemo(() => company?.inverters?.filter(inverter => inverter.active) || [], [company]);
+
+    // Calculate total inverter generation preview
+    const totalInverterGeneration = useMemo(() => {
+        return Object.values(outputs).reduce((acc, v) => acc + (parseFloat(v) || 0), 0).toFixed(2);
+    }, [outputs]);
 
     // Load existing readings or auto-fetch from cloud
     const loadDataForDate = async (targetDate) => {
@@ -86,8 +92,6 @@ export default function DailyEntryPage({company, canEdit = true}) {
     }, [company?.id, date]);
 
     if (!company) return <Empty title="Select a company" detail="Daily entries must belong to one company."/>;
-
-    const [saveSuccess, setSaveSuccess] = useState(false);
 
     // Soft audio chime on successful save
     const playSuccessChime = () => {
@@ -196,11 +200,6 @@ export default function DailyEntryPage({company, canEdit = true}) {
             setBusy(false);
         }
     };
-
-    // Calculate total inverter generation preview
-    const totalInverterGeneration = useMemo(() => {
-        return Object.values(outputs).reduce((acc, v) => acc + (parseFloat(v) || 0), 0).toFixed(2);
-    }, [outputs]);
 
     return <form className="entry" onSubmit={save}>
         <section className="panel entry-date" style={{borderRadius: '16px', background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(10px)'}}>
