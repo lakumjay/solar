@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\Company;
+use App\Models\DailyReading;
 use App\Models\Inverter;
+use App\Models\InverterMaintenanceLog;
 use App\Models\ISolarCloudToken;
 use App\Models\SolarCurtailment;
 use Carbon\Carbon;
@@ -568,10 +570,40 @@ class ISolarCloudService
                                 $allCleaningAlerts[] = $zeroAlertItem;
                             }
                         }
+
+                        // 3. Inverter High Heat Load & Overheating Alert
+                        $invRatedKw = (float) ($inv->capacity_kw ?: 100.0);
+                        $loadPct = $invRatedKw > 0 ? round(($liveKw / $invRatedKw) * 100, 1) : 0;
+                        $tempAmbient = (float) ($weatherData['temperature'] ?? 30.0);
+                        $estimatedInvTemp = round($tempAmbient + (($loadPct / 100.0) * 26.0), 1);
+                        if ($isOnline && ! $isInverterCurtailed && ($estimatedInvTemp >= 64.0 || ($loadPct >= 85.0 && $tempAmbient >= 35.0))) {
+                            $heatNoticeMessage = "{$company->name} ના {$inv->name} પર ભારે હીટ લોડ (~{$estimatedInvTemp}°C, {$loadPct}% લોડ) છે. કૂલિંગ ફેન જામ કે એર ફિલ્ટર જાળીમાં ધૂળ બ્લોક હોઈ શકે છે. સાઈટ પર ફેન ચેક કરો.";
+                            $heatAlertItem = [
+                                'type' => 'inverter_overheat',
+                                'badge' => '🔥 ઇન્વર્ટર હીટ એલર્ટ',
+                                'company_id' => $company->id,
+                                'company_name' => $company->name,
+                                'inverter_id' => $inv->id,
+                                'inverter_name' => $inv->name,
+                                'device_name' => $deviceName ?: $inv->name,
+                                'serial_number' => $inv->serial_number,
+                                'string_label' => "{$estimatedInvTemp}°C / {$loadPct}% લોડ",
+                                'temp_c' => $estimatedInvTemp,
+                                'load_pct' => $loadPct,
+                                'live_kw' => $liveKw,
+                                'title' => $heatNoticeMessage,
+                                'message' => $heatNoticeMessage,
+                                'strings' => [],
+                            ];
+                            $inverterAlerts[] = $heatAlertItem;
+                            $allCleaningAlerts[] = $heatAlertItem;
+                        }
                     }
                 } else {
                     $todayKwh = 0.0;
                     $liveKw = 0.0;
+                    $loadPct = 0;
+                    $estimatedInvTemp = null;
                     $isOnline = false;
                     $deviceName = $company->name . ' ' . $inv->name;
                     for ($s = 1; $s <= 16; $s++) {
@@ -602,6 +634,8 @@ class ISolarCloudService
                     'is_curtailed' => $isInverterCurtailed,
                     'today_kwh' => number_format($todayKwh, 2, '.', ''),
                     'live_kw' => number_format($liveKw, 2, '.', ''),
+                    'estimated_temp_c' => $estimatedInvTemp ?? null,
+                    'load_pct' => $loadPct ?? null,
                     'pv_strings' => array_values($pvStrings),
                     'cleaning_alerts' => $inverterAlerts,
                 ];
@@ -823,13 +857,13 @@ class ISolarCloudService
         }
 
         // ── 3. Grid Downtime & Revenue Loss Tracker ──
-        $isGridDown = (!$isNight && $currentHourFloat >= 8.0 && $currentHourFloat <= 17.5 && $totalOnline === 0 && $irradianceNow >= 250);
+        $isGridDown = (!$isNight && $currentHourFloat >= 8.5 && $currentHourFloat <= 17.5 && ($totalOnline === 0 || $totalLiveKw <= 0.2) && $irradianceNow >= 150);
         $downtimeMinutes = 0;
         $downtimeLostKwh = 0.0;
         $downtimeLostRs = 0.0;
+        $downKey = 'plant_grid_downtime_start_' . date('Y_m_d');
 
         if ($isGridDown) {
-            $downKey = 'plant_grid_downtime_start_' . date('Y_m_d');
             $startTimeUnix = Cache::get($downKey);
             if (!$startTimeUnix) {
                 $startTimeUnix = time();
@@ -838,6 +872,8 @@ class ISolarCloudService
             $downtimeMinutes = max(1, (int) round((time() - $startTimeUnix) / 60));
             $downtimeLostKwh = round(($downtimeMinutes / 60.0) * min(3000, ($irradianceNow / 850.0) * 2400.0), 1);
             $downtimeLostRs = round($downtimeLostKwh * $unitRate, 2);
+        } else {
+            Cache::forget($downKey);
         }
 
         $gridDowntimeTracker = [
@@ -849,8 +885,84 @@ class ISolarCloudService
             'message' => $isNight ? 'રાત્રિના સમયે ગ્રીડ ટ્રીપિંગ કે લોસ લાગુ થતો નથી.' : ($isGridDown ? "પ્લાન્ટ {$downtimeMinutes} મિનિટથી બંધ છે — અંદાજે ~{$downtimeLostKwh} યુનિટ્સ (₹{$downtimeLostRs} નું નુકસાન) થયું છે." : 'પ્લાન્ટ ગ્રીડ સાથે સક્રિય રીતે જોડાયેલો છે.'),
         ];
 
-        // ── 4. Cleaning Gain & ROI Tracker (Removed static fake calculation) ──
+        // ── 4. Cleaning Gain & ROI Tracker ──
         $cleaningRoiTracker = null;
+
+        // ── 5. System Smart Alerts Engine ──
+        // (A) Grid Outage Alert
+        $gridOutageAlert = [
+            'active' => $isGridDown,
+            'type' => 'grid_outage',
+            'badge' => '⚡ ગ્રીડ સપ્લાય બંધ',
+            'title' => '🚨 ગ્રીડ ટ્રીપિંગ / જેટકો પાવર આઉટેજ ડિટેક્ટ થયો!',
+            'message' => "બપોરે તડકો હોવા છતાં પ્લાન્ટમાં લાઈવ જનરેશન ૦ થઈ ગયું છે. વીજ કંપનીની મેઈન 11kV/66kV લાઇન ટ્રીપ થઈ હોવાની પૂરી શક્યતા છે.",
+            'downtime_minutes' => $downtimeMinutes,
+            'lost_units_kwh' => $downtimeLostKwh,
+            'lost_revenue_rs' => $downtimeLostRs,
+            'theme' => 'danger',
+        ];
+
+        // (B) Curtailment Reminders (Active >= 90 mins or afternoon >= 16:30)
+        $curtailmentReminders = [];
+        foreach ($activeCurtailments as $c) {
+            $startedAt = $c->started_at ?: $now;
+            $mins = max(1, (int) round($startedAt->diffInMinutes($now)));
+            if ($mins >= 90 || $currentHourFloat >= 16.5) {
+                $durHuman = $mins < 60 ? "{$mins} મિનિટ" : floor($mins / 60) . " કલાક " . ($mins % 60) . " મિનિટ";
+                $curtailmentReminders[] = [
+                    'id' => $c->id,
+                    'company_id' => $c->company_id,
+                    'company_name' => $c->company?->name ?? 'Solar Plant',
+                    'percentage' => (int) $c->percentage,
+                    'duration_minutes' => $mins,
+                    'duration_human' => $durHuman,
+                    'title' => "કર્ટેલમેન્ટ {$durHuman} થી સક્રિય છે!",
+                    'message' => "{$c->company?->name} માં {$c->percentage}% પાવર કટ લાંબા સમયથી સક્રિય છે. જો જેટકો તરફથી લાઇન ક્લિયર થઈ ગઈ હોય તો પાવર ૧૦૦% રિસ્ટોર કરો જેથી યુનિટ્સનું નુકસાન ન થાય.",
+                ];
+            }
+        }
+
+        // (C) Daily Reading Missing Alert (Evening >= 19:00 or Night)
+        $readingMissingAlert = null;
+        $todayDateStr = Carbon::today()->toDateString();
+        $enteredCompanyIds = DailyReading::whereDate('reading_date', $todayDateStr)->pluck('company_id')->toArray();
+        $missingCompanyModels = $companies->reject(fn($c) => in_array($c->id, $enteredCompanyIds))->values();
+        $isEveningOrNight = ($currentHourFloat >= 19.0 || $isNight);
+        if ($isEveningOrNight && $missingCompanyModels->isNotEmpty()) {
+            $missingNames = $missingCompanyModels->pluck('name')->implode(', ');
+            $readingMissingAlert = [
+                'active' => true,
+                'type' => 'daily_reading_missing',
+                'badge' => '⏰ રીડિંગ બાકી છે',
+                'title' => 'આજનું ડેઇલી રીડિંગ હજુ ભરાયું નથી!',
+                'message' => "સાંજે ૭:૦૦ વાગ્યા પછી {$missingNames} નું મીટર/ઇન્વર્ટર રીડિંગ ભરવાનું બાકી છે. કૃપા કરી તાત્કાલિક એન્ટ્રી પૂરી કરો.",
+                'missing_companies' => $missingCompanyModels->pluck('name')->toArray(),
+                'theme' => 'warning',
+            ];
+        }
+
+        // (D) Inverter Fan & Filter 10-Day Routine Cleaning Cycle
+        $lastFanCleanLog = InverterMaintenanceLog::where('maintenance_type', 'fan_dust_cleaning')->latest('cleaned_at')->first();
+        $lastCleanedDate = $lastFanCleanLog ? Carbon::parse($lastFanCleanLog->cleaned_at) : Carbon::today()->subDays(10);
+        $daysSinceClean = (int) $lastCleanedDate->diffInDays(Carbon::today());
+        $daysRemaining = max(0, 10 - $daysSinceClean);
+        $fanCleaningStatus = [
+            'last_cleaned_at' => $lastCleanedDate->format('d M Y'),
+            'days_since' => $daysSinceClean,
+            'days_remaining' => $daysRemaining,
+            'is_overdue' => $daysSinceClean >= 10,
+            'is_approaching' => ($daysSinceClean >= 8 && $daysSinceClean < 10),
+            'badge' => $daysSinceClean >= 10 ? '⚠️ ૧૦ દિવસ પૂરા (ફેન સાફ કરો)' : ($daysSinceClean >= 8 ? '🔔 ફેન ક્લિનિંગ નજીક છે' : '✅ ફેન ક્લિનિંગ ઓકે'),
+            'title' => $daysSinceClean >= 10
+                ? "ઇન્વર્ટર ફેન અને જાળી ક્લિનિંગ બાકી છે ({$daysSinceClean} દિવસ થયા)"
+                : ($daysSinceClean >= 8
+                    ? "ઇન્વર્ટર ફેન ક્લિનિંગ આગામી {$daysRemaining} દિવસમાં કરવું પડશે"
+                    : "ઇન્વર્ટર કૂલિંગ ફેન અને જાળી ક્લિયર છે ({$daysRemaining} દિવસ બાકી)"),
+            'message' => $daysSinceClean >= 10
+                ? "ઇન્વર્ટર કૂલિંગ ફેન અને એર ફિલ્ટર જાળીને ૧૦ દિવસથી વધુ સમય થઈ ગયો છે. બ્લોઅરથી ધૂળ (Dust) તાત્કાલિક સાફ કરો જેથી ઇન્વર્ટર ગરમ ન થાય અને બળે નહીં."
+                : "ઇન્વર્ટર ફેનની નિયમિત સફાઈ ૧૦-૧૦ દિવસે રાખવી જેથી ઇન્વર્ટરનું આયુષ્ય વધે અને પાવર લોસ ન થાય.",
+            'theme' => $daysSinceClean >= 10 ? 'danger' : ($daysSinceClean >= 8 ? 'warning' : 'success'),
+        ];
 
         // Time windows for predictions:
         $nextHour = $now->copy()->addHour();
@@ -871,6 +983,13 @@ class ISolarCloudService
             'longitude' => $lon,
             'unit_rate' => $unitRate,
             'total_revenue_rs' => number_format($totalRevenueRs, 2, '.', ''),
+            'system_alerts' => [
+                'grid_outage' => $gridOutageAlert,
+                'curtailment_reminders' => $curtailmentReminders,
+                'daily_reading_missing' => $readingMissingAlert,
+                'fan_cleaning' => $fanCleaningStatus,
+                'overheat_alerts' => array_values(array_filter($allCleaningAlerts, fn($a) => ($a['type'] ?? '') === 'inverter_overheat')),
+            ],
             'predictions' => [
                 'next_1h_kwh' => number_format($predictedNextHourKwh, 2, '.', ''),
                 'eod_units_kwh' => number_format($predictedEodKwh, 2, '.', ''),

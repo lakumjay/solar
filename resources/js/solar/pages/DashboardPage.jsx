@@ -113,6 +113,26 @@ export default function DashboardPage({companyId, currentUser}) {
         }
     };
 
+    const [cleaningFanLoading, setCleaningFanLoading] = useState(false);
+
+    const handleFanCleaned = async () => {
+        if (!confirm('શું તમે ઇન્વર્ટર કૂલિંગ ફેન અને જાળીની ધૂળ (Dust) બ્લોઅરથી સાફ કરી લીધી છે? આનાથી ૧૦ દિવસનું નવું સાઇકલ શરૂ થશે.')) {
+            return;
+        }
+        setCleaningFanLoading(true);
+        try {
+            await api('inverters/maintenance/fan-cleaned', {
+                method: 'POST',
+                body: JSON.stringify({ notes: 'કૂલિંગ ફેન અને જાળી બ્લોઅરથી સાફ કરવામાં આવી.' })
+            });
+            await fetchLiveSolar(true);
+        } catch (err) {
+            alert('Error: ' + (err.message || 'Failed'));
+        } finally {
+            setCleaningFanLoading(false);
+        }
+    };
+
     const fetchCurtailmentHistory = async () => {
         setHistoryLoading(true);
         setShowCurtailHistory(true);
@@ -344,6 +364,12 @@ export default function DashboardPage({companyId, currentUser}) {
     const cleaningRoi = smartInsights.cleaning_roi;
     const curtailmentSystem = data.curtailment_system || { is_any_active: false, active_list: [] };
     const activeCurtailments = curtailmentSystem.active_list || [];
+    const systemAlerts = data.system_alerts || {};
+    const gridOutageAlert = systemAlerts.grid_outage;
+    const curtailmentReminders = systemAlerts.curtailment_reminders || [];
+    const dailyReadingMissing = systemAlerts.daily_reading_missing;
+    const fanCleaningStatus = systemAlerts.fan_cleaning;
+    const overheatAlerts = systemAlerts.overheat_alerts || [];
 
     return (
         <div className="live-solar-container">
@@ -742,6 +768,194 @@ export default function DashboardPage({companyId, currentUser}) {
                     </div>
                 </div>
 
+                {/* ⏰ Daily Reading Missing Alert Card */}
+                {dailyReadingMissing && dailyReadingMissing.active && (
+                    <div style={{
+                        marginBottom: '12px',
+                        background: '#fffbeb',
+                        border: '1.5px solid #f59e0b',
+                        borderRadius: '12px',
+                        padding: '12px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '10px'
+                    }}>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                            <div style={{
+                                width: '38px',
+                                height: '38px',
+                                borderRadius: '10px',
+                                background: '#fef3c7',
+                                color: '#d97706',
+                                display: 'grid',
+                                placeItems: 'center',
+                                flexShrink: 0
+                            }}>
+                                <Clock size={20}/>
+                            </div>
+                            <div>
+                                <b style={{fontSize: '13px', color: '#92400e', display: 'block'}}>
+                                    ⏰ {dailyReadingMissing.title}
+                                </b>
+                                <span style={{fontSize: '11.5px', color: '#b45309'}}>
+                                    {dailyReadingMissing.message}
+                                </span>
+                            </div>
+                        </div>
+                        <a
+                            href="/readings"
+                            style={{
+                                background: '#d97706',
+                                color: '#ffffff',
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                textDecoration: 'none',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                            }}
+                        >
+                            ➕ ડેઇલી એન્ટ્રી ભરો
+                        </a>
+                    </div>
+                )}
+
+                {/* 🔔 Prolonged Curtailment Reminder Cards */}
+                {curtailmentReminders && curtailmentReminders.length > 0 && (
+                    <div style={{display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px'}}>
+                        {curtailmentReminders.map((cRem, rIdx) => (
+                            <div key={rIdx} style={{
+                                background: '#fff7ed',
+                                border: '1.5px solid #ea580c',
+                                borderRadius: '12px',
+                                padding: '12px 16px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                flexWrap: 'wrap',
+                                gap: '10px'
+                            }}>
+                                <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                                    <div style={{
+                                        width: '38px',
+                                        height: '38px',
+                                        borderRadius: '10px',
+                                        background: '#ffedd5',
+                                        color: '#ea580c',
+                                        display: 'grid',
+                                        placeItems: 'center',
+                                        flexShrink: 0
+                                    }}>
+                                        <AlertTriangle size={20}/>
+                                    </div>
+                                    <div>
+                                        <b style={{fontSize: '13px', color: '#9a3412', display: 'block'}}>
+                                            🔔 {cRem.title} ({cRem.company_name})
+                                        </b>
+                                        <span style={{fontSize: '11.5px', color: '#c2410c'}}>
+                                            {cRem.message}
+                                        </span>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => handleRestoreAll(cRem.company_id)}
+                                    style={{
+                                        background: '#ea580c',
+                                        color: '#ffffff',
+                                        border: 'none',
+                                        padding: '6px 12px',
+                                        borderRadius: '6px',
+                                        fontSize: '12px',
+                                        fontWeight: 700,
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    🟢 ૧૦૦% પાવર કરો (Restore)
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* 💨 10-Day Routine Inverter Fan & Filter Dust Cleaning Cycle Card */}
+                {fanCleaningStatus && (
+                    <div style={{
+                        marginBottom: '12px',
+                        background: fanCleaningStatus.is_overdue ? '#fef2f2' : fanCleaningStatus.is_approaching ? '#fffbeb' : '#f0fdf4',
+                        border: fanCleaningStatus.is_overdue ? '1.5px solid #ef4444' : fanCleaningStatus.is_approaching ? '1.5px solid #f59e0b' : '1px solid #86efac',
+                        borderRadius: '12px',
+                        padding: '12px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '10px'
+                    }}>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '10px', minWidth: '240px'}}>
+                            <div style={{
+                                width: '38px',
+                                height: '38px',
+                                borderRadius: '10px',
+                                background: fanCleaningStatus.is_overdue ? '#fee2e2' : fanCleaningStatus.is_approaching ? '#fef3c7' : '#dcfce7',
+                                color: fanCleaningStatus.is_overdue ? '#dc2626' : fanCleaningStatus.is_approaching ? '#d97706' : '#16a34a',
+                                display: 'grid',
+                                placeItems: 'center',
+                                flexShrink: 0
+                            }}>
+                                <Wind size={20}/>
+                            </div>
+                            <div>
+                                <div style={{display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px', flexWrap: 'wrap'}}>
+                                    <span style={{
+                                        fontSize: '11px',
+                                        fontWeight: 800,
+                                        background: fanCleaningStatus.is_overdue ? '#dc2626' : fanCleaningStatus.is_approaching ? '#d97706' : '#16a34a',
+                                        color: '#ffffff',
+                                        padding: '2px 7px',
+                                        borderRadius: '4px'
+                                    }}>
+                                        {fanCleaningStatus.badge}
+                                    </span>
+                                    <b style={{fontSize: '13px', color: fanCleaningStatus.is_overdue ? '#991b1b' : fanCleaningStatus.is_approaching ? '#92400e' : '#166534'}}>
+                                        {fanCleaningStatus.title}
+                                    </b>
+                                </div>
+                                <span style={{fontSize: '11.5px', color: fanCleaningStatus.is_overdue ? '#b91c1c' : fanCleaningStatus.is_approaching ? '#b45309' : '#15803d'}}>
+                                    {fanCleaningStatus.message} (છેલ્લી સફાઈ: <b>{fanCleaningStatus.last_cleaned_at}</b>)
+                                </span>
+                            </div>
+                        </div>
+                        <div>
+                            <button
+                                type="button"
+                                disabled={cleaningFanLoading}
+                                onClick={handleFanCleaned}
+                                style={{
+                                    background: fanCleaningStatus.is_overdue ? '#dc2626' : '#16a34a',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    padding: '7px 14px',
+                                    borderRadius: '6px',
+                                    fontSize: '12px',
+                                    fontWeight: 700,
+                                    cursor: cleaningFanLoading ? 'wait' : 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '5px'
+                                }}
+                            >
+                                <Check size={14}/>
+                                {cleaningFanLoading ? 'નોંધાઈ રહ્યું છે...' : '✅ ફેન સાફ થઈ ગયો (Done)'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* 🔌 PGVCL / DISCOM Grid Outage & Power Loss Tracker Card */}
                 {gridDowntime && (
                     <div style={{
@@ -865,8 +1079,8 @@ export default function DashboardPage({companyId, currentUser}) {
                     <div className="cleaning-alert-list-stacked" style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
                         {cleaningAlerts.map((alert, idx) => (
                             <div key={idx} style={{
-                                background: alert.type === 'winter_dew' ? '#f0f9ff' : alert.type === 'zero_current' ? '#fef2f2' : '#fffbeb',
-                                border: alert.type === 'winter_dew' ? '1.5px solid #38bdf8' : alert.type === 'zero_current' ? '1.5px solid #ef4444' : '1.5px solid #f59e0b',
+                                background: alert.type === 'winter_dew' ? '#f0f9ff' : alert.type === 'zero_current' ? '#fef2f2' : alert.type === 'inverter_overheat' ? '#fff1f2' : '#fffbeb',
+                                border: alert.type === 'winter_dew' ? '1.5px solid #38bdf8' : alert.type === 'zero_current' ? '1.5px solid #ef4444' : alert.type === 'inverter_overheat' ? '1.5px solid #f43f5e' : '1.5px solid #f59e0b',
                                 borderRadius: '12px',
                                 padding: '14px 16px',
                                 boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
@@ -874,7 +1088,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                 <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', marginBottom: '8px', borderBottom: '1px dashed #cbd5e1', paddingBottom: '6px'}}>
                                     <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                                         <span style={{
-                                            background: alert.type === 'winter_dew' ? '#0284c7' : alert.type === 'zero_current' ? '#dc2626' : '#d97706',
+                                            background: alert.type === 'winter_dew' ? '#0284c7' : alert.type === 'zero_current' ? '#dc2626' : alert.type === 'inverter_overheat' ? '#e11d48' : '#d97706',
                                             color: '#ffffff',
                                             fontWeight: 800,
                                             fontSize: '11px',
@@ -895,6 +1109,20 @@ export default function DashboardPage({companyId, currentUser}) {
                                 <p style={{margin: '0 0 8px', fontSize: '13px', color: '#1e293b', lineHeight: 1.5, fontWeight: 600}}>
                                     "{alert.message || alert.title}"
                                 </p>
+
+                                {alert.type === 'inverter_overheat' && (
+                                    <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '11px', marginTop: '4px'}}>
+                                        <span style={{background: '#ffe4e6', color: '#be123c', padding: '3px 8px', borderRadius: '4px', border: '1px solid #fecdd3', fontWeight: 700}}>
+                                            🌡️ અંદાજિત હીટ: {alert.temp_c}°C
+                                        </span>
+                                        <span style={{background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: '4px', border: '1px solid #fde68a', fontWeight: 700}}>
+                                            ⚡ લોડ: {alert.load_pct}% ({alert.live_kw} kW)
+                                        </span>
+                                        <span style={{background: '#fee2e2', color: '#991b1b', padding: '3px 8px', borderRadius: '4px', border: '1px solid #fca5a5', fontWeight: 700}}>
+                                            ⚠️ સાઇટ ચેકલિસ્ટ: કૂલિંગ ફેન અને ફિલ્ટર જાળી બ્લોઅરથી સાફ કરો
+                                        </span>
+                                    </div>
+                                )}
 
                                 {alert.healthy_avg > 0 && alert.worst_current !== undefined && (
                                     <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '11px'}}>
@@ -1065,6 +1293,16 @@ export default function DashboardPage({companyId, currentUser}) {
                                                     <b>
                                                         {inv.name}
                                                         {hasAlert && <span style={{color: '#dc2626', marginLeft: '5px', fontSize: '11px'}}>⚠️ સફાઈ</span>}
+                                                        {inv.estimated_temp_c !== null && inv.estimated_temp_c !== undefined && (
+                                                            <span style={{
+                                                                color: inv.estimated_temp_c >= 64 ? '#dc2626' : '#d97706',
+                                                                marginLeft: '6px',
+                                                                fontSize: '11px',
+                                                                fontWeight: 700
+                                                            }}>
+                                                                🌡️ {inv.estimated_temp_c}°C
+                                                            </span>
+                                                        )}
                                                     </b>
                                                     <small>SN: {inv.serial_number}</small>
                                                 </div>

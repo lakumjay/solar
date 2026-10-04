@@ -340,4 +340,42 @@ class ISolarCloudController extends Controller
             'longitude' => $lon,
         ]);
     }
+
+    /**
+     * Record Inverter Fan & Filter Dust Cleaning (10-day cycle).
+     */
+    public function recordFanCleaned(Request $request)
+    {
+        $user = $request->user();
+        $companyId = $request->input('company_id');
+        $inverterId = $request->input('inverter_id');
+        $notes = $request->input('notes');
+
+        $log = \App\Models\InverterMaintenanceLog::create([
+            'company_id' => $companyId ?: null,
+            'inverter_id' => $inverterId ?: null,
+            'user_id' => $user?->id,
+            'maintenance_type' => 'fan_dust_cleaning',
+            'cleaned_at' => now(),
+            'next_due_date' => now()->addDays(10)->toDateString(),
+            'performed_by_name' => $user?->name ?: 'Staff',
+            'notes' => $notes ?: 'કૂલિંગ ફેન અને ફિલ્ટર જાળી બ્લોઅર વડે સાફ કરવામાં આવી.',
+        ]);
+
+        $this->activity->log(
+            $user,
+            $companyId ? (int) $companyId : null,
+            'created',
+            'inverter_maintenance',
+            $log->id,
+            "ઇન્વર્ટર ફેન અને જાળી ક્લિનિંગ નોંધાયું (૧૦ દિવસનું નવું સાઇકલ શરૂ થયું)",
+            ['cleaned_at' => $log->cleaned_at, 'performed_by' => $log->performed_by_name]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'ઇન્વર્ટર ફેન ક્લિનિંગ સફળતાપૂર્વક નોંધાઈ ગયું! નવું ૧૦ દિવસનું સાઇકલ શરૂ થયું છે.',
+            'log' => $log,
+        ]);
+    }
 }

@@ -48,6 +48,7 @@ Route::prefix('api')->group(function () {
         Route::post('curtailments', [SolarCurtailmentController::class, 'store']);
         Route::post('curtailments/restore-all', [SolarCurtailmentController::class, 'restoreAll']);
         Route::delete('curtailments/{curtailment}', [SolarCurtailmentController::class, 'destroy']);
+        Route::post('inverters/maintenance/fan-cleaned', [ISolarCloudController::class, 'recordFanCleaned']);
         Route::post('isolarcloud/sync-daily', [ISolarCloudController::class, 'sync']);
         Route::get('plant-photos/tasks', [PlantPhotoController::class, 'tasks']);
         Route::post('plant-photos/tasks', [PlantPhotoController::class, 'saveTask']);
