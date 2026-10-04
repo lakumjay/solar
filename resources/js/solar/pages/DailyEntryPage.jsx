@@ -102,12 +102,19 @@ export default function DailyEntryPage({company, canEdit = true}) {
                 };
             });
 
+            // Safe meter readings: default blank to 0.00
+            const safeReadings = {};
+            METERS.forEach(([key]) => {
+                const val = readings[`${key}_reading`];
+                safeReadings[`${key}_reading`] = (val !== undefined && val !== '' && !isNaN(val)) ? parseFloat(val) : 0.00;
+            });
+
             const result = await api('readings', {
                 method: 'POST',
                 body: JSON.stringify({
                     company_id: company.id,
                     reading_date: date,
-                    ...readings,
+                    ...safeReadings,
                     outputs: safeOutputs,
                 }),
             });
@@ -222,10 +229,14 @@ export default function DailyEntryPage({company, canEdit = true}) {
                             min="0"
                             step="0.01"
                             inputMode="decimal"
+                            placeholder="0.00"
                             value={readings[`${key}_reading`] ?? ''}
                             onChange={event => setReadings({...readings, [`${key}_reading`]: event.target.value})}
-                            onBlur={event => setReadings(current => ({...current, [`${key}_reading`]: fixedTwo(event.target.value)}))}
-                            required
+                            onBlur={event => {
+                                if (event.target.value !== '') {
+                                    setReadings(current => ({...current, [`${key}_reading`]: fixedTwo(event.target.value)}));
+                                }
+                            }}
                         />
                     </Field>
                 ))}
@@ -235,7 +246,7 @@ export default function DailyEntryPage({company, canEdit = true}) {
         {message && <div className={message.type === 'success' ? 'success' : 'error'}>{message.text}</div>}
 
         <div className="form-actions">
-            <span>બધા ૪ મીટર રીડિંગ્સ ફરજિયાત છે.</span>
+            <span>મીટર રીડિંગ્સ (જો ઉપલબ્ધ હોય તો નાખો, વૈકલ્પિક)</span>
             <button className="primary" disabled={busy}>
                 {busy ? 'સેવ થઈ રહ્યું છે…' : existing ? 'અપડેટ કરો (Update & Recalculate)' : 'દૈનિક રીડિંગ સેવ કરો (Save Daily Reading)'}
             </button>

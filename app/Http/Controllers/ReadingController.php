@@ -59,9 +59,17 @@ class ReadingController extends Controller
             ->first();
 
         DB::transaction(function () use ($request, $data, $existing, &$reading) {
+            $meterFields = ['plant_import_reading', 'plant_export_reading', 'sub_import_reading', 'sub_export_reading'];
+            $cleanData = collect($data)->except('outputs');
+            foreach ($meterFields as $field) {
+                if (!isset($cleanData[$field]) || $cleanData[$field] === '' || $cleanData[$field] === null) {
+                    $cleanData[$field] = 0.00;
+                }
+            }
+
             $reading = DailyReading::updateOrCreate(
                 ['company_id' => $data['company_id'], 'reading_date' => $data['reading_date']],
-                collect($data)->except('outputs')->merge([
+                $cleanData->merge([
                     'created_by' => $existing?->created_by ?? $request->user()->id,
                     'updated_by' => $request->user()->id,
                 ])->all(),
