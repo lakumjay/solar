@@ -729,23 +729,23 @@ export default function AttendancePage({canCorrect, canRecord}) {
                         </span>
                     </div>
 
-                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '8px'}}>
+                    <div className="attendance-manual-grid">
                         <Field label="કર્મચારી (Employee)">
-                            <select value={manual.employee_id} onChange={event => changeManualEmployee(event.target.value)} required style={{padding: '7px 9px', fontSize: '12px'}}>
+                            <select value={manual.employee_id} onChange={event => changeManualEmployee(event.target.value)} required>
                                 {eligibleEmployees.map(employee => <option key={employee.id} value={employee.id}>{employee.employee_code} · {employee.name}</option>)}
                             </select>
                         </Field>
                         <Field label="હાજરી તારીખ (Date)">
-                            <input type="date" max={localDate()} value={manual.attendance_date} onChange={event => changeManualDate(event.target.value)} required style={{padding: '7px 9px', fontSize: '12px'}}/>
+                            <input type="date" max={localDate()} value={manual.attendance_date} onChange={event => changeManualDate(event.target.value)} required/>
                         </Field>
                         <Field label="આવવાનો સમય (Time In)">
-                            <input type="datetime-local" value={manual.clock_in_at} onChange={event => setManual({...manual, clock_in_at: event.target.value})} required style={{padding: '7px 9px', fontSize: '12px'}}/>
+                            <input type="datetime-local" value={manual.clock_in_at} onChange={event => setManual({...manual, clock_in_at: event.target.value})} required/>
                         </Field>
                         <Field label="જવાનો સમય (Time Out)">
-                            <input type="datetime-local" value={manual.clock_out_at} onChange={event => setManual({...manual, clock_out_at: event.target.value})} required style={{padding: '7px 9px', fontSize: '12px'}}/>
+                            <input type="datetime-local" value={manual.clock_out_at} onChange={event => setManual({...manual, clock_out_at: event.target.value})} required/>
                         </Field>
                         <Field label="બ્રેક મિનિટ (Break Min)">
-                            <input type="number" min="0" max="1439" value={manual.break_minutes} onChange={event => setManual({...manual, break_minutes: event.target.value})} required style={{padding: '7px 9px', fontSize: '12px'}}/>
+                            <input type="number" min="0" max="1439" value={manual.break_minutes} onChange={event => setManual({...manual, break_minutes: event.target.value})} required/>
                         </Field>
                         <Field label="હાજરી પૂરવાનું કારણ (Reason)">
                             <input
@@ -754,10 +754,9 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                 value={manual.entry_reason}
                                 onChange={event => setManual({...manual, entry_reason: event.target.value})}
                                 required
-                                style={{padding: '7px 9px', fontSize: '12px'}}
                             />
                         </Field>
-                        <div style={{gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px'}}>
+                        <div className="attendance-manual-fullrow">
                             <Field label="કામની વિગત (Work Done)">
                                 <textarea
                                     placeholder="આજે કરેલ કામ..."
@@ -765,7 +764,6 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                     onChange={event => setManual({...manual, work_done: event.target.value})}
                                     rows="2"
                                     required
-                                    style={{padding: '6px 8px', fontSize: '11.5px', minHeight: '50px'}}
                                 />
                             </Field>
                             <Field label="નવું શીખ્યા (Learned)">
@@ -775,7 +773,6 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                     onChange={event => setManual({...manual, learned: event.target.value})}
                                     rows="2"
                                     required
-                                    style={{padding: '6px 8px', fontSize: '11.5px', minHeight: '50px'}}
                                 />
                             </Field>
                         </div>

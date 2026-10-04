@@ -731,7 +731,7 @@ export default function MobileAppView({
             return {
                 themeClass: 'sky-theme-night',
                 label: 'OLED Midnight Standby',
-                labelGu: '🌙 રાત્રિ સ્ટેન્ડબાય મોડ',
+                labelGu: '⚡ પ્લાન્ટ સ્ટેન્ડબાય',
                 icon: '🌙'
             };
         }
@@ -956,7 +956,7 @@ export default function MobileAppView({
                                 title="ગુજરાતી પંચાંગ & કેલેન્ડર જોવા ટેપ કરો"
                             >
                                 <Calendar size={13} style={{color: '#15803d', flexShrink: 0}}/>
-                                <span style={{fontSize: '11px', fontWeight: 700, color: '#0f291e', whiteSpace: 'nowrap'}}>
+                                <span style={{fontSize: '11px', fontWeight: 700, color: '#0f291e', lineHeight: 1.2}}>
                                     {currentTime || new Date().toLocaleDateString('en-GB')} • {todayPanchang.dayNameGu} ({todayPanchang.tithiFull})
                                 </span>
                             </button>
@@ -1440,7 +1440,7 @@ export default function MobileAppView({
                                         {(data?.smart_insights?.cloud_vs_fault?.type === 'night_standby') ? '🌙' : '⚠️'}
                                     </span>
                                     {(data?.smart_insights?.cloud_vs_fault?.type === 'night_standby')
-                                        ? 'પ્લાન્ટ સ્માર્ટ સ્ટેટસ (રાત્રિ સ્લીપ મોડ)'
+                                        ? 'પ્લાન્ટ સ્માર્ટ સ્ટેટસ (સ્ટેન્ડબાય)'
                                         : 'પ્લાન્ટ સ્માર્ટ ડાયગ્નોસ્ટિક & સફાઈ એલર્ટ'}
                                     {!(data?.smart_insights?.cloud_vs_fault?.type === 'night_standby') && ((cleaningAlerts.length > 0) || (data?.smart_insights?.underperforming_inverters?.length > 0) || data?.smart_insights?.grid_downtime?.is_down) && (
                                         <span className="cleaning-head-badge">

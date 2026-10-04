@@ -5,7 +5,18 @@ import {METERS, today} from '../config';
 import {DatePicker, Empty, Field} from '../components/Common';
 import {fixedTwo} from '../format';
 
-export default function DailyEntryPage({company, companies = [], companyId, setCompanyId, user, canEdit = true}) {
+export default function DailyEntryPage({company: initialCompany, companies = [], companyId, setCompanyId, user, canEdit = true}) {
+    const validCompanies = useMemo(() => companies.filter(c => String(c.id) !== 'all'), [companies]);
+    const [selectedCompId, setSelectedCompId] = useState(() => {
+        if (initialCompany && String(initialCompany.id) !== 'all') return String(initialCompany.id);
+        if (validCompanies.length > 0) return String(validCompanies[0].id);
+        return '';
+    });
+
+    const company = useMemo(() => {
+        return validCompanies.find(c => String(c.id) === String(selectedCompId)) || initialCompany || validCompanies[0];
+    }, [validCompanies, selectedCompId, initialCompany]);
+
     const [date, setDate] = useState(today());
     const [readings, setReadings] = useState({});
     const [outputs, setOutputs] = useState({});
@@ -226,7 +237,7 @@ export default function DailyEntryPage({company, companies = [], companyId, setC
                                 key={comp.id}
                                 type="button"
                                 onClick={() => {
-                                    if (setCompanyId) setCompanyId(String(comp.id));
+                                    setSelectedCompId(String(comp.id));
                                 }}
                                 style={{
                                     padding: '6px 14px',
