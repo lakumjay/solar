@@ -54,6 +54,10 @@ class ReadingController extends Controller
             );
         }
 
+        $existing = DailyReading::where('company_id', $data['company_id'])
+            ->where('reading_date', $data['reading_date'])
+            ->first();
+
         DB::transaction(function () use ($request, $data, $existing, &$reading) {
             $reading = DailyReading::updateOrCreate(
                 ['company_id' => $data['company_id'], 'reading_date' => $data['reading_date']],
