@@ -146,11 +146,50 @@ class EmployeeLocationController extends Controller
             $latestLocations = collect();
         }
 
+        $todayDate = Carbon::today()->toDateString();
+        $todayLeaves = collect();
+        try {
+            $todayLeaves = \App\Models\LeaveRequest::with('leaveType')
+                ->whereIn('employee_id', $employeeIds)
+                ->whereDate('date_from', '<=', $todayDate)
+                ->whereDate('date_to', '>=', $todayDate)
+                ->get()
+                ->groupBy('employee_id');
+        } catch (\Throwable $e) {}
+
         $now = Carbon::now();
 
-        $results = $employees->map(function ($emp) use ($latestLocations, $now) {
+        $results = $employees->map(function ($emp) use ($latestLocations, $now, $todayLeaves) {
             $loc = $latestLocations->get($emp->id);
             $todayAttendance = $emp->attendanceRecords->first();
+            $leaveReq = $todayLeaves->get($emp->id)?->first();
+
+            $leaveInfo = null;
+            $currentHour = (float) $now->format('G') + ((float) $now->format('i') / 60);
+
+            if (!$todayAttendance) {
+                if ($leaveReq) {
+                    $isApproved = $leaveReq->status === 'approved';
+                    $leaveTypeTitle = $leaveReq->leaveType?->name ?? 'રજા';
+                    $leaveInfo = [
+                        'has_leave' => true,
+                        'is_approved' => $isApproved,
+                        'status' => $isApproved ? 'approved_leave' : 'unapproved_leave',
+                        'badge' => $isApproved ? '🌴 મંજૂર રજા (Approved)' : '⚠️ મંજૂરી વિના રજા',
+                        'message' => $isApproved
+                            ? "{$emp->user?->name ?? 'કર્મચારી'} આજે રજા પર છે (આજે રજા મંજૂર થયેલ છે - {$leaveTypeTitle})"
+                            : "{$emp->user?->name ?? 'કર્મચારી'} રજા પર છે (રજા અપ્રૂવલ લીધી નહોતી)",
+                    ];
+                } elseif ($currentHour >= 11.0) {
+                    $leaveInfo = [
+                        'has_leave' => true,
+                        'is_approved' => false,
+                        'status' => 'unapproved_absence',
+                        'badge' => '⚠️ રજા અપ્રૂવલ વગર (ગેરહાજર)',
+                        'message' => "{$emp->user?->name ?? 'કર્મચારી'} આજે ૧૧:૦૦ વાગ્યા સુધી હાજર થયા નથી (રજા અપ્રૂવલ લીધી નહોતી - રજા પર છે)",
+                    ];
+                }
+            }
 
             $lat = null;
             $lng = null;
@@ -248,6 +287,7 @@ class EmployeeLocationController extends Controller
                 'movement_icon' => $movementIcon,
                 'movement_label' => $movementLabel,
                 'recorded_at' => $recordedAt ? (is_string($recordedAt) ? $recordedAt : $recordedAt->toIso8601String()) : null,
+                'leave_info' => $leaveInfo,
                 'map_url' => $lat && $lng ? "https://www.google.com/maps?q={$lat},{$lng}" : null,
             ];
         });

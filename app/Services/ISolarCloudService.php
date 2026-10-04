@@ -391,7 +391,12 @@ class ISolarCloudService
                 $dp = ! empty($inv->serial_number) ? ($snMap[$inv->serial_number] ?? null) : null;
                 $pvStrings = [];
                 $inverterAlerts = [];
-                $isInverterCurtailed = $companyCurtailment && ! empty($companyCurtailment->inverter_ids) && in_array($inv->id, (array) $companyCurtailment->inverter_ids);
+                $curtInvIds = (array) ($companyCurtailment->inverter_ids ?? []);
+                $isInverterCurtailed = $companyCurtailment && (
+                    (empty($curtInvIds) && empty($companyCurtailment->pv_strings)) ||
+                    in_array($inv->id, $curtInvIds) ||
+                    in_array((string) $inv->id, $curtInvIds)
+                );
 
                 if ($dp) {
                     $isOnline = ($dp['dev_status'] ?? 0) === 1;
@@ -412,11 +417,22 @@ class ISolarCloudService
                     $deviceName = $dp['device_name'] ?? null;
 
                     // Parse PV String 1 to 16 currents (point IDs 70 to 85)
+                    $curtPvData = $companyCurtailment ? (array) ($companyCurtailment->pv_strings ?? []) : [];
                     $activeStringCurrents = [];
                     for ($s = 1; $s <= 16; $s++) {
                         $pKey = 'p' . (69 + $s);
                         $currentA = isset($dp[$pKey]) ? round((float) $dp[$pKey], 2) : 0.0;
-                        $isStrCurtailed = $isInverterCurtailed || ($companyCurtailment && ! empty($companyCurtailment->pv_strings) && in_array('PV' . $s, (array) $companyCurtailment->pv_strings));
+                        
+                        $isStrCurtailed = $isInverterCurtailed;
+                        if (! $isStrCurtailed && $companyCurtailment && ! empty($curtPvData)) {
+                            $invKey = (string) $inv->id;
+                            if (isset($curtPvData[$invKey]) || isset($curtPvData[$inv->id])) {
+                                $invPvs = (array) ($curtPvData[$invKey] ?? $curtPvData[$inv->id]);
+                                $isStrCurtailed = in_array('PV' . $s, $invPvs) || in_array('PV ' . $s, $invPvs) || in_array($s, $invPvs) || in_array((string) $s, $invPvs);
+                            } else {
+                                $isStrCurtailed = in_array('PV' . $s, $curtPvData) || in_array('PV ' . $s, $curtPvData) || in_array($s, $curtPvData) || in_array((string) $s, $curtPvData);
+                            }
+                        }
 
                         $pvStrings[$s] = [
                             'string_num' => $s,
@@ -833,17 +849,8 @@ class ISolarCloudService
             'message' => $isNight ? 'રાત્રિના સમયે ગ્રીડ ટ્રીપિંગ કે લોસ લાગુ થતો નથી.' : ($isGridDown ? "પ્લાન્ટ {$downtimeMinutes} મિનિટથી બંધ છે — અંદાજે ~{$downtimeLostKwh} યુનિટ્સ (₹{$downtimeLostRs} નું નુકસાન) થયું છે." : 'પ્લાન્ટ ગ્રીડ સાથે સક્રિય રીતે જોડાયેલો છે.'),
         ];
 
-        // ── 4. Cleaning Gain & ROI Tracker ──
-        $gainKwhToday = round($totalTodayKwh * 0.118, 1);
-        $gainRevenueRs = round($gainKwhToday * $unitRate, 2);
-        $cleaningRoiTracker = [
-            'gain_units_today' => $gainKwhToday,
-            'gain_revenue_today_rs' => $gainRevenueRs,
-            'gain_percentage' => 12.8,
-            'payback_text' => '૧.૫ દિવસમાં ધોવાનો ખર્ચ વસૂલ',
-            'title' => $isNight ? "પ્લેટો ધોવાથી આજનો ફાયદો: +{$gainKwhToday} Units (₹{$gainRevenueRs})" : "પ્લેટો ધોવાથી ફાયદો: +{$gainKwhToday} Units (₹{$gainRevenueRs})",
-            'message' => $isNight ? "પ્લેટો સાફ હોવાના કારણે આજના દિવસ દરમિયાન કુલ અંદાજે +{$gainKwhToday} વધારાના યુનિટ્સ (+₹{$gainRevenueRs} કમાણી) નો ફાયદો થયો." : "પ્લેટો સાફ હોવાના કારણે આજે અંદાજે +{$gainKwhToday} વધારાના યુનિટ્સ (+₹{$gainRevenueRs} વધારાની કમાણી) થઈ રહી છે.",
-        ];
+        // ── 4. Cleaning Gain & ROI Tracker (Removed static fake calculation) ──
+        $cleaningRoiTracker = null;
 
         // Time windows for predictions:
         $nextHour = $now->copy()->addHour();
@@ -894,7 +901,7 @@ class ISolarCloudService
                 'underperforming_inverters' => $underperformingInverters,
                 'cloud_vs_fault' => $cloudVsFault,
                 'grid_downtime' => $gridDowntimeTracker,
-                'cleaning_roi' => $cleaningRoiTracker,
+                'cleaning_roi' => null,
             ],
             'curtailment_system' => [
                 'is_any_active' => $activeCurtailments->isNotEmpty(),
@@ -906,12 +913,24 @@ class ISolarCloudService
                     $percentage = (int) $c->percentage;
                     $lostKwh = round(($companyCapacityKw * ($percentage / 100.0) * ($durationMinutes / 60.0) * 0.75), 1);
                     $lostRevenueRs = round($lostKwh * $unitRate, 2);
+
+                    $invNames = [];
+                    if ($c->company && $c->company->inverters) {
+                        $invMap = $c->company->inverters->keyBy('id');
+                        foreach ((array) ($c->inverter_ids ?? []) as $iId) {
+                            if (isset($invMap[$iId])) {
+                                $invNames[] = $invMap[$iId]->name;
+                            }
+                        }
+                    }
+
                     return [
                         'id' => $c->id,
                         'company_id' => $c->company_id,
                         'company_name' => $c->company?->name ?? 'Solar Company',
                         'percentage' => $percentage,
                         'inverter_ids' => $c->inverter_ids ?? [],
+                        'inverter_names' => $invNames,
                         'pv_strings' => $c->pv_strings ?? [],
                         'step_history' => $c->step_history ?? [],
                         'started_at_human' => $c->started_at?->format('h:i A'),

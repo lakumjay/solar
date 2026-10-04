@@ -37,6 +37,9 @@ class SolarCurtailmentController extends Controller
         $now = Carbon::now();
         $unitRate = 3.80; // ₹3.80 Rs per unit
 
+        $companyIds = $allRecords->pluck('company_id')->filter()->unique();
+        $inverterMap = \App\Models\Inverter::whereIn('company_id', $companyIds)->get()->keyBy('id');
+
         $activeCurtailments = [];
         $historyCurtailments = [];
 
@@ -58,6 +61,13 @@ class SolarCurtailmentController extends Controller
                 ? (float) $c->total_lost_revenue_rs
                 : round($lostKwh * $unitRate, 2);
 
+            $invNames = [];
+            foreach ((array) ($c->inverter_ids ?? []) as $iId) {
+                if (isset($inverterMap[$iId])) {
+                    $invNames[] = $inverterMap[$iId]->name;
+                }
+            }
+
             $dataItem = [
                 'id' => $c->id,
                 'company_id' => $c->company_id,
@@ -67,6 +77,7 @@ class SolarCurtailmentController extends Controller
                 'status' => $c->status,
                 'is_active' => $isActive,
                 'inverter_ids' => $c->inverter_ids ?? [],
+                'inverter_names' => $invNames,
                 'pv_strings' => $c->pv_strings ?? [],
                 'step_history' => $c->step_history ?? [],
                 'started_at' => $c->started_at?->toIso8601String(),
@@ -102,10 +113,79 @@ class SolarCurtailmentController extends Controller
     }
 
     /**
-     * Set or Step-Update Curtailment for a company
+     * Set or Step-Update Curtailment for a company or multiple companies
      */
     public function store(Request $request): JsonResponse
     {
+        $user = $request->user();
+        $now = Carbon::now();
+
+        // Check if multi-company payload was provided
+        if ($request->has('companies') && is_array($request->input('companies'))) {
+            $createdOrUpdated = [];
+            foreach ($request->input('companies') as $item) {
+                if (empty($item['company_id']) || empty($item['percentage'])) {
+                    continue;
+                }
+                $companyId = (int) $item['company_id'];
+                $percentage = (int) $item['percentage'];
+                $inverterIds = $item['inverter_ids'] ?? [];
+                $pvStrings = $item['pv_strings'] ?? [];
+                $notes = $item['notes'] ?? 'PGVCL Curtailment Order';
+
+                $existing = SolarCurtailment::where('company_id', $companyId)
+                    ->where('status', 'active')
+                    ->first();
+
+                if ($existing) {
+                    $history = $existing->step_history ?? [];
+                    $history[] = [
+                        'from_percentage' => $existing->percentage,
+                        'to_percentage' => $percentage,
+                        'changed_at' => $now->toIso8601String(),
+                        'changed_at_human' => $now->format('h:i A'),
+                        'changed_by' => $user?->name ?? 'Operator',
+                    ];
+                    $existing->update([
+                        'percentage' => $percentage,
+                        'inverter_ids' => $inverterIds ?: $existing->inverter_ids,
+                        'pv_strings' => $pvStrings ?: $existing->pv_strings,
+                        'step_history' => $history,
+                        'notes' => $notes ?: $existing->notes,
+                        'user_id' => $user?->id,
+                    ]);
+                    $createdOrUpdated[] = $existing;
+                } else {
+                    $initialHistory = [
+                        [
+                            'from_percentage' => 0,
+                            'to_percentage' => $percentage,
+                            'changed_at' => $now->toIso8601String(),
+                            'changed_at_human' => $now->format('h:i A'),
+                            'changed_by' => $user?->name ?? 'Operator',
+                        ]
+                    ];
+                    $createdOrUpdated[] = SolarCurtailment::create([
+                        'company_id' => $companyId,
+                        'user_id' => $user?->id,
+                        'percentage' => $percentage,
+                        'status' => 'active',
+                        'inverter_ids' => $inverterIds,
+                        'pv_strings' => $pvStrings,
+                        'step_history' => $initialHistory,
+                        'started_at' => $now,
+                        'notes' => $notes,
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => count($createdOrUpdated) . ' કંપનીઓ માટે PGVCL કર્ટલમેન્ટ સફળતાપૂર્વક સેટ થઈ ગયું છે.',
+                'curtailments' => $createdOrUpdated,
+            ]);
+        }
+
         $validated = $request->validate([
             'company_id' => 'required|exists:companies,id',
             'percentage' => 'required|integer|between:1,100',
@@ -114,10 +194,8 @@ class SolarCurtailmentController extends Controller
             'notes' => 'nullable|string|max:255',
         ]);
 
-        $user = $request->user();
         $companyId = (int) $validated['company_id'];
         $percentage = (int) $validated['percentage'];
-        $now = Carbon::now();
 
         // Check if there is an active curtailment for this company
         $existing = SolarCurtailment::where('company_id', $companyId)

@@ -305,6 +305,41 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                 </div>
                             </div>
 
+                            {/* 🌴/⚠️ Leave & Absence Notice (Past 11:00 AM or Leave Applied) */}
+                            {emp.leave_info && emp.leave_info.has_leave && (
+                                <div style={{
+                                    background: emp.leave_info.is_approved ? '#ecfdf5' : '#fffbeb',
+                                    border: emp.leave_info.is_approved ? '1.5px solid #86efac' : '1.5px solid #fde68a',
+                                    borderRadius: '10px',
+                                    padding: '8px 12px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    fontSize: '11.5px',
+                                    color: emp.leave_info.is_approved ? '#065f46' : '#92400e',
+                                    fontWeight: 700
+                                }}>
+                                    <span style={{fontSize: '15px'}}>{emp.leave_info.is_approved ? '🌴' : '⚠️'}</span>
+                                    <div style={{flex: 1}}>
+                                        <div>{emp.leave_info.message}</div>
+                                        <small style={{display: 'block', fontSize: '10px', opacity: 0.85, marginTop: '2px'}}>
+                                            {emp.leave_info.is_approved ? 'રજા મંજૂર થયેલ છે (Approved Leave)' : 'રજા અપ્રૂવલ લીધી નહોતી / ગેરહાજર'}
+                                        </small>
+                                    </div>
+                                    <span style={{
+                                        fontSize: '9.5px',
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        background: emp.leave_info.is_approved ? '#10b981' : '#f59e0b',
+                                        color: '#fff',
+                                        fontWeight: 800,
+                                        whiteSpace: 'nowrap'
+                                    }}>
+                                        {emp.leave_info.badge}
+                                    </span>
+                                </div>
+                            )}
+
                             {/* 🏍️ Movement / Activity Status Badge */}
                             <div style={{
                                 background: emp.movement === 'bike' ? '#fef3c7' : emp.movement === 'walking' ? '#e0f2fe' : '#f8faf9',
@@ -546,8 +581,16 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                     gap: '4px'
                                 }}>
                                     <span style={{fontSize: '16px'}}>⚪</span>
-                                    <b style={{color: '#475569'}}>કર્મચારી હાલમાં ઑફલાઇન છે</b>
-                                    <span style={{fontSize: '10.5px', color: '#94a3b8'}}>જ્યારે કર્મચારી એપ ઓપન કરશે ત્યારે જ તેમનો લાઈવ લોકેશન મેપ અહીં દેખાશે.</span>
+                                    <b style={{color: '#475569'}}>
+                                        {emp.leave_info && emp.leave_info.has_leave
+                                            ? (emp.leave_info.is_approved ? '🌴 આજે રજા મંજૂર થયેલ છે' : '⚠️ રજા અપ્રૂવલ લીધી નહોતી')
+                                            : 'કર્મચારી હાલમાં ઑફલાઇન છે'}
+                                    </b>
+                                    <span style={{fontSize: '10.5px', color: '#94a3b8'}}>
+                                        {emp.leave_info && emp.leave_info.has_leave
+                                            ? emp.leave_info.message
+                                            : 'જ્યારે કર્મચારી એપ ઓપન કરશે ત્યારે જ તેમનો લાઈવ લોકેશન મેપ અહીં દેખાશે.'}
+                                    </span>
                                 </div>
                             )}
                         </div>
@@ -562,6 +605,76 @@ export default function AttendancePage({canCorrect, canRecord}) {
 
         <section className="panel">
             <div className="panel-head attendance-list-head"><div><h2>Daily attendance</h2><p>Employee and audited manager-entered records.</p></div>{canRecord && <button type="button" className="primary" onClick={openManual}><Plus size={16}/> Add attendance</button>}</div>
+
+            {/* 🌴 Leaves and Absences Today Overview */}
+            {isToday && employees.filter(emp => emp.active && !emp.manager_attendance_only && !rows.some(r => String(r.employee_id) === String(emp.id) || String(r.employee?.id) === String(emp.id))).length > 0 && (
+                <div style={{
+                    margin: '0 0 16px 0',
+                    padding: '12px 14px',
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                }}>
+                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px'}}>
+                        <b style={{fontSize: '12.5px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px'}}>
+                            🌴 આજે રજા પર / હાજર ન થયેલા કર્મચારીઓ ({employees.filter(emp => emp.active && !emp.manager_attendance_only && !rows.some(r => String(r.employee_id) === String(emp.id) || String(r.employee?.id) === String(emp.id))).length})
+                        </b>
+                        <span style={{fontSize: '10.5px', color: '#64748b', fontWeight: 600}}>આજની સ્થિતિ (૧૧:૦૦ AM)</span>
+                    </div>
+                    <div style={{display: 'flex', flexDirection: 'column', gap: '6px'}}>
+                        {employees.filter(emp => emp.active && !emp.manager_attendance_only && !rows.some(r => String(r.employee_id) === String(emp.id) || String(r.employee?.id) === String(emp.id))).map(abs => {
+                            const liveEmp = displayLocations.find(l => String(l.employee_id) === String(abs.id));
+                            const leaveInfo = liveEmp?.leave_info || (abs.today_leave ? {
+                                has_leave: true,
+                                is_approved: abs.today_leave.is_approved,
+                                message: abs.today_leave.is_approved
+                                    ? `${abs.name} આજે રજા પર છે (આજે રજા મંજૂર થયેલ છે - ${abs.today_leave.leave_type})`
+                                    : `${abs.name} રજા પર છે (રજા અપ્રૂવલ લીધી નહોતી)`
+                            } : {
+                                has_leave: new Date().getHours() >= 11,
+                                is_approved: false,
+                                message: `${abs.name} આજે ૧૧:૦૦ વાગ્યા સુધી હાજર થયા નથી (રજા અપ્રૂવલ લીધી નહોતી - રજા પર છે)`
+                            });
+                            return (
+                                <div key={abs.id} style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '7px 12px',
+                                    borderRadius: '8px',
+                                    background: leaveInfo?.is_approved ? '#ecfdf5' : '#fffbeb',
+                                    border: leaveInfo?.is_approved ? '1px solid #a7f3d0' : '1px solid #fde68a',
+                                    fontSize: '11.5px',
+                                    color: leaveInfo?.is_approved ? '#065f46' : '#92400e',
+                                    fontWeight: 600,
+                                    flexWrap: 'wrap',
+                                    gap: '6px'
+                                }}>
+                                    <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                                        <span>{leaveInfo?.is_approved ? '🌴' : '⚠️'}</span>
+                                        <b>{abs.name} ({abs.employee_code}):</b>
+                                        <span>{leaveInfo?.message}</span>
+                                    </div>
+                                    <span style={{
+                                        fontSize: '10px',
+                                        padding: '2px 8px',
+                                        borderRadius: '4px',
+                                        fontWeight: 800,
+                                        background: leaveInfo?.is_approved ? '#10b981' : '#f59e0b',
+                                        color: '#fff'
+                                    }}>
+                                        {leaveInfo?.is_approved ? 'મંજૂર રજા' : 'મંજૂરી વિના'}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
             <div className="attendance-toolbar">
                 <DatePicker label="Attendance date" value={date} onChange={setDate}/>
                 <label><span>Employee</span><select value={employeeId} onChange={event => setEmployeeId(event.target.value)}><option value="">All employees</option>{employees.map(employee => <option key={employee.id} value={employee.id}>{employee.employee_code} · {employee.name}</option>)}</select></label>

@@ -277,8 +277,8 @@ export default function AppShell({user, page, setPage, companies, companyId, set
                                 )}
                             </div>
                             <span>
-                                <b>{activeCompany?.owner_name || user.name}</b>
-                                <small>{activeCompany?.owner_designation || user.role.replaceAll('_', ' ')}</small>
+                                <b>{user?.name || 'Super Admin'}</b>
+                                <small>{user?.role?.replaceAll('_', ' ')}{activeCompany?.owner_name ? ` (ઓનર: ${activeCompany.owner_name})` : ''}</small>
                             </span>
                         </div>
                         <nav>{navigation.map(([key, label, Icon]) => <button key={key} className={page === key ? 'nav active' : 'nav'} onClick={() => choosePage(key)}><Icon size={18}/><span>{label}</span><ChevronRight size={15}/></button>)}</nav>

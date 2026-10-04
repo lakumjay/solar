@@ -97,33 +97,80 @@ export default function MobileAppView({
     const [isSyncing, setIsSyncing] = useState(false);
     const [showCurtailModal, setShowCurtailModal] = useState(false);
     const [showCurtailHistory, setShowCurtailHistory] = useState(false);
-    const [curtailForm, setCurtailForm] = useState({
-        company_id: '',
-        percentage: 20,
-        inverter_ids: [],
-        pv_strings: [],
-        notes: 'PGVCL Order'
-    });
+    const [curtailConfigs, setCurtailConfigs] = useState({});
+    const [selectedCurtailCompIds, setSelectedCurtailCompIds] = useState([]);
+    const [curtailActiveTabId, setCurtailActiveTabId] = useState('');
+    const [isMultiCompanyMode, setIsMultiCompanyMode] = useState(false);
+    const [curtailExpandedInvs, setCurtailExpandedInvs] = useState({});
     const [curtailSaving, setCurtailSaving] = useState(false);
     const [curtailMessage, setCurtailMessage] = useState('');
     const [historyList, setHistoryList] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [inlineCustomPct, setInlineCustomPct] = useState({});
 
-    const openCurtailModal = (company = null, initialPct = 20) => {
-        const targetComp = company || (liveData?.companies && liveData.companies[0]);
-        const allInvs = targetComp?.inverters || [];
-        const invIds = allInvs.map(i => i.id);
-        const allStrings = [];
-        for (let s = 1; s <= 16; s++) allStrings.push('PV' + s);
+    const openCurtailModal = (targetCompany = null, initialPct = 20) => {
+        const availableComps = (liveData?.companies && liveData.companies.length > 0)
+            ? liveData.companies
+            : (companies || []);
 
-        setCurtailForm({
-            company_id: targetComp ? targetComp.company_id : (liveData?.companies?.[0]?.company_id || ''),
-            percentage: initialPct,
-            inverter_ids: invIds,
-            pv_strings: allStrings,
-            notes: 'PGVCL Curtailment Order'
+        const configs = {};
+        const chosenCompId = targetCompany
+            ? String(targetCompany.company_id || targetCompany.id)
+            : String(availableComps[0]?.company_id || availableComps[0]?.id || '');
+
+        availableComps.forEach(comp => {
+            const cId = String(comp.company_id || comp.id);
+            const inverters = (comp.inverters && comp.inverters.length > 0)
+                ? comp.inverters
+                : [
+                    { id: 1, name: 'Inverter 1' },
+                    { id: 2, name: 'Inverter 2' },
+                    { id: 3, name: 'Inverter 3' },
+                    { id: 4, name: 'Inverter 4' },
+                ];
+            
+            // Check if active curtailment already exists for this company
+            const activeCurt = activeCurtailments.find(a => String(a.company_id) === cId);
+            const pct = activeCurt ? activeCurt.percentage : initialPct;
+            
+            // Inverter IDs: active or all by default
+            const activeInvIds = activeCurt && activeCurt.inverter_ids && activeCurt.inverter_ids.length > 0
+                ? activeCurt.inverter_ids.map(Number)
+                : inverters.map(i => i.id);
+
+            // PV strings map per inverter: { [invId]: ['PV 10', 'PV 15'] }
+            const pvMap = {};
+            inverters.forEach(inv => {
+                if (activeCurt && activeCurt.pv_strings) {
+                    if (activeCurt.pv_strings[inv.id]) {
+                        pvMap[inv.id] = [...activeCurt.pv_strings[inv.id]];
+                    } else if (activeCurt.pv_strings[String(inv.id)]) {
+                        pvMap[inv.id] = [...activeCurt.pv_strings[String(inv.id)]];
+                    } else if (Array.isArray(activeCurt.pv_strings)) {
+                        pvMap[inv.id] = [...activeCurt.pv_strings];
+                    } else {
+                        pvMap[inv.id] = [];
+                    }
+                } else {
+                    pvMap[inv.id] = [];
+                }
+            });
+
+            configs[cId] = {
+                company_id: cId,
+                name: comp.name || comp.company_name,
+                percentage: pct,
+                inverter_ids: activeInvIds,
+                pv_strings: pvMap,
+                notes: activeCurt?.notes || 'PGVCL Curtailment Order',
+                inverters: inverters,
+            };
         });
+
+        setCurtailConfigs(configs);
+        setSelectedCurtailCompIds([chosenCompId]);
+        setCurtailActiveTabId(chosenCompId);
+        setIsMultiCompanyMode(false);
         setCurtailMessage('');
         setShowCurtailModal(true);
     };
@@ -132,12 +179,45 @@ export default function MobileAppView({
         if (e) e.preventDefault();
         setCurtailSaving(true);
         setCurtailMessage('');
+
         try {
-            const res = await api('curtailments', {
-                method: 'POST',
-                body: JSON.stringify(curtailForm),
-            });
-            setCurtailMessage(res.message || 'કર્ટલમેન્ટ સફળતાપૂર્વક સેટ થઈ ગયું છે.');
+            if (isMultiCompanyMode && selectedCurtailCompIds.length > 1) {
+                // Multi-company payload
+                const companiesPayload = selectedCurtailCompIds.map(cId => {
+                    const cfg = curtailConfigs[cId];
+                    return {
+                        company_id: Number(cId),
+                        percentage: Number(cfg.percentage),
+                        inverter_ids: cfg.inverter_ids,
+                        pv_strings: cfg.pv_strings,
+                        notes: cfg.notes || 'PGVCL Curtailment Order',
+                    };
+                });
+
+                const res = await api('curtailments', {
+                    method: 'POST',
+                    body: JSON.stringify({ companies: companiesPayload }),
+                });
+                setCurtailMessage(res.message || 'મલ્ટિ-કંપની કર્ટલમેન્ટ સફળતાપૂર્વક સેટ થઈ ગયું છે.');
+            } else {
+                // Single company payload
+                const activeCId = selectedCurtailCompIds[0] || curtailActiveTabId;
+                const cfg = curtailConfigs[activeCId];
+                if (!cfg) throw new Error('કંપની પસંદ કરવામાં આવી નથી.');
+
+                const res = await api('curtailments', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        company_id: Number(activeCId),
+                        percentage: Number(cfg.percentage),
+                        inverter_ids: cfg.inverter_ids,
+                        pv_strings: cfg.pv_strings,
+                        notes: cfg.notes || 'PGVCL Curtailment Order',
+                    }),
+                });
+                setCurtailMessage(res.message || 'કર્ટલમેન્ટ સફળતાપૂર્વક સેટ થઈ ગયું છે.');
+            }
+
             setTimeout(() => {
                 setShowCurtailModal(false);
                 setCurtailMessage('');
@@ -148,6 +228,88 @@ export default function MobileAppView({
         } finally {
             setCurtailSaving(false);
         }
+    };
+
+    const updateActiveCurtailConfig = (field, value) => {
+        setCurtailConfigs(prev => ({
+            ...prev,
+            [curtailActiveTabId]: {
+                ...prev[curtailActiveTabId],
+                [field]: value,
+            }
+        }));
+    };
+
+    const toggleCompanySelection = (cId) => {
+        setSelectedCurtailCompIds(prev => {
+            const exists = prev.includes(cId);
+            let updated;
+            if (exists) {
+                if (prev.length <= 1) return prev; // Keep at least one
+                updated = prev.filter(id => id !== cId);
+            } else {
+                updated = [...prev, cId];
+            }
+            if (!updated.includes(curtailActiveTabId)) {
+                setCurtailActiveTabId(updated[0]);
+            }
+            return updated;
+        });
+    };
+
+    const toggleCurtailInverterAccordion = (invId) => {
+        setCurtailExpandedInvs(prev => ({
+            ...prev,
+            [invId]: !prev[invId]
+        }));
+    };
+
+    const toggleInverterSelection = (invId) => {
+        const curCfg = curtailConfigs[curtailActiveTabId];
+        if (!curCfg) return;
+        const exists = curCfg.inverter_ids.includes(invId);
+        const newIds = exists
+            ? curCfg.inverter_ids.filter(id => id !== invId)
+            : [...curCfg.inverter_ids, invId];
+        updateActiveCurtailConfig('inverter_ids', newIds);
+    };
+
+    const toggleAllInverters = (selectAll) => {
+        const curCfg = curtailConfigs[curtailActiveTabId];
+        if (!curCfg) return;
+        const allInvIds = (curCfg.inverters || []).map(i => i.id);
+        updateActiveCurtailConfig('inverter_ids', selectAll ? allInvIds : []);
+    };
+
+    const togglePvString = (invId, stringLabel) => {
+        const curCfg = curtailConfigs[curtailActiveTabId];
+        if (!curCfg) return;
+        const currentStrings = curCfg.pv_strings[invId] || [];
+        const norm = (s) => String(s).replace(/\s+/g, '').toUpperCase();
+        const exists = currentStrings.some(s => norm(s) === norm(stringLabel));
+        const newStrings = exists
+            ? currentStrings.filter(s => norm(s) !== norm(stringLabel))
+            : [...currentStrings, stringLabel];
+        
+        updateActiveCurtailConfig('pv_strings', {
+            ...curCfg.pv_strings,
+            [invId]: newStrings,
+        });
+    };
+
+    const toggleAllPvsForInverter = (invId, selectAll) => {
+        const curCfg = curtailConfigs[curtailActiveTabId];
+        if (!curCfg) return;
+        let newStrings = [];
+        if (selectAll) {
+            for (let s = 1; s <= 16; s++) newStrings.push('PV ' + s);
+        } else {
+            newStrings = [];
+        }
+        updateActiveCurtailConfig('pv_strings', {
+            ...curCfg.pv_strings,
+            [invId]: newStrings,
+        });
     };
 
     const handleQuickStepChange = async (targetCompanyId, newPercentage) => {
@@ -494,7 +656,7 @@ export default function MobileAppView({
                         {activeCompany?.owner_photo_url ? (
                             <img src={activeCompany.owner_photo_url} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}}/>
                         ) : (
-                            activeCompany?.owner_name ? activeCompany.owner_name.slice(0, 1).toUpperCase() : (user.name ? user.name.slice(0, 1).toUpperCase() : <User size={16}/>)
+                            user?.name ? user.name.slice(0, 1).toUpperCase() : <User size={16}/>
                         )}
                     </div>
                 </div>
@@ -772,6 +934,70 @@ export default function MobileAppView({
                                             }}>
                                                 -{curt.lost_kwh} kWh (~₹{curt.lost_revenue_rs})
                                             </span>
+                                        </div>
+
+                                        {/* Inverter & PV String Details on Card */}
+                                        <div style={{marginTop: '6px', background: '#fff7ed', borderRadius: '6px', padding: '6px 8px', border: '1px dashed #fed7aa', fontSize: '11px'}}>
+                                            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', flexWrap: 'wrap'}}>
+                                                <div style={{display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap'}}>
+                                                    <span style={{color: '#9a3412', fontWeight: 700}}>🔌 બંધ ઇન્વર્ટર:</span>
+                                                    <b style={{color: '#1e293b'}}>{curt.inverter_names && curt.inverter_names.length > 0 ? curt.inverter_names.join(', ') : 'તમામ ઇન્વર્ટર'}</b>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const targetComp = (liveData?.companies || companies || []).find(c => String(c.company_id || c.id) === String(curt.company_id));
+                                                        openCurtailModal(targetComp, curt.percentage);
+                                                    }}
+                                                    style={{
+                                                        background: '#ffedd5',
+                                                        color: '#9a3412',
+                                                        border: '1px solid #fdba74',
+                                                        borderRadius: '4px',
+                                                        padding: '2px 7px',
+                                                        fontSize: '10px',
+                                                        fontWeight: 700,
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    ✏️ બદલો (PV/ઇન્વર્ટર)
+                                                </button>
+                                            </div>
+
+                                            {/* If specific PV strings */}
+                                            {(() => {
+                                                let pvChips = [];
+                                                if (curt.pv_strings) {
+                                                    if (Array.isArray(curt.pv_strings)) {
+                                                        pvChips = curt.pv_strings;
+                                                    } else if (typeof curt.pv_strings === 'object') {
+                                                        Object.entries(curt.pv_strings).forEach(([invId, pvs]) => {
+                                                            if (Array.isArray(pvs)) {
+                                                                pvs.forEach(p => {
+                                                                    if (!pvChips.includes(p)) pvChips.push(p);
+                                                                });
+                                                            }
+                                                        });
+                                                    }
+                                                }
+                                                if (pvChips.length > 0) {
+                                                    return (
+                                                        <div style={{display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap', marginTop: '4px'}}>
+                                                            <span style={{color: '#c2410c', fontWeight: 700}}>⚡ બંધ PV:</span>
+                                                            {pvChips.map((pv, pIdx) => (
+                                                                <span key={pIdx} style={{background: '#ea580c', color: '#fff', fontSize: '9.5px', fontWeight: 800, padding: '1px 5px', borderRadius: '3px'}}>
+                                                                    {pv}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    );
+                                                }
+                                                return (
+                                                    <div style={{marginTop: '2px', fontSize: '10px', color: '#7c2d12', fontWeight: 600}}>
+                                                        (પસંદ કરેલ ઇન્વર્ટરના તમામ PV સ્ટ્રિંગ્સ પર લાગુ)
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
 
                                         {/* Step Control Buttons on Mobile */}
@@ -1059,21 +1285,29 @@ export default function MobileAppView({
                             </div>
                         )}
 
-                        {/* 🧼 Cleaning Gain & ROI Tracker Card in Mobile */}
-                        {data?.smart_insights?.cleaning_roi && (
-                            <div className="cleaning-roi-card" style={{marginBottom: '8px'}}>
-                                <div className="cleaning-roi-left">
-                                    <span className="cleaning-roi-badge">🧼 {data.smart_insights.cleaning_roi.payback_text}</span>
-                                    <div className="cleaning-roi-text">
-                                        <b>{data.smart_insights.cleaning_roi.title}:</b> <span>{data.smart_insights.cleaning_roi.message}</span>
+                        {/* ⚠️ Serious Problem Alerts Group: Red Inverter Underperformance + Yellow PV Cleaning Alerts stacked together */}
+                        {cleaningAlerts.length > 0 ? (
+                            <div className="cleaning-alert-list-stacked" style={{marginBottom: '8px'}}>
+                                {cleaningAlerts.map((alert, idx) => (
+                                    <div key={idx} className="cleaning-banner-card">
+                                        <div className="cleaning-banner-title">
+                                            <span style={{color: '#dc2626'}}>⚠️</span>
+                                            <span>"{alert.title}"</span>
+                                        </div>
+                                        <div className="cleaning-banner-pills-row" style={{paddingLeft: '6px', marginTop: '4px'}}>
+                                            <span className="pill-healthy-baseline">
+                                                સામાન્ય કરંટ: {alert.healthy_avg} A
+                                            </span>
+                                            {alert.strings && alert.strings.map((str, sIdx) => (
+                                                <span key={sIdx} className="pill-problem-string">
+                                                    {str.string_label}: {str.current_a} A ({str.drop_pct}% પાવર લોસ - ધોવાની જરૂર)
+                                                </span>
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="cleaning-roi-stat">
-                                    <span>+{data.smart_insights.cleaning_roi.gain_percentage}%</span>
-                                    <small>વધારો</small>
-                                </div>
+                                ))}
                             </div>
-                        )}
+                        ) : null}
 
                         {/* 🚿 Smart Plate Washing Advice Banner in Mobile */}
                         {cleaningSystem.washing_advice && (
@@ -1121,28 +1355,7 @@ export default function MobileAppView({
                             </div>
                         )}
 
-                        {cleaningAlerts.length > 0 ? (
-                            <div className="cleaning-alert-list-stacked">
-                                {cleaningAlerts.map((alert, idx) => (
-                                    <div key={idx} className="cleaning-banner-card">
-                                        <div className="cleaning-banner-title">
-                                            <span style={{color: '#dc2626'}}>⚠️</span>
-                                            <span>"{alert.title}"</span>
-                                        </div>
-                                        <div className="cleaning-banner-pills-row" style={{paddingLeft: '6px', marginTop: '4px'}}>
-                                            <span className="pill-healthy-baseline">
-                                                સામાન્ય કરંટ: {alert.healthy_avg} A
-                                            </span>
-                                            {alert.strings && alert.strings.map((str, sIdx) => (
-                                                <span key={sIdx} className="pill-problem-string">
-                                                    {str.string_label}: {str.current_a} A ({str.drop_pct}% પાવર લોસ - ધોવાની જરૂર)
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
+                        {cleaningAlerts.length === 0 && (!data?.smart_insights?.underperforming_inverters || data.smart_insights.underperforming_inverters.length === 0) && (
                             <div className="cleaning-ok-banner">
                                 <CheckCircle size={17} style={{color: '#16a34a', flexShrink: 0}}/>
                                 <span>
@@ -1628,15 +1841,24 @@ export default function MobileAppView({
                                 {activeCompany?.owner_photo_url ? (
                                     <img src={activeCompany.owner_photo_url} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}}/>
                                 ) : (
-                                    activeCompany?.owner_name ? activeCompany.owner_name.slice(0, 1).toUpperCase() : (user.name ? user.name.slice(0, 1).toUpperCase() : 'U')
+                                    user?.name ? user.name.slice(0, 1).toUpperCase() : 'U'
                                 )}
                             </div>
                             <div className="drawer-user-info">
                                 <h4>
-                                    {activeCompany?.owner_name || user.name}
+                                    {user?.name || 'Super Admin'}
                                     <small style={{fontSize: '11px', color: '#f59e0b', marginLeft: '6px', fontWeight: 800}}>👑 VIP</small>
                                 </h4>
-                                <p>{activeCompany?.owner_designation || user.role?.replace('_', ' ')} · {displayName}</p>
+                                <p>
+                                    <span style={{background: '#e0f2fe', color: '#0369a1', padding: '1px 5px', borderRadius: '4px', fontWeight: 700, fontSize: '10.5px'}}>
+                                        {user?.role === 'super_admin' ? 'Super Admin' : (user?.role?.replace('_', ' ') || 'User')}
+                                    </span>
+                                    {activeCompany?.owner_name && (
+                                        <span style={{marginLeft: '6px', color: '#64748b', fontSize: '11px'}}>
+                                            · ઓનર: {activeCompany.owner_name}
+                                        </span>
+                                    )}
+                                </p>
                             </div>
                             <button type="button" className="drawer-close-btn" onClick={() => setMoreMenuOpen(false)}>
                                 <X size={18}/>
@@ -1806,248 +2028,684 @@ export default function MobileAppView({
             )}
 
             {/* ⚡ PGVCL Curtailment Setup Modal for Mobile */}
-            {showCurtailModal && (
-                <div className="solar-modal-backdrop" onClick={() => setShowCurtailModal(false)}>
-                    <div className="solar-compact-modal" onClick={e => e.stopPropagation()} style={{maxWidth: '460px', width: '92%'}}>
-                        <div className="solar-modal-head" style={{background: '#fff7ed', borderBottom: '1px solid #fed7aa', padding: '12px 14px'}}>
-                            <h3 style={{display: 'flex', alignItems: 'center', gap: '6px', color: '#9a3412', fontSize: '14px', margin: 0}}>
-                                <Sliders size={16} style={{color: '#ea580c'}}/>
-                                PGVCL પાવર ઘટાડો સેટ કરો (Curtailment)
-                            </h3>
-                            <button
-                                type="button"
-                                className="icon-button ghost"
-                                onClick={() => setShowCurtailModal(false)}
-                                style={{background: 'transparent', border: 'none', cursor: 'pointer'}}
-                            >
-                                <X size={18}/>
-                            </button>
-                        </div>
+            {showCurtailModal && (() => {
+                const activeCfg = curtailConfigs[curtailActiveTabId] || Object.values(curtailConfigs)[0];
+                const availableComps = (liveData?.companies && liveData.companies.length > 0)
+                    ? liveData.companies
+                    : (companies || []);
 
-                        <form onSubmit={handleSaveCurtailment}>
-                            <div className="solar-modal-body" style={{padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px'}}>
-                                <div style={{
-                                    background: '#fffbeb',
-                                    border: '1px solid #fef3c7',
-                                    borderRadius: '8px',
-                                    padding: '8px 10px',
-                                    fontSize: '11px',
-                                    color: '#92400e',
-                                    lineHeight: '1.4'
-                                }}>
-                                    💡 <b>PGVCL આદેશ મુજબ:</b> જ્યારે PGVCL તરફથી ઉત્પાદન ઘટાડવાની સૂચના મળે, ત્યારે અહીંથી ટકાવારી સેટ કરો.
+                return (
+                    <div className="solar-modal-backdrop" onClick={() => setShowCurtailModal(false)}>
+                        <div className="solar-compact-modal" onClick={e => e.stopPropagation()} style={{maxWidth: '480px', width: '95%', maxHeight: '90vh', display: 'flex', flexDirection: 'column'}}>
+                            {/* Modal Header */}
+                            <div className="solar-modal-head" style={{background: '#fff7ed', borderBottom: '1px solid #fed7aa', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                                <div>
+                                    <h3 style={{display: 'flex', alignItems: 'center', gap: '6px', color: '#9a3412', fontSize: '14px', margin: 0, fontWeight: 800}}>
+                                        <Sliders size={16} style={{color: '#ea580c'}}/>
+                                        PGVCL પાવર ઘટાડો સેટ કરો (Curtailment)
+                                    </h3>
+                                    <span style={{fontSize: '11px', color: '#7c2d12', marginTop: '2px', display: 'block'}}>
+                                        ઇન્વર્ટર અને PV સ્ટ્રિંગ લેવલ સિલેક્શન
+                                    </span>
                                 </div>
+                                <button
+                                    type="button"
+                                    className="icon-button ghost"
+                                    onClick={() => setShowCurtailModal(false)}
+                                    style={{background: 'transparent', border: 'none', cursor: 'pointer'}}
+                                >
+                                    <X size={18}/>
+                                </button>
+                            </div>
 
-                                <div className="solar-field-group">
-                                    <label style={{display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#334155', marginBottom: '4px'}}>
-                                        કંપની / પ્લાન્ટ પસંદ કરો:
-                                    </label>
-                                    <select
-                                        value={curtailForm.company_id}
-                                        onChange={e => {
-                                            const compId = e.target.value;
-                                            const comp = (liveData?.companies || []).find(c => String(c.company_id) === String(compId));
-                                            const invIds = (comp?.inverters || []).map(i => i.id);
-                                            setCurtailForm(prev => ({
-                                                ...prev,
-                                                company_id: compId,
-                                                inverter_ids: invIds
-                                            }));
-                                        }}
-                                        style={{width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #cbd5e1', fontSize: '13px'}}
-                                    >
-                                        {(liveData?.companies || companies || []).map(c => (
-                                            <option key={c.company_id || c.id} value={c.company_id || c.id}>
-                                                {c.name || c.company_name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div className="solar-field-group">
-                                    <label style={{display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#334155', marginBottom: '4px'}}>
-                                        કેટલા ટકા (%) કર્ટલમેન્ટ કરવું છે? (કસ્ટમ ટકા લખો અથવા બટન દબાવો)
-                                    </label>
-                                    <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px'}}>
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            max="100"
-                                            value={curtailForm.percentage}
-                                            onChange={e => setCurtailForm(prev => ({ ...prev, percentage: Math.min(100, Math.max(1, parseInt(e.target.value) || 0)) }))}
-                                            required
-                                            style={{width: '80px', padding: '6px 8px', borderRadius: '7px', border: '2px solid #ea580c', fontSize: '15px', fontWeight: 800, color: '#9a3412', textAlign: 'center'}}
-                                        />
-                                        <span style={{fontSize: '12px', fontWeight: 800, color: '#ea580c'}}>% ક્ષમતા બંધ (Curtailment)</span>
+                            <form onSubmit={handleSaveCurtailment} style={{display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden'}}>
+                                <div className="solar-modal-body" style={{padding: '12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', flex: 1}}>
+                                    {/* PGVCL Hint Banner */}
+                                    <div style={{
+                                        background: '#fffbeb',
+                                        border: '1px solid #fef3c7',
+                                        borderRadius: '8px',
+                                        padding: '8px 10px',
+                                        fontSize: '11px',
+                                        color: '#92400e',
+                                        lineHeight: '1.4'
+                                    }}>
+                                        💡 <b>PGVCL નિયમ:</b> જે PV સ્ટ્રિંગ અથવા ઇન્વર્ટર બંધ કરશો, તેના પર ધૂળ/કચરાની ખોટી ચેતવણી (Dust Alert) આપોઆપ બંધ થઈ જશે.
                                     </div>
-                                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '5px'}}>
-                                        {[80, 50, 40, 30, 25, 22, 20, 15, 10, 5].map(pct => {
-                                            const isSel = Number(curtailForm.percentage) === pct;
+
+                                    {/* 1. Company Mode Switch (Single vs Multi) */}
+                                    <div style={{background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0'}}>
+                                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px'}}>
+                                            <span style={{fontSize: '11.5px', fontWeight: 800, color: '#334155'}}>
+                                                🏢 કંપની પસંદગી:
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const nextMode = !isMultiCompanyMode;
+                                                    setIsMultiCompanyMode(nextMode);
+                                                    if (nextMode) {
+                                                        const compIds = availableComps.map(c => String(c.company_id || c.id));
+                                                        setSelectedCurtailCompIds(compIds.slice(0, Math.min(2, compIds.length)));
+                                                    } else {
+                                                        setSelectedCurtailCompIds([curtailActiveTabId]);
+                                                    }
+                                                }}
+                                                style={{
+                                                    fontSize: '11px',
+                                                    padding: '3px 8px',
+                                                    borderRadius: '5px',
+                                                    border: isMultiCompanyMode ? '1.5px solid #ea580c' : '1px solid #cbd5e1',
+                                                    background: isMultiCompanyMode ? '#ffedd5' : '#ffffff',
+                                                    color: isMultiCompanyMode ? '#c2410c' : '#64748b',
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                {isMultiCompanyMode ? '✅ બહુવિધ કંપનીઓ (Multi-Company)' : '➕ બહુવિધ કંપનીઓ પસંદ કરો'}
+                                            </button>
+                                        </div>
+
+                                        {isMultiCompanyMode ? (
+                                            <div>
+                                                <div style={{fontSize: '10.5px', color: '#64748b', marginBottom: '6px'}}>
+                                                    બંને કે તેથી વધુ કંપનીઓ પસંદ કરો:
+                                                </div>
+                                                <div style={{display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px'}}>
+                                                    {availableComps.map(c => {
+                                                        const cId = String(c.company_id || c.id);
+                                                        const isChecked = selectedCurtailCompIds.includes(cId);
+                                                        return (
+                                                            <button
+                                                                key={cId}
+                                                                type="button"
+                                                                onClick={() => toggleCompanySelection(cId)}
+                                                                style={{
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '6px',
+                                                                    padding: '5px 9px',
+                                                                    borderRadius: '6px',
+                                                                    border: isChecked ? '1.5px solid #ea580c' : '1px solid #cbd5e1',
+                                                                    background: isChecked ? '#fff7ed' : '#ffffff',
+                                                                    color: isChecked ? '#9a3412' : '#475569',
+                                                                    fontSize: '11.5px',
+                                                                    fontWeight: isChecked ? 700 : 500,
+                                                                    cursor: 'pointer'
+                                                                }}
+                                                            >
+                                                                <span>{isChecked ? '☑️' : '⬜'}</span>
+                                                                <span>{c.name || c.company_name}</span>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                {/* Selected company tabs */}
+                                                <div style={{display: 'flex', alignItems: 'center', gap: '4px', borderTop: '1px dashed #cbd5e1', paddingTop: '8px'}}>
+                                                    <span style={{fontSize: '10.5px', color: '#64748b', whiteSpace: 'nowrap'}}>સેટિંગ્સ:</span>
+                                                    <div style={{display: 'flex', gap: '4px', overflowX: 'auto'}}>
+                                                        {selectedCurtailCompIds.map(cId => {
+                                                            const cfg = curtailConfigs[cId];
+                                                            const isTabActive = cId === curtailActiveTabId;
+                                                            return (
+                                                                <button
+                                                                    key={cId}
+                                                                    type="button"
+                                                                    onClick={() => setCurtailActiveTabId(cId)}
+                                                                    style={{
+                                                                        padding: '4px 8px',
+                                                                        borderRadius: '5px',
+                                                                        border: isTabActive ? '2px solid #ea580c' : '1px solid #cbd5e1',
+                                                                        background: isTabActive ? '#ea580c' : '#ffffff',
+                                                                        color: isTabActive ? '#ffffff' : '#334155',
+                                                                        fontWeight: 700,
+                                                                        fontSize: '11px',
+                                                                        cursor: 'pointer',
+                                                                        whiteSpace: 'nowrap'
+                                                                    }}
+                                                                >
+                                                                    {cfg?.name || 'Company'} ({cfg?.percentage || 20}%)
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            /* Single company dropdown / picker */
+                                            <select
+                                                value={curtailActiveTabId}
+                                                onChange={e => {
+                                                    const cId = e.target.value;
+                                                    setCurtailActiveTabId(cId);
+                                                    setSelectedCurtailCompIds([cId]);
+                                                }}
+                                                style={{width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', fontWeight: 600, color: '#1e293b'}}
+                                            >
+                                                {availableComps.map(c => (
+                                                    <option key={c.company_id || c.id} value={String(c.company_id || c.id)}>
+                                                        {c.name || c.company_name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        )}
+                                    </div>
+
+                                    {/* 2. Percentage (%) selection for activeCfg */}
+                                    {activeCfg && (
+                                        <div style={{background: '#ffffff', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0'}}>
+                                            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px'}}>
+                                                <label style={{fontSize: '11.5px', fontWeight: 700, color: '#334155'}}>
+                                                    {activeCfg.name} - પાવર ઘટાડો (%):
+                                                </label>
+                                                <div style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        max="100"
+                                                        value={activeCfg.percentage}
+                                                        onChange={e => {
+                                                            const val = Math.min(100, Math.max(1, parseInt(e.target.value) || 0));
+                                                            updateActiveCurtailConfig('percentage', val);
+                                                        }}
+                                                        style={{
+                                                            width: '60px',
+                                                            padding: '4px 6px',
+                                                            borderRadius: '6px',
+                                                            border: '2px solid #ea580c',
+                                                            fontSize: '14px',
+                                                            fontWeight: 800,
+                                                            color: '#9a3412',
+                                                            textAlign: 'center'
+                                                        }}
+                                                    />
+                                                    <span style={{fontSize: '12px', fontWeight: 800, color: '#ea580c'}}>%</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Presets */}
+                                            <div style={{display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px'}}>
+                                                {[80, 50, 40, 30, 25, 22, 20, 15, 10, 5].map(pct => {
+                                                    const isSel = Number(activeCfg.percentage) === pct;
+                                                    return (
+                                                        <button
+                                                            key={pct}
+                                                            type="button"
+                                                            onClick={() => updateActiveCurtailConfig('percentage', pct)}
+                                                            style={{
+                                                                padding: '5px 2px',
+                                                                borderRadius: '5px',
+                                                                border: isSel ? '2px solid #ea580c' : '1px solid #e2e8f0',
+                                                                background: isSel ? '#ffedd5' : '#f8fafc',
+                                                                color: isSel ? '#9a3412' : '#475569',
+                                                                fontWeight: 800,
+                                                                fontSize: '11px',
+                                                                cursor: 'pointer'
+                                                            }}
+                                                        >
+                                                            {pct}%
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* 3. Inverter & PV String level selection for activeCfg */}
+                                    {activeCfg && (
+                                        <div style={{background: '#ffffff', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0'}}>
+                                            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px'}}>
+                                                <div>
+                                                    <span style={{fontSize: '12px', fontWeight: 800, color: '#1e293b', display: 'block'}}>
+                                                        ઇન્વર્ટર અને PV સ્ટ્રિંગ્સ કંટ્રોલ
+                                                    </span>
+                                                    <span style={{fontSize: '10.5px', color: '#64748b'}}>
+                                                        કુલ {(activeCfg.inverters || []).length} ઇન્વર્ટર | {(activeCfg.inverter_ids || []).length} સિલેક્ટ
+                                                    </span>
+                                                </div>
+                                                <div style={{display: 'flex', gap: '4px'}}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => toggleAllInverters(true)}
+                                                        style={{fontSize: '10px', padding: '3px 6px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', color: '#334155'}}
+                                                    >
+                                                        બધા પસંદ
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => toggleAllInverters(false)}
+                                                        style={{fontSize: '10px', padding: '3px 6px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', color: '#334155'}}
+                                                    >
+                                                        બધા રદ
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Inverters List */}
+                                            <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                                                {(activeCfg.inverters || []).map((inv, iIdx) => {
+                                                    const invId = inv.id || (iIdx + 1);
+                                                    const isInvChecked = (activeCfg.inverter_ids || []).includes(invId);
+                                                    const isAccordionOpen = curtailExpandedInvs[invId] === true;
+                                                    const curStrings = (activeCfg.pv_strings && activeCfg.pv_strings[invId]) || [];
+                                                    const pvCount = curStrings.length;
+
+                                                    return (
+                                                        <div
+                                                            key={invId}
+                                                            style={{
+                                                                borderRadius: '7px',
+                                                                border: isInvChecked ? '1.5px solid #fdba74' : '1px solid #e2e8f0',
+                                                                background: isInvChecked ? '#fffaf5' : '#fafafa',
+                                                                overflow: 'hidden'
+                                                            }}
+                                                        >
+                                                            {/* Inverter Row Header */}
+                                                            <div style={{padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px'}}>
+                                                                <label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', flex: 1}}>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={isInvChecked}
+                                                                        onChange={() => toggleInverterSelection(invId)}
+                                                                        style={{cursor: 'pointer'}}
+                                                                    />
+                                                                    <div>
+                                                                        <span style={{fontSize: '12px', fontWeight: 700, color: '#1e293b'}}>
+                                                                            {inv.name || `Inverter ${iIdx + 1}`}
+                                                                        </span>
+                                                                        {pvCount > 0 && (
+                                                                            <span style={{
+                                                                                marginLeft: '6px',
+                                                                                fontSize: '10px',
+                                                                                background: '#ffedd5',
+                                                                                color: '#c2410c',
+                                                                                padding: '1px 5px',
+                                                                                borderRadius: '3px',
+                                                                                fontWeight: 700
+                                                                            }}>
+                                                                                {pvCount} PV બંધ
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </label>
+
+                                                                {/* Toggle PV accordion */}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => toggleCurtailInverterAccordion(invId)}
+                                                                    style={{
+                                                                        background: 'transparent',
+                                                                        border: '1px solid #cbd5e1',
+                                                                        borderRadius: '4px',
+                                                                        padding: '2px 7px',
+                                                                        fontSize: '10.5px',
+                                                                        color: '#475569',
+                                                                        cursor: 'pointer',
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '3px'
+                                                                    }}
+                                                                >
+                                                                    <span>PV સ્ટ્રિંગ્સ</span>
+                                                                    {isAccordionOpen ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}
+                                                                </button>
+                                                            </div>
+
+                                                            {/* PV Strings Accordion Body */}
+                                                            {isAccordionOpen && (
+                                                                <div style={{
+                                                                    padding: '8px 10px',
+                                                                    background: '#ffffff',
+                                                                    borderTop: '1px dashed #fed7aa'
+                                                                }}>
+                                                                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px'}}>
+                                                                        <span style={{fontSize: '10.5px', color: '#64748b'}}>
+                                                                            જે PV સ્ટ્રિંગ બંધ કરવા હોય તે સિલેક્ટ કરો:
+                                                                        </span>
+                                                                        <div style={{display: 'flex', gap: '4px'}}>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => toggleAllPvsForInverter(invId, true)}
+                                                                                style={{fontSize: '9.5px', padding: '1px 5px', borderRadius: '3px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer'}}
+                                                                            >
+                                                                                બધા PV પસંદ
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => toggleAllPvsForInverter(invId, false)}
+                                                                                style={{fontSize: '9.5px', padding: '1px 5px', borderRadius: '3px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer'}}
+                                                                            >
+                                                                                સાફ કરો
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* 16 PV String Chips */}
+                                                                    <div style={{
+                                                                        display: 'grid',
+                                                                        gridTemplateColumns: 'repeat(4, 1fr)',
+                                                                        gap: '5px'
+                                                                    }}>
+                                                                        {Array.from({length: 16}, (_, sIdx) => {
+                                                                            const stringLabel = `PV ${sIdx + 1}`;
+                                                                            const norm = (s) => String(s).replace(/\s+/g, '').toUpperCase();
+                                                                            const isSelected = curStrings.some(s => norm(s) === norm(stringLabel));
+
+                                                                            return (
+                                                                                <button
+                                                                                    key={stringLabel}
+                                                                                    type="button"
+                                                                                    onClick={() => togglePvString(invId, stringLabel)}
+                                                                                    style={{
+                                                                                        padding: '5px 2px',
+                                                                                        borderRadius: '5px',
+                                                                                        border: isSelected ? '1.5px solid #ea580c' : '1px solid #e2e8f0',
+                                                                                        background: isSelected ? '#ffedd5' : '#f8fafc',
+                                                                                        color: isSelected ? '#c2410c' : '#334155',
+                                                                                        fontSize: '11px',
+                                                                                        fontWeight: isSelected ? 800 : 500,
+                                                                                        cursor: 'pointer',
+                                                                                        display: 'flex',
+                                                                                        flexDirection: 'column',
+                                                                                        alignItems: 'center',
+                                                                                        justifyContent: 'center',
+                                                                                        gap: '1px'
+                                                                                    }}
+                                                                                >
+                                                                                    <span>{stringLabel}</span>
+                                                                                    <span style={{fontSize: '8.5px', color: isSelected ? '#ea580c' : '#94a3b8', fontWeight: 600}}>
+                                                                                        {isSelected ? '🚫 બંધ' : 'ચાલુ'}
+                                                                                    </span>
+                                                                                </button>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* 4. Notes input */}
+                                    {activeCfg && (
+                                        <div className="solar-field-group">
+                                            <label style={{display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#334155', marginBottom: '4px'}}>
+                                                નોંધ (Notes / Reason):
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={activeCfg.notes || ''}
+                                                onChange={e => updateActiveCurtailConfig('notes', e.target.value)}
+                                                placeholder="દા.ત. PGVCL Grid Curtailment Order"
+                                                style={{width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px'}}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {curtailMessage && (
+                                        <div style={{
+                                            padding: '8px',
+                                            borderRadius: '6px',
+                                            background: curtailMessage.includes('ભૂલ') ? '#fef2f2' : '#f0fdf4',
+                                            color: curtailMessage.includes('ભૂલ') ? '#b91c1c' : '#15803d',
+                                            fontSize: '11.5px',
+                                            fontWeight: 600
+                                        }}>
+                                            {curtailMessage}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Modal Footer */}
+                                <div className="solar-modal-foot" style={{padding: '10px 14px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '8px'}}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCurtailModal(false)}
+                                        style={{padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', cursor: 'pointer'}}
+                                    >
+                                        રદ કરો (Cancel)
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={curtailSaving}
+                                        style={{
+                                            padding: '6px 14px',
+                                            borderRadius: '6px',
+                                            border: 'none',
+                                            background: '#ea580c',
+                                            color: '#ffffff',
+                                            fontSize: '12px',
+                                            fontWeight: 700,
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        {curtailSaving ? 'લાગુ થઈ રહ્યું છે...' : `⚡ ${isMultiCompanyMode && selectedCurtailCompIds.length > 1 ? `બધી (${selectedCurtailCompIds.length}) કંપનીઓ માટે સેટ કરો` : 'PGVCL ઘટાડો સેટ કરો'}`}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* 📜 PGVCL Curtailment History Modal for Mobile with Histogram & PV Strings */}
+            {showCurtailHistory && (() => {
+                const totalLostKwh = historyList.reduce((acc, h) => acc + (parseFloat(h.lost_kwh) || 0), 0);
+                const totalLostRs = historyList.reduce((acc, h) => acc + (parseFloat(h.lost_revenue_rs) || 0), 0);
+
+                return (
+                    <div className="solar-modal-backdrop" onClick={() => setShowCurtailHistory(false)}>
+                        <div className="solar-compact-modal" onClick={e => e.stopPropagation()} style={{maxWidth: '520px', width: '95%', maxHeight: '90vh', display: 'flex', flexDirection: 'column'}}>
+                            {/* Modal Header */}
+                            <div className="solar-modal-head" style={{background: '#f0f9ff', borderBottom: '1px solid #bae6fd', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                                <div>
+                                    <h3 style={{display: 'flex', alignItems: 'center', gap: '6px', color: '#0369a1', fontSize: '14px', margin: 0, fontWeight: 800}}>
+                                        <History size={16} style={{color: '#0284c7'}}/>
+                                        PGVCL કર્ટલમેન્ટ ઇતિહાસ & લોસ હિસાબ
+                                    </h3>
+                                    <span style={{fontSize: '10.5px', color: '#0284c7', display: 'block', marginTop: '2px'}}>
+                                        ઇન્વર્ટર, PV સ્ટ્રિંગ્સ અને ટાઇમલાઇન હિસ્ટોગ્રામ
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    className="icon-button ghost"
+                                    onClick={() => setShowCurtailHistory(false)}
+                                    style={{background: 'transparent', border: 'none', cursor: 'pointer'}}
+                                >
+                                    <X size={18}/>
+                                </button>
+                            </div>
+
+                            <div className="solar-modal-body" style={{padding: '12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1}}>
+                                {/* Total Lost Energy & Revenue Summary Cards */}
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(2, 1fr)',
+                                    gap: '8px',
+                                    marginBottom: '4px'
+                                }}>
+                                    <div style={{background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '7px', padding: '8px 10px'}}>
+                                        <span style={{fontSize: '10.5px', color: '#991b1b', fontWeight: 600, display: 'block'}}>
+                                            કુલ યુનિટ્સ લોસ:
+                                        </span>
+                                        <span style={{fontSize: '15px', fontWeight: 800, color: '#dc2626'}}>
+                                            -{totalLostKwh.toFixed(1)} <small style={{fontSize: '11px'}}>kWh</small>
+                                        </span>
+                                    </div>
+                                    <div style={{background: '#fff1f2', border: '1px solid #ffe4e6', borderRadius: '7px', padding: '8px 10px'}}>
+                                        <span style={{fontSize: '10.5px', color: '#9f1239', fontWeight: 600, display: 'block'}}>
+                                            કુલ અંદાજિત નુકસાન:
+                                        </span>
+                                        <span style={{fontSize: '15px', fontWeight: 800, color: '#be123c'}}>
+                                            -₹{totalLostRs.toFixed(2)}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {historyLoading ? (
+                                    <div style={{padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '12px'}}>
+                                        ઇતિહાસ લોડ થઈ રહ્યો છે...
+                                    </div>
+                                ) : historyList.length === 0 ? (
+                                    <div style={{padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '12px'}}>
+                                        અત્યાર સુધી કોઈ પાછલો કર્ટલમેન્ટ રેકોર્ડ નથી.
+                                    </div>
+                                ) : (
+                                    <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
+                                        {historyList.map((hItem, hIdx) => {
+                                            const pct = Number(hItem.percentage) || 20;
+                                            const barColor = pct > 50 ? '#dc2626' : pct > 25 ? '#ea580c' : '#f59e0b';
+
+                                            // Extract PV strings from hItem.pv_strings
+                                            let flatPvList = [];
+                                            if (hItem.pv_strings) {
+                                                if (Array.isArray(hItem.pv_strings)) {
+                                                    flatPvList = hItem.pv_strings;
+                                                } else if (typeof hItem.pv_strings === 'object') {
+                                                    Object.entries(hItem.pv_strings).forEach(([invId, pvs]) => {
+                                                        if (Array.isArray(pvs)) {
+                                                            pvs.forEach(p => flatPvList.push(p));
+                                                        }
+                                                    });
+                                                }
+                                            }
+
                                             return (
-                                                <button
-                                                    key={pct}
-                                                    type="button"
-                                                    onClick={() => setCurtailForm(prev => ({ ...prev, percentage: pct }))}
-                                                    style={{
-                                                        padding: '6px 2px',
-                                                        borderRadius: '6px',
-                                                        border: isSel ? '2px solid #ea580c' : '1px solid #cbd5e1',
-                                                        background: isSel ? '#ffedd5' : '#f8fafc',
-                                                        color: isSel ? '#9a3412' : '#334155',
-                                                        fontWeight: 800,
-                                                        fontSize: '11.5px',
-                                                        cursor: 'pointer'
-                                                    }}
-                                                >
-                                                    {pct}%
-                                                </button>
+                                                <div key={hIdx} style={{
+                                                    background: '#ffffff',
+                                                    border: '1px solid #e2e8f0',
+                                                    borderRadius: '8px',
+                                                    padding: '10px',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    gap: '7px'
+                                                }}>
+                                                    {/* Row 1: Company + Date + Status */}
+                                                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px'}}>
+                                                        <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                                                            <b style={{fontSize: '12.5px', color: '#0f172a'}}>🏢 {hItem.company_name}</b>
+                                                            {hItem.is_active ? (
+                                                                <span style={{fontSize: '9.5px', background: '#fee2e2', color: '#dc2626', padding: '1px 5px', borderRadius: '3px', fontWeight: 800}}>
+                                                                    🔴 ચાલુ છે
+                                                                </span>
+                                                            ) : (
+                                                                <span style={{fontSize: '9.5px', background: '#f0fdf4', color: '#16a34a', padding: '1px 5px', borderRadius: '3px', fontWeight: 700}}>
+                                                                    ✅ પૂર્ણ
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <span style={{fontSize: '10.5px', color: '#64748b', fontWeight: 600}}>
+                                                            {hItem.date}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Row 2: Visual Histogram Bar */}
+                                                    <div>
+                                                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10.5px', marginBottom: '3px'}}>
+                                                            <span style={{color: '#475569', fontWeight: 700}}>
+                                                                કર્ટલમેન્ટ ઘટાડો: <b style={{color: barColor}}>{pct}%</b>
+                                                            </span>
+                                                            <span style={{color: '#64748b', fontSize: '10px'}}>
+                                                                {hItem.duration_human}
+                                                            </span>
+                                                        </div>
+                                                        <div style={{
+                                                            width: '100%',
+                                                            height: '10px',
+                                                            background: '#f1f5f9',
+                                                            borderRadius: '5px',
+                                                            overflow: 'hidden',
+                                                            position: 'relative'
+                                                        }}>
+                                                            <div style={{
+                                                                width: `${Math.min(100, Math.max(5, pct))}%`,
+                                                                height: '100%',
+                                                                background: barColor,
+                                                                borderRadius: '5px',
+                                                                transition: 'width 0.3s ease'
+                                                            }}/>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Row 3: Timestamps */}
+                                                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10.5px', color: '#64748b'}}>
+                                                        <span>⏰ શરૂ: <b>{hItem.started_at_human}</b></span>
+                                                        <span>🏁 પૂરું: <b>{hItem.ended_at_human}</b></span>
+                                                    </div>
+
+                                                    {/* Row 4: Inverters & PV Strings Shut Down */}
+                                                    {((hItem.inverter_names && hItem.inverter_names.length > 0) || flatPvList.length > 0) && (
+                                                        <div style={{
+                                                            background: '#f8fafc',
+                                                            padding: '6px 8px',
+                                                            borderRadius: '5px',
+                                                            fontSize: '10.5px',
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                            gap: '4px'
+                                                        }}>
+                                                            {hItem.inverter_names && hItem.inverter_names.length > 0 && (
+                                                                <div style={{display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
+                                                                    <span style={{color: '#64748b', fontWeight: 600}}>ઇન્વર્ટર:</span>
+                                                                    {hItem.inverter_names.map((inm, inIdx) => (
+                                                                        <span key={inIdx} style={{background: '#e2e8f0', color: '#334155', padding: '1px 5px', borderRadius: '3px', fontSize: '10px', fontWeight: 700}}>
+                                                                            {inm}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                            {flatPvList.length > 0 && (
+                                                                <div style={{display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
+                                                                    <span style={{color: '#ea580c', fontWeight: 600}}>બંધ PV:</span>
+                                                                    {flatPvList.map((pv, pIdx) => (
+                                                                        <span key={pIdx} style={{background: '#ffedd5', color: '#c2410c', padding: '1px 5px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 800}}>
+                                                                            {pv}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Row 5: Energy & Financial Loss */}
+                                                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', fontSize: '10.5px', paddingTop: '4px', borderTop: '1px dashed #e2e8f0'}}>
+                                                        <span style={{color: '#64748b'}}>
+                                                            {hItem.notes ? `💬 ${hItem.notes}` : 'PGVCL Curtailment'}
+                                                        </span>
+                                                        <div style={{display: 'flex', gap: '4px'}}>
+                                                            <span style={{background: '#fef2f2', color: '#dc2626', padding: '1px 5px', borderRadius: '3px', fontWeight: 800}}>
+                                                                -{hItem.lost_kwh} kWh
+                                                            </span>
+                                                            <span style={{background: '#fee2e2', color: '#991b1b', padding: '1px 5px', borderRadius: '3px', fontWeight: 800}}>
+                                                                -₹{hItem.lost_revenue_rs}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             );
                                         })}
-                                    </div>
-                                </div>
-
-                                <div className="solar-field-group">
-                                    <label style={{display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#334155', marginBottom: '4px'}}>
-                                        નોંધ (Notes / Reason):
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={curtailForm.notes}
-                                        onChange={e => setCurtailForm(prev => ({ ...prev, notes: e.target.value }))}
-                                        placeholder="દા.ત. PGVCL Grid Curtailment Order"
-                                        style={{width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #cbd5e1', fontSize: '12px'}}
-                                    />
-                                </div>
-
-                                {curtailMessage && (
-                                    <div style={{
-                                        padding: '8px',
-                                        borderRadius: '6px',
-                                        background: curtailMessage.includes('ભૂલ') ? '#fef2f2' : '#f0fdf4',
-                                        color: curtailMessage.includes('ભૂલ') ? '#b91c1c' : '#15803d',
-                                        fontSize: '11.5px',
-                                        fontWeight: 600
-                                    }}>
-                                        {curtailMessage}
                                     </div>
                                 )}
                             </div>
 
-                            <div className="solar-modal-foot" style={{padding: '10px 14px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '8px'}}>
+                            <div className="solar-modal-foot" style={{padding: '10px 14px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end'}}>
                                 <button
                                     type="button"
-                                    onClick={() => setShowCurtailModal(false)}
-                                    style={{padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', cursor: 'pointer'}}
+                                    onClick={() => setShowCurtailHistory(false)}
+                                    style={{fontSize: '11.5px', padding: '5px 12px', borderRadius: '5px', border: '1px solid #cbd5e1', background: '#ffffff', cursor: 'pointer'}}
                                 >
-                                    રદ કરો (Cancel)
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={curtailSaving}
-                                    style={{
-                                        padding: '6px 14px',
-                                        borderRadius: '6px',
-                                        border: 'none',
-                                        background: '#ea580c',
-                                        color: '#ffffff',
-                                        fontSize: '12px',
-                                        fontWeight: 700,
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    {curtailSaving ? 'લાગુ થઈ રહ્યું છે...' : '⚡ PGVCL ઘટાડો સેટ કરો'}
+                                    બંધ કરો (Close)
                                 </button>
                             </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* 📜 PGVCL Curtailment History Modal for Mobile */}
-            {showCurtailHistory && (
-                <div className="solar-modal-backdrop" onClick={() => setShowCurtailHistory(false)}>
-                    <div className="solar-compact-modal" onClick={e => e.stopPropagation()} style={{maxWidth: '540px', width: '94%'}}>
-                        <div className="solar-modal-head" style={{background: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '12px 14px'}}>
-                            <h3 style={{display: 'flex', alignItems: 'center', gap: '6px', color: '#0f172a', fontSize: '14px', margin: 0}}>
-                                <History size={16} style={{color: '#0284c7'}}/>
-                                PGVCL કર્ટલમેન્ટ & લોસ હિસાબ (History)
-                            </h3>
-                            <button
-                                type="button"
-                                className="icon-button ghost"
-                                onClick={() => setShowCurtailHistory(false)}
-                                style={{background: 'transparent', border: 'none', cursor: 'pointer'}}
-                            >
-                                <X size={18}/>
-                            </button>
-                        </div>
-
-                        <div className="solar-modal-body" style={{padding: '12px', maxHeight: '60vh', overflowY: 'auto'}}>
-                            {historyLoading ? (
-                                <div style={{padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '12px'}}>
-                                    ઇતિહાસ લોડ થઈ રહ્યો છે...
-                                </div>
-                            ) : historyList.length === 0 ? (
-                                <div style={{padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '12px'}}>
-                                    અત્યાર સુધી કોઈ પાછલો કર્ટલમેન્ટ રેકોર્ડ નથી.
-                                </div>
-                            ) : (
-                                <div style={{display: 'flex', flexDirection: 'column', gap: '6px'}}>
-                                    {historyList.map((hItem, hIdx) => (
-                                        <div key={hIdx} style={{
-                                            background: '#ffffff',
-                                            border: '1px solid #e2e8f0',
-                                            borderRadius: '7px',
-                                            padding: '8px 10px'
-                                        }}>
-                                            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', marginBottom: '4px'}}>
-                                                <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
-                                                    <span style={{
-                                                        background: '#e0f2fe',
-                                                        color: '#0369a1',
-                                                        fontWeight: 800,
-                                                        fontSize: '10.5px',
-                                                        padding: '1px 5px',
-                                                        borderRadius: '3px'
-                                                    }}>
-                                                        {hItem.percentage}%
-                                                    </span>
-                                                    <b style={{fontSize: '12px', color: '#0f172a'}}>🏢 {hItem.company_name}</b>
-                                                </div>
-                                                <span style={{fontSize: '10.5px', color: '#64748b'}}>
-                                                    {hItem.date}
-                                                </span>
-                                            </div>
-
-                                            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', fontSize: '10.5px', marginTop: '4px', paddingTop: '4px', borderTop: '1px dashed #f1f5f9'}}>
-                                                <span style={{color: '#475569'}}>સમય: <b>{hItem.duration_human}</b></span>
-                                                <div style={{display: 'flex', gap: '4px'}}>
-                                                    <span style={{background: '#fef2f2', color: '#dc2626', padding: '1px 5px', borderRadius: '3px', fontWeight: 800}}>
-                                                        -{hItem.lost_kwh} kWh
-                                                    </span>
-                                                    <span style={{background: '#fee2e2', color: '#991b1b', padding: '1px 5px', borderRadius: '3px', fontWeight: 800}}>
-                                                        -₹{hItem.lost_revenue_rs}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="solar-modal-foot" style={{padding: '10px 14px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end'}}>
-                            <button
-                                type="button"
-                                onClick={() => setShowCurtailHistory(false)}
-                                style={{fontSize: '11.5px', padding: '5px 12px', borderRadius: '5px', border: '1px solid #cbd5e1', background: '#ffffff', cursor: 'pointer'}}
-                            >
-                                બંધ કરો (Close)
-                            </button>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             {/* 🔔 Mandatory Notification Permission Prompt Modal */}
             <NotificationPermissionModal />

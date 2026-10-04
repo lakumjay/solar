@@ -22,12 +22,29 @@ class EmployeeController extends Controller
     {
         $this->access->requirePermission($request, 'view_employees');
 
-        return Employee::with('user:id,name,email,active')->orderBy('employee_code')->get()->map(fn (Employee $employee) => [
-            ...$employee->toArray(),
-            'name' => $employee->user->name,
-            'email' => $employee->user->email,
-            'profile_photo_url' => $employee->profile_photo_path ? '/api/employees/'.$employee->id.'/photo?v='.$employee->updated_at?->timestamp : null,
-        ]);
+        $todayDate = now()->toDateString();
+        $leaves = \App\Models\LeaveRequest::with('leaveType')
+            ->whereDate('date_from', '<=', $todayDate)
+            ->whereDate('date_to', '>=', $todayDate)
+            ->get()
+            ->groupBy('employee_id');
+
+        return Employee::with('user:id,name,email,active')->orderBy('employee_code')->get()->map(function (Employee $employee) use ($leaves) {
+            $leave = $leaves->get($employee->id)?->first();
+            return [
+                ...$employee->toArray(),
+                'name' => $employee->user->name,
+                'email' => $employee->user->email,
+                'profile_photo_url' => $employee->profile_photo_path ? '/api/employees/'.$employee->id.'/photo?v='.$employee->updated_at?->timestamp : null,
+                'today_leave' => $leave ? [
+                    'status' => $leave->status,
+                    'is_approved' => $leave->status === 'approved',
+                    'day_part' => $leave->day_part,
+                    'leave_type' => $leave->leaveType?->name ?? 'Leave',
+                    'reason' => $leave->reason,
+                ] : null,
+            ];
+        });
     }
 
     public function store(SaveEmployeeRequest $request)
