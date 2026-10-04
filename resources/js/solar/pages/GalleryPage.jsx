@@ -154,7 +154,7 @@ export default function GalleryPage({currentUser, companyId}) {
                 <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px'}}>
                     <div>
                         <h2 style={{margin: 0, fontSize: '17px', fontWeight: 800, color: '#143a2e', display: 'flex', alignItems: 'center', gap: '8px'}}>
-                            <Camera size={20} style={{color: '#15803d'}}/> Plant Photo Gallery & Inspection Log
+                            <span>📸</span> Plant Photo Gallery & Inspection Log
                         </h2>
                         <p style={{margin: '2px 0 0', fontSize: '11.5px', color: '#64748b'}}>
                             Daily scheduled plant inspection records and photo log.
@@ -612,7 +612,7 @@ export default function GalleryPage({currentUser, companyId}) {
                                             <div style={{minWidth: 0}}>
                                                 <b style={{display: 'block', fontSize: '13px', color: '#0f172a'}}>{idx + 1}. {t.title}</b>
                                                 <div style={{fontSize: '11px', color: '#64748b'}}>
-                                                    {t.start_time} - {t.end_time} &nbsp;|&nbsp; <b>{t.required_photos}</b> Photos required
+                                                    🕒 {t.start_time} - {t.end_time} &nbsp;|&nbsp; 📸 <b>{t.required_photos}</b> Photos required
                                                 </div>
                                             </div>
                                             <div style={{display: 'flex', gap: '6px', flexShrink: 0}}>

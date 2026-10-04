@@ -1,7 +1,7 @@
-import React, {useEffect, useMemo, useState} from 'react';
-import {CalendarClock, CircleDollarSign, Download, IndianRupee, PencilLine, Plus, ReceiptIndianRupee, Search, User, X} from 'lucide-react';
+import React, {useEffect, useState} from 'react';
+import {CalendarClock, CircleDollarSign, Download, IndianRupee, PencilLine, Plus, ReceiptIndianRupee, X} from 'lucide-react';
 import {api} from '../api';
-import {Empty, Field, Metric} from '../components/Common';
+import {Empty, Field, Loading, Metric} from '../components/Common';
 import {number, shortDate} from '../format';
 
 const currentMonth = () => new Date().toISOString().slice(0, 7);
@@ -10,536 +10,74 @@ const rupees = value => `₹${number(value)}`;
 export default function SalaryPage() {
     const [month, setMonth] = useState(currentMonth());
     const [data, setData] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState('');
     const [selectedId, setSelectedId] = useState(null);
     const [rateForm, setRateForm] = useState(null);
     const [adjustmentForm, setAdjustmentForm] = useState(null);
     const [correctionForm, setCorrectionForm] = useState(null);
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
-
     const load = async () => {
-        setLoading(true);
-        try {
-            const res = await api(`salaries?month=${month}`);
-            setData(res);
-            setError('');
-        } catch (failure) {
-            setError(failure.message);
-            setData(null);
-        } finally {
-            setLoading(false);
-        }
+        try { setData(await api(`salaries?month=${month}`)); setError(''); }
+        catch (failure) { setError(failure.message); setData(null); }
     };
+    useEffect(() => { load(); }, [month]);
+    const selected = data?.rows.find(row => row.employee.id === selectedId);
+    const complete = async text => { setMessage(text); setRateForm(null); setAdjustmentForm(null); setCorrectionForm(null); await load(); };
 
-    useEffect(() => {
-        load();
-    }, [month]);
+    if (!data && !error) return <Loading/>;
 
-    const filteredRows = useMemo(() => {
-        if (!data?.rows) return [];
-        if (!searchQuery.trim()) return data.rows;
-        const q = searchQuery.toLowerCase();
-        return data.rows.filter(r => 
-            (r.employee?.name || '').toLowerCase().includes(q) ||
-            (r.employee?.employee_code || '').toLowerCase().includes(q)
-        );
-    }, [data, searchQuery]);
-
-    const selected = data?.rows?.find(row => row.employee.id === selectedId);
-    const complete = async text => {
-        setMessage(text);
-        setRateForm(null);
-        setAdjustmentForm(null);
-        setCorrectionForm(null);
-        await load();
-    };
-
-    return (
-        <div className="salary-page">
-            <section className="panel salary-toolbar">
-                <div>
-                    <p className="eyebrow">Confidential payroll</p>
-                    <h2>Monthly salary calculation</h2>
-                    <p>Only approved leave reduces salary. Attendance hours and absence are shown for reference.</p>
-                </div>
-                <div style={{display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap'}}>
-                    <label>
-                        <span>Salary month</span>
-                        <input
-                            type="month"
-                            max={currentMonth()}
-                            value={month}
-                            onChange={event => {
-                                setMonth(event.target.value);
-                                setSelectedId(null);
-                            }}
-                        />
-                    </label>
-                    <a className="secondary" href={`/api/salaries/export/excel?month=${month}`}>
-                        <Download size={16}/> Export Excel
-                    </a>
-                </div>
-            </section>
-
-            {message && <div className="success">{message}</div>}
-            {error && <div className="error">{error}</div>}
-
-            {loading ? (
-                <div className="salary-skeleton-wrap">
-                    <div className="cards salary-summary-cards">
-                        {[1, 2, 3, 4, 5].map(i => (
-                            <div key={i} className="glass-card skeleton-box" style={{height: '110px', borderRadius: '16px'}}/>
-                        ))}
-                    </div>
-                    <div className="glass-card skeleton-box" style={{height: '320px', borderRadius: '20px', marginTop: '16px'}}/>
-                </div>
-            ) : data ? (
-                <>
-                    <div className="salary-period-note">
-                        <CalendarClock size={17}/>
-                        <span>
-                            <b>{data.period_status === 'provisional' ? 'Provisional calculation' : 'Final calculation'}</b>
-                            {data.period_status === 'provisional'
-                                ? ' The current month can change when leave is approved or adjustments are added.'
-                                : ' This completed-month calculation uses the applicable salary rate and approved leave.'}
-                        </span>
-                    </div>
-
-                    <div className="cards salary-summary-cards">
-                        <Metric icon={IndianRupee} title="Base salary" value={data.totals.base_salary} unit="INR"/>
-                        <Metric icon={CircleDollarSign} title="Prorated gross" value={data.totals.prorated_gross} unit="INR"/>
-                        <Metric icon={ReceiptIndianRupee} title="Leave deduction" value={data.totals.leave_deduction} unit="INR" color="amber"/>
-                        <Metric icon={Plus} title="Extra Work / Additions" value={data.totals.additions} unit="INR" color="emerald"/>
-                        <Metric icon={IndianRupee} title="Final payable" value={data.totals.final_payable} unit="INR"/>
-                    </div>
-
-                    {data.totals.unconfigured_employees > 0 && (
-                        <div className="warning-banner">
-                            <b>{data.totals.unconfigured_employees} employee salary {data.totals.unconfigured_employees === 1 ? 'is' : 'are'} not configured.</b>
-                            <span>Set an effective monthly salary before adding adjustments or including the employee in payable totals.</span>
-                        </div>
-                    )}
-
-                    <section className="panel">
-                        <div className="panel-head" style={{flexWrap: 'wrap', gap: '12px'}}>
-                            <div>
-                                <h2>Employee salary summary</h2>
-                                <p>{data.from} to {data.to}</p>
-                            </div>
-                            <div className="search-input-wrap" style={{width: '260px'}}>
-                                <Search size={16} className="search-icon-left"/>
-                                <input
-                                    type="text"
-                                    placeholder="Search employee..."
-                                    value={searchQuery}
-                                    onChange={e => setSearchQuery(e.target.value)}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Responsive Mobile Card List & Desktop Table */}
-                        <div className="table-responsive-wrapper">
-                            <div className="table-wrap desktop-only-table">
-                                <table className="salary-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Employee</th>
-                                            <th>Monthly salary</th>
-                                            <th>Work units</th>
-                                            <th>Attendance</th>
-                                            <th>Leave</th>
-                                            <th>Prorated gross</th>
-                                            <th>Leave deduction</th>
-                                            <th>Extra / Adjustments</th>
-                                            <th>Final payable</th>
-                                            <th/>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {filteredRows.map(row => (
-                                            <tr key={row.employee.id}>
-                                                <td>
-                                                    <b>{row.employee.name}</b>
-                                                    <small>{row.employee.employee_code}{!row.employee.active ? ' · Inactive' : ''}</small>
-                                                </td>
-                                                <td>
-                                                    {row.configured ? (
-                                                        <>
-                                                            <b>{rupees(row.monthly_salary)}</b>
-                                                            <small>From {row.rate.effective_month}</small>
-                                                        </>
-                                                    ) : (
-                                                        <i className="status warning">Not configured</i>
-                                                    )}
-                                                </td>
-                                                <td>{number(row.eligible_units)} / {number(row.scheduled_units)}</td>
-                                                <td>
-                                                    <span className="salary-mini-stats">
-                                                        P {number(row.attendance.present)} · A {number(row.attendance.absent)}
-                                                        <small>Half {row.attendance.half_days} · Short {row.attendance.short_days}</small>
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    {number(row.leave_units)} unit
-                                                    <small>{number(row.attendance.approved_leave)} approved</small>
-                                                </td>
-                                                <td>{rupees(row.prorated_gross)}</td>
-                                                <td className="danger-text">− {rupees(row.leave_deduction)}</td>
-                                                <td>
-                                                    <span className="salary-mini-stats positive">
-                                                        + {rupees(row.additions)}
-                                                        <small className="danger-text">− {rupees(row.deductions)}</small>
-                                                    </span>
-                                                </td>
-                                                <td><strong>{rupees(row.final_payable)}</strong></td>
-                                                <td>
-                                                    <div className="row-actions">
-                                                        <button className="link" onClick={() => setSelectedId(row.employee.id)}>Details</button>
-                                                        <button className="link" onClick={() => setRateForm({employee: row.employee, effective_month: month, monthly_salary: row.configured ? row.monthly_salary : ''})}>
-                                                            <PencilLine size={14}/> Salary
-                                                        </button>
-                                                        {row.configured && (
-                                                            <button className="link" onClick={() => setAdjustmentForm({employee: row.employee, salary_month: month, type: 'addition', work_date: new Date().toISOString().slice(0, 10), amount: '', reason: '', company_id: '', add_to_shared_expenses: false})}>
-                                                                <Plus size={14}/> + Extra
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Mobile Card List View */}
-                            <div className="mobile-card-list">
-                                {filteredRows.map(row => (
-                                    <div key={row.employee.id} className="mobile-table-row-card glass-card">
-                                        <div className="card-top-row">
-                                            <div className="card-primary-col">
-                                                <span className="card-row-title">{row.employee.name}</span>
-                                                <span className="card-row-subtitle">{row.employee.employee_code || 'EMP'} · Base: {row.configured ? rupees(row.monthly_salary) : 'Not set'}</span>
-                                            </div>
-                                            <div className="card-amount-col">
-                                                <span className="card-amount-val">{rupees(row.final_payable)}</span>
-                                                <span className="card-amount-label">Payable</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="card-details-grid">
-                                            <div className="grid-cell">
-                                                <span className="cell-label">Attendance</span>
-                                                <span className="cell-val">P: {number(row.attendance?.present || 0)} | A: {number(row.attendance?.absent || 0)}</span>
-                                            </div>
-                                            <div className="grid-cell">
-                                                <span className="cell-label">Prorated Gross</span>
-                                                <span className="cell-val">{rupees(row.prorated_gross)}</span>
-                                            </div>
-                                            <div className="grid-cell">
-                                                <span className="cell-label">Leave Deduction</span>
-                                                <span className="cell-val danger-text">− {rupees(row.leave_deduction)}</span>
-                                            </div>
-                                            <div className="grid-cell">
-                                                <span className="cell-label">Extra Work</span>
-                                                <span className="cell-val success-text">+ {rupees(row.additions)}</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="card-actions-bar">
-                                            <button type="button" className="card-action-btn secondary" onClick={() => setSelectedId(row.employee.id)}>
-                                                Details
-                                            </button>
-                                            <button type="button" className="card-action-btn secondary" onClick={() => setRateForm({employee: row.employee, effective_month: month, monthly_salary: row.configured ? row.monthly_salary : ''})}>
-                                                <PencilLine size={13}/> Salary
-                                            </button>
-                                            {row.configured && (
-                                                <button type="button" className="card-action-btn primary" onClick={() => setAdjustmentForm({employee: row.employee, salary_month: month, type: 'addition', work_date: new Date().toISOString().slice(0, 10), amount: '', reason: '', company_id: '', add_to_shared_expenses: false})}>
-                                                    <Plus size={13}/> Extra
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </section>
-
-                    {selected && (
-                        <SalaryDetails
-                            row={selected}
-                            onClose={() => setSelectedId(null)}
-                            onCorrect={adjustment => setCorrectionForm({adjustment, employee: selected.employee, replace: true, correction_reason: '', replacement_type: adjustment.type, replacement_amount: adjustment.amount, replacement_reason: ''})}
-                        />
-                    )}
-                </>
-            ) : null}
-
-            {rateForm && <RateForm form={rateForm} setForm={setRateForm} onClose={() => setRateForm(null)} onSaved={complete}/>}
-            {adjustmentForm && <AdjustmentForm form={adjustmentForm} setForm={setAdjustmentForm} onClose={() => setAdjustmentForm(null)} onSaved={complete}/>}
-            {correctionForm && <CorrectionForm form={correctionForm} setForm={setCorrectionForm} onClose={() => setCorrectionForm(null)} onSaved={complete}/>}
-        </div>
-    );
+    return <div className="salary-page">
+        <section className="panel salary-toolbar"><div><p className="eyebrow">Confidential payroll</p><h2>Monthly salary calculation</h2><p>Only approved leave reduces salary. Attendance hours and absence are shown for reference.</p></div><div><label><span>Salary month</span><input type="month" max={currentMonth()} value={month} onChange={event => {setMonth(event.target.value); setSelectedId(null);}}/></label><a className="secondary" href={`/api/salaries/export/excel?month=${month}`}><Download size={16}/> Export Excel</a></div></section>
+        {message && <div className="success">{message}</div>}{error && <div className="error">{error}</div>}
+        {data && <>
+            <div className="salary-period-note"><CalendarClock size={17}/><span><b>{data.period_status === 'provisional' ? 'Provisional calculation' : 'Final calculation'}</b>{data.period_status === 'provisional' ? 'The current month can change when leave is approved or adjustments are added.' : 'This completed-month calculation uses the applicable salary rate and approved leave.'}</span></div>
+            <div className="cards salary-summary-cards"><Metric icon={IndianRupee} title="Base salary" value={data.totals.base_salary} unit="INR"/><Metric icon={CircleDollarSign} title="Prorated gross" value={data.totals.prorated_gross} unit="INR"/><Metric icon={ReceiptIndianRupee} title="Leave deduction" value={data.totals.leave_deduction} unit="INR" color="amber"/><Metric icon={Plus} title="Extra Work / Additions" value={data.totals.additions} unit="INR" color="emerald"/><Metric icon={IndianRupee} title="Final payable" value={data.totals.final_payable} unit="INR"/></div>
+            {data.totals.unconfigured_employees > 0 && <div className="warning-banner"><b>{data.totals.unconfigured_employees} employee salary {data.totals.unconfigured_employees === 1 ? 'is' : 'are'} not configured.</b><span>Set an effective monthly salary before adding adjustments or including the employee in payable totals.</span></div>}
+            <section className="panel"><div className="panel-head"><div><h2>Employee salary summary</h2><p>{data.from} to {data.to}</p></div></div><div className="table-wrap"><table className="salary-table"><thead><tr><th>Employee</th><th>Monthly salary</th><th>Work units</th><th>Attendance</th><th>Leave</th><th>Prorated gross</th><th>Leave deduction</th><th>Extra / Adjustments</th><th>Final payable</th><th/></tr></thead><tbody>{data.rows.map(row => <tr key={row.employee.id}><td><b>{row.employee.name}</b><small>{row.employee.employee_code}{!row.employee.active ? ' · Inactive' : ''}</small></td><td>{row.configured ? <><b>{rupees(row.monthly_salary)}</b><small>From {row.rate.effective_month}</small></> : <i className="status warning">Not configured</i>}</td><td>{number(row.eligible_units)} / {number(row.scheduled_units)}</td><td><span className="salary-mini-stats">P {number(row.attendance.present)} · A {number(row.attendance.absent)}<small>Half {row.attendance.half_days} · Short {row.attendance.short_days}</small></span></td><td>{number(row.leave_units)} unit<small>{number(row.attendance.approved_leave)} approved</small></td><td>{rupees(row.prorated_gross)}</td><td className="danger-text">− {rupees(row.leave_deduction)}</td><td><span className="salary-mini-stats positive">+ {rupees(row.additions)}<small className="danger-text">− {rupees(row.deductions)}</small></span></td><td><strong>{rupees(row.final_payable)}</strong></td><td><div className="row-actions"><button className="link" onClick={() => setSelectedId(row.employee.id)}>Details</button><button className="link" onClick={() => setRateForm({employee: row.employee, effective_month: month, monthly_salary: row.configured ? row.monthly_salary : ''})}><PencilLine size={14}/> Salary</button>{row.configured && <button className="link" onClick={() => setAdjustmentForm({employee: row.employee, salary_month: month, type: 'addition', work_date: new Date().toISOString().slice(0, 10), amount: '', reason: '', company_id: '', add_to_shared_expenses: false})}><Plus size={14}/> + Extra / Adjust</button>}</div></td></tr>)}</tbody></table></div></section>
+            {selected && <SalaryDetails row={selected} onClose={() => setSelectedId(null)} onCorrect={adjustment => setCorrectionForm({adjustment, employee: selected.employee, replace: true, correction_reason: '', replacement_type: adjustment.type, replacement_amount: adjustment.amount, replacement_reason: ''})}/>} 
+        </>}
+        {rateForm && <RateForm form={rateForm} setForm={setRateForm} onClose={() => setRateForm(null)} onSaved={complete}/>} 
+        {adjustmentForm && <AdjustmentForm form={adjustmentForm} setForm={setAdjustmentForm} onClose={() => setAdjustmentForm(null)} onSaved={complete}/>} 
+        {correctionForm && <CorrectionForm form={correctionForm} setForm={setCorrectionForm} onClose={() => setCorrectionForm(null)} onSaved={complete}/>} 
+    </div>;
 }
 
 function SalaryDetails({row, onClose, onCorrect}) {
-    return (
-        <section className="panel salary-details">
-            <div className="panel-head">
-                <div>
-                    <h2>{row.employee.name} · Calculation details</h2>
-                    <p>Base Prorated (₹{number(row.prorated_gross)}) + Extra Work (+₹{number(row.additions)}) − Leave Deduction (−₹{number(row.leave_deduction)}) = Final Payable (₹{number(row.final_payable)})</p>
-                </div>
-                <button className="icon-button ghost" onClick={onClose}><X/></button>
-            </div>
-            <div className="salary-breakdown">
-                <span><small>Monthly base salary</small><b>{rupees(row.monthly_salary)}</b></span>
-                <span><small>Daily rate</small><b>{rupees(row.daily_rate)}</b></span>
-                <span><small>Extra work / Additions</small><b style={{color: '#059669'}}>+ {rupees(row.additions)}</b></span>
-                <span><small>Leave deduction</small><b style={{color: '#b91c1c'}}>− {rupees(row.leave_deduction)}</b></span>
-                <span><small>Final payable</small><b style={{fontSize: '1.2rem', color: '#1e293b'}}>{rupees(row.final_payable)}</b></span>
-            </div>
-            <h3 className="section-title">Extra work & Manual adjustment history</h3>
-            {row.adjustments.length ? (
-                <div className="salary-adjustment-list">
-                    {row.adjustments.map(item => (
-                        <div className={item.cancelled ? 'cancelled' : ''} key={item.id}>
-                            <span className={`salary-adjustment-icon ${item.type}`}>{item.type === 'addition' ? '+' : '−'}</span>
-                            <span style={{flex: 1}}>
-                                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap'}}>
-                                    <b>{item.type === 'addition' ? 'Extra Work Addition' : 'Deduction'} · {rupees(item.amount)}</b>
-                                    {item.work_date && (
-                                        <span style={{fontSize: '11.5px', background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '4px', fontWeight: 600}}>
-                                            Work Date: {shortDate(item.work_date)}
-                                        </span>
-                                    )}
-                                </div>
-                                <small style={{display: 'block', marginTop: '2px'}}>
-                                    {item.reason}{item.company && ` · Company: ${item.company.name}`}{item.add_to_shared_expenses && ` · (Shared Expense added)`}{` · By ${item.created_by || 'Super admin'} on ${shortDate(item.created_at)}`}
-                                </small>
-                                {item.cancelled && <em>Cancelled by {item.cancelled_by || item.canceller || 'Super admin'} · {item.cancellation_reason}</em>}
-                            </span>
-                            {!item.cancelled && <button className="link" onClick={() => onCorrect(item)}>Correct / cancel</button>}
-                        </div>
-                    ))}
-                </div>
-            ) : (
-                <div className="info-banner">No manual salary adjustments or extra work recorded for this month.</div>
-            )}
-            <h3 className="section-title">Daily attendance and leave</h3>
-            <div className="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Status</th>
-                            <th>Scheduled</th>
-                            <th>Leave deduction</th>
-                            <th>Time In</th>
-                            <th>Time Out</th>
-                            <th>Calendar</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {row.days.map(day => (
-                            <tr key={day.date}>
-                                <td className="strong">{shortDate(day.date)}</td>
-                                <td>{day.status.replaceAll('_', ' ')}</td>
-                                <td>{number(day.scheduled_units)}</td>
-                                <td>{day.leave_units ? `${number(day.leave_units)} unit` : '—'}</td>
-                                <td>{day.clock_in || '—'}</td>
-                                <td>{day.clock_out || '—'}</td>
-                                <td>{day.holiday || (day.weekly_off ? 'Weekly off' : 'Working day')}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </section>
-    );
+    return <section className="panel salary-details"><div className="panel-head"><div><h2>{row.employee.name} · Calculation details</h2><p>Base Prorated (₹{number(row.prorated_gross)}) + Extra Work (+₹{number(row.additions)}) − Leave Deduction (−₹{number(row.leave_deduction)}) = Final Payable (₹{number(row.final_payable)})</p></div><button className="icon-button ghost" onClick={onClose}><X/></button></div><div className="salary-breakdown"><span><small>Monthly base salary</small><b>{rupees(row.monthly_salary)}</b></span><span><small>Daily rate</small><b>{rupees(row.daily_rate)}</b></span><span><small>Extra work / Additions</small><b style={{color: '#059669'}}>+ {rupees(row.additions)}</b></span><span><small>Leave deduction</small><b style={{color: '#b91c1c'}}>− {rupees(row.leave_deduction)}</b></span><span><small>Final payable</small><b style={{fontSize: '1.2rem', color: '#1e293b'}}>{rupees(row.final_payable)}</b></span></div>
+        <h3 className="section-title">Extra work & Manual adjustment history</h3>{row.adjustments.length ? <div className="salary-adjustment-list">{row.adjustments.map(item => <div className={item.cancelled ? 'cancelled' : ''} key={item.id}><span className={`salary-adjustment-icon ${item.type}`}>{item.type === 'addition' ? '+' : '−'}</span><span style={{flex: 1}}><div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap'}}><b>{item.type === 'addition' ? 'Extra Work Addition' : 'Deduction'} · {rupees(item.amount)}</b>{item.work_date && <span style={{fontSize: '11.5px', background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '4px', fontWeight: 600}}>Work Date: {shortDate(item.work_date)}</span>}</div><small style={{display: 'block', marginTop: '2px'}}>{item.reason}{item.company && ` · Company: ${item.company.name}`}{item.add_to_shared_expenses && ` · (Shared Expense added)`}{` · By ${item.created_by || 'Super admin'} on ${shortDate(item.created_at)}`}</small>{item.cancelled && <em>Cancelled by {item.cancelled_by || item.canceller || 'Super admin'} · {item.cancellation_reason}</em>}</span>{!item.cancelled && <button className="link" onClick={() => onCorrect(item)}>Correct / cancel</button>}</div>)}</div> : <div className="info-banner">No manual salary adjustments or extra work recorded for this month.</div>}
+        <h3 className="section-title">Daily attendance and leave</h3><div className="table-wrap"><table><thead><tr><th>Date</th><th>Status</th><th>Scheduled</th><th>Leave deduction</th><th>Time In</th><th>Time Out</th><th>Calendar</th></tr></thead><tbody>{row.days.map(day => <tr key={day.date}><td className="strong">{shortDate(day.date)}</td><td>{day.status.replaceAll('_', ' ')}</td><td>{number(day.scheduled_units)}</td><td>{day.leave_units ? `${number(day.leave_units)} unit` : '—'}</td><td>{day.clock_in || '—'}</td><td>{day.clock_out || '—'}</td><td>{day.holiday || (day.weekly_off ? 'Weekly off' : 'Working day')}</td></tr>)}</tbody></table></div></section>;
 }
 
 function RateForm({form, setForm, onClose, onSaved}) {
-    const [busy, setBusy] = useState(false);
-    const [error, setError] = useState('');
-    const save = async event => {
-        event.preventDefault();
-        setBusy(true);
-        setError('');
-        try {
-            await api(`employees/${form.employee.id}/salary-rates`, {method: 'POST', body: JSON.stringify(form)});
-            await onSaved('Monthly salary rate saved successfully.');
-        } catch (failure) {
-            setError(failure.message);
-        } finally {
-            setBusy(false);
-        }
-    };
-    return (
-        <div className="modal-backdrop">
-            <form className="modal compact-salary-modal" onSubmit={save}>
-                <div className="panel-head">
-                    <div>
-                        <h2>Set monthly salary</h2>
-                        <p>{form.employee.name} · changes apply from the effective month.</p>
-                    </div>
-                    <button type="button" className="icon-button ghost" onClick={onClose}><X/></button>
-                </div>
-                <div className="form-grid two">
-                    <Field label="Effective month">
-                        <input type="month" max={currentMonth()} value={form.effective_month} onChange={event => setForm({...form, effective_month: event.target.value})} required/>
-                    </Field>
-                    <Field label="Full monthly salary">
-                        <input type="number" min="0.01" step="0.01" inputMode="decimal" value={form.monthly_salary} onChange={event => setForm({...form, monthly_salary: event.target.value})} required/>
-                    </Field>
-                </div>
-                {error && <div className="error">{error}</div>}
-                <div className="form-actions">
-                    <span>Previous effective months remain unchanged.</span>
-                    <button className="primary" disabled={busy}>{busy ? 'Saving…' : 'Save salary'}</button>
-                </div>
-            </form>
-        </div>
-    );
+    const [busy, setBusy] = useState(false); const [error, setError] = useState('');
+    const save = async event => {event.preventDefault(); setBusy(true); setError(''); try {await api(`employees/${form.employee.id}/salary-rates`, {method: 'POST', body: JSON.stringify(form)}); await onSaved('Monthly salary rate saved successfully.');} catch (failure) {setError(failure.message);} finally {setBusy(false);}};
+    return <div className="modal-backdrop"><form className="modal compact-salary-modal" onSubmit={save}><div className="panel-head"><div><h2>Set monthly salary</h2><p>{form.employee.name} · changes apply from the effective month.</p></div><button type="button" className="icon-button ghost" onClick={onClose}><X/></button></div><div className="form-grid two"><Field label="Effective month"><input type="month" max={currentMonth()} value={form.effective_month} onChange={event => setForm({...form, effective_month: event.target.value})} required/></Field><Field label="Full monthly salary"><input type="number" min="0.01" step="0.01" inputMode="decimal" value={form.monthly_salary} onChange={event => setForm({...form, monthly_salary: event.target.value})} required/></Field></div>{error && <div className="error">{error}</div>}<div className="form-actions"><span>Previous effective months remain unchanged.</span><button className="primary" disabled={busy}>{busy ? 'Saving…' : 'Save salary'}</button></div></form></div>;
 }
 
 function AdjustmentForm({form, setForm, onClose, onSaved}) {
-    const [busy, setBusy] = useState(false);
-    const [error, setError] = useState('');
+    const [busy, setBusy] = useState(false); const [error, setError] = useState('');
     const [companies, setCompanies] = useState([]);
     useEffect(() => {
         api('companies').then(res => setCompanies(res.filter(c => c.active))).catch(() => {});
     }, []);
-    const save = async event => {
-        event.preventDefault();
-        setBusy(true);
-        setError('');
-        try {
-            await api('salary-adjustments', {method: 'POST', body: JSON.stringify(form)});
-            await onSaved('Extra work / salary addition recorded successfully.');
-        } catch (failure) {
-            setError(failure.message);
-        } finally {
-            setBusy(false);
-        }
-    };
-    return (
-        <div className="modal-backdrop">
-            <form className="modal compact-salary-modal" onSubmit={save}>
-                <div className="panel-head">
-                    <div>
-                        <h2>Add salary adjustment / Extra work</h2>
-                        <p>{form.employee.name} · {form.salary_month}</p>
-                    </div>
-                    <button type="button" className="icon-button ghost" onClick={onClose}><X/></button>
-                </div>
-                <div className="form-grid two">
-                    <Field label="Adjustment type">
-                        <select value={form.type} onChange={event => setForm({...form, type: event.target.value})}>
-                            <option value="addition">Extra Work / Addition (+)</option>
-                            <option value="deduction">Deduction (−)</option>
-                        </select>
-                    </Field>
-                    <Field label="Work Date">
-                        <input type="date" value={form.work_date || ''} onChange={event => setForm({...form, work_date: event.target.value})}/>
-                    </Field>
-                </div>
-                <div className="form-grid two">
-                    <Field label="Amount (₹)">
-                        <input type="number" min="0.01" step="0.01" inputMode="decimal" value={form.amount} onChange={event => setForm({...form, amount: event.target.value})} required/>
-                    </Field>
-                    <Field label="Company (Optional)">
-                        <select value={form.company_id || ''} onChange={event => setForm({...form, company_id: event.target.value ? Number(event.target.value) : ''})}>
-                            <option value="">All / None (Company neutral)</option>
-                            {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                    </Field>
-                </div>
-                <Field label="Work details / Reason">
-                    <textarea rows="3" maxLength="1000" placeholder="Explain the extra work performed or reason for addition..." value={form.reason} onChange={event => setForm({...form, reason: event.target.value})} required/>
-                </Field>
-                {form.type === 'addition' && (
-                    <label className="toggle" style={{display: 'flex', alignItems: 'center', gap: '8px', margin: '8px 0', fontSize: '13px', cursor: 'pointer'}}>
-                        <input type="checkbox" checked={!!form.add_to_shared_expenses} onChange={event => setForm({...form, add_to_shared_expenses: event.target.checked})}/>
-                        <span>Add to Company Shared Expenses (કંપની ખર્ચમાં ઉમેરો)</span>
-                    </label>
-                )}
-                {error && <div className="error">{error}</div>}
-                <div className="form-actions">
-                    <span>This reason and work date will be visible to the employee.</span>
-                    <button className="primary" disabled={busy}>{busy ? 'Saving…' : 'Record addition'}</button>
-                </div>
-            </form>
+    const save = async event => {event.preventDefault(); setBusy(true); setError(''); try {await api('salary-adjustments', {method: 'POST', body: JSON.stringify(form)}); await onSaved('Extra work / salary addition recorded successfully.');} catch (failure) {setError(failure.message);} finally {setBusy(false);}};
+    return <div className="modal-backdrop"><form className="modal compact-salary-modal" onSubmit={save}><div className="panel-head"><div><h2>Add salary adjustment / Extra work</h2><p>{form.employee.name} · {form.salary_month}</p></div><button type="button" className="icon-button ghost" onClick={onClose}><X/></button></div>
+        <div className="form-grid two">
+            <Field label="Adjustment type"><select value={form.type} onChange={event => setForm({...form, type: event.target.value})}><option value="addition">Extra Work / Addition (+)</option><option value="deduction">Deduction (−)</option></select></Field>
+            <Field label="Work Date"><input type="date" value={form.work_date || ''} onChange={event => setForm({...form, work_date: event.target.value})}/></Field>
         </div>
-    );
+        <div className="form-grid two">
+            <Field label="Amount (₹)"><input type="number" min="0.01" step="0.01" inputMode="decimal" value={form.amount} onChange={event => setForm({...form, amount: event.target.value})} required/></Field>
+            <Field label="Company (Optional)"><select value={form.company_id || ''} onChange={event => setForm({...form, company_id: event.target.value ? Number(event.target.value) : ''})}><option value="">All / None (Company neutral)</option>{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+        </div>
+        <Field label="Work details / Reason"><textarea rows="3" maxLength="1000" placeholder="Explain the extra work performed or reason for addition..." value={form.reason} onChange={event => setForm({...form, reason: event.target.value})} required/></Field>
+        {form.type === 'addition' && <label className="toggle" style={{display: 'flex', alignItems: 'center', gap: '8px', margin: '8px 0', fontSize: '13px', cursor: 'pointer'}}><input type="checkbox" checked={!!form.add_to_shared_expenses} onChange={event => setForm({...form, add_to_shared_expenses: event.target.checked})}/><span>Add to Company Shared Expenses (કંપની ખર્ચમાં ઉમેરો)</span></label>}
+        {error && <div className="error">{error}</div>}
+        <div className="form-actions"><span>This reason and work date will be visible to the employee.</span><button className="primary" disabled={busy}>{busy ? 'Saving…' : 'Record addition'}</button></div></form></div>;
 }
 
 function CorrectionForm({form, setForm, onClose, onSaved}) {
-    const [busy, setBusy] = useState(false);
-    const [error, setError] = useState('');
-    const save = async event => {
-        event.preventDefault();
-        setBusy(true);
-        setError('');
-        const body = {
-            correction_reason: form.correction_reason,
-            ...(form.replace ? {
-                replacement_type: form.replacement_type,
-                replacement_amount: form.replacement_amount,
-                replacement_reason: form.replacement_reason
-            } : {})
-        };
-        try {
-            await api(`salary-adjustments/${form.adjustment.id}/cancel`, {method: 'POST', body: JSON.stringify(body)});
-            await onSaved(form.replace ? 'Salary adjustment replaced successfully.' : 'Salary adjustment cancelled successfully.');
-        } catch (failure) {
-            setError(failure.message);
-        } finally {
-            setBusy(false);
-        }
-    };
-    return (
-        <div className="modal-backdrop">
-            <form className="modal compact-salary-modal" onSubmit={save}>
-                <div className="panel-head">
-                    <div>
-                        <h2>Correct salary adjustment</h2>
-                        <p>The original entry remains visible in the audit history.</p>
-                    </div>
-                    <button type="button" className="icon-button ghost" onClick={onClose}><X/></button>
-                </div>
-                <Field label="Cancellation reason">
-                    <textarea rows="3" value={form.correction_reason} onChange={event => setForm({...form, correction_reason: event.target.value})} required/>
-                </Field>
-                <label className="toggle salary-replace-toggle">
-                    <input type="checkbox" checked={form.replace} onChange={event => setForm({...form, replace: event.target.checked})}/>
-                    <span/> Create a corrected replacement
-                </label>
-                {form.replace && (
-                    <>
-                        <div className="form-grid two">
-                            <Field label="Replacement type">
-                                <select value={form.replacement_type} onChange={event => setForm({...form, replacement_type: event.target.value})}>
-                                    <option value="addition">Addition</option>
-                                    <option value="deduction">Deduction</option>
-                                </select>
-                            </Field>
-                            <Field label="Replacement amount">
-                                <input type="number" min="0.01" step="0.01" value={form.replacement_amount} onChange={event => setForm({...form, replacement_amount: event.target.value})} required/>
-                            </Field>
-                        </div>
-                        <Field label="Replacement reason">
-                            <textarea rows="3" value={form.replacement_reason} onChange={event => setForm({...form, replacement_reason: event.target.value})} required/>
-                        </Field>
-                    </>
-                )}
-                {error && <div className="error">{error}</div>}
-                <div className="form-actions">
-                    <span>Cancelled entries never affect payable totals.</span>
-                    <button className="primary" disabled={busy}>{busy ? 'Saving…' : form.replace ? 'Cancel and replace' : 'Cancel adjustment'}</button>
-                </div>
-            </form>
-        </div>
-    );
+    const [busy, setBusy] = useState(false); const [error, setError] = useState('');
+    const save = async event => {event.preventDefault(); setBusy(true); setError(''); const body = {correction_reason: form.correction_reason, ...(form.replace ? {replacement_type: form.replacement_type, replacement_amount: form.replacement_amount, replacement_reason: form.replacement_reason} : {})}; try {await api(`salary-adjustments/${form.adjustment.id}/cancel`, {method: 'POST', body: JSON.stringify(body)}); await onSaved(form.replace ? 'Salary adjustment replaced successfully.' : 'Salary adjustment cancelled successfully.');} catch (failure) {setError(failure.message);} finally {setBusy(false);}};
+    return <div className="modal-backdrop"><form className="modal compact-salary-modal" onSubmit={save}><div className="panel-head"><div><h2>Correct salary adjustment</h2><p>The original entry remains visible in the audit history.</p></div><button type="button" className="icon-button ghost" onClick={onClose}><X/></button></div><Field label="Cancellation reason"><textarea rows="3" value={form.correction_reason} onChange={event => setForm({...form, correction_reason: event.target.value})} required/></Field><label className="toggle salary-replace-toggle"><input type="checkbox" checked={form.replace} onChange={event => setForm({...form, replace: event.target.checked})}/><span/> Create a corrected replacement</label>{form.replace && <><div className="form-grid two"><Field label="Replacement type"><select value={form.replacement_type} onChange={event => setForm({...form, replacement_type: event.target.value})}><option value="addition">Addition</option><option value="deduction">Deduction</option></select></Field><Field label="Replacement amount"><input type="number" min="0.01" step="0.01" value={form.replacement_amount} onChange={event => setForm({...form, replacement_amount: event.target.value})} required/></Field></div><Field label="Replacement reason"><textarea rows="3" value={form.replacement_reason} onChange={event => setForm({...form, replacement_reason: event.target.value})} required/></Field></>}{error && <div className="error">{error}</div>}<div className="form-actions"><span>Cancelled entries never affect payable totals.</span><button className="primary" disabled={busy}>{busy ? 'Saving…' : form.replace ? 'Cancel and replace' : 'Cancel adjustment'}</button></div></form></div>;
 }

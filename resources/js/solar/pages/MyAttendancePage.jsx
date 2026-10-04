@@ -197,8 +197,8 @@ export default function MyAttendancePage({companyId}) {
                 <section className="panel" style={{background: '#f0fdf4', border: '1px solid #bbf7d0'}}>
                     <div className="panel-head" style={{marginBottom: '8px'}}>
                         <div>
-                            <h2 style={{color: '#14532d', display: 'flex', alignItems: 'center', gap: '8px'}}>
-                                <Camera size={18} style={{color: '#15803d'}}/> Today's Plant Photo Inspection Tasks
+                            <h2 style={{color: '#14532d', display: 'flex', alignItems: 'center', gap: '6px'}}>
+                                <span>📸</span> Today's Plant Photo Inspection Tasks
                             </h2>
                             <p style={{color: '#166534'}}>
                                 Scheduled plant inspection and maintenance photos.

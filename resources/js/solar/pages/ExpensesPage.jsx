@@ -207,12 +207,12 @@ export default function ExpensesPage({currentUser}) {
                             gap: '6px'
                         }}>
                             <b style={{fontSize: '12px', color: '#92400e', display: 'flex', alignItems: 'center', gap: '6px'}}>
-                                <Scale size={14}/> પેન્ડિંગ ચૂકવણી વિગત (કોણે કોને કેટલા આપવાના છે):
+                                <span>📌</span> પેન્ડિંગ ચૂકવણી વિગત (કોણે કોને કેટલા આપવાના છે):
                             </b>
                             <div style={{display: 'flex', flexDirection: 'column', gap: '4px'}}>
                                 {data.gujarati_summary.pending_settlements.map((ps, idx) => (
                                     <div key={idx} style={{fontSize: '12px', color: '#78350f', display: 'flex', alignItems: 'center', gap: '6px'}}>
-                                        <ArrowRight size={13} style={{color: '#ea580c', flexShrink: 0}}/>
+                                        <span>👉</span>
                                         <span>{ps.sentence_gu}</span>
                                     </div>
                                 ))}

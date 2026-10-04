@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {Activity, AlertCircle, AlertTriangle, Bell, Check, CheckCircle, ChevronDown, ChevronUp, Clock, Cloud, CloudLightning, CloudRain, Crosshair, DollarSign, Droplets, Factory, FileText, History, Home, MapPin, Moon, Power, RefreshCw, RotateCcw, ShieldAlert, Sliders, Sparkles, Sun, Thermometer, Trash2, TrendingDown, TrendingUp, Wind, X, Zap} from 'lucide-react';
+import {Activity, AlertCircle, AlertTriangle, Bell, Check, CheckCircle, ChevronDown, ChevronUp, Clock, Cloud, CloudLightning, CloudRain, Crosshair, DollarSign, Droplets, Factory, FileText, History, Home, MapPin, Power, RefreshCw, RotateCcw, ShieldAlert, Sliders, Sparkles, Sun, Thermometer, Trash2, TrendingDown, TrendingUp, Wind, X, Zap} from 'lucide-react';
 import {api} from '../api';
 import {Loading} from '../components/Common';
 import ISolarCloudVisualizer from '../components/ISolarCloudVisualizer';
@@ -737,8 +737,8 @@ export default function DashboardPage({companyId, currentUser}) {
                 <div className="cleaning-section-header">
                     <div className="cleaning-head-left">
                         <h3>
-                            <span style={{color: (smartInsights.cloud_vs_fault?.type === 'night_standby') ? '#0284c7' : '#d97706', display: 'inline-flex', alignItems: 'center'}}>
-                                {(smartInsights.cloud_vs_fault?.type === 'night_standby') ? <Moon size={18}/> : <AlertTriangle size={18}/>}
+                            <span style={{color: (smartInsights.cloud_vs_fault?.type === 'night_standby') ? '#0284c7' : '#d97706'}}>
+                                {(smartInsights.cloud_vs_fault?.type === 'night_standby') ? '🌙' : '⚠️'}
                             </span>
                             {(smartInsights.cloud_vs_fault?.type === 'night_standby')
                                 ? 'પ્લાન્ટ સ્માર્ટ સ્ટેટસ (રાત્રિ સ્લીપ મોડ - પ્લાન્ટ બંધ છે)'
