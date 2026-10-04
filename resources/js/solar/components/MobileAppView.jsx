@@ -1619,32 +1619,36 @@ export default function MobileAppView({
                             </div>
                         )}
 
-                        {/* 🔥 Inverter Overheat / High Heat Load Alerts */}
+                        {/* 🔥 Inverter Overheat / High Heat Load / Fire Risk Alerts */}
                         {overheatAlerts && overheatAlerts.length > 0 && (
                             <div style={{display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px'}}>
-                                {overheatAlerts.map((oAlert, oIdx) => (
-                                    <div key={oIdx} style={{
-                                        background: '#fff1f2',
-                                        border: '1.5px solid #f43f5e',
-                                        borderRadius: '12px',
-                                        padding: '10px 12px',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        gap: '5px'
-                                    }}>
-                                        <div style={{display: 'flex', alignItems: 'center', gap: '7px'}}>
-                                            <span style={{background: '#e11d48', color: '#fff', fontSize: '11px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px'}}>
-                                                {oAlert.badge || '🔥 ઇન્વર્ટર હીટ એલર્ટ'}
-                                            </span>
-                                            <b style={{fontSize: '12.5px', color: '#9f1239'}}>
-                                                {oAlert.title}
-                                            </b>
+                                {overheatAlerts.map((oAlert, oIdx) => {
+                                    const isFireRisk = oAlert.is_emergency || oAlert.type === 'inverter_fire_risk';
+                                    return (
+                                        <div key={oIdx} style={{
+                                            background: isFireRisk ? '#fef2f2' : '#fff1f2',
+                                            border: isFireRisk ? '2px solid #dc2626' : '1.5px solid #f43f5e',
+                                            borderRadius: '12px',
+                                            padding: '10px 12px',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: '5px',
+                                            boxShadow: isFireRisk ? '0 4px 14px rgba(220, 38, 38, 0.2)' : 'none'
+                                        }}>
+                                            <div style={{display: 'flex', alignItems: 'center', gap: '7px'}}>
+                                                <span style={{background: isFireRisk ? '#dc2626' : '#e11d48', color: '#fff', fontSize: '11px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px'}}>
+                                                    {oAlert.badge || (isFireRisk ? '🚨 ઇન્વર્ટર આગ ખતરો' : '🔥 ઇન્વર્ટર હીટ એલર્ટ')}
+                                                </span>
+                                                <b style={{fontSize: '12.5px', color: isFireRisk ? '#991b1b' : '#9f1239'}}>
+                                                    {oAlert.title}
+                                                </b>
+                                            </div>
+                                            <p style={{margin: 0, fontSize: '11px', color: isFireRisk ? '#7f1d1d' : '#be123c', lineHeight: 1.4, fontWeight: isFireRisk ? 700 : 500}}>
+                                                {oAlert.message}
+                                            </p>
                                         </div>
-                                        <p style={{margin: 0, fontSize: '11px', color: '#be123c', lineHeight: 1.4}}>
-                                            {oAlert.message}
-                                        </p>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
 

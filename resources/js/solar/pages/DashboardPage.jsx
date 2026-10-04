@@ -1254,16 +1254,16 @@ export default function DashboardPage({companyId, currentUser}) {
                     <div className="cleaning-alert-list-stacked" style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
                         {cleaningAlerts.map((alert, idx) => (
                             <div key={idx} style={{
-                                background: alert.type === 'winter_dew' ? '#f0f9ff' : alert.type === 'zero_current' ? '#fef2f2' : alert.type === 'inverter_overheat' ? '#fff1f2' : '#fffbeb',
-                                border: alert.type === 'winter_dew' ? '1.5px solid #38bdf8' : alert.type === 'zero_current' ? '1.5px solid #ef4444' : alert.type === 'inverter_overheat' ? '1.5px solid #f43f5e' : '1.5px solid #f59e0b',
+                                background: alert.type === 'winter_dew' ? '#f0f9ff' : alert.type === 'zero_current' ? '#fef2f2' : alert.type === 'inverter_fire_risk' ? '#fef2f2' : alert.type === 'inverter_overheat' ? '#fff1f2' : '#fffbeb',
+                                border: alert.type === 'winter_dew' ? '1.5px solid #38bdf8' : alert.type === 'zero_current' ? '1.5px solid #ef4444' : alert.type === 'inverter_fire_risk' ? '2px solid #dc2626' : alert.type === 'inverter_overheat' ? '1.5px solid #f43f5e' : '1.5px solid #f59e0b',
                                 borderRadius: '12px',
                                 padding: '14px 16px',
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                                boxShadow: alert.type === 'inverter_fire_risk' ? '0 4px 16px rgba(220, 38, 38, 0.2)' : '0 2px 8px rgba(0,0,0,0.04)'
                             }}>
                                 <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', marginBottom: '8px', borderBottom: '1px dashed #cbd5e1', paddingBottom: '6px'}}>
                                     <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                                         <span style={{
-                                            background: alert.type === 'winter_dew' ? '#0284c7' : alert.type === 'zero_current' ? '#dc2626' : alert.type === 'inverter_overheat' ? '#e11d48' : '#d97706',
+                                            background: alert.type === 'winter_dew' ? '#0284c7' : (alert.type === 'zero_current' || alert.type === 'inverter_fire_risk') ? '#dc2626' : alert.type === 'inverter_overheat' ? '#e11d48' : '#d97706',
                                             color: '#ffffff',
                                             fontWeight: 800,
                                             fontSize: '11px',
@@ -1281,11 +1281,11 @@ export default function DashboardPage({companyId, currentUser}) {
                                     )}
                                 </div>
                                 
-                                <p style={{margin: '0 0 8px', fontSize: '13px', color: '#1e293b', lineHeight: 1.5, fontWeight: 600}}>
+                                <p style={{margin: '0 0 8px', fontSize: '13px', color: alert.type === 'inverter_fire_risk' ? '#991b1b' : '#1e293b', lineHeight: 1.5, fontWeight: 700}}>
                                     "{alert.message || alert.title}"
                                 </p>
 
-                                {alert.type === 'inverter_overheat' && (
+                                {(alert.type === 'inverter_overheat' || alert.type === 'inverter_fire_risk') && (
                                     <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '11px', marginTop: '4px'}}>
                                         <span style={{background: '#ffe4e6', color: '#be123c', padding: '3px 8px', borderRadius: '4px', border: '1px solid #fecdd3', fontWeight: 700}}>
                                             🌡️ અંદાજિત હીટ: {alert.temp_c}°C
@@ -1294,7 +1294,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                             ⚡ લોડ: {alert.load_pct}% ({alert.live_kw} kW)
                                         </span>
                                         <span style={{background: '#fee2e2', color: '#991b1b', padding: '3px 8px', borderRadius: '4px', border: '1px solid #fca5a5', fontWeight: 700}}>
-                                            ⚠️ સાઇટ ચેકલિસ્ટ: કૂલિંગ ફેન અને ફિલ્ટર જાળી બ્લોઅરથી સાફ કરો
+                                            {alert.type === 'inverter_fire_risk' ? '🚨 ઇમરજન્સી: સાઈટ પર ઇન્વર્ટર તપાસો અથવા તરત ટ્રીપ કરો!' : '⚠️ સાઇટ ચેકલિસ્ટ: કૂલિંગ ફેન અને ફિલ્ટર જાળી બ્લોઅરથી સાફ કરો'}
                                         </span>
                                     </div>
                                 )}

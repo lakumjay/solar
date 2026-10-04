@@ -595,10 +595,14 @@ class ISolarCloudService
                         // Overheating alert only triggers if heatsink exceeds 68°C or load > 95% with extreme ambient (> 38°C).
                         $estimatedInvTemp = round($tempAmbient + (($loadPct / 100.0) * 18.0), 1);
                         if ($isOnline && ! $isInverterCurtailed && ($estimatedInvTemp >= 68.0 || ($loadPct >= 95.0 && $tempAmbient >= 38.0))) {
-                            $heatNoticeMessage = "{$company->name} ના {$inv->name} પર ભારે હીટ લોડ (~{$estimatedInvTemp}°C, {$loadPct}% લોડ) છે. કૂલિંગ ફેન જામ કે એર ફિલ્ટર જાળીમાં ધૂળ બ્લોક હોઈ શકે છે. સાઈટ પર ફેન ચેક કરો.";
+                            $isFireEmergency = ($estimatedInvTemp >= 72.0);
+                            $heatNoticeMessage = $isFireEmergency
+                                ? "🚨 ઇમરજન્સી: {$company->name} ના {$inv->name} માં તાપમાન અતિશય ગંભીર સ્તરે (~{$estimatedInvTemp}°C) પહોંચ્યું છે! અંદર આગ/સ્પાર્કિંગનો મોટો ખતરો છે. સાઈટ પર તાત્કાલિક ઇન્વર્ટર ચેક કરો અથવા પાવર ટ્રીપ કરો."
+                                : "{$company->name} ના {$inv->name} પર ભારે હીટ લોડ (~{$estimatedInvTemp}°C, {$loadPct}% લોડ) છે. કૂલિંગ ફેન જામ કે એર ફિલ્ટર જાળીમાં ધૂળ બ્લોક હોઈ શકે છે. સાઈટ પર ફેન ચેક કરો.";
                             $heatAlertItem = [
-                                'type' => 'inverter_overheat',
-                                'badge' => '🔥 ઇન્વર્ટર હીટ એલર્ટ',
+                                'type' => $isFireEmergency ? 'inverter_fire_risk' : 'inverter_overheat',
+                                'badge' => $isFireEmergency ? '🚨 ઇન્વર્ટર આગ/બ્લાસ્ટ ખતરો' : '🔥 ઇન્વર્ટર હીટ એલર્ટ',
+                                'is_emergency' => $isFireEmergency,
                                 'company_id' => $company->id,
                                 'company_name' => $company->name,
                                 'inverter_id' => $inv->id,
@@ -969,6 +973,7 @@ class ISolarCloudService
         }
 
         $todayReadingStatus = null;
+        $isPast700Pm = ($currentHourFloat >= 19.0 || ($isNight && $currentHourFloat < 5.0));
         $isBetween615And730 = ($currentHourFloat >= 18.25 && $currentHourFloat < 19.5);
 
         if (count($todayCompletedComps) === $companies->count() && empty($todayMeterMissingComps) && empty($todayMissingComps)) {
@@ -982,16 +987,16 @@ class ISolarCloudService
                 'message' => 'આજના રીડિંગના યુનિટ કમ્પ્લીટ સેવ કરી નાખ્યા આવી ગયા છે કમ્પ્લીટ (તમામ મીટર અને ઇન્વર્ટર ડેટા ઓકે છે).',
                 'theme' => 'success',
             ];
-        } elseif (! empty($todayMeterMissingComps)) {
-            // Inverter generation entered/synced, but physical meter numbers are still 0.00 / missing!
+        } elseif (! empty($todayMeterMissingComps) && $isPast700Pm) {
+            // After 7:00 PM: Inverter generation entered/synced, but physical meter numbers are still 0.00 / missing!
             $mNames = implode(', ', $todayMeterMissingComps);
             $todayReadingStatus = [
                 'status' => 'meter_missing',
                 'active' => true,
                 'type' => 'daily_reading_meter_missing',
-                'badge' => '⚠️ મીટર રીડિંગ બાકી',
+                'badge' => '⚠️ મીટર રીડિંગ બાકી (૭:૦૦ PM પછી)',
                 'title' => "ઇન્વર્ટર ડેટા ભરાયો છે પણ મીટર રીડિંગ બાકી છે!",
-                'message' => "{$mNames} ના ઇન્વર્ટર યુનિટ સિસ્ટમમાં સેવ થયેલા છે, પરંતુ પ્લાન્ટ / સબ-સ્ટેશન એક્સપોર્ટ મીટર રીડિંગ (Plant & Sub Export Meter) ભરવાનું બાકી છે. કૃપા કરી મીટર રીડિંગ સબમિટ કરો.",
+                'message' => "{$mNames} ના ઇન્વર્ટર યુનિટ સિસ્ટમમાં સેવ થયેલા છે, પરંતુ પ્લાન્ટ / સબ-સ્ટેશન એક્સપોર્ટ મીટર રીડિંગ (Plant & Sub Export Meter) ભરવાનું બાકી છે. કૃપા કરી દિવસના અંતનું મીટર રીડિંગ સબમિટ કરો.",
                 'missing_companies' => $todayMeterMissingComps,
                 'theme' => 'warning',
             ];
