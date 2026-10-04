@@ -2229,7 +2229,7 @@
 .attendance-manual-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: 12px;
     width: 100%;
     box-sizing: border-box;
 }
@@ -2238,41 +2238,72 @@
     min-width: 0;
     width: 100%;
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.attendance-manual-grid .field > span {
+    font-size: 11.5px !important;
+    font-weight: 750 !important;
+    color: #153b2e !important;
+    margin-bottom: 5px !important;
+    display: block;
+    line-height: 1.2;
 }
 
 .attendance-manual-grid input,
 .attendance-manual-grid select,
 .attendance-manual-grid textarea {
-    min-width: 0;
-    width: 100%;
-    box-sizing: border-box;
-    font-size: 12px;
-    padding: 7px 9px;
-    border-radius: 8px;
-    border: 1px solid #cbd5e1;
+    min-width: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    padding: 8px 10px !important;
+    border-radius: 10px !important;
+    border: 1.5px solid #d1e7dd !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    transition: all 0.15s ease;
+}
+
+.attendance-manual-grid input:focus,
+.attendance-manual-grid select:focus,
+.attendance-manual-grid textarea:focus {
+    border-color: #16a34a !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15) !important;
+    background: #ffffff !important;
 }
 
 .attendance-manual-grid .attendance-manual-fullrow {
     grid-column: 1 / -1;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: 12px;
 }
 
 .attendance-manual-fullrow textarea {
-    min-height: 52px;
+    min-height: 56px !important;
     resize: vertical;
 }
 
-@media (max-width: 420px) {
+@media (max-width: 480px) {
     .attendance-manual-grid {
-        gap: 8px;
+        gap: 8px 10px;
+    }
+    .attendance-manual-grid .attendance-manual-fullrow {
+        gap: 8px 10px;
+    }
+    .attendance-manual-grid .field > span {
+        font-size: 11px !important;
     }
     .attendance-manual-grid input,
     .attendance-manual-grid select,
     .attendance-manual-grid textarea {
-        font-size: 11.5px;
-        padding: 6px 7px;
+        font-size: 11.5px !important;
+        padding: 7px 8px !important;
+        border-radius: 8px !important;
     }
 }
 

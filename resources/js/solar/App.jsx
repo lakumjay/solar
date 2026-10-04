@@ -36,7 +36,7 @@ export default function App() {
             if (currentUser.company_id) {
                 setCompanyId(String(currentUser.company_id));
             } else {
-                setCompanyId(prev => (prev && prev !== 'all' && rows.some(r => String(r.id) === String(prev)) ? prev : (preferredPage === 'entry' && rows[0] ? String(rows[0].id) : 'all')));
+                setCompanyId(prev => (prev && prev !== 'all' && rows.some(r => String(r.id) === String(prev)) ? prev : 'all'));
             }
             setPage(['dashboard', 'entry', 'stock', 'gallery', 'reels', 'my-attendance', 'my-salary'].includes(preferredPage) ? preferredPage : 'dashboard');
             return rows;

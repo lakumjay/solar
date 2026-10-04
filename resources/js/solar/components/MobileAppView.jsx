@@ -490,15 +490,6 @@ export default function MobileAppView({
         return () => window.removeEventListener('beforeinstallprompt', handler);
     }, []);
 
-    // ⚡ Auto-select first company when navigating to Daily Entry if "All Companies" was selected
-    useEffect(() => {
-        if (page === 'entry' && (companyId === 'all' || !companyId) && companies.length > 0) {
-            const firstValidComp = companies.find(c => String(c.id) !== 'all') || companies[0];
-            if (firstValidComp) {
-                setCompanyId(String(firstValidComp.id));
-            }
-        }
-    }, [page, companyId, companies]);
 
     const handleInstallClick = async () => {
         if (!pwaPrompt) {
@@ -873,10 +864,9 @@ export default function MobileAppView({
                         <div className="island-collapsed-content">
                             <div className="island-power-badge">
                                 <span className="island-pulse-laser"></span>
-                                <span>{currentSky.icon} {displayIslandPower !== '0.00 MW' ? displayIslandPower : (rawKw > 0 ? `${rawKw.toFixed(2)} kW` : '0.00 kW')}</span>
+                                <span style={{fontWeight: 800}}>{displayIslandPower !== '0.00 MW' ? displayIslandPower : (rawKw > 0 ? `${rawKw.toFixed(2)} kW` : '0.00 kW')}</span>
                             </div>
                             <div style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#94a3b8'}}>
-                                <span>{currentSky.labelGu}</span>
                                 {islandExpanded ? <ChevronUp size={14} color="#34d399"/> : <ChevronDown size={14} color="#94a3b8"/>}
                             </div>
                         </div>
@@ -901,32 +891,7 @@ export default function MobileAppView({
 
                     {/* Subhead Status Row with Gujarati Panchang Day & Tithi */}
                     <div className="mobile-subhead-section">
-                        <div className="plant-live-status-row">
-                            <div className="plant-pill">
-                                <Leaf size={13} style={{color: '#15803d'}}/>
-                                <span className="plant-name-bold">{displayName}</span>
-                                <button
-                                    type="button"
-                                    className="live-pulse-badge"
-                                    onClick={handleManualRefresh}
-                                    title="Click to sync live data"
-                                    style={{
-                                        background: 'transparent',
-                                        border: 'none',
-                                        padding: 0,
-                                        cursor: 'pointer',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '5px'
-                                    }}
-                                >
-                                    <span className={`pulse-dot ${isSyncing ? 'pulse-syncing' : ''}`}/>
-                                    <span style={{fontSize: '11px', fontWeight: 600, color: isSyncing ? '#059669' : '#15803d'}}>
-                                        {isSyncing ? 'Syncing...' : 'Live'}
-                                    </span>
-                                </button>
-                            </div>
-
+                        <div className="plant-live-status-row" style={{justifyContent: 'center'}}>
                             {/* 🌤️ Cloud vs Technical Fault AI Pill in Mobile (Hidden when plant is normal/stable) */}
                             {data?.smart_insights?.cloud_vs_fault && data.smart_insights.cloud_vs_fault.type !== 'normal' && (
                                 <span className={`cloud-fault-ai-pill ${data.smart_insights.cloud_vs_fault.theme}`} style={{fontSize: '10.5px', padding: '2px 8px'}}>
@@ -945,13 +910,14 @@ export default function MobileAppView({
                                     display: 'inline-flex',
                                     alignItems: 'center',
                                     gap: '6px',
-                                    padding: '5px 11px',
+                                    padding: '6px 14px',
                                     borderRadius: '20px',
                                     background: '#ffffff',
                                     border: '1.5px solid #d1e7dd',
                                     boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
                                     cursor: 'pointer',
-                                    textDecoration: 'none'
+                                    textDecoration: 'none',
+                                    maxWidth: '100%'
                                 }}
                                 title="ગુજરાતી પંચાંગ & કેલેન્ડર જોવા ટેપ કરો"
                             >
@@ -994,30 +960,31 @@ export default function MobileAppView({
 
                     {/* ⚡ PGVCL Solar Curtailment Mobile Control Box & Master Restore Switch */}
                     <div style={{
-                        margin: '0 12px 10px 12px',
+                        margin: '0 14px 12px',
                         background: curtailmentSystem.is_any_active ? '#fff7ed' : '#ffffff',
-                        border: curtailmentSystem.is_any_active ? '1.5px solid #f97316' : '1px solid #e2e8f0',
-                        borderRadius: '12px',
-                        padding: '10px 12px',
-                        boxShadow: curtailmentSystem.is_any_active ? '0 3px 12px rgba(249, 115, 22, 0.15)' : '0 1px 3px rgba(0,0,0,0.03)'
+                        border: curtailmentSystem.is_any_active ? '1.5px solid #fb923c' : '1.5px solid #d1e7dd',
+                        borderRadius: '16px',
+                        padding: '12px 14px',
+                        boxShadow: curtailmentSystem.is_any_active ? '0 4px 14px rgba(249, 115, 22, 0.12)' : '0 2px 8px rgba(0,0,0,0.03)'
                     }}>
-                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap'}}>
-                            <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap'}}>
+                            <div style={{display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0}}>
                                 <div style={{
-                                    width: '30px',
-                                    height: '30px',
-                                    borderRadius: '8px',
-                                    background: curtailmentSystem.is_any_active ? '#ffedd5' : '#e0f2fe',
-                                    color: curtailmentSystem.is_any_active ? '#ea580c' : '#0284c7',
+                                    width: '36px',
+                                    height: '36px',
+                                    borderRadius: '10px',
+                                    background: curtailmentSystem.is_any_active ? '#ffedd5' : '#dcfce7',
+                                    color: curtailmentSystem.is_any_active ? '#ea580c' : '#15803d',
                                     display: 'grid',
                                     placeItems: 'center',
-                                    flexShrink: 0
+                                    flexShrink: 0,
+                                    boxShadow: curtailmentSystem.is_any_active ? '0 2px 6px rgba(234, 88, 12, 0.15)' : '0 2px 6px rgba(21, 128, 61, 0.12)'
                                 }}>
-                                    <Power size={16}/>
+                                    <Power size={18}/>
                                 </div>
-                                <div>
-                                    <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
-                                        <b style={{fontSize: '12px', color: curtailmentSystem.is_any_active ? '#9a3412' : '#0f172a'}}>
+                                <div style={{minWidth: 0}}>
+                                    <div style={{display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap'}}>
+                                        <b style={{fontSize: '13px', color: curtailmentSystem.is_any_active ? '#9a3412' : '#0f291e', fontWeight: 800}}>
                                             {curtailmentSystem.is_any_active ? '⚡ PGVCL કર્ટલમેન્ટ ચાલુ છે' : '⚡ PGVCL: ૧૦૦% ફુલ પાવર'}
                                         </b>
                                         {curtailmentSystem.is_any_active && (
@@ -1026,14 +993,14 @@ export default function MobileAppView({
                                                 color: '#ffffff',
                                                 fontSize: '10px',
                                                 fontWeight: 800,
-                                                padding: '1px 6px',
-                                                borderRadius: '8px'
+                                                padding: '2px 7px',
+                                                borderRadius: '6px'
                                             }}>
                                                 {curtailmentSystem.active_count} પ્લાન્ટ
                                             </span>
                                         )}
                                     </div>
-                                    <span style={{fontSize: '10.5px', color: curtailmentSystem.is_any_active ? '#c2410c' : '#64748b', display: 'block'}}>
+                                    <span style={{fontSize: '11px', color: curtailmentSystem.is_any_active ? '#c2410c' : '#64748b', display: 'block', marginTop: '1px'}}>
                                         {curtailmentSystem.is_any_active
                                             ? 'PGVCL ઓર્ડર મુજબ ઉત્પાદન ઘટાડેલું છે.'
                                             : 'બધા પ્લાન્ટ ૧૦૦% ક્ષમતાથી ચાલુ છે.'}
@@ -1041,7 +1008,7 @@ export default function MobileAppView({
                                 </div>
                             </div>
 
-                            <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                            <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                                 {curtailmentSystem.is_any_active ? (
                                     <button
                                         type="button"
@@ -1049,18 +1016,19 @@ export default function MobileAppView({
                                         style={{
                                             display: 'inline-flex',
                                             alignItems: 'center',
-                                            gap: '4px',
-                                            background: '#16a34a',
+                                            gap: '5px',
+                                            background: 'linear-gradient(135deg, #16a34a, #15803d)',
                                             color: '#ffffff',
                                             border: 'none',
-                                            padding: '5px 10px',
-                                            borderRadius: '6px',
-                                            fontSize: '11px',
-                                            fontWeight: 700,
-                                            cursor: 'pointer'
+                                            padding: '7px 12px',
+                                            borderRadius: '10px',
+                                            fontSize: '12px',
+                                            fontWeight: 800,
+                                            cursor: 'pointer',
+                                            boxShadow: '0 2px 8px rgba(22, 163, 74, 0.25)'
                                         }}
                                     >
-                                        <Zap size={12}/>
+                                        <Zap size={13}/>
                                         ૧૦૦% ફુલ પાવર
                                     </button>
                                 ) : (
@@ -1070,18 +1038,19 @@ export default function MobileAppView({
                                         style={{
                                             display: 'inline-flex',
                                             alignItems: 'center',
-                                            gap: '4px',
-                                            background: '#f97316',
+                                            gap: '5px',
+                                            background: 'linear-gradient(135deg, #f97316, #ea580c)',
                                             color: '#ffffff',
                                             border: 'none',
-                                            padding: '5px 9px',
-                                            borderRadius: '6px',
-                                            fontSize: '11px',
-                                            fontWeight: 700,
-                                            cursor: 'pointer'
+                                            padding: '7px 12px',
+                                            borderRadius: '10px',
+                                            fontSize: '12px',
+                                            fontWeight: 800,
+                                            cursor: 'pointer',
+                                            boxShadow: '0 2px 8px rgba(249, 115, 22, 0.25)'
                                         }}
                                     >
-                                        <Sliders size={12}/>
+                                        <Sliders size={13}/>
                                         ઘટાડો સેટ કરો
                                     </button>
                                 )}
@@ -1092,18 +1061,18 @@ export default function MobileAppView({
                                     style={{
                                         display: 'inline-flex',
                                         alignItems: 'center',
-                                        gap: '3px',
+                                        gap: '4px',
                                         background: '#ffffff',
-                                        color: '#475569',
-                                        border: '1px solid #cbd5e1',
-                                        padding: '4px 8px',
-                                        borderRadius: '6px',
-                                        fontSize: '10.5px',
-                                        fontWeight: 600,
+                                        color: '#334155',
+                                        border: '1.5px solid #cbd5e1',
+                                        padding: '6px 10px',
+                                        borderRadius: '10px',
+                                        fontSize: '11.5px',
+                                        fontWeight: 700,
                                         cursor: 'pointer'
                                     }}
                                 >
-                                    <History size={11}/>
+                                    <History size={12}/>
                                     ઇતિહાસ
                                 </button>
                             </div>
@@ -2156,10 +2125,6 @@ export default function MobileAppView({
                                         onClick={() => {
                                             triggerHaptic([35]);
                                             setRadialHubOpen(false);
-                                            if ((companyId === 'all' || !companyId) && companies.length > 0) {
-                                                const validComp = companies.find(c => String(c.id) !== 'all') || companies[0];
-                                                if (validComp) setCompanyId(String(validComp.id));
-                                            }
                                             setPage('entry');
                                         }}
                                     >
@@ -2286,10 +2251,6 @@ export default function MobileAppView({
                             className={`bnav-item ${page === 'entry' ? 'active' : ''}`}
                             onClick={() => {
                                 playNavClickSound();
-                                if ((companyId === 'all' || !companyId) && companies.length > 0) {
-                                    const validComp = companies.find(c => String(c.id) !== 'all') || companies[0];
-                                    if (validComp) setCompanyId(String(validComp.id));
-                                }
                                 setPage('entry');
                             }}
                         >
