@@ -90,7 +90,7 @@ export function DatePicker({label, value, onChange, align = 'left'}) {
 }
 
 export function Field({label, suffix, children}) {
-    return <label className="field"><span>{label}</span><div>{children}{suffix && <small>{suffix}</small>}</div></label>;
+    return <label className="field"><span>{label}</span><div>{children}{suffix && <small className="field-suffix">{suffix}</small>}</div></label>;
 }
 
 export function Metric({icon: Icon = Factory, title, value, unit = 'units', color = 'green'}) {

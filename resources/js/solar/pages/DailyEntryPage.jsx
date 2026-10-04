@@ -202,33 +202,34 @@ export default function DailyEntryPage({company, canEdit = true}) {
     };
 
     return <form className="entry" onSubmit={save}>
-        <section className="panel entry-date" style={{borderRadius: '16px', background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(10px)'}}>
+        <section className="panel entry-date solar-glass-card" style={{borderRadius: '20px', padding: '20px', background: 'var(--glass-bg)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.7)', boxShadow: '0 8px 28px rgba(21,128,61,0.08)'}}>
             <div>
-                <p className="step">STEP 1</p>
-                <h2>તારીખ પસંદ કરો (Entry Date)</h2>
-                <p>જો આ તારીખનો ડેટા પહેલેથી હશે, તો તે આપોઆપ એડિટિંગ માટે લોડ થશે.</p>
+                <p className="step" style={{color: '#15803D', fontSize: '13px', fontWeight: '800', letterSpacing: '0.06em', textTransform: 'uppercase', margin: '0 0 4px'}}>STEP 1</p>
+                <h2 style={{color: '#14211A', fontSize: '17px', fontWeight: '700', margin: '0 0 4px'}}>તારીખ પસંદ કરો (Entry Date)</h2>
+                <p style={{color: '#4B5C52', fontSize: '13px', margin: 0}}>જો આ તારીખનો ડેટા પહેલેથી હશે, તો તે આપોઆપ એડિટિંગ માટે લોડ થશે.</p>
             </div>
             <DatePicker label="Entry date" value={date} onChange={setDate} align="right"/>
         </section>
 
         {existing && (
-            <div className="info-banner" style={{background: '#eff6ff', borderColor: '#bfdbfe', color: '#1e40af', borderRadius: '12px', padding: '12px 16px'}}>
-                ℹ️ <b>આ તારીખની એન્ટ્રી પહેલેથી હાજર છે.</b> તમે નીચેના મીટર રીડિંગ્સ અથવા ઇન્વર્ટર યુનિટ્સ અપડેટ કરીને સેવ કરી શકો છો.
+            <div className="info-banner" style={{background: '#EFF6FF', borderColor: '#BFDBFE', color: '#1E40AF', borderRadius: '14px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                <span>ℹ️ <b>આ તારીખની એન્ટ્રી પહેલેથી હાજર છે.</b> તમે નીચેના મીટર રીડિંગ્સ અથવા ઇન્વર્ટર યુનિટ્સ અપડેટ કરીને સેવ કરી શકો છો.</span>
             </div>
         )}
 
         {autoFetched && !existing && (
-            <div className="info-banner" style={{background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534', borderRadius: '12px', padding: '12px 16px'}}>
-                ⚡ iSolarCloud માંથી લાઇવ ઇન્વર્ટર રીડિંગ્સ આપોઆપ લોડ થઈ ગયા છે!
+            <div className="info-banner" style={{background: '#ECFDF3', borderColor: '#86EFAC', color: '#166534', borderRadius: '14px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                <Zap size={16} style={{color: '#16A34A', flexShrink: 0}}/>
+                <span><b>iSolarCloud Sync:</b> લાઇવ ઇન્વર્ટર રીડિંગ્સ આપોઆપ લોડ થઈ ગયા છે.</span>
             </div>
         )}
 
-        <section className="panel" style={{borderRadius: '16px', background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(10px)'}}>
-            <div className="panel-head" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px'}}>
+        <section className="panel solar-glass-card accent-gen" style={{borderRadius: '20px', padding: '20px'}}>
+            <div className="panel-head" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '16px'}}>
                 <div>
-                    <p className="step">STEP 2</p>
-                    <h2>ઇન્વર્ટર દૈનિક ઉત્પાદન (Inverter Generation)</h2>
-                    <p>ઓટો-સેવ થયેલા અથવા લાઇવ યુનિટ્સ (kWh). કુલ અંદાજિત જનરેશન: <b style={{color: '#059669'}}>{totalInverterGeneration} kWh</b></p>
+                    <p className="step" style={{color: '#16A34A', fontSize: '13px', fontWeight: '800', letterSpacing: '0.06em', textTransform: 'uppercase', margin: '0 0 4px'}}>STEP 2</p>
+                    <h2 style={{color: '#14211A', fontSize: '17px', fontWeight: '700', margin: '0 0 4px'}}>ઇન્વર્ટર દૈનિક ઉત્પાદન (Inverter Generation)</h2>
+                    <p style={{color: '#4B5C52', fontSize: '13px', margin: 0}}>ઓટો-સેવ થયેલા અથવા લાઇવ યુનિટ્સ (kWh). કુલ અંદાજિત જનરેશન: <b style={{color: '#15803D', fontFamily: 'var(--font-mono)'}}>{totalInverterGeneration} kWh</b></p>
                 </div>
                 <button
                     type="button"
@@ -241,19 +242,19 @@ export default function DailyEntryPage({company, canEdit = true}) {
                         display: 'flex',
                         alignItems: 'center',
                         gap: '6px',
-                        padding: '7px 14px',
-                        borderRadius: '10px',
-                        border: '1px solid #0284c7',
-                        background: '#f0f9ff',
-                        color: '#0369a1',
-                        fontSize: '12px',
-                        fontWeight: 750,
+                        padding: '8px 14px',
+                        borderRadius: '12px',
+                        border: '1px solid #0EA5E9',
+                        background: '#F0F9FF',
+                        color: '#0284C7',
+                        fontSize: '12.5px',
+                        fontWeight: 700,
                         cursor: syncingCloud ? 'not-allowed' : 'pointer',
-                        boxShadow: '0 2px 8px rgba(2, 132, 199, 0.1)'
+                        boxShadow: '0 2px 8px rgba(14, 165, 233, 0.12)'
                     }}
                 >
                     <RefreshCw size={14} className={syncingCloud ? 'spin' : ''}/>
-                    <span>{syncingCloud ? 'સિંક થાય છે...' : '⚡ iSolarCloud માંથી યુનિટ્સ લાવો'}</span>
+                    <span>{syncingCloud ? 'સિંક થાય છે...' : 'iSolarCloud યુનિટ્સ લાવો'}</span>
                 </button>
             </div>
 
@@ -266,7 +267,7 @@ export default function DailyEntryPage({company, canEdit = true}) {
                     return (
                         <Field
                             key={inverter.id}
-                            label={`${inverter.name} ${isZeroOrBlank ? '✏️ (મેન્યુઅલ એન્ટ્રી)' : ''}`}
+                            label={`${inverter.name} ${isZeroOrBlank ? '(મેન્યુઅલ)' : ''}`}
                             suffix="kWh"
                         >
                             <div className="smart-input-wrapper">
@@ -296,12 +297,12 @@ export default function DailyEntryPage({company, canEdit = true}) {
             </div>
         </section>
 
-        <section className="panel" style={{borderRadius: '16px', background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(10px)'}}>
-            <div className="panel-head">
+        <section className="panel solar-glass-card accent-rev" style={{borderRadius: '20px', padding: '20px'}}>
+            <div className="panel-head" style={{marginBottom: '16px'}}>
                 <div>
-                    <p className="step">STEP 3</p>
-                    <h2>કુલ મીટર રીડિંગ્સ (Cumulative meter readings)</h2>
-                    <p>સાંજે ૭:૦૦ વાગ્યા પછી ફિઝિકલ મીટર રીડિંગ નાખો (અગાઉના રીડિંગ × મલ્ટીપ્લાયરના આધારે પાવર ગણાશે).</p>
+                    <p className="step" style={{color: '#D97706', fontSize: '13px', fontWeight: '800', letterSpacing: '0.06em', textTransform: 'uppercase', margin: '0 0 4px'}}>STEP 3</p>
+                    <h2 style={{color: '#14211A', fontSize: '17px', fontWeight: '700', margin: '0 0 4px'}}>કુલ મીટર રીડિંગ્સ (Cumulative meter readings)</h2>
+                    <p style={{color: '#4B5C52', fontSize: '13px', margin: 0}}>સાંજે ૭:૦૦ વાગ્યા પછી ફિઝિકલ મીટર રીડિંગ નાખો (અગાઉના રીડિંગ × મલ્ટીપ્લાયરના આધારે પાવર ગણાશે).</p>
                 </div>
             </div>
             <div className="form-grid">
@@ -342,9 +343,9 @@ export default function DailyEntryPage({company, canEdit = true}) {
             <div
                 className={message.type === 'success' ? 'success' : 'error'}
                 style={{
-                    borderRadius: '12px',
+                    borderRadius: '14px',
                     padding: '12px 16px',
-                    fontSize: '13px',
+                    fontSize: '13.5px',
                     fontWeight: 700,
                     display: 'flex',
                     alignItems: 'center',
@@ -356,31 +357,46 @@ export default function DailyEntryPage({company, canEdit = true}) {
             </div>
         )}
 
-        <div className="form-actions" style={{position: 'sticky', bottom: 0, zIndex: 30}}>
-            <span>મીટર રીડિંગ્સ (જો ઉપલબ્ધ હોય તો નાખો, સાંજે ૭:૦૦ પછી)</span>
+        <div className="form-actions" style={{
+            position: 'sticky',
+            bottom: 'calc(65px + env(safe-area-inset-bottom, 8px))',
+            zIndex: 40,
+            background: 'rgba(255, 255, 255, 0.94)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid #D6E6D9',
+            borderRadius: '16px',
+            padding: '10px 16px',
+            boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px'
+        }}>
+            <span style={{fontSize: '12px', color: '#4B5C52', fontWeight: 600}}>મીટર રીડિંગ્સ સાંજે ૭:૦૦ પછી ભરો</span>
             <button
                 type="submit"
-                className={`btn-morph-save ${busy ? 'saving' : ''} ${saveSuccess ? 'success' : ''}`}
+                className={`btn-morph-save btn-primary-glow ${busy ? 'saving' : ''} ${saveSuccess ? 'success' : ''}`}
                 disabled={busy}
+                style={{minHeight: '48px'}}
             >
                 {busy ? (
                     <>
-                        <RefreshCw size={15} className="spin"/>
+                        <RefreshCw size={16} className="spin"/>
                         <span>સેવ થઈ રહ્યું છે…</span>
                     </>
                 ) : saveSuccess ? (
                     <>
-                        <CheckCircle2 size={16}/>
+                        <CheckCircle2 size={18}/>
                         <span>✅ સફળતાપૂર્વક સેવ થઈ ગયું!</span>
                     </>
                 ) : existing ? (
                     <>
-                        <Zap size={15}/>
+                        <Zap size={16}/>
                         <span>અપડેટ કરો (Update & Recalculate)</span>
                     </>
                 ) : (
                     <>
-                        <Zap size={15}/>
+                        <Zap size={16}/>
                         <span>દૈનિક રીડિંગ સેવ કરો (Save Daily Reading)</span>
                     </>
                 )}

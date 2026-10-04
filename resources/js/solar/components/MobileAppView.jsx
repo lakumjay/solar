@@ -94,6 +94,8 @@ export default function MobileAppView({
     const [notifToast, setNotifToast] = useState(null);
     const [expandedPlantId, setExpandedPlantId] = useState(null);
     const [expandedInverters, setExpandedInverters] = useState({});
+    const [expandedPlantCards, setExpandedPlantCards] = useState({});
+    const [alertsExpanded, setAlertsExpanded] = useState(true);
     const [isSyncing, setIsSyncing] = useState(false);
     const [showCurtailModal, setShowCurtailModal] = useState(false);
     const [showCurtailHistory, setShowCurtailHistory] = useState(false);
@@ -1374,517 +1376,260 @@ export default function MobileAppView({
                         )}
                     </div>
 
-                    {/* 4. GUJARATI CLEANING & SMART DIAGNOSTIC ALERTS SECTION */}
-                    <section className="cleaning-alert-section" style={{margin: '12px 0'}}>
-                        <div className="cleaning-section-header">
-                            <div className="cleaning-head-left">
-                                <h3>
-                                    <span style={{color: (data?.smart_insights?.cloud_vs_fault?.type === 'night_standby') ? '#0284c7' : '#d97706'}}>
-                                        {(data?.smart_insights?.cloud_vs_fault?.type === 'night_standby') ? '🌙' : '⚠️'}
-                                    </span>
-                                    {(data?.smart_insights?.cloud_vs_fault?.type === 'night_standby')
-                                        ? 'પ્લાન્ટ સ્માર્ટ સ્ટેટસ (રાત્રિ સ્લીપ મોડ)'
-                                        : 'પ્લાન્ટ સ્માર્ટ ડાયગ્નોસ્ટિક & સફાઈ એલર્ટ'}
-                                    {!(data?.smart_insights?.cloud_vs_fault?.type === 'night_standby') && ((cleaningAlerts.length > 0) || (data?.smart_insights?.underperforming_inverters?.length > 0) || data?.smart_insights?.grid_downtime?.is_down) && (
-                                        <span className="cleaning-head-badge">
-                                            🔴 {(cleaningAlerts.length || 0) + (data?.smart_insights?.underperforming_inverters?.length || 0) + (data?.smart_insights?.grid_downtime?.is_down ? 1 : 0)} ચેતવણી
-                                        </span>
-                                    )}
-                                </h3>
-                                <p className="cleaning-head-subtitle">
-                                    {(data?.smart_insights?.cloud_vs_fault?.type === 'night_standby')
-                                        ? 'સૂર્યાસ્ત બાદ પ્લાન્ટ બંધ છે. આવતીકાલે સવારે સૂર્યોદય સાથે લાઈવ AI ડાયગ્નોસ્ટિક્સ સક્રિય થશે.'
-                                        : 'નબળા ઇન્વર્ટર, પાવર લોસ, ગ્રીડ ટ્રીપિંગ અને ધૂળનું ઓટોમેટિક AI નિદાન'}
-                                </p>
-                            </div>
-                        </div>
+                    {/* 4. GUJARATI CLEANING & SMART DIAGNOSTIC ALERTS SECTION (Unified Collapsible Card) */}
+                    {(() => {
+                        const allAlerts = [];
 
-                        {/* ⏰ Daily Reading Status (Confirmation when saved OR Reminder / Missing Meter Alert) */}
-                        {dailyReadingStatus && dailyReadingStatus.active && (
-                            <div style={{
-                                marginBottom: '10px',
-                                background: dailyReadingStatus.status === 'completed'
-                                    ? '#f0fdf4'
-                                    : dailyReadingStatus.status === 'meter_missing'
-                                        ? '#fffbeb'
-                                        : dailyReadingStatus.status === 'due_now'
-                                            ? '#f0f9ff'
-                                            : '#fef2f2',
-                                border: dailyReadingStatus.status === 'completed'
-                                    ? '1.5px solid #22c55e'
-                                    : dailyReadingStatus.status === 'meter_missing'
-                                        ? '1.5px solid #f59e0b'
-                                        : dailyReadingStatus.status === 'due_now'
-                                            ? '1.5px solid #38bdf8'
-                                            : '1.5px solid #ef4444',
-                                borderRadius: '12px',
-                                padding: '12px 14px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '8px'
-                            }}>
-                                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap'}}>
-                                    <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                                        <span style={{
-                                            fontSize: '11px',
-                                            fontWeight: 800,
-                                            background: dailyReadingStatus.status === 'completed'
-                                                ? '#16a34a'
-                                                : dailyReadingStatus.status === 'meter_missing'
-                                                    ? '#d97706'
-                                                    : dailyReadingStatus.status === 'due_now'
-                                                        ? '#0284c7'
-                                                        : '#dc2626',
-                                            color: '#ffffff',
-                                            padding: '2px 8px',
-                                            borderRadius: '5px'
-                                        }}>
-                                            {dailyReadingStatus.badge}
-                                        </span>
-                                        <b style={{
-                                            fontSize: '13px',
-                                            color: dailyReadingStatus.status === 'completed'
-                                                ? '#15803d'
-                                                : dailyReadingStatus.status === 'meter_missing'
-                                                    ? '#92400e'
-                                                    : dailyReadingStatus.status === 'due_now'
-                                                        ? '#0369a1'
-                                                        : '#991b1b'
-                                        }}>
-                                            {dailyReadingStatus.title}
-                                        </b>
-                                    </div>
-                                    {dailyReadingStatus.status === 'completed' ? (
-                                        <span style={{
-                                            background: '#16a34a',
-                                            color: '#ffffff',
-                                            padding: '4px 10px',
-                                            borderRadius: '6px',
-                                            fontSize: '11px',
-                                            fontWeight: 800
-                                        }}>
-                                            કમ્પ્લીટ સેવ ✅
-                                        </span>
-                                    ) : (
+                        // 1. Grid Outage (Critical)
+                        if (gridOutageAlert && gridOutageAlert.active) {
+                            allAlerts.push({
+                                severity: 'critical',
+                                icon: Zap,
+                                badge: gridOutageAlert.badge || 'ગ્રીડ સપ્લાય ટ્રીપ',
+                                title: gridOutageAlert.title,
+                                message: gridOutageAlert.message,
+                                action: null
+                            });
+                        }
+
+                        // 2. Overheat / Fire Risk (Critical / Warning)
+                        if (overheatAlerts && overheatAlerts.length > 0) {
+                            overheatAlerts.forEach(oAlert => {
+                                const isFireRisk = oAlert.is_emergency || oAlert.type === 'inverter_fire_risk';
+                                allAlerts.push({
+                                    severity: isFireRisk ? 'critical' : 'warning',
+                                    icon: AlertTriangle,
+                                    badge: oAlert.badge || (isFireRisk ? 'ઇન્વર્ટર આગ ખતરો' : 'ઇન્વર્ટર હીટ એલર્ટ'),
+                                    title: oAlert.title,
+                                    message: oAlert.message,
+                                    action: null
+                                });
+                            });
+                        }
+
+                        // 3. Past Missing Reading (Warning)
+                        if (pastReadingMissing && pastReadingMissing.active) {
+                            allAlerts.push({
+                                severity: 'warning',
+                                icon: Calendar,
+                                badge: pastReadingMissing.badge || 'રીડિંગ બાકી',
+                                title: pastReadingMissing.title,
+                                message: `નીચેની તારીખનું ડેઇલી રીડિંગ ભરવાનું બાકી છે: ${pastReadingMissing.missing_dates?.map(m => `${m.date_formatted} (${m.companies_label})`).join(', ')}`,
+                                action: {
+                                    label: 'બાકી રીડિંગ ભરો',
+                                    onClick: () => setPage('entry')
+                                }
+                            });
+                        }
+
+                        // 4. Daily Reading Due / Missing Meter (Warning)
+                        if (dailyReadingStatus && dailyReadingStatus.active && dailyReadingStatus.status !== 'completed') {
+                            allAlerts.push({
+                                severity: 'warning',
+                                icon: ClipboardPlus,
+                                badge: dailyReadingStatus.badge,
+                                title: dailyReadingStatus.title,
+                                message: dailyReadingStatus.message,
+                                action: {
+                                    label: dailyReadingStatus.status === 'meter_missing' ? 'મીટર રીડિંગ ભરો' : 'ડેઇલી એન્ટ્રી ભરો',
+                                    onClick: () => setPage('entry')
+                                }
+                            });
+                        }
+
+                        // 5. Fan Cleaning Status
+                        if (fanCleaningStatus && (fanCleaningStatus.is_overdue || fanCleaningStatus.is_approaching)) {
+                            allAlerts.push({
+                                severity: fanCleaningStatus.is_overdue ? 'warning' : 'info',
+                                icon: Wind,
+                                badge: fanCleaningStatus.badge,
+                                title: fanCleaningStatus.title,
+                                message: `${fanCleaningStatus.message} (છેલ્લી સફાઈ: ${fanCleaningStatus.last_cleaned_at || '—'})`,
+                                action: {
+                                    label: cleaningFanLoading ? 'સેવ થાય છે...' : 'આજે ફેન સાફ કર્યો',
+                                    disabled: cleaningFanLoading,
+                                    onClick: handleFanCleaned
+                                }
+                            });
+                        }
+
+                        // 6. Prolonged Curtailment
+                        if (curtailmentReminders && curtailmentReminders.length > 0) {
+                            curtailmentReminders.forEach(cRem => {
+                                allAlerts.push({
+                                    severity: 'warning',
+                                    icon: AlertTriangle,
+                                    badge: 'પાવર કર્ટેલમેન્ટ',
+                                    title: `${cRem.title} (${cRem.company_name})`,
+                                    message: cRem.message,
+                                    action: {
+                                        label: '૧૦૦% Restore',
+                                        onClick: () => handleRestoreAll(cRem.company_id)
+                                    }
+                                });
+                            });
+                        }
+
+                        // 7. Grid Downtime
+                        if (data?.smart_insights?.grid_downtime && data.smart_insights.grid_downtime.is_down) {
+                            allAlerts.push({
+                                severity: 'warning',
+                                icon: Activity,
+                                badge: `ગ્રીડ ટ્રીપિંગ (${data.smart_insights.grid_downtime.downtime_minutes} મિ.)`,
+                                title: `પાવર લોસ: -${data.smart_insights.grid_downtime.lost_units_kwh} kWh (₹${data.smart_insights.grid_downtime.lost_revenue_rs})`,
+                                message: data.smart_insights.grid_downtime.message,
+                                action: null
+                            });
+                        }
+
+                        // 8. Storm Alert
+                        if (weather.storm_alert && weather.storm_alert.active) {
+                            allAlerts.push({
+                                severity: 'warning',
+                                icon: Wind,
+                                badge: 'તેજ પવન એલર્ટ',
+                                title: `${weather.storm_alert.wind_speed} (ઝાટકા: ${weather.storm_alert.wind_gusts})`,
+                                message: weather.storm_alert.message,
+                                action: null
+                            });
+                        }
+
+                        // 9. Underperforming inverters
+                        if (data?.smart_insights?.underperforming_inverters && data.smart_insights.underperforming_inverters.length > 0) {
+                            data.smart_insights.underperforming_inverters.forEach(uInv => {
+                                allAlerts.push({
+                                    severity: 'warning',
+                                    icon: TrendingDown,
+                                    badge: `-${uInv.diff_pct}% પાવર`,
+                                    title: uInv.title,
+                                    message: `${uInv.advice} (જનરેશન: ${uInv.today_kwh} kWh, એવરેજ: ${uInv.benchmark_kwh} kWh, ખોટ: ₹${uInv.loss_rs})`,
+                                    action: null
+                                });
+                            });
+                        }
+
+                        // 10. PV String Cleaning Alerts
+                        if (cleaningAlerts && cleaningAlerts.length > 0) {
+                            cleaningAlerts.forEach(cAlert => {
+                                allAlerts.push({
+                                    severity: 'info',
+                                    icon: Droplets,
+                                    badge: 'PV સફાઈ જરૂરી',
+                                    title: cAlert.title,
+                                    message: `સામાન્ય: ${cAlert.healthy_avg} A. ડ્રોપ: ${cAlert.strings?.map(s => `${s.string_label}: ${s.current_a}A (-${s.drop_pct}%)`).join(', ')}`,
+                                    action: null
+                                });
+                            });
+                        }
+
+                        // 11. Washing advice
+                        if (cleaningSystem.washing_advice) {
+                            allAlerts.push({
+                                severity: 'info',
+                                icon: Droplets,
+                                badge: cleaningSystem.washing_advice.badge || 'વોશિંગ એડવાઈસ',
+                                title: cleaningSystem.washing_advice.title,
+                                message: cleaningSystem.washing_advice.message,
+                                action: null
+                            });
+                        }
+
+                        // 12. Rain alert
+                        if (rainAlert && rainAlert.active) {
+                            allAlerts.push({
+                                severity: 'info',
+                                icon: CloudRain,
+                                badge: rainAlert.status === 'raining_now' ? 'વરસાદ ચાલુ છે' : 'વરસાદની આગાહી',
+                                title: rainAlert.title,
+                                message: `${rainAlert.message} (શરૂઆત: ${rainAlert.start_time}, સંભાવના: ${rainAlert.probability}%)`,
+                                action: null
+                            });
+                        }
+
+                        const critCount = allAlerts.filter(a => a.severity === 'critical').length;
+                        const warnCount = allAlerts.filter(a => a.severity === 'warning').length;
+
+                        return (
+                            <section className="cleaning-alert-section" style={{margin: '12px 0'}}>
+                                {allAlerts.length > 0 ? (
+                                    <div className="unified-alerts-card glass-card">
                                         <button
                                             type="button"
-                                            onClick={() => setPage('entry')}
-                                            style={{
-                                                background: dailyReadingStatus.status === 'meter_missing'
-                                                    ? '#ea580c'
-                                                    : dailyReadingStatus.status === 'due_now'
-                                                        ? '#0284c7'
-                                                        : '#dc2626',
-                                                color: '#ffffff',
-                                                border: 'none',
-                                                padding: '6px 12px',
-                                                borderRadius: '6px',
-                                                fontSize: '11.5px',
-                                                fontWeight: 800,
-                                                cursor: 'pointer'
+                                            className="unified-alerts-header"
+                                            onClick={() => {
+                                                triggerHaptic([20]);
+                                                setAlertsExpanded(prev => !prev);
                                             }}
                                         >
-                                            {dailyReadingStatus.status === 'meter_missing'
-                                                ? '➕ મીટર રીડિંગ ભરો'
-                                                : dailyReadingStatus.status === 'due_now'
-                                                    ? '➕ રીડિંગ ભરો'
-                                                    : '➕ ડેઇલી એન્ટ્રી ભરો'}
-                                        </button>
-                                    )}
-                                </div>
-                                <p style={{
-                                    fontSize: '11.5px',
-                                    lineHeight: 1.45,
-                                    margin: 0,
-                                    color: dailyReadingStatus.status === 'completed'
-                                        ? '#166534'
-                                        : dailyReadingStatus.status === 'meter_missing'
-                                            ? '#b45309'
-                                            : dailyReadingStatus.status === 'due_now'
-                                                ? '#075985'
-                                                : '#b91c1c'
-                                }}>
-                                    {dailyReadingStatus.message}
-                                </p>
-                            </div>
-                        )}
-
-                        {/* 🚨 Past Days Missing Reading Alert (Shows exact missing dates) */}
-                        {pastReadingMissing && pastReadingMissing.active && (
-                            <div style={{
-                                marginBottom: '10px',
-                                background: '#fef2f2',
-                                border: '1.5px solid #ef4444',
-                                borderRadius: '12px',
-                                padding: '12px 14px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '8px'
-                            }}>
-                                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap'}}>
-                                    <div style={{display: 'flex', alignItems: 'center', gap: '7px'}}>
-                                        <span style={{
-                                            fontSize: '11px',
-                                            fontWeight: 800,
-                                            background: '#dc2626',
-                                            color: '#ffffff',
-                                            padding: '2px 7px',
-                                            borderRadius: '4px'
-                                        }}>
-                                            {pastReadingMissing.badge}
-                                        </span>
-                                        <b style={{fontSize: '12.5px', color: '#991b1b'}}>
-                                            {pastReadingMissing.title}
-                                        </b>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => setPage('entry')}
-                                        style={{
-                                            background: '#dc2626',
-                                            color: '#ffffff',
-                                            border: 'none',
-                                            padding: '5px 11px',
-                                            borderRadius: '6px',
-                                            fontSize: '11.5px',
-                                            fontWeight: 800,
-                                            cursor: 'pointer'
-                                        }}
-                                    >
-                                        ➕ બાકી રીડિંગ ભરો
-                                    </button>
-                                </div>
-                                <span style={{fontSize: '11.5px', color: '#b91c1c'}}>
-                                    નીચેની તારીખનું ડેઇલી રીડિંગ અથવા મીટર રીડિંગ ભરવાનું બાકી છે:
-                                </span>
-                                <div style={{display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '2px'}}>
-                                    {pastReadingMissing.missing_dates?.map((mDate, dIdx) => (
-                                        <span key={dIdx} style={{
-                                            background: '#ffffff',
-                                            border: '1px solid #fca5a5',
-                                            color: '#991b1b',
-                                            padding: '3px 8px',
-                                            borderRadius: '6px',
-                                            fontSize: '10.5px',
-                                            fontWeight: 700
-                                        }}>
-                                            📅 <b>{mDate.date_formatted}</b>: {mDate.companies_label}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* 💨 10-Day Routine Inverter Fan & Filter Dust Cleaning Cycle Card */}
-                        {fanCleaningStatus && (
-                            <div style={{
-                                marginBottom: '10px',
-                                background: fanCleaningStatus.is_overdue
-                                    ? '#fef2f2'
-                                    : fanCleaningStatus.is_approaching
-                                        ? '#fffbeb'
-                                        : '#f0fdf4',
-                                border: fanCleaningStatus.is_overdue
-                                    ? '1.5px solid #ef4444'
-                                    : fanCleaningStatus.is_approaching
-                                        ? '1.5px solid #f59e0b'
-                                        : '1px solid #86efac',
-                                borderRadius: '12px',
-                                padding: '12px 14px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '8px'
-                            }}>
-                                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap'}}>
-                                    <div style={{display: 'flex', alignItems: 'center', gap: '7px'}}>
-                                        <Wind size={18} style={{color: fanCleaningStatus.is_overdue ? '#dc2626' : fanCleaningStatus.is_approaching ? '#d97706' : '#16a34a'}}/>
-                                        <span style={{
-                                            fontSize: '11px',
-                                            fontWeight: 800,
-                                            background: fanCleaningStatus.is_overdue ? '#dc2626' : fanCleaningStatus.is_approaching ? '#d97706' : '#16a34a',
-                                            color: '#ffffff',
-                                            padding: '2px 7px',
-                                            borderRadius: '4px'
-                                        }}>
-                                            {fanCleaningStatus.badge}
-                                        </span>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        disabled={cleaningFanLoading}
-                                        onClick={handleFanCleaned}
-                                        style={{
-                                            background: fanCleaningStatus.is_overdue ? '#dc2626' : '#16a34a',
-                                            color: '#ffffff',
-                                            border: 'none',
-                                            padding: '6px 12px',
-                                            borderRadius: '6px',
-                                            fontSize: '11.5px',
-                                            fontWeight: 800,
-                                            cursor: cleaningFanLoading ? 'wait' : 'pointer',
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: '5px'
-                                        }}
-                                    >
-                                        <Wind size={13}/>
-                                        {cleaningFanLoading ? 'સેવ થાય છે...' : 'આજે ફેન સાફ કર્યો (તારીખ સેવ કરો)'}
-                                    </button>
-                                </div>
-                                <div>
-                                    <b style={{fontSize: '12.5px', color: fanCleaningStatus.is_overdue ? '#991b1b' : fanCleaningStatus.is_approaching ? '#92400e' : '#166534', display: 'block', marginBottom: '2px'}}>
-                                        {fanCleaningStatus.title}
-                                    </b>
-                                    <span style={{fontSize: '11px', color: fanCleaningStatus.is_overdue ? '#b91c1c' : fanCleaningStatus.is_approaching ? '#b45309' : '#15803d', lineHeight: 1.4}}>
-                                        {fanCleaningStatus.message} (છેલ્લી સફાઈ: <b>{fanCleaningStatus.last_cleaned_at}</b>)
-                                    </span>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* ⚡ Grid Outage / Line Trip Alert */}
-                        {gridOutageAlert && gridOutageAlert.active && (
-                            <div style={{
-                                marginBottom: '10px',
-                                background: '#fef2f2',
-                                border: '1.5px solid #ef4444',
-                                borderRadius: '12px',
-                                padding: '12px 14px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '6px'
-                            }}>
-                                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                                    <span style={{background: '#dc2626', color: '#fff', fontSize: '11px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px'}}>
-                                        {gridOutageAlert.badge || '⚡ ગ્રીડ સપ્લાય ટ્રીપ'}
-                                    </span>
-                                    <b style={{fontSize: '12.5px', color: '#991b1b'}}>
-                                        {gridOutageAlert.title}
-                                    </b>
-                                </div>
-                                <p style={{margin: 0, fontSize: '11.5px', color: '#b91c1c', lineHeight: 1.4}}>
-                                    {gridOutageAlert.message}
-                                </p>
-                            </div>
-                        )}
-
-                        {/* 🔔 Prolonged Curtailment Reminder Cards */}
-                        {curtailmentReminders && curtailmentReminders.length > 0 && (
-                            <div style={{display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px'}}>
-                                {curtailmentReminders.map((cRem, rIdx) => (
-                                    <div key={rIdx} style={{
-                                        background: '#fff7ed',
-                                        border: '1.5px solid #ea580c',
-                                        borderRadius: '12px',
-                                        padding: '10px 12px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        flexWrap: 'wrap',
-                                        gap: '8px'
-                                    }}>
-                                        <div>
-                                            <b style={{fontSize: '12.5px', color: '#9a3412', display: 'block'}}>
-                                                🔔 {cRem.title} ({cRem.company_name})
-                                            </b>
-                                            <span style={{fontSize: '11px', color: '#c2410c'}}>
-                                                {cRem.message}
-                                            </span>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleRestoreAll(cRem.company_id)}
-                                            style={{
-                                                background: '#ea580c',
-                                                color: '#ffffff',
-                                                border: 'none',
-                                                padding: '5px 10px',
-                                                borderRadius: '6px',
-                                                fontSize: '11.5px',
-                                                fontWeight: 800,
-                                                cursor: 'pointer'
-                                            }}
-                                        >
-                                            🟢 ૧૦૦% Restore
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* 🔥 Inverter Overheat / High Heat Load / Fire Risk Alerts */}
-                        {overheatAlerts && overheatAlerts.length > 0 && (
-                            <div style={{display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px'}}>
-                                {overheatAlerts.map((oAlert, oIdx) => {
-                                    const isFireRisk = oAlert.is_emergency || oAlert.type === 'inverter_fire_risk';
-                                    return (
-                                        <div key={oIdx} style={{
-                                            background: isFireRisk ? '#fef2f2' : '#fff1f2',
-                                            border: isFireRisk ? '2px solid #dc2626' : '1.5px solid #f43f5e',
-                                            borderRadius: '12px',
-                                            padding: '10px 12px',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            gap: '5px',
-                                            boxShadow: isFireRisk ? '0 4px 14px rgba(220, 38, 38, 0.2)' : 'none'
-                                        }}>
-                                            <div style={{display: 'flex', alignItems: 'center', gap: '7px'}}>
-                                                <span style={{background: isFireRisk ? '#dc2626' : '#e11d48', color: '#fff', fontSize: '11px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px'}}>
-                                                    {oAlert.badge || (isFireRisk ? '🚨 ઇન્વર્ટર આગ ખતરો' : '🔥 ઇન્વર્ટર હીટ એલર્ટ')}
-                                                </span>
-                                                <b style={{fontSize: '12.5px', color: isFireRisk ? '#991b1b' : '#9f1239'}}>
-                                                    {oAlert.title}
-                                                </b>
+                                            <div className="alerts-header-left">
+                                                <div className={`alerts-icon-badge ${critCount > 0 ? 'critical' : warnCount > 0 ? 'warning' : 'info'}`}>
+                                                    <ShieldAlert size={18}/>
+                                                </div>
+                                                <div className="alerts-header-titles">
+                                                    <h3 className="alerts-main-title">
+                                                        Alerts ({allAlerts.length})
+                                                        {critCount > 0 && <span className="crit-pill">{critCount} Critical</span>}
+                                                    </h3>
+                                                    <p className="alerts-main-subtitle">
+                                                        {critCount > 0 ? 'તાત્કાલિક ધ્યાન આપવાની જરૂર છે' : `${allAlerts.length} સક્રિય નોટિસ & સલાહ`}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <p style={{margin: 0, fontSize: '11px', color: isFireRisk ? '#7f1d1d' : '#be123c', lineHeight: 1.4, fontWeight: isFireRisk ? 700 : 500}}>
-                                                {oAlert.message}
-                                            </p>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-
-                        {/* 📉 Grid Downtime & Revenue Loss Alert Banner in Mobile */}
-                        {data?.smart_insights?.grid_downtime && data.smart_insights.grid_downtime.is_down && (
-                            <div className="grid-downtime-alert-banner" style={{marginBottom: '8px'}}>
-                                <div className="grid-downtime-head">
-                                    <span className="grid-downtime-tag">
-                                        <Activity size={13}/> 🚨 ગ્રીડ ટ્રીપિંગ ({data.smart_insights.grid_downtime.downtime_minutes} મિનિટ)
-                                    </span>
-                                    <span className="grid-downtime-loss-val">
-                                        -{data.smart_insights.grid_downtime.lost_units_kwh} kWh (₹{data.smart_insights.grid_downtime.lost_revenue_rs})
-                                    </span>
-                                </div>
-                                <p className="grid-downtime-msg">{data.smart_insights.grid_downtime.message}</p>
-                            </div>
-                        )}
-
-                        {/* 🚨 Severe High Wind Storm Damage Warning Alert Banner */}
-                        {weather.storm_alert && weather.storm_alert.active && (
-                            <div className="weather-storm-banner" style={{marginBottom: '8px'}}>
-                                <div className="weather-storm-head">
-                                    <span className="weather-storm-tag">
-                                        <Wind size={13}/> 🚨 તેજ પવન એલર્ટ (Wind Storm)
-                                    </span>
-                                    <span className="weather-storm-speed">
-                                        {weather.storm_alert.wind_speed} (ઝાટકા: {weather.storm_alert.wind_gusts})
-                                    </span>
-                                </div>
-                                <p className="weather-storm-msg">
-                                    {weather.storm_alert.message}
-                                </p>
-                            </div>
-                        )}
-
-                        {/* 🔍 Inverter Underperformance Alert Cards in Mobile */}
-                        {data?.smart_insights?.underperforming_inverters && data.smart_insights.underperforming_inverters.length > 0 && (
-                            <div className="underperf-inverters-list" style={{marginBottom: '8px'}}>
-                                {data.smart_insights.underperforming_inverters.map((uInv, uIdx) => (
-                                    <div key={uIdx} className="underperf-inverter-card">
-                                        <div className="underperf-card-head">
-                                            <div className="underperf-title">
-                                                <TrendingDown size={14} style={{color: '#dc2626'}}/>
-                                                <b>{uInv.title}</b>
+                                            <div className="alerts-header-right">
+                                                <span className="alerts-toggle-label">{alertsExpanded ? 'Hide' : 'Show'}</span>
+                                                {alertsExpanded ? <ChevronUp size={18}/> : <ChevronDown size={18}/>}
                                             </div>
-                                            <span className="underperf-loss-chip">
-                                                -{uInv.diff_kwh} kWh (₹{uInv.loss_rs})
-                                            </span>
-                                        </div>
-                                        <div className="underperf-stats-row">
-                                            <span>જનરેશન: <b>{uInv.today_kwh}</b></span>
-                                            <span>એવરેજ: <b>{uInv.benchmark_kwh}</b></span>
-                                            <span>ઓછું: <b style={{color: '#dc2626'}}>-{uInv.diff_pct}%</b></span>
-                                        </div>
-                                        <p className="underperf-advice">💡 {uInv.advice}</p>
+                                        </button>
+
+                                        {alertsExpanded && (
+                                            <div className="unified-alerts-list">
+                                                {allAlerts.map((alertItem, aIdx) => {
+                                                    const IconComp = alertItem.icon || AlertTriangle;
+                                                    return (
+                                                        <div key={aIdx} className={`unified-alert-item ${alertItem.severity}`}>
+                                                            <div className="alert-item-header">
+                                                                <div className="alert-badge-group">
+                                                                    <span className={`alert-severity-badge ${alertItem.severity}`}>
+                                                                        <IconComp size={12}/>
+                                                                        {alertItem.badge}
+                                                                    </span>
+                                                                    <b className="alert-item-title">{alertItem.title}</b>
+                                                                </div>
+                                                                {alertItem.action && (
+                                                                    <button
+                                                                        type="button"
+                                                                        className="alert-single-action-btn"
+                                                                        disabled={alertItem.action.disabled}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            triggerHaptic([35]);
+                                                                            alertItem.action.onClick();
+                                                                        }}
+                                                                    >
+                                                                        {alertItem.action.label}
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                            <p className="alert-item-message">{alertItem.message}</p>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* ⚠️ Serious Problem Alerts Group: Red Inverter Underperformance + Yellow PV Cleaning Alerts stacked together */}
-                        {cleaningAlerts.length > 0 ? (
-                            <div className="cleaning-alert-list-stacked" style={{marginBottom: '8px'}}>
-                                {cleaningAlerts.map((alert, idx) => (
-                                    <div key={idx} className="cleaning-banner-card">
-                                        <div className="cleaning-banner-title">
-                                            <span style={{color: '#dc2626'}}>⚠️</span>
-                                            <span>"{alert.title}"</span>
-                                        </div>
-                                        <div className="cleaning-banner-pills-row" style={{paddingLeft: '6px', marginTop: '4px'}}>
-                                            <span className="pill-healthy-baseline">
-                                                સામાન્ય કરંટ: {alert.healthy_avg} A
-                                            </span>
-                                            {alert.strings && alert.strings.map((str, sIdx) => (
-                                                <span key={sIdx} className="pill-problem-string">
-                                                    {str.string_label}: {str.current_a} A ({str.drop_pct}% પાવર લોસ - ધોવાની જરૂર)
-                                                </span>
-                                            ))}
-                                        </div>
+                                ) : (
+                                    <div className="cleaning-ok-banner">
+                                        <CheckCircle size={17} style={{color: '#16a34a', flexShrink: 0}}/>
+                                        <span>
+                                            {cleaningSystem.is_window_active && cleaningSystem.is_irradiance_sufficient
+                                                ? 'બધા PV સ્ટ્રિંગ્સ નોર્મલ કરંટ આપી રહ્યા છે. કોઈ પ્લાન્ટ કે ઇન્વર્ટરમાં ખામી નથી.'
+                                                : 'પ્લાન્ટ સામાન્ય રીતે કાર્યરત છે. સૂર્યપ્રકાશ પૂરતો હોય ત્યારે સ્માર્ટ AI ડાયગ્નોસ્ટિક્સ સક્રિય રહે છે.'}
+                                        </span>
                                     </div>
-                                ))}
-                            </div>
-                        ) : null}
-
-                        {/* 🚿 Smart Plate Washing Advice Banner in Mobile */}
-                        {cleaningSystem.washing_advice && (
-                            <div className={`smart-washing-banner ${cleaningSystem.washing_advice.theme}`} style={{marginBottom: '8px'}}>
-                                <div className="smart-washing-left">
-                                    <span className="smart-washing-badge">{cleaningSystem.washing_advice.badge}</span>
-                                    <div className="smart-washing-text">
-                                        <b>{cleaningSystem.washing_advice.title}:</b> <span>{cleaningSystem.washing_advice.message}</span>
-                                    </div>
-                                </div>
-                                <Droplets size={18} className="smart-washing-icon"/>
-                            </div>
-                        )}
-
-                        {/* 🌧️ Advance Rain Forecast Banner */}
-                        {rainAlert && rainAlert.active && (
-                            <div className="rain-advance-banner" style={{
-                                marginBottom: '10px',
-                                background: rainAlert.status === 'raining_now' ? '#eff6ff' : '#f0f9ff',
-                                border: rainAlert.status === 'raining_now' ? '1px solid #60a5fa' : '1px solid #bae6fd',
-                                borderRadius: '8px',
-                                padding: '10px 12px'
-                            }}>
-                                <div style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
-                                    <span className="rain-pill" style={{
-                                        background: rainAlert.status === 'raining_now' ? '#2563eb' : '#0284c7',
-                                        color: '#fff',
-                                        fontSize: '11px',
-                                        fontWeight: 700,
-                                        padding: '2px 8px',
-                                        borderRadius: '12px'
-                                    }}>
-                                        {rainAlert.status === 'raining_now' ? 'વરસાદ ચાલુ છે' : 'વરસાદની આગાહી'}
-                                    </span>
-                                    <CloudRain size={16} style={{color: '#1d4ed8'}}/>
-                                    <span style={{fontSize: '12px', color: '#1e3a8a', fontWeight: 600}}>
-                                        <b>{rainAlert.title}:</b> {rainAlert.message}
-                                    </span>
-                                </div>
-                                <div style={{display: 'flex', gap: '10px', fontSize: '11px', color: '#1e40af', fontWeight: 700, marginTop: '6px', flexWrap: 'wrap'}}>
-                                    <span>શરૂઆત: <b>{rainAlert.start_time}</b></span>
-                                    <span>અંદાજિત રોકાણ: <b>{rainAlert.stop_time}</b></span>
-                                    <span>શક્યતા: <b>{rainAlert.probability}%</b></span>
-                                </div>
-                            </div>
-                        )}
-
-                        {cleaningAlerts.length === 0 && (!data?.smart_insights?.underperforming_inverters || data.smart_insights.underperforming_inverters.length === 0) && (
-                            <div className="cleaning-ok-banner">
-                                <CheckCircle size={17} style={{color: '#16a34a', flexShrink: 0}}/>
-                                <span>
-                                    {cleaningSystem.is_window_active && cleaningSystem.is_irradiance_sufficient ? (
-                                        'બધા PV સ્ટ્રિંગ્સ નોર્મલ કરંટ આપી રહ્યા છે. અત્યારે કોઈ પેનલ પર વધુ પડતી ધૂળ કે તાત્કાલિક સફાઈની જરૂરિયાત નથી.'
-                                    ) : (
-                                        'સ્માર્ટ વેધર ચેક: સૂર્યપ્રકાશ પૂરો હોય (10:30 AM થી 4:00 PM અને Irradiance > 600 W/m²) ત્યારે જ એક્યુરેટ સફાઈ એલર્ટ ચકાસાય છે.'
-                                    )}
-                                </span>
-                            </div>
-                        )}
-                    </section>
+                                )}
+                            </section>
+                        );
+                    })()}
 
                     {/* 5. MODERN 4-TOUCH ACTION GRID */}
                     <div className="mobile-action-grid-section">
@@ -1972,12 +1717,26 @@ export default function MobileAppView({
 
                                 return (
                                     <div className="plant-mobile-clean-card" key={cId}>
-                                        {/* 1. TOP PLANT SUMMARY HEADER (Matching Screenshot) */}
-                                        <div className="plant-header-top">
+                                        {/* 1. TOP PLANT SUMMARY HEADER (Tap to expand/collapse inverters) */}
+                                        <div
+                                            className="plant-header-top"
+                                            onClick={() => {
+                                                triggerHaptic([20]);
+                                                setExpandedPlantCards(prev => ({ ...prev, [cId]: !prev[cId] }));
+                                            }}
+                                            style={{cursor: 'pointer'}}
+                                        >
                                             <div className="plant-header-l">
-                                                <h3 className="plant-header-title">{cName}</h3>
+                                                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                                                    <h3 className="plant-header-title">{cName}</h3>
+                                                    {expandedPlantCards[cId] ? (
+                                                        <ChevronUp size={16} style={{color: '#16a34a'}}/>
+                                                    ) : (
+                                                        <ChevronDown size={16} style={{color: '#64748b'}}/>
+                                                    )}
+                                                </div>
                                                 <span className="plant-inverters-pill">
-                                                    {cOnline} / {cTotal} Inverters Online
+                                                    {cOnline} / {cTotal} Inverters Online · {expandedPlantCards[cId] ? 'Tap to Collapse' : 'Tap to Expand'}
                                                 </span>
                                             </div>
 
@@ -1988,90 +1747,93 @@ export default function MobileAppView({
                                             </div>
                                         </div>
 
-                                        {/* 2. CLEAN INVERTERS LIST WITH PV STRING ACCORDION */}
-                                        <div className="plant-inverters-clean-list">
-                                            {inverters.map((inv, idx) => {
-                                                const invKey = `${cId}-${inv.id || idx}`;
-                                                const isPvOpen = expandedInverters[invKey] === true;
-                                                const pvStrings = getPvStrings(inv, 8.40 + (idx * 0.05));
-                                                
-                                                const invNeedsCleaning = (inv.cleaning_alerts && inv.cleaning_alerts.length > 0) || cleaningAlerts.some(alert => 
-                                                    String(alert.company_id) === String(cId) && (
-                                                        (alert.inverter_id && String(alert.inverter_id) === String(inv.id)) ||
-                                                        (alert.serial_number && inv.serial_number && alert.serial_number === inv.serial_number)
-                                                    )
-                                                );
+                                        {/* 2. CLEAN INVERTERS LIST (Collapsed by default, shown on tap) */}
+                                        {expandedPlantCards[cId] && (
+                                            <div className="plant-inverters-clean-list">
+                                                {inverters.map((inv, idx) => {
+                                                    const invKey = `${cId}-${inv.id || idx}`;
+                                                    const isPvOpen = expandedInverters[invKey] === true;
+                                                    const pvStrings = getPvStrings(inv, 8.40 + (idx * 0.05));
+                                                    
+                                                    const invNeedsCleaning = (inv.cleaning_alerts && inv.cleaning_alerts.length > 0) || cleaningAlerts.some(alert => 
+                                                        String(alert.company_id) === String(cId) && (
+                                                            (alert.inverter_id && String(alert.inverter_id) === String(inv.id)) ||
+                                                            (alert.serial_number && inv.serial_number && alert.serial_number === inv.serial_number)
+                                                        )
+                                                    );
 
-                                                return (
-                                                    <div className="inv-clean-row-wrap" key={invKey}>
-                                                        <div className="inv-clean-row">
-                                                            <div className="inv-clean-left">
-                                                                <span className={`isolar-status-dot ${inv.online !== false ? 'online' : 'offline'}`}/>
-                                                                <div>
-                                                                    <div className="inv-title-row">
-                                                                        <span className="inv-name-text">{inv.name || `Inverter ${idx + 1}`}</span>
-                                                                        {invNeedsCleaning && (
-                                                                            <span className="inv-cleaning-alert-badge">
-                                                                                ⚠️ સફાઈ
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                    <span className="inv-sn-text">
-                                                                        SN: {inv.serial_number || 'I2633100421'}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="inv-clean-right">
-                                                                <div className="inv-vals-wrap">
-                                                                    <span className="inv-kwh-text">{inv.today_kwh || '161.70'} kWh</span>
-                                                                    <span className="inv-kw-text">{inv.live_kw || '142.78'} kW</span>
-                                                                </div>
-                                                                <button
-                                                                    type="button"
-                                                                    className="inv-pv-pill-btn"
-                                                                    onClick={() => {
-                                                                        playNavClickSound();
-                                                                        toggleInverterPv(invKey);
-                                                                    }}
-                                                                >
-                                                                    <span>PV</span>
-                                                                    {isPvOpen ? <ChevronUp size={13}/> : <ChevronDown size={13}/>}
-                                                                </button>
-                                                            </div>
-                                                        </div>
-
-                                                        {/* 16 PV Strings Accordion (When PV Clicked) */}
-                                                        {isPvOpen && (
-                                                            <div className="isolar-pv-strings-panel" style={{marginBottom: '10px'}}>
-                                                                <div className="isolar-strings-head">
-                                                                    <span className="strings-head-title">PV String Live Currents (A)</span>
-                                                                    <span className="strings-head-points">Point IDs: 70 - 85</span>
-                                                                </div>
-
-                                                                <div className="isolar-strings-16-grid">
-                                                                    {pvStrings.map((s) => {
-                                                                        const isLive = s.current_a > 0.1;
-                                                                        return (
-                                                                            <div
-                                                                                key={s.string_num}
-                                                                                className={`pv-string-box ${isLive ? 'active-string' : 'inactive-string'}`}
-                                                                            >
-                                                                                <span className="pv-box-label">{s.string_label}</span>
-                                                                                <span className="pv-box-amp">
-                                                                                    <b>{Number(s.current_a).toFixed(2)}</b>
-                                                                                    <small>A</small>
+                                                    return (
+                                                        <div className="inv-clean-row-wrap" key={invKey}>
+                                                            <div className="inv-clean-row">
+                                                                <div className="inv-clean-left">
+                                                                    <span className={`isolar-status-dot ${inv.online !== false ? 'online' : 'offline'}`}/>
+                                                                    <div>
+                                                                        <div className="inv-title-row">
+                                                                            <span className="inv-name-text">{inv.name || `Inverter ${idx + 1}`}</span>
+                                                                            {invNeedsCleaning && (
+                                                                                <span className="inv-cleaning-alert-badge">
+                                                                                    ⚠️ સફાઈ
                                                                                 </span>
-                                                                            </div>
-                                                                        );
-                                                                    })}
+                                                                            )}
+                                                                        </div>
+                                                                        <span className="inv-sn-text">
+                                                                            SN: {inv.serial_number || 'I2633100421'}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="inv-clean-right">
+                                                                    <div className="inv-vals-wrap">
+                                                                        <span className="inv-kwh-text">{inv.today_kwh || '161.70'} kWh</span>
+                                                                        <span className="inv-kw-text">{inv.live_kw || '142.78'} kW</span>
+                                                                    </div>
+                                                                    <button
+                                                                        type="button"
+                                                                        className="inv-pv-pill-btn"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            playNavClickSound();
+                                                                            toggleInverterPv(invKey);
+                                                                        }}
+                                                                    >
+                                                                        <span>PV</span>
+                                                                        {isPvOpen ? <ChevronUp size={13}/> : <ChevronDown size={13}/>}
+                                                                    </button>
                                                                 </div>
                                                             </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
+
+                                                            {/* 16 PV Strings Accordion (When PV Clicked) */}
+                                                            {isPvOpen && (
+                                                                <div className="isolar-pv-strings-panel" style={{marginBottom: '10px'}}>
+                                                                    <div className="isolar-strings-head">
+                                                                        <span className="strings-head-title">PV String Live Currents (A)</span>
+                                                                        <span className="strings-head-points">Point IDs: 70 - 85</span>
+                                                                    </div>
+
+                                                                    <div className="isolar-strings-16-grid">
+                                                                        {pvStrings.map((s) => {
+                                                                            const isLive = s.current_a > 0.1;
+                                                                            return (
+                                                                                <div
+                                                                                    key={s.string_num}
+                                                                                    className={`pv-string-box ${isLive ? 'active-string' : 'inactive-string'}`}
+                                                                                >
+                                                                                    <span className="pv-box-label">{s.string_label}</span>
+                                                                                    <span className="pv-box-amp">
+                                                                                        <b>{Number(s.current_a).toFixed(2)}</b>
+                                                                                        <small>A</small>
+                                                                                    </span>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -2168,7 +1930,7 @@ export default function MobileAppView({
                                         setPage('gallery');
                                     }}
                                 >
-                                    <span>📸 પ્લાન્ટ ફોટો / કેમેરા</span>
+                                    <span>પ્લાન્ટ ફોટો / કેમેરા</span>
                                     <div className="radial-icon-circle" style={{background: '#3b82f6'}}>
                                         <Camera size={15}/>
                                     </div>

@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {CalendarClock, CircleDollarSign, IndianRupee, PlusCircle, ReceiptIndianRupee, ShieldCheck} from 'lucide-react';
 import {api} from '../api';
-import {Empty, Loading, Metric} from '../components/Common';
+import {Empty, Metric} from '../components/Common';
 import {number, shortDate} from '../format';
 
 const currentMonth = () => new Date().toISOString().slice(0, 7);
@@ -10,9 +10,21 @@ const rupees = value => `₹${number(value)}`;
 export default function MySalaryPage() {
     const [month, setMonth] = useState(currentMonth());
     const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    useEffect(() => {setData(null); api(`my-salary?month=${month}`).then(result => {setData(result); setError('');}).catch(failure => setError(failure.message));}, [month]);
-    if (!data && !error) return <Loading/>;
+
+    useEffect(() => {
+        setLoading(true);
+        setData(null);
+        api(`my-salary?month=${month}`)
+            .then(result => {
+                setData(result);
+                setError('');
+            })
+            .catch(failure => setError(failure.message))
+            .finally(() => setLoading(false));
+    }, [month]);
+
     const row = data?.statement;
 
     return (
@@ -28,16 +40,27 @@ export default function MySalaryPage() {
                     <input type="month" max={currentMonth()} value={month} onChange={event => setMonth(event.target.value)}/>
                 </label>
             </section>
+
             {error && <div className="error">{error}</div>}
-            {data && !row?.configured ? (
+
+            {loading ? (
+                <div className="salary-skeleton-wrap">
+                    <div className="cards my-salary-cards">
+                        {[1, 2, 3, 4, 5].map(i => (
+                            <div key={i} className="glass-card skeleton-box" style={{height: '110px', borderRadius: '16px'}}/>
+                        ))}
+                    </div>
+                    <div className="glass-card skeleton-box" style={{height: '280px', borderRadius: '20px', marginTop: '16px'}}/>
+                </div>
+            ) : data && !row?.configured ? (
                 <Empty title="Salary is not configured" detail="Your monthly salary has not yet been configured for this period. Please contact the super admin."/>
-            ) : row && (
+            ) : row ? (
                 <>
                     <div className="salary-period-note">
                         <CalendarClock size={17}/>
                         <span>
                             <b>{data.period_status === 'provisional' ? 'Provisional salary' : 'Final calculation'}</b>
-                            {data.period_status === 'provisional' ? 'This amount can change if leave is approved or extra work addition is recorded.' : `Calculated for ${data.from} to ${data.to}.`}
+                            {data.period_status === 'provisional' ? ' This amount can change if leave is approved or extra work addition is recorded.' : ` Calculated for ${data.from} to ${data.to}.`}
                         </span>
                     </div>
 
@@ -76,9 +99,9 @@ export default function MySalaryPage() {
                                     <b>− {rupees(row.deductions)}</b>
                                 </span>
                             )}
-                            <strong style={{background: 'rgba(37, 99, 235, 0.08)', padding: '12px 16px', borderRadius: '8px', border: '1px solid rgba(37, 99, 235, 0.2)'}}>
+                            <strong style={{background: 'rgba(21, 128, 61, 0.08)', padding: '14px 18px', borderRadius: '12px', border: '1px solid rgba(21, 128, 61, 0.2)'}}>
                                 <span>Final payable salary</span>
-                                <b style={{fontSize: '1.25rem', color: '#1e40af'}}>{rupees(row.final_payable)}</b>
+                                <b style={{fontSize: '1.35rem', color: '#15803d'}}>{rupees(row.final_payable)}</b>
                             </strong>
                         </div>
                     </section>
@@ -176,7 +199,7 @@ export default function MySalaryPage() {
                         </div>
                     </section>
                 </>
-            )}
+            ) : null}
         </div>
     );
 }

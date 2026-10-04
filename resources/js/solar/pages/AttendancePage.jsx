@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {ClockAlert, ExternalLink, MapPin, Navigation, PencilLine, Plus, Radio, RefreshCw, Search, Smartphone, User, X} from 'lucide-react';
+import {AlertTriangle, CalendarCheck2, CalendarOff, ClockAlert, ExternalLink, MapPin, Navigation, PencilLine, Plus, Radio, RefreshCw, Search, Smartphone, User, X} from 'lucide-react';
 import {api} from '../api';
 import {DatePicker, Empty, Field} from '../components/Common';
 
@@ -319,7 +319,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                     color: emp.leave_info.is_approved ? '#065f46' : '#92400e',
                                     fontWeight: 700
                                 }}>
-                                    <span style={{fontSize: '15px'}}>{emp.leave_info.is_approved ? '🌴' : '⚠️'}</span>
+                                    {emp.leave_info.is_approved ? <CalendarCheck2 size={16} style={{color: '#059669', flexShrink: 0}}/> : <AlertTriangle size={16} style={{color: '#d97706', flexShrink: 0}}/>}
                                     <div style={{flex: 1}}>
                                         <div>{emp.leave_info.message}</div>
                                         <small style={{display: 'block', fontSize: '10px', opacity: 0.85, marginTop: '2px'}}>
@@ -583,7 +583,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                     <span style={{fontSize: '16px'}}>⚪</span>
                                     <b style={{color: '#475569'}}>
                                         {emp.leave_info && emp.leave_info.has_leave
-                                            ? (emp.leave_info.is_approved ? '🌴 આજે રજા મંજૂર થયેલ છે' : '⚠️ રજા અપ્રૂવલ લીધી નહોતી')
+                                            ? (emp.leave_info.is_approved ? 'આજે રજા મંજૂર થયેલ છે' : 'રજા અપ્રૂવલ લીધી નહોતી')
                                             : 'કર્મચારી હાલમાં ઑફલાઇન છે'}
                                     </b>
                                     <span style={{fontSize: '10.5px', color: '#94a3b8'}}>
@@ -620,7 +620,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                 }}>
                     <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px'}}>
                         <b style={{fontSize: '12.5px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px'}}>
-                            🌴 આજે રજા પર / હાજર ન થયેલા કર્મચારીઓ ({employees.filter(emp => emp.active && !emp.manager_attendance_only && !rows.some(r => String(r.employee_id) === String(emp.id) || String(r.employee?.id) === String(emp.id))).length})
+                            <CalendarOff size={15} style={{color: '#ea580c'}}/> આજે રજા પર / હાજર ન થયેલા કર્મચારીઓ ({employees.filter(emp => emp.active && !emp.manager_attendance_only && !rows.some(r => String(r.employee_id) === String(emp.id) || String(r.employee?.id) === String(emp.id))).length})
                         </b>
                         <span style={{fontSize: '10.5px', color: '#64748b', fontWeight: 600}}>આજની સ્થિતિ (૧૧:૦૦ AM)</span>
                     </div>
@@ -654,7 +654,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                     gap: '6px'
                                 }}>
                                     <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
-                                        <span>{leaveInfo?.is_approved ? '🌴' : '⚠️'}</span>
+                                        {leaveInfo?.is_approved ? <CalendarCheck2 size={15} style={{color: '#059669', flexShrink: 0}}/> : <AlertTriangle size={15} style={{color: '#d97706', flexShrink: 0}}/>}
                                         <b>{abs.name} ({abs.employee_code}):</b>
                                         <span>{leaveInfo?.message}</span>
                                     </div>

@@ -6640,5 +6640,485 @@ button:active, .mqa-btn:active, .bnav-item:active, .bento-card:active {
     filter: drop-shadow(0 2px 6px rgba(5, 150, 105, 0.35)) !important;
 }
 
+/* ==========================================================================
+   SOLARFLOW NEXT-GEN DESIGN TOKENS & SYSTEM
+   ========================================================================== */
+:root {
+    /* Typography Stack */
+    --font-heading: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+    --font-body: "Inter", "Noto Sans Gujarati", "Hind Vadodara", ui-sans-serif, system-ui, sans-serif;
+    --font-gujarati: "Noto Sans Gujarati", "Hind Vadodara", "Inter", sans-serif;
+    --font-mono: "Space Grotesk", ui-monospace, monospace;
+
+    /* Theme Backgrounds */
+    --color-bg-day: linear-gradient(180deg, #F7FBF4 0%, #E8F5E9 50%, #FFF8E1 100%);
+    --color-bg-night: linear-gradient(180deg, #0B1A12 0%, #10241A 100%);
+    
+    /* Core Brand Colors */
+    --color-primary: #15803D;
+    --color-primary-hover: #166534;
+    --color-primary-light: #22C55E;
+    --color-primary-tint: #DCFCE7;
+    
+    --color-amber: #F59E0B;
+    --color-amber-glow: #FBBF24;
+    --color-amber-tint: #FEF3C7;
+    
+    --color-sky: #0EA5E9;
+    --color-sky-tint: #E0F2FE;
+    
+    --color-text: #14211A;
+    --color-text-muted: #4B5C52;
+    --color-border: #D6E6D9;
+    
+    /* Header Gradient */
+    --header-gradient: linear-gradient(135deg, #14532D 0%, #166534 100%);
+    
+    /* Glass Tokens (Solid fallback + backdrop blur) */
+    --glass-bg: rgba(255, 255, 255, 0.68);
+    --glass-bg-solid: #ffffff;
+    --glass-blur: blur(16px) saturate(160%);
+    --glass-border: 1px solid rgba(255, 255, 255, 0.7);
+    --glass-shadow: 0 8px 28px rgba(21, 128, 61, 0.08);
+    --card-radius: 20px;
+    
+    /* Box Accent System */
+    --card-gen-bg: #ECFDF3;
+    --card-gen-accent: #16A34A;
+    --card-rev-bg: #FFFBEB;
+    --card-rev-accent: #F59E0B;
+    --card-irr-bg: #F0F9FF;
+    --card-irr-accent: #0EA5E9;
+    --card-temp-bg: #FFF7ED;
+    --card-temp-accent: #F97316;
+    --card-warn-bg: #FEF3C7;
+    --card-warn-border: #FCD34D;
+    --card-warn-accent: #F59E0B;
+    --card-danger-bg: #FFF1F2;
+    --card-danger-border: #FDA4AF;
+    --card-danger-text: #9F1239;
+    --card-danger-accent: #E11D48;
+    --card-info-bg: #EFF6FF;
+    --card-info-accent: #3B82F6;
+}
+
+/* Base Font Families & Fluid Scaling */
+body {
+    font-family: var(--font-body);
+    color: var(--color-text);
+    background: var(--color-bg-day);
+    min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6, .page-title, .section-title {
+    font-family: var(--font-heading);
+    letter-spacing: -0.02em;
+}
+
+.tabular-number, .kpi-number, .metric-num, .isolar-power-bold, .space-grotesk {
+    font-family: var(--font-mono) !important;
+    font-variant-numeric: tabular-nums !important;
+}
+
+/* Fluid Typography */
+.text-fluid-title { font-size: clamp(20px, 4vw, 24px); font-weight: 700; }
+.text-fluid-section { font-size: clamp(16px, 3vw, 18px); font-weight: 600; }
+.text-fluid-kpi { font-size: clamp(26px, 5vw, 32px); font-weight: 700; font-family: var(--font-mono); }
+.text-fluid-body { font-size: clamp(14px, 2.5vw, 15px); line-height: 1.6; }
+.text-fluid-gu { font-size: clamp(15px, 2.8vw, 16px); line-height: 1.65; font-family: var(--font-gujarati); }
+
+/* Ambient Mesh Blobs */
+.mobile-app-container {
+    position: relative;
+    background: var(--color-bg-day);
+    min-height: 100vh;
+    overflow-x: hidden;
+    padding-bottom: calc(75px + env(safe-area-inset-bottom, 12px));
+}
+
+.mobile-app-container::before {
+    content: '';
+    position: fixed;
+    top: -100px;
+    right: -100px;
+    width: 320px;
+    height: 320px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(245, 158, 11, 0.12) 0%, rgba(245, 158, 11, 0) 70%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.mobile-app-container::after {
+    content: '';
+    position: fixed;
+    bottom: 80px;
+    left: -100px;
+    width: 320px;
+    height: 320px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(21, 128, 61, 0.10) 0%, rgba(21, 128, 61, 0) 70%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Night / Standby Theme */
+.sky-theme-night, .standby-theme {
+    background: var(--color-bg-night) !important;
+    color: #F1F5F9 !important;
+}
+
+.sky-theme-night .solar-glass-card,
+.sky-theme-night .panel,
+.sky-theme-night .metric,
+.sky-theme-night .isolar-app-card,
+.sky-theme-night .mob-pred-card-main,
+.sky-theme-night .mob-pred-mini-card {
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    color: #F1F5F9 !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35) !important;
+}
+
+.sky-theme-night h1, .sky-theme-night h2, .sky-theme-night h3, .sky-theme-night h4, .sky-theme-night strong, .sky-theme-night b {
+    color: #FFFFFF !important;
+}
+
+.sky-theme-night p, .sky-theme-night span, .sky-theme-night small {
+    color: #94A3B8 !important;
+}
+
+.sky-theme-night .mobile-bottom-navbar {
+    background: rgba(11, 26, 18, 0.94) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+/* ==========================================================================
+   2. GLASS CARDS WITH 4PX ACCENT BARS
+   ========================================================================== */
+.solar-glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: var(--glass-border);
+    border-radius: var(--card-radius);
+    box-shadow: var(--glass-shadow);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    margin-bottom: 12px;
+}
+
+@supports not (backdrop-filter: blur(16px)) {
+    .solar-glass-card {
+        background: var(--glass-bg-solid);
+    }
+}
+
+/* 4px Left Accent Bars */
+.solar-glass-card.accent-gen {
+    border-left: 4px solid var(--card-gen-accent) !important;
+    background: linear-gradient(90deg, rgba(236, 253, 243, 0.7) 0%, rgba(255, 255, 255, 0.8) 100%);
+}
+
+.solar-glass-card.accent-rev {
+    border-left: 4px solid var(--card-rev-accent) !important;
+    background: linear-gradient(90deg, rgba(255, 251, 235, 0.7) 0%, rgba(255, 255, 255, 0.8) 100%);
+}
+
+.solar-glass-card.accent-irr {
+    border-left: 4px solid var(--card-irr-accent) !important;
+    background: linear-gradient(90deg, rgba(240, 249, 255, 0.7) 0%, rgba(255, 255, 255, 0.8) 100%);
+}
+
+.solar-glass-card.accent-temp {
+    border-left: 4px solid var(--card-temp-accent) !important;
+    background: linear-gradient(90deg, rgba(255, 247, 237, 0.7) 0%, rgba(255, 255, 255, 0.8) 100%);
+}
+
+.solar-glass-card.accent-warn {
+    border-left: 4px solid var(--card-warn-accent) !important;
+    border-color: var(--card-warn-border);
+    background: linear-gradient(90deg, rgba(254, 243, 199, 0.7) 0%, rgba(255, 255, 255, 0.8) 100%);
+}
+
+.solar-glass-card.accent-danger {
+    border-left: 4px solid var(--card-danger-accent) !important;
+    border-color: var(--card-danger-border);
+    background: linear-gradient(90deg, rgba(255, 241, 242, 0.7) 0%, rgba(255, 255, 255, 0.8) 100%);
+}
+
+.solar-glass-card.accent-info {
+    border-left: 4px solid var(--card-info-accent) !important;
+    background: linear-gradient(90deg, rgba(239, 246, 255, 0.7) 0%, rgba(255, 255, 255, 0.8) 100%);
+}
+
+/* ==========================================================================
+   3. BUTTONS & TOUCH TARGETS (MIN 48PX, HOVER, ACTIVE)
+   ========================================================================== */
+.btn-primary-glow {
+    min-height: 48px;
+    padding: 12px 20px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #16A34A 0%, #15803D 100%);
+    color: #ffffff !important;
+    font-weight: 600;
+    font-size: 15px;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 4px 14px rgba(22, 163, 74, 0.35);
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+    touch-action: manipulation;
+}
+
+@media (hover: hover) {
+    .btn-primary-glow:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(245, 158, 11, 0.45);
+    }
+}
+
+.btn-primary-glow:active {
+    transform: scale(0.97);
+}
+
+.btn-primary-glow:focus-visible {
+    outline: 3px solid #F59E0B;
+    outline-offset: 2px;
+}
+
+.btn-secondary-glass {
+    min-height: 48px;
+    padding: 12px 18px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(8px);
+    color: #15803D;
+    font-weight: 600;
+    font-size: 14.5px;
+    border: 1.5px solid #15803D;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-secondary-glass:active {
+    transform: scale(0.97);
+    background: #ECFDF3;
+}
+
+.btn-danger-soft {
+    min-height: 44px;
+    padding: 10px 16px;
+    border-radius: 12px;
+    background: #FFF1F2;
+    color: #9F1239;
+    border: 1px solid #FDA4AF;
+    font-weight: 700;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+/* ==========================================================================
+   4. UNIFIED COLLAPSIBLE ALERTS COMPONENT STYLING
+   ========================================================================== */
+.unified-alerts-card {
+    background: #ffffff;
+    border: 1.5px solid #FCD34D;
+    border-radius: 18px;
+    margin: 10px 12px 14px 12px;
+    box-shadow: 0 4px 18px rgba(245, 158, 11, 0.12);
+    overflow: hidden;
+}
+
+.unified-alerts-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    background: linear-gradient(135deg, #FEF3C7 0%, #FFFBEB 100%);
+    cursor: pointer;
+    user-select: none;
+}
+
+.unified-alerts-head-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.unified-alerts-badge {
+    background: #E11D48;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 12px;
+}
+
+.unified-alerts-body {
+    padding: 8px 12px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: #FFFDF7;
+}
+
+.alert-row-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #ffffff;
+    border: 1px solid #E2E8F0;
+}
+
+.alert-row-item.severity-critical {
+    border-left: 4px solid #E11D48;
+    background: #FFF1F2;
+    border-color: #FDA4AF;
+}
+
+.alert-row-item.severity-warning {
+    border-left: 4px solid #F59E0B;
+    background: #FFFBEB;
+    border-color: #FDE68A;
+}
+
+.alert-row-item.severity-info {
+    border-left: 4px solid #0EA5E9;
+    background: #F0F9FF;
+    border-color: #BAE6FD;
+}
+
+.alert-action-pill {
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.alert-action-pill.btn-critical {
+    background: #9F1239;
+    color: #ffffff;
+}
+
+.alert-action-pill.btn-warning {
+    background: #D97706;
+    color: #ffffff;
+}
+
+.alert-action-pill.btn-info {
+    background: #0284C7;
+    color: #ffffff;
+}
+
+/* ==========================================================================
+   5. SEARCH INPUTS WITH 40PX LEFT PADDING & SUFFIX WRAPPERS
+   ========================================================================== */
+.search-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.search-input-wrap svg {
+    position: absolute;
+    left: 14px;
+    color: #64748B;
+    pointer-events: none;
+}
+
+.search-input-wrap input {
+    width: 100%;
+    padding-left: 40px !important;
+    padding-right: 14px !important;
+    min-height: 44px;
+    border-radius: 12px;
+    border: 1.5px solid #CBD5E1;
+    font-size: 14px;
+    outline: none;
+}
+
+.search-input-wrap input:focus {
+    border-color: #10B981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+/* ==========================================================================
+   6. RESPONSIVE MOBILE CARD-LIST FOR TABLES (STOCK, SALARY, EXPENSES)
+   ========================================================================== */
+@media (max-width: 768px) {
+    .mobile-card-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        width: 100%;
+    }
+
+    .mobile-data-card {
+        background: #ffffff;
+        border: 1px solid #E2E8F0;
+        border-radius: 16px;
+        padding: 14px 16px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .mobile-data-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #F1F5F9;
+    }
+
+    .mobile-data-card-body {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        font-size: 12.5px;
+    }
+
+    .mobile-data-card-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        padding-top: 8px;
+        border-top: 1px dashed #E2E8F0;
+    }
+
+    .table-scroll-hint {
+        position: relative;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        box-shadow: inset -10px 0 10px -10px rgba(0, 0, 0, 0.12);
+    }
+}
+
+
 
 
