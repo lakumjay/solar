@@ -2292,7 +2292,7 @@ export default function MobileAppView({
                                                 <label style={{fontSize: '11.5px', fontWeight: 700, color: '#334155'}}>
                                                     {activeCfg.name} - પાવર કટ (%):
                                                 </label>
-                                                <div style={{display: 'flex', alignItems: 'center', gap: '3px'}}>
+                                                <div style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
                                                     <input
                                                         type="number"
                                                         min="1"
@@ -2303,17 +2303,21 @@ export default function MobileAppView({
                                                             updateActiveCurtailConfig('percentage', val);
                                                         }}
                                                         style={{
-                                                            width: '52px',
-                                                            padding: '3px 4px',
-                                                            borderRadius: '5px',
+                                                            width: '68px',
+                                                            minWidth: '68px',
+                                                            boxSizing: 'border-box',
+                                                            padding: '4px 6px',
+                                                            borderRadius: '6px',
                                                             border: '2px solid #ea580c',
-                                                            fontSize: '13px',
+                                                            fontSize: '14px',
                                                             fontWeight: 800,
                                                             color: '#9a3412',
-                                                            textAlign: 'center'
+                                                            textAlign: 'center',
+                                                            outline: 'none',
+                                                            background: '#ffffff'
                                                         }}
                                                     />
-                                                    <span style={{fontSize: '12px', fontWeight: 800, color: '#ea580c'}}>%</span>
+                                                    <span style={{fontSize: '13px', fontWeight: 800, color: '#ea580c'}}>%</span>
                                                 </div>
                                             </div>
 

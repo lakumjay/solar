@@ -78,6 +78,8 @@ Route::prefix('api')->group(function () {
         Route::get('report/export/daily-ss-excel', [ReportController::class, 'dailySsExcel']);
         Route::get('report/export/company-excel', [ReportController::class, 'companyExcel']);
         Route::get('report/export/pdf', [ReportController::class, 'pdf']);
+        Route::get('report/weather-issue', [ReportController::class, 'weatherIssueReport']);
+        Route::get('report/export/weather-issue-pdf', [ReportController::class, 'weatherIssuePdf']);
         Route::post('import/excel', [ImportController::class, 'store']);
         Route::get('activity', [ActivityController::class, 'index']);
         Route::get('employees', [EmployeeController::class, 'index']);

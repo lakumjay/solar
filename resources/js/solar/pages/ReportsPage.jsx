@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {BarChart3, FileSpreadsheet, FileText, Sun} from 'lucide-react';
+import {BarChart3, CloudRain, FileSpreadsheet, FileText, Sun} from 'lucide-react';
 import {api} from '../api';
 import {METERS, monthStart, today} from '../config';
 import {number, shortDate} from '../format';
@@ -31,6 +31,9 @@ export default function ReportsPage({companyId, companies}) {
     const [to, setTo] = useState(today());
     const [data, setData] = useState(null);
     const [error, setError] = useState('');
+    const [weatherIssueData, setWeatherIssueData] = useState(null);
+    const [weatherIssueLoading, setWeatherIssueLoading] = useState(false);
+    const [filterOnlyIssues, setFilterOnlyIssues] = useState(false);
     const [reportCompanyId, setReportCompanyId] = useState(companyId === 'all' ? String(companies[0]?.id || '') : String(companyId));
     const [meterColumns, setMeterColumns] = useState(COMPANY_REPORT_COLUMNS.map(([key]) => key));
     const selectedReportCompany = companies.find(company => String(company.id) === reportCompanyId);
@@ -38,6 +41,11 @@ export default function ReportsPage({companyId, companies}) {
     const load = () => {
         setError('');
         api(`report?company_id=${companyId}&period=${period}&date_from=${from}&date_to=${to}`).then(setData).catch(error => setError(error.message));
+        setWeatherIssueLoading(true);
+        api(`report/weather-issue?company_id=${companyId}&date_from=${from}&date_to=${to}`)
+            .then(setWeatherIssueData)
+            .catch(() => {})
+            .finally(() => setWeatherIssueLoading(false));
     };
 
     useEffect(load, [companyId, period]);
@@ -51,10 +59,167 @@ export default function ReportsPage({companyId, companies}) {
     meterColumns.forEach(column => companyReportQuery.append('columns[]', column));
     const toggle = (values, setValues, key, checked) => setValues(checked ? [...values, key] : values.filter(value => value !== key));
 
+    const weatherIssueQuery = new URLSearchParams({company_id: companyId, date_from: from, date_to: to}).toString();
+
     return <div className="reports-page">
         <section className="panel report-filter"><div className="segment">{[['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly']].map(([key, label]) => <button className={period === key ? 'active' : ''} onClick={() => setPeriod(key)} key={key}>{label}</button>)}</div><DatePicker label="From" value={from} onChange={setFrom}/><DatePicker label="To" value={to} onChange={setTo} align="right"/><button className="primary" onClick={load}>Apply</button></section>
         {error && <div className="error">{error}</div>}
         {data && <>
+            {/* 🌧️ ⚡ Weather & Issue Analysis Report Panel with PDF Export */}
+            <section className="panel weather-issue-panel" style={{border: '1.5px solid #0d9488', background: '#f0fdfa'}}>
+                <div className="panel-head" style={{alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px'}}>
+                    <div>
+                        <h2 style={{display: 'flex', alignItems: 'center', gap: '8px', color: '#0f766e', margin: 0, fontSize: '16px'}}>
+                            <CloudRain size={20} style={{color: '#0d9488'}}/>
+                            Weather / Issue Report
+                        </h2>
+                        <p style={{marginTop: '4px', color: '#134e4a', fontSize: '12px'}}>
+                            તારીખવાર ઓછા ઉત્પાદનનું કારણ (વરસાદ/વાદળ 🌧️, PGVCL કર્ટેલમેન્ટ ⚡, ઇન્વર્ટર ફોલ્ટ 🔌 કે ધૂળ 🧼) અને વિગતવાર પૃથક્કરણ.
+                        </p>
+                        {weatherIssueData && (
+                            <div style={{display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px'}}>
+                                <span style={{background: '#dcfce7', color: '#166534', padding: '3px 8px', borderRadius: '5px', fontSize: '11px', fontWeight: 700}}>
+                                    🟢 સામાન્ય: {weatherIssueData.normal_days} દિવસ
+                                </span>
+                                <span style={{background: '#ffedd5', color: '#9a3412', padding: '3px 8px', borderRadius: '5px', fontSize: '11px', fontWeight: 700}}>
+                                    🔴 ઓછા યુનિટ્સ: {weatherIssueData.low_days} દિવસ
+                                </span>
+                                <span style={{background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: '5px', fontSize: '11px', fontWeight: 600}}>
+                                    અપેક્ષિત: ~{number(weatherIssueData.expected_daily_units)} kWh / દિવસ
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                    <div className="export-actions">
+                        <a
+                            className="secondary weather-issue-pdf-btn"
+                            style={{
+                                background: '#0f766e',
+                                color: '#ffffff',
+                                fontWeight: 700,
+                                border: 'none',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '8px 14px',
+                                borderRadius: '6px',
+                                textDecoration: 'none',
+                                cursor: 'pointer'
+                            }}
+                            href={`/api/report/export/weather-issue-pdf?${weatherIssueQuery}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            <FileText size={16}/>
+                            Weather / Issue Report (PDF)
+                        </a>
+                    </div>
+                </div>
+
+                {/* Table preview with interactive filter */}
+                {weatherIssueData?.rows?.length > 0 && (
+                    <div style={{marginTop: '12px', background: '#ffffff', borderRadius: '8px', padding: '10px', border: '1px solid #ccfbf1'}}>
+                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '6px'}}>
+                            <span style={{fontSize: '12px', fontWeight: 700, color: '#0f766e'}}>
+                                દૈનિક વિશ્લેષણ પત્રક ({shortDate(weatherIssueData.from)} થી {shortDate(weatherIssueData.to)}):
+                            </span>
+                            <div style={{display: 'flex', gap: '4px'}}>
+                                <button
+                                    type="button"
+                                    onClick={() => setFilterOnlyIssues(false)}
+                                    style={{
+                                        fontSize: '10.5px',
+                                        padding: '3px 8px',
+                                        borderRadius: '4px',
+                                        border: !filterOnlyIssues ? '1.5px solid #0f766e' : '1px solid #cbd5e1',
+                                        background: !filterOnlyIssues ? '#ccfbf1' : '#ffffff',
+                                        color: !filterOnlyIssues ? '#0f766e' : '#64748b',
+                                        fontWeight: 700,
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    બધા દિવસો ({weatherIssueData.rows.length})
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setFilterOnlyIssues(true)}
+                                    style={{
+                                        fontSize: '10.5px',
+                                        padding: '3px 8px',
+                                        borderRadius: '4px',
+                                        border: filterOnlyIssues ? '1.5px solid #ea580c' : '1px solid #cbd5e1',
+                                        background: filterOnlyIssues ? '#ffedd5' : '#ffffff',
+                                        color: filterOnlyIssues ? '#c2410c' : '#64748b',
+                                        fontWeight: 700,
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    ⚠️ માત્ર ઓછા યુનિટ્સ ({weatherIssueData.low_days})
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="table-wrap" style={{maxHeight: '380px', overflowY: 'auto'}}>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>તારીખ</th>
+                                        <th>ઉત્પાદન (kWh)</th>
+                                        <th>સ્થિતિ</th>
+                                        <th>ઓછા યુનિટનું કારણ (Issue / Reason)</th>
+                                        <th>વિગતવાર વિશ્લેષણ (Analysis)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {weatherIssueData.rows
+                                        .filter(r => !filterOnlyIssues || r.status === 'low')
+                                        .map(r => (
+                                            <tr key={r.date} style={{background: r.status === 'low' ? '#fffaf5' : '#ffffff'}}>
+                                                <td className="strong" style={{whiteSpace: 'nowrap'}}>
+                                                    {shortDate(r.date)}
+                                                    <div style={{fontSize: '10px', color: '#94a3b8', fontWeight: 500}}>{r.day_name}</div>
+                                                </td>
+                                                <td>
+                                                    <b style={{color: r.status === 'low' ? '#ea580c' : '#16a34a', fontSize: '12px'}}>
+                                                        {number(r.generation)}
+                                                    </b>
+                                                    <div style={{fontSize: '9.5px', color: '#64748b'}}>({r.pct_of_expected}%)</div>
+                                                </td>
+                                                <td>
+                                                    {r.status === 'normal' ? (
+                                                        <span style={{background: '#dcfce7', color: '#166534', padding: '2px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 700}}>
+                                                            🟢 સામાન્ય
+                                                        </span>
+                                                    ) : r.status === 'low' ? (
+                                                        <span style={{background: '#ffedd5', color: '#9a3412', padding: '2px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 700}}>
+                                                            🔴 Low Units
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{background: '#f1f5f9', color: '#475569', padding: '2px 6px', borderRadius: '4px', fontSize: '10.5px'}}>
+                                                            ⚪ No Data
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    <b style={{color: '#1e293b', fontSize: '11.5px', display: 'block'}}>{r.reason}</b>
+                                                    {r.inverters?.length > 0 && (
+                                                        <div style={{fontSize: '10px', color: '#64748b', marginTop: '2px'}}>
+                                                            {r.inverters.slice(0, 4).map(inv => `${inv.name}: ${number(inv.generation)}k`).join(' | ')}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td style={{fontSize: '11px', color: '#475569'}}>
+                                                    {r.details}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+            </section>
+
             <section className="panel daily-ss-panel"><div className="panel-head"><div><h2>Daily SS report</h2><p>Common Daily SS values use only <strong className="report-highlight-pill">{data.ss_reference?.company || 'the configured reference company'}</strong> 66kV Sub Import Unit. Every authorized company login receives the same report.</p></div><div className="export-actions"><a className="secondary daily-ss-download-btn" href={`/api/report/export/daily-ss-excel?${dailySsQuery}`}><FileSpreadsheet size={16}/>Download Excel</a></div></div></section>
             {data.ss_reference?.missing_dates?.length > 0 && <div className="warning-banner"><b>Missing {data.ss_reference.company} entries</b><span>Daily SS and combined 66kV Sub Import count 0.00 on: {data.ss_reference.missing_dates.map(shortDate).join(', ')}. Other companies are not used as a fallback.</span></div>}
             

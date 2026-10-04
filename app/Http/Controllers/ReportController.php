@@ -11,6 +11,7 @@ use App\Services\DailySsReportExporter;
 use App\Services\ExcelReportExporter;
 use App\Services\ReportService;
 use App\Services\SolarAccessService;
+use App\Services\WeatherIssueReportService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 
@@ -23,6 +24,7 @@ class ReportController extends Controller
         private readonly DailySsReportExporter $dailySsExcel,
         private readonly CompanyWiseReportService $companyReports,
         private readonly CompanyWiseReportExporter $companyExcel,
+        private readonly WeatherIssueReportService $weatherIssueReports,
     ) {}
 
     public function show(ReportRequest $request): array
@@ -96,5 +98,30 @@ class ReportController extends Controller
         $to = $request->filled('date_to') ? Carbon::parse($request->input('date_to')) : now()->endOfMonth();
 
         return $this->reports->build($companyId, $period, $from, $to);
+    }
+
+    public function weatherIssueReport(ReportRequest $request): array
+    {
+        $this->access->requirePermission($request, 'view_reports');
+        $request->validated();
+        $companyId = $this->access->requestedCompany($request, true);
+        $from = $request->filled('date_from') ? Carbon::parse($request->input('date_from')) : now()->startOfMonth();
+        $to = $request->filled('date_to') ? Carbon::parse($request->input('date_to')) : now()->endOfMonth();
+
+        return $this->weatherIssueReports->build($companyId, $from, $to);
+    }
+
+    public function weatherIssuePdf(ReportRequest $request)
+    {
+        $this->access->requirePermission($request, 'view_reports');
+        $request->validated();
+        $companyId = $this->access->requestedCompany($request, true);
+        $from = $request->filled('date_from') ? Carbon::parse($request->input('date_from')) : now()->startOfMonth();
+        $to = $request->filled('date_to') ? Carbon::parse($request->input('date_to')) : now()->endOfMonth();
+        $data = $this->weatherIssueReports->build($companyId, $from, $to);
+
+        return Pdf::loadView('reports.weather_issue', ['report' => $data])
+            ->setPaper('a4', 'portrait')
+            ->download('weather-issue-report-'.$data['from'].'-'.$data['to'].'.pdf');
     }
 }
