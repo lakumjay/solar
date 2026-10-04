@@ -1002,7 +1002,11 @@ class ISolarCloudService
         }
 
         // (D) Inverter Fan & Filter 10-Day Routine Cleaning Cycle
-        $lastFanCleanLog = InverterMaintenanceLog::where('maintenance_type', 'fan_dust_cleaning')->latest('cleaned_at')->first();
+        try {
+            $lastFanCleanLog = InverterMaintenanceLog::where('maintenance_type', 'fan_dust_cleaning')->latest('cleaned_at')->first();
+        } catch (\Throwable $e) {
+            $lastFanCleanLog = null;
+        }
         $lastCleanedDate = $lastFanCleanLog ? Carbon::parse($lastFanCleanLog->cleaned_at) : Carbon::today()->subDays(10);
         $daysSinceClean = (int) $lastCleanedDate->diffInDays(Carbon::today());
         $daysRemaining = max(0, 10 - $daysSinceClean);

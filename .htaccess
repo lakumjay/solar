@@ -1,11 +1,13 @@
     <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Redirect HTTP or non-www to https://www.rns.snwebkarma.in for live domain
+    # Redirect HTTP or non-www to https://www.rns.snwebkarma.in (only for external requests)
+    RewriteCond %{ENV:REDIRECT_STATUS} ^$
     RewriteCond %{HTTP_HOST} ^rns\.snwebkarma\.in$ [NC,OR]
+    RewriteCond %{ENV:REDIRECT_STATUS} ^$
     RewriteCond %{HTTPS} off
     RewriteCond %{HTTP_HOST} ^(?:www\.)?rns\.snwebkarma\.in$ [NC]
-    RewriteRule ^ https://www.rns.snwebkarma.in%{REQUEST_URI} [L,R=301]
+    RewriteRule ^(.*)$ https://www.rns.snwebkarma.in/$1 [L,R=301]
 
     RewriteRule ^public(?:/|$) - [L]
 

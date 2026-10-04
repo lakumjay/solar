@@ -101,9 +101,8 @@ export default function ReportsPage({companyId, companies}) {
     return <div className="reports-page">
         <section className="panel report-filter"><div className="segment">{[['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly']].map(([key, label]) => <button className={period === key ? 'active' : ''} onClick={() => setPeriod(key)} key={key}>{label}</button>)}</div><DatePicker label="From" value={from} onChange={setFrom}/><DatePicker label="To" value={to} onChange={setTo} align="right"/><button className="primary" onClick={load}>Apply</button></section>
         {error && <div className="error">{error}</div>}
-        {reportLoading && !data && <div className="panel" style={{textAlign: 'center', padding: '16px', color: '#0f766e', fontWeight: 600}}>રિપોર્ટ લોડ થઈ રહ્યો છે... (Loading Report...)</div>}
-        {(data || weatherIssueData || weatherIssueLoading) && <>
-            {/* 🌧️ ⚡ Weather & Issue Analysis Report Panel with PDF Export */}
+        {/* 🌧️ ⚡ Weather & Issue Analysis Report Panel with PDF Export */}
+        {(weatherIssueData || weatherIssueLoading) && (
             <section className="panel weather-issue-panel" style={{border: '1.5px solid #0d9488', background: '#f0fdfa'}}>
                 <div className="panel-head" style={{alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px'}}>
                     <div>
@@ -262,9 +261,17 @@ export default function ReportsPage({companyId, companies}) {
                     </div>
                 )}
             </section>
+        )}
 
-            <section className="panel daily-ss-panel"><div className="panel-head"><div><h2>Daily SS report</h2><p>Common Daily SS values use only <strong className="report-highlight-pill">{data.ss_reference?.company || 'the configured reference company'}</strong> 66kV Sub Import Unit. Every authorized company login receives the same report.</p></div><div className="export-actions"><a className="secondary daily-ss-download-btn" href={`/api/report/export/daily-ss-excel?${dailySsQuery}`}><FileSpreadsheet size={16}/>Download Excel</a></div></div></section>
-            {data.ss_reference?.missing_dates?.length > 0 && <div className="warning-banner"><b>Missing {data.ss_reference.company} entries</b><span>Daily SS and combined 66kV Sub Import count 0.00 on: {data.ss_reference.missing_dates.map(shortDate).join(', ')}. Other companies are not used as a fallback.</span></div>}
+        {reportLoading && !data && (
+            <div className="panel" style={{textAlign: 'center', padding: '16px', color: '#0f766e', fontWeight: 600}}>
+                રિપોર્ટ લોડ થઈ રહ્યો છે... (Loading Report...)
+            </div>
+        )}
+
+        {data && <>
+                <section className="panel daily-ss-panel"><div className="panel-head"><div><h2>Daily SS report</h2><p>Common Daily SS values use only <strong className="report-highlight-pill">{data.ss_reference?.company || 'the configured reference company'}</strong> 66kV Sub Import Unit. Every authorized company login receives the same report.</p></div><div className="export-actions"><a className="secondary daily-ss-download-btn" href={`/api/report/export/daily-ss-excel?${dailySsQuery}`}><FileSpreadsheet size={16}/>Download Excel</a></div></div></section>
+                {data.ss_reference?.missing_dates?.length > 0 && <div className="warning-banner"><b>Missing {data.ss_reference?.company} entries</b><span>Daily SS and combined 66kV Sub Import count 0.00 on: {(data.ss_reference?.missing_dates || []).map(shortDate).join(', ')}. Other companies are not used as a fallback.</span></div>}
             
             <section className="panel company-report-builder">
                 <div className="panel-head"><div><h2>Company-wise report</h2><p>Select the company and only the columns required in the Excel file. Date is always included.</p></div><div className="export-actions"><a className={reportCompanyId ? 'secondary generate-excel-btn' : 'secondary disabled generate-excel-btn'} href={reportCompanyId ? `/api/report/export/company-excel?${companyReportQuery}` : undefined}><FileSpreadsheet size={16}/>Generate Excel</a></div></div>
