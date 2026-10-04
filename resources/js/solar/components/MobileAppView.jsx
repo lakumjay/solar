@@ -108,8 +108,20 @@ export default function MobileAppView({
     const [historyLoading, setHistoryLoading] = useState(false);
     const [inlineCustomPct, setInlineCustomPct] = useState({});
     const [cleaningFanLoading, setCleaningFanLoading] = useState(false);
+    const [islandExpanded, setIslandExpanded] = useState(false);
+    const [radialHubOpen, setRadialHubOpen] = useState(false);
+
+    // Subtle tactile haptic vibration for mobile buttons
+    const triggerHaptic = (pattern = [35]) => {
+        if (navigator.vibrate) {
+            try {
+                navigator.vibrate(pattern);
+            } catch (e) {}
+        }
+    };
 
     const handleFanCleaned = async () => {
+        triggerHaptic([45]);
         if (!confirm('શું તમે ઇન્વર્ટર કૂલિંગ ફેન અને જાળીની ધૂળ (Dust) બ્લોઅરથી સાફ કરી લીધી છે? આનાથી ૧૦ દિવસનું નવું સાઇકલ શરૂ થશે.')) {
             return;
         }
@@ -119,6 +131,7 @@ export default function MobileAppView({
                 method: 'POST',
                 body: JSON.stringify({ notes: 'કૂલિંગ ફેન અને જાળી બ્લોઅરથી સાફ કરવામાં આવી.' })
             });
+            triggerHaptic([50, 60, 100]);
             if (fetchLiveSolar) await fetchLiveSolar(true);
         } catch (err) {
             alert('સેવ કરવામાં ભૂલ આવી: ' + (err.message || 'Error'));
@@ -687,8 +700,50 @@ export default function MobileAppView({
         }));
     };
 
+    // 🌤️ Real-Time Dynamic Sky Theming based on actual Solar Hours
+    const getSkyTheme = () => {
+        const hour = new Date().getHours();
+        if (hour >= 5 && hour < 9) {
+            return {
+                themeClass: 'sky-theme-dawn',
+                label: 'Sunrise Glow',
+                labelGu: '🌅 સોનેરી સૂર્યોદય',
+                icon: '🌅'
+            };
+        } else if (hour >= 9 && hour < 16) {
+            return {
+                themeClass: 'sky-theme-noon',
+                label: 'Peak Solar Azure',
+                labelGu: '☀️ પીક સૂર્યપ્રકાશ (હાઇ જનરેશન)',
+                icon: '☀️'
+            };
+        } else if (hour >= 16 && hour < 19) {
+            return {
+                themeClass: 'sky-theme-sunset',
+                label: 'Amber Sunset Dusk',
+                labelGu: '🌇 સાંધ્ય સોનેરી આકાશ',
+                icon: '🌇'
+            };
+        } else {
+            return {
+                themeClass: 'sky-theme-night',
+                label: 'OLED Midnight Standby',
+                labelGu: '🌙 રાત્રિ સ્ટેન્ડબાય મોડ',
+                icon: '🌙'
+            };
+        }
+    };
+    const currentSky = getSkyTheme();
+
+    const rawKw = parseFloat(data?.realtime_power_kw || 0);
+    const rawMw = parseFloat(data?.realtime_power_mw || 0);
+    const isKwMode = rawKw < 1000 && rawKw > 0;
+    const displayIslandPower = isKwMode
+        ? `${rawKw.toFixed(2)} kW`
+        : (rawMw > 0 ? `${rawMw.toFixed(2)} MW` : `${(rawKw / 1000).toFixed(2)} MW`);
+
     return (
-        <div className="mobile-app-container">
+        <div className={`mobile-app-container ${currentSky.themeClass}`}>
             {/* 1. TOP APP HEADER */}
             <header className="mobile-app-header">
                 <div className="mobile-brand-wrapper" onClick={() => setPage('dashboard')}>
@@ -800,6 +855,44 @@ export default function MobileAppView({
             ) : (
                 /* MAIN DASHBOARD CONTENT WITH 3D ANIMATED ISOMETRIC VISUALIZER */
                 <main className="mobile-dashboard-scroll">
+                    {/* 🏝️ FLOATING DYNAMIC ISLAND CAPSULE WIDGET */}
+                    <div
+                        className="dynamic-island-pill"
+                        onClick={() => {
+                            triggerHaptic([30]);
+                            setIslandExpanded(!islandExpanded);
+                        }}
+                        title="ઝડપી સારાંશ જોવા ટેપ કરો"
+                    >
+                        <div className="island-collapsed-content">
+                            <div className="island-power-badge">
+                                <span className="island-pulse-laser"></span>
+                                <span>{currentSky.icon} {displayIslandPower !== '0.00 MW' ? displayIslandPower : (rawKw > 0 ? `${rawKw.toFixed(2)} kW` : '0.00 kW')}</span>
+                            </div>
+                            <div style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#94a3b8'}}>
+                                <span>{currentSky.labelGu}</span>
+                                {islandExpanded ? <ChevronUp size={14} color="#34d399"/> : <ChevronDown size={14} color="#94a3b8"/>}
+                            </div>
+                        </div>
+
+                        {islandExpanded && (
+                            <div className="island-expanded-tray">
+                                <div className="island-tray-item">
+                                    <span>આજનું ઉત્પાદન</span>
+                                    <strong>{data?.today_units_kwh ? `${data.today_units_kwh} kWh` : '0 kWh'}</strong>
+                                </div>
+                                <div className="island-tray-item">
+                                    <span>અંદાજિત આવક</span>
+                                    <strong style={{color: '#34d399'}}>₹{data?.total_revenue_rs ? `${data.total_revenue_rs}` : '0'}</strong>
+                                </div>
+                                <div className="island-tray-item">
+                                    <span>કુલ પ્લાન્ટ ક્ષમતા</span>
+                                    <strong>{data?.installed_capacity_mwp ? `${data.installed_capacity_mwp} MW` : '3.00 MW'}</strong>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
                     {/* Subhead Status Row */}
                     <div className="mobile-subhead-section">
                         <div className="plant-live-status-row">
@@ -1983,6 +2076,134 @@ export default function MobileAppView({
                                 );
                             })}
                         </div>
+                    </div>
+
+                    {/* 5. 🎛️ ONE-THUMB RADIAL COMMAND HUB (FAB) */}
+                    <div className="radial-fab-wrapper">
+                        {radialHubOpen && (
+                            <div
+                                className="radial-action-sheet-backdrop"
+                                onClick={() => {
+                                    triggerHaptic([20]);
+                                    setRadialHubOpen(false);
+                                }}
+                            />
+                        )}
+
+                        {radialHubOpen && (
+                            <div className="radial-menu-tray">
+                                {can('enter_readings') && (
+                                    <button
+                                        type="button"
+                                        className="radial-item-btn"
+                                        onClick={() => {
+                                            triggerHaptic([35]);
+                                            setRadialHubOpen(false);
+                                            if ((companyId === 'all' || !companyId) && companies.length > 0) {
+                                                const validComp = companies.find(c => String(c.id) !== 'all') || companies[0];
+                                                if (validComp) setCompanyId(String(validComp.id));
+                                            }
+                                            setPage('entry');
+                                        }}
+                                    >
+                                        <span>📝 ડેઇલી એન્ટ્રી / મીટર રીડિંગ</span>
+                                        <div className="radial-icon-circle" style={{background: '#10b981'}}>
+                                            <ClipboardPlus size={15}/>
+                                        </div>
+                                    </button>
+                                )}
+
+                                <button
+                                    type="button"
+                                    className="radial-item-btn"
+                                    onClick={() => {
+                                        setRadialHubOpen(false);
+                                        handleFanCleaned();
+                                    }}
+                                >
+                                    <span>💨 ૧૦ દિવસ ફેન ક્લિનિંગ સેવ</span>
+                                    <div className="radial-icon-circle" style={{background: '#e11d48'}}>
+                                        <Wind size={15}/>
+                                    </div>
+                                </button>
+
+                                {curtailmentSystem.is_any_active ? (
+                                    <button
+                                        type="button"
+                                        className="radial-item-btn"
+                                        onClick={() => {
+                                            triggerHaptic([40]);
+                                            setRadialHubOpen(false);
+                                            handleRestoreAll('all');
+                                        }}
+                                    >
+                                        <span>🟢 PGVCL: ૧૦૦% ફુલ પાવર</span>
+                                        <div className="radial-icon-circle" style={{background: '#16a34a'}}>
+                                            <Zap size={15}/>
+                                        </div>
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        className="radial-item-btn"
+                                        onClick={() => {
+                                            triggerHaptic([35]);
+                                            setRadialHubOpen(false);
+                                            openCurtailModal(null, 20);
+                                        }}
+                                    >
+                                        <span>⚡ PGVCL પાવર કટ સેટ કરો</span>
+                                        <div className="radial-icon-circle" style={{background: '#f97316'}}>
+                                            <Sliders size={15}/>
+                                        </div>
+                                    </button>
+                                )}
+
+                                <button
+                                    type="button"
+                                    className="radial-item-btn"
+                                    onClick={() => {
+                                        triggerHaptic([30]);
+                                        setRadialHubOpen(false);
+                                        setPage('gallery');
+                                    }}
+                                >
+                                    <span>📸 પ્લાન્ટ ફોટો / કેમેરા</span>
+                                    <div className="radial-icon-circle" style={{background: '#3b82f6'}}>
+                                        <Camera size={15}/>
+                                    </div>
+                                </button>
+
+                                {can('view_reports') && (
+                                    <button
+                                        type="button"
+                                        className="radial-item-btn"
+                                        onClick={() => {
+                                            triggerHaptic([30]);
+                                            setRadialHubOpen(false);
+                                            setPage('reports');
+                                        }}
+                                    >
+                                        <span>📊 માસિક જનરેશન રિપોર્ટ</span>
+                                        <div className="radial-icon-circle" style={{background: '#8b5cf6'}}>
+                                            <BarChart3 size={15}/>
+                                        </div>
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
+                        <button
+                            type="button"
+                            className={`radial-fab-main-btn ${radialHubOpen ? 'active' : ''}`}
+                            onClick={() => {
+                                triggerHaptic([radialHubOpen ? 25 : 45]);
+                                setRadialHubOpen(!radialHubOpen);
+                            }}
+                            title="Quick Action Command Hub"
+                        >
+                            {radialHubOpen ? <X size={24}/> : <Sparkles size={22}/>}
+                        </button>
                     </div>
                 </main>
             )}

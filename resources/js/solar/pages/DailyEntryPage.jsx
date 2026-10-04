@@ -87,10 +87,69 @@ export default function DailyEntryPage({company, canEdit = true}) {
 
     if (!company) return <Empty title="Select a company" detail="Daily entries must belong to one company."/>;
 
+    const [saveSuccess, setSaveSuccess] = useState(false);
+
+    // Soft audio chime on successful save
+    const playSuccessChime = () => {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const now = ctx.currentTime;
+            
+            // Note 1 (E5)
+            const osc1 = ctx.createOscillator();
+            const gain1 = ctx.createGain();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(659.25, now);
+            gain1.gain.setValueAtTime(0.12, now);
+            gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+            osc1.connect(gain1);
+            gain1.connect(ctx.destination);
+            osc1.start(now);
+            osc1.stop(now + 0.3);
+
+            // Note 2 (G#5)
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(830.61, now + 0.1);
+            gain2.gain.setValueAtTime(0.15, now + 0.1);
+            gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+            osc2.connect(gain2);
+            gain2.connect(ctx.destination);
+            osc2.start(now + 0.1);
+            osc2.stop(now + 0.5);
+
+            // Note 3 (B5)
+            const osc3 = ctx.createOscillator();
+            const gain3 = ctx.createGain();
+            osc3.type = 'sine';
+            osc3.frequency.setValueAtTime(987.77, now + 0.2);
+            gain3.gain.setValueAtTime(0.18, now + 0.2);
+            gain3.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+            osc3.connect(gain3);
+            gain3.connect(ctx.destination);
+            osc3.start(now + 0.2);
+            osc3.stop(now + 0.6);
+        } catch (e) {
+            // Audio context not available or muted
+        }
+    };
+
+    const triggerHaptic = (pattern = [40]) => {
+        if (navigator.vibrate) {
+            try {
+                navigator.vibrate(pattern);
+            } catch (e) {}
+        }
+    };
+
     const save = async event => {
         event.preventDefault();
+        triggerHaptic([45]);
         setBusy(true);
         setMessage(null);
+        setSaveSuccess(false);
+
         try {
             // Safe outputs payload: map all active inverters, default blank/missing to 0.00
             const safeOutputs = activeInverters.map(inverter => {
@@ -118,20 +177,33 @@ export default function DailyEntryPage({company, canEdit = true}) {
                     outputs: safeOutputs,
                 }),
             });
+
             setExisting(result);
+            setSaveSuccess(true);
+            playSuccessChime();
+            triggerHaptic([50, 60, 120]);
+
             setMessage({
                 type: 'success',
-                text: 'રીડિંગ સફળતાપૂર્વક સેવ થઈ ગયું છે. યુનિટ્સની ગણતરી અપડેટ થઈ ગઈ છે.'
+                text: '✅ રીડિંગ સફળતાપૂર્વક સેવ થઈ ગયું છે. યુનિટ્સની ગણતરી અપડેટ થઈ ગઈ છે.'
             });
+
+            setTimeout(() => setSaveSuccess(false), 4000);
         } catch (exception) {
+            triggerHaptic([100, 50, 100]);
             setMessage({type: 'error', text: exception.message || 'સેવ કરવામાં ભૂલ આવી.'});
         } finally {
             setBusy(false);
         }
     };
 
+    // Calculate total inverter generation preview
+    const totalInverterGeneration = useMemo(() => {
+        return Object.values(outputs).reduce((acc, v) => acc + (parseFloat(v) || 0), 0).toFixed(2);
+    }, [outputs]);
+
     return <form className="entry" onSubmit={save}>
-        <section className="panel entry-date">
+        <section className="panel entry-date" style={{borderRadius: '16px', background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(10px)'}}>
             <div>
                 <p className="step">STEP 1</p>
                 <h2>તારીખ પસંદ કરો (Entry Date)</h2>
@@ -141,40 +213,44 @@ export default function DailyEntryPage({company, canEdit = true}) {
         </section>
 
         {existing && (
-            <div className="info-banner" style={{background: '#eff6ff', borderColor: '#bfdbfe', color: '#1e40af'}}>
+            <div className="info-banner" style={{background: '#eff6ff', borderColor: '#bfdbfe', color: '#1e40af', borderRadius: '12px', padding: '12px 16px'}}>
                 ℹ️ <b>આ તારીખની એન્ટ્રી પહેલેથી હાજર છે.</b> તમે નીચેના મીટર રીડિંગ્સ અથવા ઇન્વર્ટર યુનિટ્સ અપડેટ કરીને સેવ કરી શકો છો.
             </div>
         )}
 
         {autoFetched && !existing && (
-            <div className="info-banner" style={{background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534'}}>
+            <div className="info-banner" style={{background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534', borderRadius: '12px', padding: '12px 16px'}}>
                 ⚡ iSolarCloud માંથી લાઇવ ઇન્વર્ટર રીડિંગ્સ આપોઆપ લોડ થઈ ગયા છે!
             </div>
         )}
 
-        <section className="panel">
+        <section className="panel" style={{borderRadius: '16px', background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(10px)'}}>
             <div className="panel-head" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px'}}>
                 <div>
                     <p className="step">STEP 2</p>
                     <h2>ઇન્વર્ટર દૈનિક ઉત્પાદન (Inverter Generation)</h2>
-                    <p>ઓટો-સેવ થયેલા અથવા લાઇવ યુનિટ્સ (kWh). જો કોઈ ઇન્વર્ટર 0 હોય તો તમે જાતે મેન્યુઅલ લખી શકો છો.</p>
+                    <p>ઓટો-સેવ થયેલા અથવા લાઇવ યુનિટ્સ (kWh). કુલ અંદાજિત જનરેશન: <b style={{color: '#059669'}}>{totalInverterGeneration} kWh</b></p>
                 </div>
                 <button
                     type="button"
-                    onClick={() => syncCloudGeneration(date, true)}
+                    onClick={() => {
+                        triggerHaptic([30]);
+                        syncCloudGeneration(date, true);
+                    }}
                     disabled={syncingCloud}
                     style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: '6px',
-                        padding: '6px 12px',
-                        borderRadius: '6px',
+                        padding: '7px 14px',
+                        borderRadius: '10px',
                         border: '1px solid #0284c7',
                         background: '#f0f9ff',
                         color: '#0369a1',
                         fontSize: '12px',
-                        fontWeight: 700,
+                        fontWeight: 750,
                         cursor: syncingCloud ? 'not-allowed' : 'pointer',
+                        boxShadow: '0 2px 8px rgba(2, 132, 199, 0.1)'
                     }}
                 >
                     <RefreshCw size={14} className={syncingCloud ? 'spin' : ''}/>
@@ -186,6 +262,7 @@ export default function DailyEntryPage({company, canEdit = true}) {
                 {activeInverters.map(inverter => {
                     const currentVal = outputs[inverter.id] ?? '';
                     const isZeroOrBlank = currentVal === '' || parseFloat(currentVal) === 0;
+                    const isValidNumber = !isZeroOrBlank && !isNaN(parseFloat(currentVal));
 
                     return (
                         <Field
@@ -193,62 +270,121 @@ export default function DailyEntryPage({company, canEdit = true}) {
                             label={`${inverter.name} ${isZeroOrBlank ? '✏️ (મેન્યુઅલ એન્ટ્રી)' : ''}`}
                             suffix="kWh"
                         >
-                            <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                inputMode="decimal"
-                                placeholder="0.00"
-                                value={currentVal}
-                                onChange={event => setOutputs({...outputs, [inverter.id]: event.target.value})}
-                                onBlur={event => {
-                                    if (event.target.value !== '') {
-                                        setOutputs(current => ({...current, [inverter.id]: fixedTwo(event.target.value)}));
-                                    }
-                                }}
-                            />
+                            <div className="smart-input-wrapper">
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    inputMode="decimal"
+                                    placeholder="0.00"
+                                    value={currentVal}
+                                    onChange={event => setOutputs({...outputs, [inverter.id]: event.target.value})}
+                                    onBlur={event => {
+                                        if (event.target.value !== '') {
+                                            setOutputs(current => ({...current, [inverter.id]: fixedTwo(event.target.value)}));
+                                        }
+                                    }}
+                                />
+                                {isValidNumber && (
+                                    <div className="input-valid-tick" title="વેલિડ યુનિટ">
+                                        <CheckCircle2 size={16}/>
+                                    </div>
+                                )}
+                            </div>
                         </Field>
                     );
                 })}
             </div>
         </section>
 
-        <section className="panel">
+        <section className="panel" style={{borderRadius: '16px', background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(10px)'}}>
             <div className="panel-head">
                 <div>
                     <p className="step">STEP 3</p>
                     <h2>કુલ મીટર રીડિંગ્સ (Cumulative meter readings)</h2>
-                    <p>અગાઉના રીડિંગ × મલ્ટીપ્લાયરના આધારે પાવર યુનિટ્સની ગણતરી થશે.</p>
+                    <p>સાંજે ૭:૦૦ વાગ્યા પછી ફિઝિકલ મીટર રીડિંગ નાખો (અગાઉના રીડિંગ × મલ્ટીપ્લાયરના આધારે પાવર ગણાશે).</p>
                 </div>
             </div>
             <div className="form-grid">
-                {METERS.map(([key, label]) => (
-                    <Field key={key} label={`${label} Reading`} suffix="kWh">
-                        <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            inputMode="decimal"
-                            placeholder="0.00"
-                            value={readings[`${key}_reading`] ?? ''}
-                            onChange={event => setReadings({...readings, [`${key}_reading`]: event.target.value})}
-                            onBlur={event => {
-                                if (event.target.value !== '') {
-                                    setReadings(current => ({...current, [`${key}_reading`]: fixedTwo(event.target.value)}));
-                                }
-                            }}
-                        />
-                    </Field>
-                ))}
+                {METERS.map(([key, label]) => {
+                    const currentMeterVal = readings[`${key}_reading`] ?? '';
+                    const isValidMeter = currentMeterVal !== '' && parseFloat(currentMeterVal) > 0;
+
+                    return (
+                        <Field key={key} label={`${label} Reading`} suffix="kWh">
+                            <div className="smart-input-wrapper">
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    inputMode="decimal"
+                                    placeholder="0.00"
+                                    value={currentMeterVal}
+                                    onChange={event => setReadings({...readings, [`${key}_reading`]: event.target.value})}
+                                    onBlur={event => {
+                                        if (event.target.value !== '') {
+                                            setReadings(current => ({...current, [`${key}_reading`]: fixedTwo(event.target.value)}));
+                                        }
+                                    }}
+                                />
+                                {isValidMeter && (
+                                    <div className="input-valid-tick" title="મીટર રીડિંગ ઓકે">
+                                        <CheckCircle2 size={16}/>
+                                    </div>
+                                )}
+                            </div>
+                        </Field>
+                    );
+                })}
             </div>
         </section>
 
-        {message && <div className={message.type === 'success' ? 'success' : 'error'}>{message.text}</div>}
+        {message && (
+            <div
+                className={message.type === 'success' ? 'success' : 'error'}
+                style={{
+                    borderRadius: '12px',
+                    padding: '12px 16px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                }}
+            >
+                {message.type === 'success' ? <CheckCircle2 size={18}/> : <AlertCircle size={18}/>}
+                <span>{message.text}</span>
+            </div>
+        )}
 
-        <div className="form-actions">
-            <span>મીટર રીડિંગ્સ (જો ઉપલબ્ધ હોય તો નાખો, વૈકલ્પિક)</span>
-            <button className="primary" disabled={busy}>
-                {busy ? 'સેવ થઈ રહ્યું છે…' : existing ? 'અપડેટ કરો (Update & Recalculate)' : 'દૈનિક રીડિંગ સેવ કરો (Save Daily Reading)'}
+        <div className="form-actions" style={{position: 'sticky', bottom: 0, zIndex: 30}}>
+            <span>મીટર રીડિંગ્સ (જો ઉપલબ્ધ હોય તો નાખો, સાંજે ૭:૦૦ પછી)</span>
+            <button
+                type="submit"
+                className={`btn-morph-save ${busy ? 'saving' : ''} ${saveSuccess ? 'success' : ''}`}
+                disabled={busy}
+            >
+                {busy ? (
+                    <>
+                        <RefreshCw size={15} className="spin"/>
+                        <span>સેવ થઈ રહ્યું છે…</span>
+                    </>
+                ) : saveSuccess ? (
+                    <>
+                        <CheckCircle2 size={16}/>
+                        <span>✅ સફળતાપૂર્વક સેવ થઈ ગયું!</span>
+                    </>
+                ) : existing ? (
+                    <>
+                        <Zap size={15}/>
+                        <span>અપડેટ કરો (Update & Recalculate)</span>
+                    </>
+                ) : (
+                    <>
+                        <Zap size={15}/>
+                        <span>દૈનિક રીડિંગ સેવ કરો (Save Daily Reading)</span>
+                    </>
+                )}
             </button>
         </div>
     </form>;
