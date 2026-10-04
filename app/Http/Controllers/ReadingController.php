@@ -37,15 +37,22 @@ class ReadingController extends Controller
         $data = $request->validated();
         $this->access->requireCompany($request, (int) $data['company_id']);
         $data['reading_date'] = Carbon::parse($data['reading_date'])->startOfDay();
-        $existing = DailyReading::where('company_id', $data['company_id'])->where('reading_date', $data['reading_date'])->first();
-        $this->access->requirePermission($request, $existing ? 'edit_readings' : 'enter_readings');
-
-        $inverterIds = collect($data['outputs'])->pluck('inverter_id');
+        $user = $request->user();
         abort_unless(
-            Inverter::where('company_id', $data['company_id'])->whereIn('id', $inverterIds)->count() === $inverterIds->unique()->count(),
-            422,
-            'One or more inverters do not belong to the selected company.',
+            $user->hasPermission('enter_readings') || $user->hasPermission('edit_readings'),
+            403,
+            'This action is unauthorized. Permission required to save daily reading.'
         );
+
+        $outputList = collect($data['outputs'] ?? []);
+        if ($outputList->isNotEmpty()) {
+            $inverterIds = $outputList->pluck('inverter_id')->filter();
+            abort_unless(
+                Inverter::where('company_id', $data['company_id'])->whereIn('id', $inverterIds)->count() === $inverterIds->unique()->count(),
+                422,
+                'One or more inverters do not belong to the selected company.',
+            );
+        }
 
         DB::transaction(function () use ($request, $data, $existing, &$reading) {
             $reading = DailyReading::updateOrCreate(
@@ -55,9 +62,23 @@ class ReadingController extends Controller
                     'updated_by' => $request->user()->id,
                 ])->all(),
             );
-            $reading->outputs()->delete();
-            foreach ($data['outputs'] as $output) {
-                DailyInverterOutput::create(['daily_reading_id' => $reading->id] + $output);
+
+            if (!empty($data['outputs'])) {
+                foreach ($data['outputs'] as $output) {
+                    $gen = isset($output['generation']) && $output['generation'] !== '' && $output['generation'] !== null
+                        ? (float) $output['generation']
+                        : 0.0;
+
+                    DailyInverterOutput::updateOrCreate(
+                        [
+                            'daily_reading_id' => $reading->id,
+                            'inverter_id' => (int) $output['inverter_id'],
+                        ],
+                        [
+                            'generation' => $gen,
+                        ]
+                    );
+                }
             }
 
             $this->calculator->recalculate((int) $data['company_id']);

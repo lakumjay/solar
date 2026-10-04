@@ -70,13 +70,26 @@ class AutoSaveDailySolarReadings extends Command
 
                     // Update or insert each inverter's output
                     foreach ($syncResult['outputs'] as $inverterId => $generation) {
+                        $genValue = (float) $generation;
+
+                        // Check if an existing output already exists with manual value
+                        $existingOutput = DailyInverterOutput::where('daily_reading_id', $reading->id)
+                            ->where('inverter_id', (int) $inverterId)
+                            ->first();
+
+                        // 🛡️ Do not overwrite manual entry with 0 (e.g. Rajeshwari Inverter 1 comms error)
+                        if ($genValue <= 0 && $existingOutput && (float) $existingOutput->generation > 0) {
+                            $this->line("   - Inverter {$inverterId} has manual value ({$existingOutput->generation} kWh), keeping it instead of iSolarCloud 0.");
+                            continue;
+                        }
+
                         DailyInverterOutput::updateOrCreate(
                             [
                                 'daily_reading_id' => $reading->id,
                                 'inverter_id' => (int) $inverterId,
                             ],
                             [
-                                'generation' => (float) $generation,
+                                'generation' => $genValue,
                             ]
                         );
                         $totalSavedInverters++;
