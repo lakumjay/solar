@@ -165,6 +165,10 @@ class ISolarCloudService
             }
         }
 
+        if ($token && $token->isExpired()) {
+            return null;
+        }
+
         return $token?->access_token;
     }
 
