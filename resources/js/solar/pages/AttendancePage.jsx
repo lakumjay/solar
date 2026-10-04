@@ -721,60 +721,65 @@ export default function AttendancePage({canCorrect, canRecord}) {
                 </div>
 
                 <div className="modal-body-scroll">
-                    <div className="audit-warning">
-                        <ClockAlert/>
+                    <div className="audit-warning" style={{marginBottom: '10px', padding: '8px 12px', fontSize: '11px'}}>
+                        <ClockAlert size={16}/>
                         <span>
                             <b>⚠️ આ એક્શન ઓડિટ લોગમાં કાયમી રેકોર્ડ થશે</b>
                             <small>તમારું નામ, એન્ટ્રી સમય અને દર્શાવેલ કારણ ડેટાબેઝમાં સેવ થશે.</small>
                         </span>
                     </div>
 
-                    <div className="form-grid two">
-                        <Field label="કર્મચારી પસંદ કરો (Select Employee)">
-                            <select value={manual.employee_id} onChange={event => changeManualEmployee(event.target.value)} required>
+                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '8px'}}>
+                        <Field label="કર્મચારી (Employee)">
+                            <select value={manual.employee_id} onChange={event => changeManualEmployee(event.target.value)} required style={{padding: '7px 9px', fontSize: '12px'}}>
                                 {eligibleEmployees.map(employee => <option key={employee.id} value={employee.id}>{employee.employee_code} · {employee.name}</option>)}
                             </select>
                         </Field>
-                        <Field label="હાજરી તારીખ (Attendance Date)">
-                            <input type="date" max={localDate()} value={manual.attendance_date} onChange={event => changeManualDate(event.target.value)} required/>
+                        <Field label="હાજરી તારીખ (Date)">
+                            <input type="date" max={localDate()} value={manual.attendance_date} onChange={event => changeManualDate(event.target.value)} required style={{padding: '7px 9px', fontSize: '12px'}}/>
                         </Field>
                         <Field label="આવવાનો સમય (Time In)">
-                            <input type="datetime-local" value={manual.clock_in_at} onChange={event => setManual({...manual, clock_in_at: event.target.value})} required/>
+                            <input type="datetime-local" value={manual.clock_in_at} onChange={event => setManual({...manual, clock_in_at: event.target.value})} required style={{padding: '7px 9px', fontSize: '12px'}}/>
                         </Field>
                         <Field label="જવાનો સમય (Time Out)">
-                            <input type="datetime-local" value={manual.clock_out_at} onChange={event => setManual({...manual, clock_out_at: event.target.value})} required/>
+                            <input type="datetime-local" value={manual.clock_out_at} onChange={event => setManual({...manual, clock_out_at: event.target.value})} required style={{padding: '7px 9px', fontSize: '12px'}}/>
                         </Field>
-                        <Field label="કુલ બ્રેક / રિસેસ મિનિટ (Break Minutes)">
-                            <input type="number" min="0" max="1439" value={manual.break_minutes} onChange={event => setManual({...manual, break_minutes: event.target.value})} required/>
+                        <Field label="બ્રેક મિનિટ (Break Min)">
+                            <input type="number" min="0" max="1439" value={manual.break_minutes} onChange={event => setManual({...manual, break_minutes: event.target.value})} required style={{padding: '7px 9px', fontSize: '12px'}}/>
                         </Field>
+                        <Field label="હાજરી પૂરવાનું કારણ (Reason)">
+                            <input
+                                type="text"
+                                placeholder="દા.ત. ફોન નહોતો / ભૂલ"
+                                value={manual.entry_reason}
+                                onChange={event => setManual({...manual, entry_reason: event.target.value})}
+                                required
+                                style={{padding: '7px 9px', fontSize: '12px'}}
+                            />
+                        </Field>
+                        <div style={{gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px'}}>
+                            <Field label="કામની વિગત (Work Done)">
+                                <textarea
+                                    placeholder="આજે કરેલ કામ..."
+                                    value={manual.work_done}
+                                    onChange={event => setManual({...manual, work_done: event.target.value})}
+                                    rows="2"
+                                    required
+                                    style={{padding: '6px 8px', fontSize: '11.5px', minHeight: '50px'}}
+                                />
+                            </Field>
+                            <Field label="નવું શીખ્યા (Learned)">
+                                <textarea
+                                    placeholder="આજે શું શીખ્યા..."
+                                    value={manual.learned}
+                                    onChange={event => setManual({...manual, learned: event.target.value})}
+                                    rows="2"
+                                    required
+                                    style={{padding: '6px 8px', fontSize: '11.5px', minHeight: '50px'}}
+                                />
+                            </Field>
+                        </div>
                     </div>
-
-                    <Field label="કર્મચારીએ આજે શું કામ કર્યું? (What did the employee do?)">
-                        <textarea
-                            value={manual.work_done}
-                            onChange={event => setManual({...manual, work_done: event.target.value})}
-                            rows="3"
-                            required
-                        />
-                    </Field>
-
-                    <Field label="કર્મચારીએ આજે નવું શું શીખ્યું? (What did the employee learn?)">
-                        <textarea
-                            value={manual.learned}
-                            onChange={event => setManual({...manual, learned: event.target.value})}
-                            rows="3"
-                            required
-                        />
-                    </Field>
-
-                    <Field label="મેનેજર દ્વારા હાજરી પૂરવાનું કારણ (Why is manager entering?)">
-                        <textarea
-                            value={manual.entry_reason}
-                            onChange={event => setManual({...manual, entry_reason: event.target.value})}
-                            rows="2"
-                            required
-                        />
-                    </Field>
                 </div>
 
                 <div className="modal-sticky-footer">

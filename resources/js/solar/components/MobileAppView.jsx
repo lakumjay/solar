@@ -52,7 +52,7 @@ import {
 import {api} from '../api';
 import ISolarCloudVisualizer from './ISolarCloudVisualizer';
 import NotificationPermissionModal from './NotificationPermissionModal';
-import {getPanchangDetails, getTomorrowBankHolidayAlert} from '../utils/panchang';
+import {getPanchangDetails, getTomorrowBankHolidayAlert, GUJARATI_WEEKDAYS, GUJARATI_MONTHS} from '../utils/panchang';
 
 export default function MobileAppView({
     user,
@@ -67,6 +67,8 @@ export default function MobileAppView({
     children
 }) {
     const [currentTime, setCurrentTime] = useState('');
+    const [showPanchangModal, setShowPanchangModal] = useState(false);
+    const [calMonth, setCalMonth] = useState(() => new Date());
     const [moreMenuOpen, setMoreMenuOpen] = useState(false);
     const [notifCenterOpen, setNotifCenterOpen] = useState(false);
     const [isNotifCleared, setIsNotifCleared] = useState(() => {
@@ -932,12 +934,32 @@ export default function MobileAppView({
                                 </span>
                             )}
 
-                            <div className="timestamp-pill" style={{display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '20px', background: '#ffffff', border: '1px solid #d1e7dd', boxShadow: '0 1px 4px rgba(0,0,0,0.04)'}}>
-                                <Calendar size={12} style={{color: '#15803d'}}/>
-                                <span style={{fontSize: '11px', fontWeight: 700, color: '#0f291e'}}>
-                                    {todayPanchang.dayNameGu} • {todayPanchang.tithiFull}
+                            <button
+                                type="button"
+                                className="timestamp-pill"
+                                onClick={() => {
+                                    triggerHaptic([30]);
+                                    setShowPanchangModal(true);
+                                }}
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '5px 11px',
+                                    borderRadius: '20px',
+                                    background: '#ffffff',
+                                    border: '1.5px solid #d1e7dd',
+                                    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                                    cursor: 'pointer',
+                                    textDecoration: 'none'
+                                }}
+                                title="ગુજરાતી પંચાંગ & કેલેન્ડર જોવા ટેપ કરો"
+                            >
+                                <Calendar size={13} style={{color: '#15803d', flexShrink: 0}}/>
+                                <span style={{fontSize: '11px', fontWeight: 700, color: '#0f291e', whiteSpace: 'nowrap'}}>
+                                    {currentTime || new Date().toLocaleDateString('en-GB')} • {todayPanchang.dayNameGu} ({todayPanchang.tithiFull})
                                 </span>
-                            </div>
+                            </button>
                         </div>
                     </div>
 
@@ -3545,6 +3567,124 @@ export default function MobileAppView({
                     </div>
                 );
             })()}
+
+            {/* 🗓️ Gujarati Panchang & Calendar Modal */}
+            {showPanchangModal && (
+                <div className="solar-modal-backdrop" onClick={() => setShowPanchangModal(false)} style={{position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.65)', backdropFilter: 'blur(4px)', display: 'grid', placeItems: 'center', zIndex: 120, padding: '16px'}}>
+                    <div className="solar-modal-card" onClick={e => e.stopPropagation()} style={{background: '#ffffff', borderRadius: '20px', maxWidth: '420px', width: '100%', border: '1.5px solid #d1e7dd', boxShadow: '0 20px 50px rgba(0, 0, 0, 0.25)', overflow: 'hidden'}}>
+                        {/* Header */}
+                        <div style={{background: 'linear-gradient(135deg, #15803d, #166534)', color: '#ffffff', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                            <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                                <Calendar size={18} style={{color: '#fef08a'}}/>
+                                <div>
+                                    <h4 style={{margin: 0, fontSize: '15px', fontWeight: 800, color: '#ffffff'}}>ગુજરાતી પંચાંગ & કેલેન્ડર</h4>
+                                    <span style={{fontSize: '11px', color: '#bbf7d0'}}>{todayPanchang.dayNameGu} • {todayPanchang.tithiFull}</span>
+                                </div>
+                            </div>
+                            <button type="button" onClick={() => setShowPanchangModal(false)} style={{background: 'rgba(255,255,255,0.2)', border: 'none', color: '#ffffff', borderRadius: '50%', width: '28px', height: '28px', display: 'grid', placeItems: 'center', cursor: 'pointer'}}>
+                                <X size={16}/>
+                            </button>
+                        </div>
+
+                        {/* Month Navigation */}
+                        <div style={{padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #eef7f2'}}>
+                            <button
+                                type="button"
+                                onClick={() => setCalMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+                                style={{padding: '6px 12px', borderRadius: '8px', border: '1px solid #d1e7dd', background: '#f4faf6', color: '#15803d', fontWeight: 700, fontSize: '12px', cursor: 'pointer'}}
+                            >
+                                ← પાછળ
+                            </button>
+                            <div style={{textAlign: 'center'}}>
+                                <b style={{fontSize: '15px', color: '#0f291e', display: 'block'}}>{GUJARATI_MONTHS[calMonth.getMonth()]} {calMonth.getFullYear()}</b>
+                                <small style={{fontSize: '10.5px', color: '#64748b'}}>{calMonth.toLocaleDateString('en-GB', {month: 'long', year: 'numeric'})}</small>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setCalMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+                                style={{padding: '6px 12px', borderRadius: '8px', border: '1px solid #d1e7dd', background: '#f4faf6', color: '#15803d', fontWeight: 700, fontSize: '12px', cursor: 'pointer'}}
+                            >
+                                આગળ →
+                            </button>
+                        </div>
+
+                        {/* Weekday Labels */}
+                        <div style={{display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', textAlign: 'center', padding: '8px 12px 2px', background: '#f8fafc', borderBottom: '1px solid #f1f5f9'}}>
+                            {GUJARATI_WEEKDAYS.map((day, idx) => (
+                                <span key={day} style={{fontSize: '11px', fontWeight: 800, color: idx === 6 ? '#dc2626' : '#15803d'}}>
+                                    {day}
+                                </span>
+                            ))}
+                        </div>
+
+                        {/* Month Days Grid */}
+                        <div style={{display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', padding: '10px 12px', maxHeight: '300px', overflowY: 'auto'}}>
+                            {(() => {
+                                const first = new Date(calMonth.getFullYear(), calMonth.getMonth(), 1);
+                                const mondayOffset = (first.getDay() + 6) % 7;
+                                const start = new Date(first.getFullYear(), first.getMonth(), 1 - mondayOffset);
+                                const todayStr = new Date().toISOString().slice(0, 10);
+
+                                return Array.from({length: 35}, (_, index) => {
+                                    const day = new Date(start.getFullYear(), start.getMonth(), start.getDate() + index);
+                                    const isOutside = day.getMonth() !== calMonth.getMonth();
+                                    const key = day.toISOString().slice(0, 10);
+                                    const isToday = key === todayStr;
+                                    const panchang = getPanchangDetails(day);
+
+                                    return (
+                                        <div
+                                            key={key}
+                                            style={{
+                                                height: '46px',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                borderRadius: '8px',
+                                                border: isToday ? '1.5px solid #2563eb' : panchang.isBankHoliday && !isOutside ? '1px solid #fecaca' : '1px solid #f1f5f9',
+                                                background: isToday ? '#eff6ff' : isOutside ? '#fafafa' : panchang.isSpecialTithi ? '#fefce8' : panchang.isBankHoliday ? '#fff5f5' : '#ffffff',
+                                                color: isOutside ? '#cbd5e1' : panchang.isBankHoliday ? '#dc2626' : '#1e293b',
+                                                padding: '2px'
+                                            }}
+                                        >
+                                            <span style={{fontSize: '13px', fontWeight: isToday ? 800 : 700, lineHeight: 1}}>
+                                                {day.getDate()}
+                                            </span>
+                                            <span style={{fontSize: '8px', fontWeight: 600, color: panchang.isSpecialTithi ? '#b45309' : panchang.isBankHoliday ? '#ef4444' : '#64748b', marginTop: '2px', whiteSpace: 'nowrap'}}>
+                                                {panchang.festivalIcon || (panchang.isEkadashi ? 'અગિ.' : panchang.isPoonam ? 'પૂનમ' : panchang.isAmavasya ? 'અમાસ' : panchang.tithiName.slice(0, 3))}
+                                            </span>
+                                        </div>
+                                    );
+                                });
+                            })()}
+                        </div>
+
+                        {/* Today Quick Details */}
+                        <div style={{padding: '10px 16px', background: '#f0fdf4', borderTop: '1px solid #d1e7dd', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px'}}>
+                            <div>
+                                <span style={{fontSize: '11.5px', fontWeight: 800, color: '#166534', display: 'block'}}>
+                                    આજે: {todayPanchang.dayNameGu} • {todayPanchang.tithiFull}
+                                </span>
+                                {todayPanchang.festivalName && (
+                                    <span style={{fontSize: '10.5px', color: '#b45309', fontWeight: 700}}>
+                                        ✨ {todayPanchang.festivalName}
+                                    </span>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setCalMonth(new Date());
+                                }}
+                                style={{padding: '4px 10px', borderRadius: '6px', border: '1px solid #16a34a', background: '#ffffff', color: '#15803d', fontWeight: 700, fontSize: '11px', cursor: 'pointer'}}
+                            >
+                                ચાલુ મહિનો
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* 🔔 Mandatory Notification Permission Prompt Modal */}
             <NotificationPermissionModal />
