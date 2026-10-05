@@ -60,8 +60,17 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
         }
     };
 
+    const isToday = date === today();
+
     const syncCloudGeneration = async (targetDate = date, overwriteManual = false) => {
         if (!company) return;
+        if (targetDate !== today()) {
+            setMessage({
+                type: 'error',
+                text: `⚠️ iSolarCloud લાઈવ ઓટો-ફેચ માત્ર આજના દિવસ (${today()}) માટે જ ઉપલબ્ધ છે. જૂની તારીખ (${targetDate}) માં આજના લાઈવ યુનિટ્સ ઓવરરાઈટ નહીં થાય. કૃપા કરીને જૂની તારીખના યુનિટ્સ મેન્યુઅલી દાખલ કરો.`
+            });
+            return;
+        }
         setSyncingCloud(true);
         try {
             const syncResult = await api('isolarcloud/sync', {
@@ -85,7 +94,7 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
                 setAutoFetched(true);
                 setMessage({
                     type: 'success',
-                    text: `iSolarCloud માંથી ઇન્વર્ટર જનરેશન સફળતાપૂર્વક મેળવી લીધું (${syncResult.synced_count || Object.keys(syncResult.outputs).length} ઇન્વર્ટર).`
+                    text: `iSolarCloud માંથી આજના ઇન્વર્ટર લાઈવ યુનિટ્સ સફળતાપૂર્વક મેળવી લીધા (${syncResult.synced_count || Object.keys(syncResult.outputs).length} ઇન્વર્ટર).`
                 });
             }
         } catch (e) {
@@ -288,32 +297,50 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
                     <h2 style={{color: '#0f291e', fontWeight: 800}}>ઇન્વર્ટર દૈનિક ઉત્પાદન (Inverter Generation)</h2>
                     <p style={{color: '#475569'}}>ઓટો-સેવ થયેલા અથવા લાઇવ યુનિટ્સ (kWh). કુલ અંદાજિત જનરેશન: <b style={{color: '#059669'}}>{totalInverterGeneration} kWh</b></p>
                 </div>
-                <button
-                    type="button"
-                    onClick={() => {
-                        triggerHaptic([30]);
-                        syncCloudGeneration(date, true);
-                    }}
-                    disabled={syncingCloud}
-                    style={{
+                {isToday ? (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            triggerHaptic([30]);
+                            syncCloudGeneration(date, true);
+                        }}
+                        disabled={syncingCloud}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 15px',
+                            borderRadius: '10px',
+                            border: 'none',
+                            background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                            color: '#ffffff',
+                            fontSize: '12px',
+                            fontWeight: 800,
+                            cursor: syncingCloud ? 'not-allowed' : 'pointer',
+                            boxShadow: '0 3px 10px rgba(217, 119, 6, 0.25)',
+                            transition: 'all 0.15s ease'
+                        }}
+                        title="આજના દિવસનું લાઈવ ઉત્પાદન iSolarCloud માંથી મેળવો"
+                    >
+                        <RefreshCw size={14} className={syncingCloud ? 'spin' : ''}/>
+                        <span>{syncingCloud ? 'સિંક થાય છે...' : '⚡ આજના લાઈવ યુનિટ્સ ફેચ કરો'}</span>
+                    </button>
+                ) : (
+                    <div style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: '6px',
-                        padding: '8px 15px',
-                        borderRadius: '10px',
-                        border: 'none',
-                        background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                        color: '#ffffff',
-                        fontSize: '12px',
-                        fontWeight: 800,
-                        cursor: syncingCloud ? 'not-allowed' : 'pointer',
-                        boxShadow: '0 3px 10px rgba(217, 119, 6, 0.25)',
-                        transition: 'all 0.15s ease'
-                    }}
-                >
-                    <RefreshCw size={14} className={syncingCloud ? 'spin' : ''}/>
-                    <span>{syncingCloud ? 'સિંક થાય છે...' : '⚡ iSolarCloud માંથી યુનિટ્સ લાવો'}</span>
-                </button>
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        background: '#f8fafc',
+                        border: '1.5px solid #cbd5e1',
+                        color: '#475569',
+                        fontSize: '11.5px',
+                        fontWeight: 700
+                    }}>
+                        <span>🔒 મેન્યુઅલ એન્ટ્રી મોડ (ભૂતકાળની તારીખ)</span>
+                    </div>
+                )}
             </div>
 
             <div className="form-grid">

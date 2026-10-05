@@ -239,6 +239,11 @@ class ISolarCloudService
 
     public function syncDailyGeneration(int $companyId, string $date): array
     {
+        $todayDate = Carbon::now('Asia/Kolkata')->format('Y-m-d');
+        if ($date !== $todayDate) {
+            throw new Exception("iSolarCloud ઓટો-ફેચ માત્ર આજના લાઈવ રીડિંગ્સ ({$todayDate}) માટે જ માન્ય છે. ભૂતકાળની તારીખ ({$date}) માં આજના લાઈવ યુનિટ્સ લાવી શકાતા નથી. કૃપા કરીને જૂની તારીખના યુનિટ્સ મેન્યુઅલી દાખલ કરો.");
+        }
+
         $company = Company::with(['inverters' => fn ($q) => $q->where('active', true)])->findOrFail($companyId);
         $activeInverters = $company->inverters;
 
