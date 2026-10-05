@@ -9,7 +9,14 @@ import MilestoneCelebrationModal from './MilestoneCelebrationModal';
 export default function AppShell({user, page, setPage, companies, companyId, setCompanyId, children}) {
     const [menuOpen, setMenuOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
-    const [liveSolarData, setLiveSolarData] = useState(null);
+    const [liveSolarData, setLiveSolarData] = useState(() => {
+        try {
+            const cached = localStorage.getItem('solarflow.cachedLiveSolar');
+            return cached ? JSON.parse(cached) : null;
+        } catch (e) {
+            return null;
+        }
+    });
     const [showSplash, setShowSplash] = useState(() => {
         try {
             return !sessionStorage.getItem('solarflow_splash_shown');
@@ -32,7 +39,12 @@ export default function AppShell({user, page, setPage, companies, companyId, set
     const fetchLiveSolar = async () => {
         try {
             const res = await api(`dashboard/live-solar?company_id=${companyId || 'all'}`);
-            setLiveSolarData(res);
+            if (res) {
+                setLiveSolarData(res);
+                try {
+                    localStorage.setItem('solarflow.cachedLiveSolar', JSON.stringify(res));
+                } catch (e) {}
+            }
         } catch (e) {
             console.error('Mobile live solar fetch error', e);
         }

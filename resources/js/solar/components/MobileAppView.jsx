@@ -954,6 +954,52 @@ export default function MobileAppView({
                         </div>
                     )}
 
+                    {/* ⚡ PGVCL 66kV / 11kV Grid Trip & Plant Power Down Alert */}
+                    {data?.smart_insights?.grid_downtime && data.smart_insights.grid_downtime.is_down && (
+                        <div style={{
+                            margin: '0 12px 10px 12px',
+                            background: '#fef2f2',
+                            border: '1.5px solid #ef4444',
+                            borderRadius: '14px',
+                            padding: '12px 14px',
+                            boxShadow: '0 3px 12px rgba(239, 68, 68, 0.15)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px'
+                        }}>
+                            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap'}}>
+                                <div style={{display: 'flex', alignItems: 'center', gap: '7px'}}>
+                                    <span style={{
+                                        background: '#dc2626',
+                                        color: '#ffffff',
+                                        fontSize: '11px',
+                                        fontWeight: 800,
+                                        padding: '3px 8px',
+                                        borderRadius: '6px'
+                                    }}>
+                                        🚨 PGVCL 66kV / 11kV ટ્રીપ
+                                    </span>
+                                    <b style={{fontSize: '12.5px', color: '#991b1b'}}>
+                                        પ્લાન્ટ પાવર ૦ kW ({data.smart_insights.grid_downtime.downtime_minutes} મિનિટ)
+                                    </b>
+                                </div>
+                                <span style={{
+                                    fontSize: '11px',
+                                    color: '#b91c1c',
+                                    fontWeight: 800,
+                                    background: '#fee2e2',
+                                    padding: '2px 8px',
+                                    borderRadius: '6px'
+                                }}>
+                                    -{data.smart_insights.grid_downtime.lost_units_kwh} kWh (₹{data.smart_insights.grid_downtime.lost_revenue_rs})
+                                </span>
+                            </div>
+                            <p style={{fontSize: '11px', color: '#7f1d1d', margin: 0, lineHeight: 1.4, fontWeight: 600}}>
+                                દિવસે તડકો હોવા છતાં પ્લાન્ટનું લાઈવ ઉત્પાદન 0 kW છે. PGVCL 66kV સબસ્ટેશન લાઇન અથવા 11kV બ્રેકર ટ્રીપ થયું હોવાની શક્યતા છે. સબસ્ટેશન સ્ટાફનો સંપર્ક કરો.
+                            </p>
+                        </div>
+                    )}
+
                     {/* ⚡ PGVCL Solar Curtailment Mobile Control Box & Master Restore Switch */}
                     <div style={{
                         margin: '0 14px 12px',

@@ -24,45 +24,84 @@ import GalleryPage from './pages/GalleryPage';
 import ReelsPage from './pages/ReelsPage';
 
 export default function App() {
-    const [user, setUser] = useState(undefined);
-    const [page, setPage] = useState('dashboard');
-    const [companies, setCompanies] = useState([]);
+    const [user, setUser] = useState(() => {
+        try {
+            const cached = localStorage.getItem('solarflow.cachedUser');
+            return cached ? JSON.parse(cached) : undefined;
+        } catch (e) {
+            return undefined;
+        }
+    });
+    const [page, setPage] = useState(() => {
+        try {
+            const cachedUser = localStorage.getItem('solarflow.cachedUser');
+            if (cachedUser) {
+                const u = JSON.parse(cachedUser);
+                return localStorage.getItem(`solarflow.activePage.${u.id}`) || 'dashboard';
+            }
+        } catch (e) {}
+        return 'dashboard';
+    });
+    const [companies, setCompanies] = useState(() => {
+        try {
+            const cached = localStorage.getItem('solarflow.cachedCompanies');
+            return cached ? JSON.parse(cached) : [];
+        } catch (e) {
+            return [];
+        }
+    });
     const [companyId, setCompanyId] = useState('all');
 
     const loadCompanies = async (currentUser, preferredPage = page) => {
-        if (currentUser.role === 'employee') {
+        try {
             const rows = await api('companies');
-            setCompanies(rows);
-            if (currentUser.company_id) {
-                setCompanyId(String(currentUser.company_id));
-            } else {
-                setCompanyId(prev => (prev && prev !== 'all' && rows.some(r => String(r.id) === String(prev)) ? prev : 'all'));
+            if (Array.isArray(rows)) {
+                setCompanies(rows);
+                try {
+                    localStorage.setItem('solarflow.cachedCompanies', JSON.stringify(rows));
+                } catch (e) {}
             }
-            setPage(['dashboard', 'entry', 'stock', 'gallery', 'reels', 'my-attendance', 'my-salary'].includes(preferredPage) ? preferredPage : 'dashboard');
-            return rows;
-        }
-        const rows = await api('companies');
-        setCompanies(rows);
-        if (currentUser.role !== 'super_admin') setCompanyId(String(currentUser.company_id));
-        const userPerms = Array.isArray(currentUser?.permissions) ? currentUser.permissions : [];
-        if (preferredPage === 'dashboard' && currentUser.role !== 'super_admin' && !userPerms.includes('view_dashboard')) {
-            if (userPerms.includes('view_employees')) setPage('employees');
-            else if (userPerms.includes('view_attendance')) setPage('attendance');
-            else if (userPerms.includes('view_stock')) setPage('stock');
-            else if (userPerms.includes('view_expenses')) setPage('expenses');
-        }
+            if (currentUser.role === 'employee') {
+                if (currentUser.company_id) {
+                    setCompanyId(String(currentUser.company_id));
+                } else {
+                    setCompanyId(prev => (prev && prev !== 'all' && rows.some(r => String(r.id) === String(prev)) ? prev : 'all'));
+                }
+                setPage(['dashboard', 'entry', 'stock', 'gallery', 'reels', 'my-attendance', 'my-salary'].includes(preferredPage) ? preferredPage : 'dashboard');
+                return rows;
+            }
+            if (currentUser.role !== 'super_admin') setCompanyId(String(currentUser.company_id));
+            const userPerms = Array.isArray(currentUser?.permissions) ? currentUser.permissions : [];
+            if (preferredPage === 'dashboard' && currentUser.role !== 'super_admin' && !userPerms.includes('view_dashboard')) {
+                if (userPerms.includes('view_employees')) setPage('employees');
+                else if (userPerms.includes('view_attendance')) setPage('attendance');
+                else if (userPerms.includes('view_stock')) setPage('stock');
+                else if (userPerms.includes('view_expenses')) setPage('expenses');
+            }
 
-        return rows;
+            return rows;
+        } catch (e) {
+            return [];
+        }
     };
 
     useEffect(() => {
         api('me').then(async current => {
-            if (!current) return setUser(null);
+            if (!current) {
+                localStorage.removeItem('solarflow.cachedUser');
+                localStorage.removeItem('solarflow.cachedCompanies');
+                return setUser(null);
+            }
+            try {
+                localStorage.setItem('solarflow.cachedUser', JSON.stringify(current));
+            } catch (e) {}
             const preferredPage = window.localStorage.getItem(`solarflow.activePage.${current.id}`) || 'dashboard';
             setUser(current);
             setPage(preferredPage);
             await loadCompanies(current, preferredPage);
-        }).catch(() => setUser(null));
+        }).catch(() => {
+            if (!user) setUser(null);
+        });
     }, []);
 
     useEffect(() => {

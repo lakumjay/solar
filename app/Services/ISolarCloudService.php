@@ -884,7 +884,7 @@ class ISolarCloudService
         }
 
         // ── 3. Grid Downtime & Revenue Loss Tracker ──
-        $isGridDown = (!$isNight && $currentHourFloat >= 8.5 && $currentHourFloat <= 17.5 && ($totalOnline === 0 || $totalLiveKw <= 0.2) && $irradianceNow >= 150);
+        $isGridDown = (!$isNight && $currentHourFloat >= 8.0 && $currentHourFloat <= 17.5 && ($totalOnline === 0 || $totalLiveKw <= 0.5) && $irradianceNow >= 120);
         $downtimeMinutes = 0;
         $downtimeLostKwh = 0.0;
         $downtimeLostRs = 0.0;
@@ -908,21 +908,21 @@ class ISolarCloudService
             'downtime_minutes' => $downtimeMinutes,
             'lost_units_kwh' => $downtimeLostKwh,
             'lost_revenue_rs' => $downtimeLostRs,
-            'title' => $isNight ? '🌙 પ્લાન્ટ રાત્રિ સ્લીપ મોડમાં છે' : ($isGridDown ? "🚨 ગ્રીડ ટ્રીપિંગ ચાલુ છે ({$downtimeMinutes} મિનિટ)" : '⚡ ગ્રીડ પાવર સામાન્ય છે'),
-            'message' => $isNight ? 'રાત્રિના સમયે ગ્રીડ ટ્રીપિંગ કે લોસ લાગુ થતો નથી.' : ($isGridDown ? "પ્લાન્ટ {$downtimeMinutes} મિનિટથી બંધ છે — અંદાજે ~{$downtimeLostKwh} યુનિટ્સ (₹{$downtimeLostRs} નું નુકસાન) થયું છે." : 'પ્લાન્ટ ગ્રીડ સાથે સક્રિય રીતે જોડાયેલો છે.'),
+            'title' => $isNight ? '🌙 પ્લાન્ટ રાત્રિ સ્લીપ મોડમાં છે' : ($isGridDown ? "🚨 PGVCL 66kV / 11kV લાઈન ટ્રીપ ({$downtimeMinutes} મિનિટ)" : '⚡ ગ્રીડ પાવર સામાન્ય છે'),
+            'message' => $isNight ? 'રાત્રિના સમયે ગ્રીડ ટ્રીપિંગ કે લોસ લાગુ થતો નથી.' : ($isGridDown ? "પ્લાન્ટ {$downtimeMinutes} મિનિટથી બંધ છે — અંદાજે ~{$downtimeLostKwh} યુનિટ્સ (₹{$downtimeLostRs} નું નુકસાન) થયું છે. 66kV સબસ્ટેશન કે 11kV બ્રેકર તપાસો." : 'પ્લાન્ટ ગ્રીડ સાથે સક્રિય રીતે જોડાયેલો છે.'),
         ];
 
         // ── 4. Cleaning Gain & ROI Tracker ──
         $cleaningRoiTracker = null;
 
         // ── 5. System Smart Alerts Engine ──
-        // (A) Grid Outage Alert
+        // (A) Grid Outage Alert (PGVCL 66kV / 11kV Outage)
         $gridOutageAlert = [
             'active' => $isGridDown,
             'type' => 'grid_outage',
-            'badge' => '⚡ ગ્રીડ સપ્લાય બંધ',
-            'title' => '🚨 ગ્રીડ ટ્રીપિંગ / જેટકો પાવર આઉટેજ ડિટેક્ટ થયો!',
-            'message' => "બપોરે તડકો હોવા છતાં પ્લાન્ટમાં લાઈવ જનરેશન ૦ થઈ ગયું છે. વીજ કંપનીની મેઈન 11kV/66kV લાઇન ટ્રીપ થઈ હોવાની પૂરી શક્યતા છે.",
+            'badge' => '⚡ PGVCL 66kV / 11kV લાઈન ટ્રીપ',
+            'title' => '🚨 PGVCL 66kV / 11kV લાઈન ટ્રીપ અથવા પ્લાન્ટ બંધ!',
+            'message' => "દિવસે તડકો હોવા છતાં પ્લાન્ટમાં લાઈવ જનરેશન ૦ kW થઈ ગયું છે. PGVCL 66kV સબસ્ટેશન લાઇન અથવા 11kV બ્રેકર ટ્રીપ થયું હોવાની પૂરી શક્યતા છે. સબસ્ટેશન સ્ટાફનો સંપર્ક કરો.",
             'downtime_minutes' => $downtimeMinutes,
             'lost_units_kwh' => $downtimeLostKwh,
             'lost_revenue_rs' => $downtimeLostRs,
