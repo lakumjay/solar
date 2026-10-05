@@ -256,9 +256,9 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                     boxShadow: mapMode === 'sentinel' ? '0 2px 6px rgba(5,150,105,0.3)' : 'none',
                                     transition: 'all 0.15s ease'
                                 }}
-                                title="ESA Sentinel-2: દર ૫ દિવસે તાજા સેટેલાઇટ ફોટા"
+                                title="Zoom Earth: દરરોજનો તાજો સેટેલાઇટ (No Login)"
                             >
-                                🌍 ESA Sentinel-2 (તાજો ફોટો)
+                                🌍 Zoom Earth (તાજો સેટેલાઇટ)
                             </button>
                             <button
                                 type="button"
@@ -439,7 +439,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
 
                             {emp.is_live && emp.latitude && emp.longitude ? (
                                 <div style={{display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '2px'}}>
-                                    {/* 🛰️ ESA Sentinel-2 Fresh Image Alert Info (if sentinel mode active) */}
+                                    {/* 🛰️ Zoom Earth Daily Fresh Satellite (No Login Required) */}
                                     {mapMode === 'sentinel' && (
                                         <div style={{
                                             background: '#ecfdf5',
@@ -453,14 +453,14 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                             color: '#065f46',
                                             gap: '6px'
                                         }}>
-                                            <span>🌍 ESA Sentinel: દર ૫ દિવસે તાજો ફોટો (નવી પેનલ દેખાશે)</span>
+                                            <span>🌍 Zoom Earth: દરરોજનો તાજો સેટેલાઇટ (No Login)</span>
                                             <a
-                                                href={`https://browser.dataspace.copernicus.eu/?zoom=17&lat=${emp.latitude}&lng=${emp.longitude}&themeId=DEFAULT-THEME&datasetId=S2_L2A_CDAS`}
+                                                href={`https://zoom.earth/#view=${emp.latitude},${emp.longitude},17z/layers=daily`}
                                                 target="_blank"
                                                 rel="noreferrer"
                                                 style={{color: '#047857', fontWeight: 800, textDecoration: 'underline', whiteSpace: 'nowrap'}}
                                             >
-                                                ESA Browser ↗
+                                                ઓપન કરો ↗
                                             </a>
                                         </div>
                                     )}
@@ -1076,7 +1076,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                     color: '#ffffff'
                                 }}
                             >
-                                🌍 Sentinel-2
+                                🌍 Zoom Earth
                             </button>
                             <button
                                 type="button"
@@ -1166,14 +1166,24 @@ export default function AttendancePage({canCorrect, canRecord}) {
                         </div>
                         <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
                             <a
-                                href={`https://browser.dataspace.copernicus.eu/?zoom=17&lat=${selectedMapEmployee.latitude}&lng=${selectedMapEmployee.longitude}&themeId=DEFAULT-THEME&datasetId=S2_L2A_CDAS`}
+                                href={`https://zoom.earth/#view=${selectedMapEmployee.latitude},${selectedMapEmployee.longitude},18z/layers=daily`}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="secondary"
-                                style={{textDecoration: 'none', padding: '8px 12px', fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: '6px', background: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46'}}
-                                title="ESA Sentinel-2 Copernicus Browser"
+                                style={{textDecoration: 'none', padding: '8px 12px', fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: '6px', background: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46', fontWeight: 700}}
+                                title="Zoom Earth Daily Satellite View (No Login)"
                             >
-                                🌍 ESA તાજો સેટેલાઇટ ↗
+                                🌍 Zoom Earth (તાજો સેટેલાઇટ) ↗
+                            </a>
+                            <a
+                                href={`https://www.bing.com/maps?cp=${selectedMapEmployee.latitude}~${selectedMapEmployee.longitude}&lvl=19&style=h`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="secondary"
+                                style={{textDecoration: 'none', padding: '8px 12px', fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: '6px', background: '#f0f9ff', borderColor: '#bae6fd', color: '#0369a1', fontWeight: 700}}
+                                title="Bing Aerial HD Satellite (No Login)"
+                            >
+                                🛰️ Bing Aerial HD ↗
                             </a>
                             <a
                                 href={selectedMapEmployee.map_url}
