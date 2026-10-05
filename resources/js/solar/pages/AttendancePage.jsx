@@ -161,6 +161,17 @@ export default function AttendancePage({canCorrect, canRecord}) {
     };
 
     return <div className="attendance-admin">
+        <style>{`
+            @keyframes bounceWalk {
+                0%, 100% { transform: translateY(0px) rotate(0deg); }
+                25% { transform: translateY(-3px) rotate(-6deg); }
+                75% { transform: translateY(-3px) rotate(6deg); }
+            }
+            @keyframes rideBike {
+                0%, 100% { transform: translateX(0px) translateY(0px) scale(1); }
+                50% { transform: translateX(2px) translateY(-2px) scale(1.08); }
+            }
+        `}</style>
         <div className="cards attendance-cards">
             <article className="metric">
                 <span>{isToday ? 'પૂર્ણ શિફ્ટ (Completed)' : 'Completed present'}</span>
@@ -203,38 +214,81 @@ export default function AttendancePage({canCorrect, canRecord}) {
                             એમ્પ્લોયીનો ફોન/PWA ઓપન અથવા મિનિમાઇઝ હોય ત્યારે રીઅલ-ટાઇમ GPS (Syncs every 30s)
                         </p>
                     </div>
-                    <div style={{display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap'}}>
-                        <button
-                            type="button"
-                            className="secondary"
-                            onClick={() => setMapMode(current => current === 'satellite' ? 'roadmap' : 'satellite')}
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '6px',
-                                padding: '8px 12px',
-                                fontSize: '12px',
-                                borderRadius: '10px',
-                                fontWeight: 700,
-                                background: mapMode === 'satellite' ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : '#ffffff',
-                                color: mapMode === 'satellite' ? '#ffffff' : '#334155',
-                                border: mapMode === 'satellite' ? '1.5px solid #1d4ed8' : '1px solid #cbd5e1',
-                                boxShadow: mapMode === 'satellite' ? '0 3px 10px rgba(37, 99, 235, 0.25)' : 'none'
-                            }}
-                            title="સેટેલાઇટ / સામાન્ય મેપ મોડ બદલો"
-                        >
-                            {mapMode === 'satellite' ? '🛰️ સેટેલાઇટ મોડ (ON)' : '🗺️ રોડમેપ મોડ'}
-                        </button>
+                    <div style={{display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap'}}>
+                        <div style={{
+                            display: 'inline-flex',
+                            background: '#e2ece5',
+                            padding: '3px',
+                            borderRadius: '12px',
+                            gap: '3px'
+                        }}>
+                            <button
+                                type="button"
+                                onClick={() => setMapMode('satellite')}
+                                style={{
+                                    border: 0,
+                                    borderRadius: '9px',
+                                    padding: '6px 10px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    background: mapMode === 'satellite' ? '#2563eb' : 'transparent',
+                                    color: mapMode === 'satellite' ? '#ffffff' : '#334155',
+                                    boxShadow: mapMode === 'satellite' ? '0 2px 6px rgba(37,99,235,0.3)' : 'none',
+                                    transition: 'all 0.15s ease'
+                                }}
+                                title="ગૂગલ સેટેલાઇટ મેપ"
+                            >
+                                🛰️ Google Satellite
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setMapMode('sentinel')}
+                                style={{
+                                    border: 0,
+                                    borderRadius: '9px',
+                                    padding: '6px 10px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    background: mapMode === 'sentinel' ? '#059669' : 'transparent',
+                                    color: mapMode === 'sentinel' ? '#ffffff' : '#334155',
+                                    boxShadow: mapMode === 'sentinel' ? '0 2px 6px rgba(5,150,105,0.3)' : 'none',
+                                    transition: 'all 0.15s ease'
+                                }}
+                                title="ESA Sentinel-2: દર ૫ દિવસે તાજા સેટેલાઇટ ફોટા"
+                            >
+                                🌍 ESA Sentinel-2 (તાજો ફોટો)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setMapMode('roadmap')}
+                                style={{
+                                    border: 0,
+                                    borderRadius: '9px',
+                                    padding: '6px 10px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    background: mapMode === 'roadmap' ? '#0f172a' : 'transparent',
+                                    color: mapMode === 'roadmap' ? '#ffffff' : '#334155',
+                                    boxShadow: mapMode === 'roadmap' ? '0 2px 6px rgba(15,23,42,0.3)' : 'none',
+                                    transition: 'all 0.15s ease'
+                                }}
+                                title="સામાન્ય રોડમેપ"
+                            >
+                                🗺️ રોડમેપ
+                            </button>
+                        </div>
                         <button
                             type="button"
                             className="secondary"
                             onClick={loadLiveLocations}
                             disabled={loadingLocations}
-                            style={{display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px 14px', fontSize: '12px', borderRadius: '10px', fontWeight: 600}}
+                            style={{display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '7px 12px', fontSize: '11.5px', borderRadius: '10px', fontWeight: 600}}
                             title="Refresh Live GPS coordinates"
                         >
-                            <RefreshCw size={14} className={loadingLocations ? 'spin' : ''}/> રીફ્રેશ લોકેશન
+                            <RefreshCw size={13} className={loadingLocations ? 'spin' : ''}/> રીફ્રેશ
                         </button>
                     </div>
                 </div>
@@ -352,15 +406,28 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                 fontSize: '11px',
                                 border: emp.movement === 'bike' ? '1px solid #fde68a' : emp.movement === 'walking' ? '1px solid #bae6fd' : '1px solid #e2ece5'
                             }}>
-                                <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
-                                    <span style={{fontSize: '15px'}}>{emp.movement_icon || (emp.movement === 'bike' ? '🏍️' : emp.movement === 'walking' ? '🚶' : '📍')}</span>
-                                    <b style={{color: emp.movement === 'bike' ? '#b45309' : emp.movement === 'walking' ? '#0369a1' : '#1e293b'}}>
-                                        {emp.movement_label || (emp.movement === 'bike' ? 'બાઇક પર ગતિમાં' : emp.movement === 'walking' ? 'ચાલી રહ્યો છે' : 'સ્થિર છે (સાઇટ પર)')}
-                                    </b>
+                                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                                    <span style={{
+                                        fontSize: '18px',
+                                        display: 'inline-block',
+                                        animation: emp.movement === 'bike' ? 'rideBike 0.8s ease-in-out infinite' : emp.movement === 'walking' ? 'bounceWalk 0.7s ease-in-out infinite' : 'none'
+                                    }}>
+                                        {emp.movement_icon || (emp.movement === 'bike' ? '🏍️' : emp.movement === 'walking' ? '🚶‍♂️' : '🧍‍♂️')}
+                                    </span>
+                                    <div>
+                                        <b style={{color: emp.movement === 'bike' ? '#b45309' : emp.movement === 'walking' ? '#0369a1' : '#1e293b'}}>
+                                            {emp.movement_label || (emp.movement === 'bike' ? 'બાઇક પર ગતિમાં' : emp.movement === 'walking' ? 'પગપાળા ચાલે છે' : 'સ્થિર છે (સાઇટ પર)')}
+                                        </b>
+                                        {emp.speed ? (
+                                            <small style={{display: 'block', color: '#64748b', fontSize: '10px'}}>
+                                                ઝડપ: {Math.round(emp.speed)} km/h
+                                            </small>
+                                        ) : null}
+                                    </div>
                                 </div>
                                 <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
                                     {emp.speed ? (
-                                        <span style={{fontWeight: 800, fontSize: '10.5px', color: '#0f766e', background: '#ccfbf1', padding: '2px 6px', borderRadius: '6px'}}>
+                                        <span style={{fontWeight: 800, fontSize: '10.5px', color: '#0f766e', background: '#ccfbf1', padding: '3px 8px', borderRadius: '6px'}}>
                                             ⚡ {Math.round(emp.speed)} km/h
                                         </span>
                                     ) : null}
@@ -372,6 +439,32 @@ export default function AttendancePage({canCorrect, canRecord}) {
 
                             {emp.is_live && emp.latitude && emp.longitude ? (
                                 <div style={{display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '2px'}}>
+                                    {/* 🛰️ ESA Sentinel-2 Fresh Image Alert Info (if sentinel mode active) */}
+                                    {mapMode === 'sentinel' && (
+                                        <div style={{
+                                            background: '#ecfdf5',
+                                            border: '1px solid #a7f3d0',
+                                            borderRadius: '8px',
+                                            padding: '6px 10px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            fontSize: '10.5px',
+                                            color: '#065f46',
+                                            gap: '6px'
+                                        }}>
+                                            <span>🌍 ESA Sentinel: દર ૫ દિવસે તાજો ફોટો (નવી પેનલ દેખાશે)</span>
+                                            <a
+                                                href={`https://browser.dataspace.copernicus.eu/?zoom=17&lat=${emp.latitude}&lng=${emp.longitude}&themeId=DEFAULT-THEME&datasetId=S2_L2A_CDAS`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                style={{color: '#047857', fontWeight: 800, textDecoration: 'underline', whiteSpace: 'nowrap'}}
+                                            >
+                                                ESA Browser ↗
+                                            </a>
+                                        </div>
+                                    )}
+
                                     {/* 🗺️ Default Embedded Small Interactive Map */}
                                     <div style={{
                                         position: 'relative',
@@ -390,10 +483,39 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                             height="100%"
                                             frameBorder="0"
                                             allowFullScreen
-                                            src={`https://maps.google.com/maps?q=${emp.latitude},${emp.longitude}${mapMode === 'satellite' ? '&t=k' : ''}&hl=gu&z=${zoomLevel}&output=embed`}
+                                            src={`https://maps.google.com/maps?q=${emp.latitude},${emp.longitude}${mapMode === 'roadmap' ? '' : '&t=k'}&hl=gu&z=${zoomLevel}&output=embed`}
                                             style={{border: 0, width: '100%', height: '100%', touchAction: 'auto'}}
                                             loading="lazy"
                                         />
+
+                                        {/* 🚶 Animated Movement Floating Pin on Map Center */}
+                                        <div style={{
+                                            position: 'absolute',
+                                            top: '12px',
+                                            left: '12px',
+                                            background: emp.movement === 'bike' ? 'rgba(245, 158, 11, 0.95)' : emp.movement === 'walking' ? 'rgba(2, 132, 199, 0.95)' : 'rgba(22, 163, 74, 0.95)',
+                                            color: '#ffffff',
+                                            padding: '4px 9px',
+                                            borderRadius: '20px',
+                                            fontSize: '11px',
+                                            fontWeight: 800,
+                                            boxShadow: '0 3px 10px rgba(0,0,0,0.3)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            zIndex: 4
+                                        }}>
+                                            <span style={{
+                                                fontSize: '14px',
+                                                display: 'inline-block',
+                                                animation: emp.movement === 'bike' ? 'rideBike 0.8s ease-in-out infinite' : emp.movement === 'walking' ? 'bounceWalk 0.7s ease-in-out infinite' : 'none'
+                                            }}>
+                                                {emp.movement_icon || (emp.movement === 'bike' ? '🏍️' : emp.movement === 'walking' ? '🚶‍♂️' : '🧍‍♂️')}
+                                            </span>
+                                            <span>
+                                                {emp.movement === 'bike' ? `Bike: ${Math.round(emp.speed || 0)} km/h` : emp.movement === 'walking' ? `Walking: ${Math.round(emp.speed || 4)} km/h` : 'સ્થિર છે'}
+                                            </span>
+                                        </div>
 
                                         {/* 🔍 Touch-friendly Large Zoom Controls on Map */}
                                         <div style={{
@@ -467,7 +589,9 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                             gap: '5px'
                                         }}>
                                             <span>{emp.movement_icon || '📍'}</span>
-                                            <b style={{color: '#38bdf8'}}>{emp.movement === 'bike' ? 'Bike Moving' : emp.movement === 'walking' ? 'Walking' : 'Stationary'}</b>
+                                            <b style={{color: '#38bdf8'}}>
+                                                {mapMode === 'sentinel' ? 'ESA Sentinel-2' : mapMode === 'satellite' ? 'Google Satellite' : 'Roadmap'}
+                                            </b>
                                             <span>· Zoom: {zoomLevel}x</span>
                                         </div>
                                     </div>
@@ -527,13 +651,14 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                         </div>
                                     </div>
 
-                                    <div style={{display: 'flex', gap: '8px'}}>
+                                    <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
                                         <button
                                             type="button"
                                             className="secondary"
                                             onClick={() => setSelectedMapEmployee(emp)}
                                             style={{
                                                 flex: 1,
+                                                minWidth: '130px',
                                                 padding: '7px 10px',
                                                 fontSize: '11.5px',
                                                 display: 'flex',
@@ -552,6 +677,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                             className="primary"
                                             style={{
                                                 flex: 1,
+                                                minWidth: '130px',
                                                 padding: '7px 10px',
                                                 fontSize: '11.5px',
                                                 textDecoration: 'none',
@@ -875,9 +1001,100 @@ export default function AttendancePage({canCorrect, canRecord}) {
                             height="100%"
                             frameBorder="0"
                             allowFullScreen
-                            src={`https://maps.google.com/maps?q=${selectedMapEmployee.latitude},${selectedMapEmployee.longitude}${mapMode === 'satellite' ? '&t=k' : ''}&hl=gu&z=${zoomLevel}&output=embed`}
+                            src={`https://maps.google.com/maps?q=${selectedMapEmployee.latitude},${selectedMapEmployee.longitude}${mapMode === 'roadmap' ? '' : '&t=k'}&hl=gu&z=${zoomLevel}&output=embed`}
                             style={{border: 0, width: '100%', height: '100%', touchAction: 'auto'}}
                         />
+
+                        {/* 🚶 Animated Movement Floating Pin on Modal Map */}
+                        <div style={{
+                            position: 'absolute',
+                            top: '12px',
+                            left: '12px',
+                            background: selectedMapEmployee.movement === 'bike' ? 'rgba(245, 158, 11, 0.95)' : selectedMapEmployee.movement === 'walking' ? 'rgba(2, 132, 199, 0.95)' : 'rgba(22, 163, 74, 0.95)',
+                            color: '#ffffff',
+                            padding: '6px 12px',
+                            borderRadius: '20px',
+                            fontSize: '12px',
+                            fontWeight: 800,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            zIndex: 10
+                        }}>
+                            <span style={{
+                                fontSize: '16px',
+                                display: 'inline-block',
+                                animation: selectedMapEmployee.movement === 'bike' ? 'rideBike 0.8s ease-in-out infinite' : selectedMapEmployee.movement === 'walking' ? 'bounceWalk 0.7s ease-in-out infinite' : 'none'
+                            }}>
+                                {selectedMapEmployee.movement_icon || (selectedMapEmployee.movement === 'bike' ? '🏍️' : selectedMapEmployee.movement === 'walking' ? '🚶‍♂️' : '🧍‍♂️')}
+                            </span>
+                            <span>
+                                {selectedMapEmployee.movement === 'bike' ? `Bike: ${Math.round(selectedMapEmployee.speed || 0)} km/h` : selectedMapEmployee.movement === 'walking' ? `Walking: ${Math.round(selectedMapEmployee.speed || 4)} km/h` : 'સ્થિર છે (સાઇટ પર)'}
+                            </span>
+                        </div>
+
+                        {/* 🔘 Modal Map Layer Switcher */}
+                        <div style={{
+                            position: 'absolute',
+                            bottom: '12px',
+                            left: '12px',
+                            display: 'flex',
+                            gap: '4px',
+                            background: 'rgba(15, 23, 42, 0.9)',
+                            padding: '4px',
+                            borderRadius: '10px',
+                            zIndex: 10
+                        }}>
+                            <button
+                                type="button"
+                                onClick={() => setMapMode('satellite')}
+                                style={{
+                                    border: 0,
+                                    padding: '4px 8px',
+                                    fontSize: '10.5px',
+                                    fontWeight: 700,
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    background: mapMode === 'satellite' ? '#2563eb' : 'transparent',
+                                    color: '#ffffff'
+                                }}
+                            >
+                                🛰️ Satellite
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setMapMode('sentinel')}
+                                style={{
+                                    border: 0,
+                                    padding: '4px 8px',
+                                    fontSize: '10.5px',
+                                    fontWeight: 700,
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    background: mapMode === 'sentinel' ? '#059669' : 'transparent',
+                                    color: '#ffffff'
+                                }}
+                            >
+                                🌍 Sentinel-2
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setMapMode('roadmap')}
+                                style={{
+                                    border: 0,
+                                    padding: '4px 8px',
+                                    fontSize: '10.5px',
+                                    fontWeight: 700,
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    background: mapMode === 'roadmap' ? '#475569' : 'transparent',
+                                    color: '#ffffff'
+                                }}
+                            >
+                                🗺️ Roadmap
+                            </button>
+                        </div>
 
                         {/* 🔍 Quick Zoom Controls in Modal */}
                         <div style={{
@@ -939,13 +1156,25 @@ export default function AttendancePage({canCorrect, canRecord}) {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        borderTop: '1px solid #e2ece5'
+                        borderTop: '1px solid #e2ece5',
+                        flexWrap: 'wrap',
+                        gap: '10px'
                     }}>
                         <div style={{fontSize: '11px', color: '#475569'}}>
                             <b>GPS:</b> {selectedMapEmployee.latitude?.toFixed(6)}, {selectedMapEmployee.longitude?.toFixed(6)}
                             {selectedMapEmployee.accuracy && <span> (±{Math.round(selectedMapEmployee.accuracy)}m)</span>}
                         </div>
-                        <div style={{display: 'flex', gap: '8px'}}>
+                        <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
+                            <a
+                                href={`https://browser.dataspace.copernicus.eu/?zoom=17&lat=${selectedMapEmployee.latitude}&lng=${selectedMapEmployee.longitude}&themeId=DEFAULT-THEME&datasetId=S2_L2A_CDAS`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="secondary"
+                                style={{textDecoration: 'none', padding: '8px 12px', fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: '6px', background: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46'}}
+                                title="ESA Sentinel-2 Copernicus Browser"
+                            >
+                                🌍 ESA તાજો સેટેલાઇટ ↗
+                            </a>
                             <a
                                 href={selectedMapEmployee.map_url}
                                 target="_blank"
@@ -953,7 +1182,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                 className="primary"
                                 style={{textDecoration: 'none', padding: '8px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px'}}
                             >
-                                <ExternalLink size={14}/> Open in Google Maps App
+                                <ExternalLink size={14}/> Maps App
                             </a>
                             <button
                                 type="button"
@@ -961,7 +1190,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                 onClick={() => setSelectedMapEmployee(null)}
                                 style={{padding: '8px 14px', fontSize: '12px'}}
                             >
-                                બંધ કરો (Close)
+                                બંધ કરો
                             </button>
                         </div>
                     </div>
