@@ -38,11 +38,67 @@ class SharedExpenseService
                 $company->update(['expense_percentage' => $this->percentageBasisPoints($submitted[$company->id]['percentage']) / 100]);
             }
 
-            $this->activity->log($actor, null, 'updated', 'expense_percentages', null, 'Shared expense percentages updated', [
+            // Recalculate all historical shared expenses using the new percentages
+            $recalculatedCount = $this->recalculateAllHistoricalExpenses();
+
+            $this->activity->log($actor, null, 'updated', 'expense_percentages', null, "Shared expense percentages updated. Recalculated {$recalculatedCount} historical expenses.", [
                 'percentages' => $companies->mapWithKeys(fn (Company $company) => [$company->name => (float) $company->fresh()->expense_percentage])->all(),
+                'recalculated_count' => $recalculatedCount,
             ]);
 
             return $this->settings();
+        });
+    }
+
+    /**
+     * Recalculate allocations for all active shared expenses according to active company percentages
+     */
+    public function recalculateAllHistoricalExpenses(): int
+    {
+        return DB::transaction(function () {
+            $companies = Company::where('active', true)->orderBy('id')->get();
+            if ($companies->isEmpty()) {
+                return 0;
+            }
+
+            $percentages = $companies->map(fn (Company $company) => [
+                'company_id' => $company->id,
+                'percentage' => (float) $company->expense_percentage,
+            ]);
+
+            $expenses = SharedExpense::where('status', 'active')
+                ->where('entry_type', 'expense')
+                ->get();
+
+            $count = 0;
+            foreach ($expenses as $expense) {
+                $this->replaceAllocations($expense, (float) $expense->amount, $percentages);
+                $count++;
+            }
+
+            // Also update any active reversals based on their original expense
+            $reversals = SharedExpense::with('allocations')
+                ->where('status', 'active')
+                ->where('entry_type', 'reversal')
+                ->whereNotNull('reverses_expense_id')
+                ->get();
+
+            foreach ($reversals as $reversal) {
+                $original = SharedExpense::with('allocations')->find($reversal->reverses_expense_id);
+                if ($original) {
+                    $reversal->allocations()->delete();
+                    foreach ($original->allocations as $origAlloc) {
+                        SharedExpenseAllocation::create([
+                            'shared_expense_id' => $reversal->id,
+                            'company_id' => $origAlloc->company_id,
+                            'percentage' => $origAlloc->percentage,
+                            'share_amount' => -1 * (float) $origAlloc->share_amount,
+                        ]);
+                    }
+                }
+            }
+
+            return $count;
         });
     }
 

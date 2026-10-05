@@ -195,13 +195,13 @@ function ExpensePercentagePanel({companies, refresh}) {
         event.preventDefault(); setBusy(true); setMessage('');
         try {
             await api('expense-percentages', {method: 'POST', body: JSON.stringify({percentages: activeCompanies.map(company => ({company_id: company.id, percentage: percentages[company.id] || 0}))})});
-            await refresh(); setMessage('Expense percentages saved. New expenses will use this split.');
+            await refresh(); setMessage('Expense percentages saved. All historical and new shared expenses have been recalculated to this split.');
         } catch (error) { setMessage(error.message); }
         finally { setBusy(false); }
     };
 
     return <form className="panel expense-percentage-panel" onSubmit={save}>
-        <div className="panel-head"><div><h2>Shared expense percentages</h2><p>Set the company-wise split used for new common expenses. Historical entries keep their original split.</p></div><div className={valid ? 'expense-total valid' : 'expense-total'}><small>Total</small><strong>{total.toFixed(2)}%</strong></div></div>
+        <div className="panel-head"><div><h2>Shared expense percentages</h2><p>Set the company-wise split used for common shared expenses. Updating this recalculates all past and new expenses automatically.</p></div><div className={valid ? 'expense-total valid' : 'expense-total'}><small>Total</small><strong>{total.toFixed(2)}%</strong></div></div>
         <div className="expense-percentage-grid">{activeCompanies.map(company => <Field label={company.name} suffix="%" key={company.id}><input type="number" min="0" max="100" step="0.01" inputMode="decimal" value={percentages[company.id] ?? ''} onChange={event => setPercentages({...percentages, [company.id]: event.target.value})} onBlur={event => setPercentages(current => ({...current, [company.id]: fixedTwo(event.target.value)}))} required/></Field>)}</div>
         {message && <div className={message.includes('saved') ? 'success' : 'error'}>{message}</div>}
         <div className="form-actions"><span>{valid ? 'Ready for expense entry.' : 'The active-company total must equal exactly 100%.'}</span><button className="primary" disabled={!valid || busy}>{busy ? 'Saving…' : 'Save percentages'}</button></div>
