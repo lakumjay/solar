@@ -24,43 +24,15 @@ import GalleryPage from './pages/GalleryPage';
 import ReelsPage from './pages/ReelsPage';
 
 export default function App() {
-    const [user, setUser] = useState(() => {
-        try {
-            const cached = localStorage.getItem('solarflow.cachedUser');
-            return cached ? JSON.parse(cached) : undefined;
-        } catch (e) {
-            return undefined;
-        }
-    });
-    const [page, setPage] = useState(() => {
-        try {
-            const cachedUser = localStorage.getItem('solarflow.cachedUser');
-            if (cachedUser) {
-                const u = JSON.parse(cachedUser);
-                return localStorage.getItem(`solarflow.activePage.${u.id}`) || 'dashboard';
-            }
-        } catch (e) {}
-        return 'dashboard';
-    });
-    const [companies, setCompanies] = useState(() => {
-        try {
-            const cached = localStorage.getItem('solarflow.cachedCompanies');
-            return cached ? JSON.parse(cached) : [];
-        } catch (e) {
-            return [];
-        }
-    });
+    const [user, setUser] = useState(undefined);
+    const [page, setPage] = useState('dashboard');
+    const [companies, setCompanies] = useState([]);
     const [companyId, setCompanyId] = useState('all');
 
     const loadCompanies = async (currentUser, preferredPage = page) => {
         try {
             const rows = await api('companies');
-            if (Array.isArray(rows)) {
-                setCompanies(rows);
-                try {
-                    localStorage.setItem('solarflow.cachedCompanies', JSON.stringify(rows));
-                } catch (e) {}
-            }
+            setCompanies(rows);
             if (currentUser.role === 'employee') {
                 if (currentUser.company_id) {
                     setCompanyId(String(currentUser.company_id));
@@ -87,21 +59,12 @@ export default function App() {
 
     useEffect(() => {
         api('me').then(async current => {
-            if (!current) {
-                localStorage.removeItem('solarflow.cachedUser');
-                localStorage.removeItem('solarflow.cachedCompanies');
-                return setUser(null);
-            }
-            try {
-                localStorage.setItem('solarflow.cachedUser', JSON.stringify(current));
-            } catch (e) {}
+            if (!current) return setUser(null);
             const preferredPage = window.localStorage.getItem(`solarflow.activePage.${current.id}`) || 'dashboard';
             setUser(current);
             setPage(preferredPage);
             await loadCompanies(current, preferredPage);
-        }).catch(() => {
-            if (!user) setUser(null);
-        });
+        }).catch(() => setUser(null));
     }, []);
 
     useEffect(() => {

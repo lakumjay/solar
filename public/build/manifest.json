@@ -1,19 +1,4 @@
 {
-  "_vendor-axios-BCn5QfZZ.js": {
-    "file": "assets/vendor-axios-BCn5QfZZ.js",
-    "name": "vendor-axios"
-  },
-  "_vendor-icons-59963V6h.js": {
-    "file": "assets/vendor-icons-59963V6h.js",
-    "name": "vendor-icons",
-    "imports": [
-      "_vendor-react-CdysFjKz.js"
-    ]
-  },
-  "_vendor-react-CdysFjKz.js": {
-    "file": "assets/vendor-react-CdysFjKz.js",
-    "name": "vendor-react"
-  },
   "resources/css/app.css": {
     "file": "assets/app-CKqN5ARP.css",
     "src": "resources/css/app.css",
@@ -24,14 +9,9 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-tVKZXzFL.js",
+    "file": "assets/app-BxWGJkTL.js",
     "name": "app",
     "src": "resources/js/app.js",
-    "isEntry": true,
-    "imports": [
-      "_vendor-axios-BCn5QfZZ.js",
-      "_vendor-react-CdysFjKz.js",
-      "_vendor-icons-59963V6h.js"
-    ]
+    "isEntry": true
   }
 }
