@@ -27,7 +27,7 @@ class SalaryController extends Controller
 
     public function index(Request $request): array
     {
-        $this->access->requireSuperAdmin($request);
+        $this->requireSalaryAccess($request);
 
         return $this->salaries->report($this->validatedMonth($request));
     }
@@ -50,7 +50,7 @@ class SalaryController extends Controller
 
     public function excel(Request $request)
     {
-        $this->access->requireSuperAdmin($request);
+        $this->requireSalaryAccess($request);
         $report = $this->salaries->report($this->validatedMonth($request));
 
         return response()->download($this->excel->create($report), 'employee-salary-'.$report['month'].'.xlsx')->deleteFileAfterSend(true);
@@ -58,7 +58,7 @@ class SalaryController extends Controller
 
     public function rates(Request $request, Employee $employee)
     {
-        $this->access->requireSuperAdmin($request);
+        $this->requireSalaryAccess($request);
 
         return $employee->salaryRates()->with('creator:id,name')->get()->map(fn (EmployeeSalaryRate $rate) => [
             'id' => $rate->id,
@@ -71,7 +71,7 @@ class SalaryController extends Controller
 
     public function storeRate(SaveSalaryRateRequest $request, Employee $employee)
     {
-        $this->access->requireSuperAdmin($request);
+        $this->requireSalaryAccess($request);
         $data = $request->validated();
         $month = $this->salaries->assertAllowedMonth($data['effective_month']);
         $rate = DB::transaction(function () use ($request, $employee, $data, $month) {
@@ -100,7 +100,7 @@ class SalaryController extends Controller
 
     public function storeAdjustment(SaveSalaryAdjustmentRequest $request)
     {
-        $this->access->requireSuperAdmin($request);
+        $this->requireSalaryAccess($request);
         $data = $request->validated();
         $employee = Employee::findOrFail($data['employee_id']);
         $month = $this->salaries->assertAllowedMonth($data['salary_month']);
@@ -129,7 +129,7 @@ class SalaryController extends Controller
 
     public function cancelAdjustment(CancelSalaryAdjustmentRequest $request, SalaryAdjustment $adjustment)
     {
-        $this->access->requireSuperAdmin($request);
+        $this->requireSalaryAccess($request);
         $data = $request->validated();
         $replacement = DB::transaction(function () use ($request, $adjustment, $data) {
             $adjustment = SalaryAdjustment::whereKey($adjustment->id)->lockForUpdate()->firstOrFail();
@@ -192,5 +192,10 @@ class SalaryController extends Controller
         if ($type === 'deduction' && $amount > (float) $statement['final_payable']) {
             throw ValidationException::withMessages(['amount' => 'The deduction cannot make the final payable salary negative.']);
         }
+    }
+
+    private function requireSalaryAccess(Request $request): void
+    {
+        abort_unless(in_array($request->user()?->role, ['super_admin', 'company_admin'], true), 403);
     }
 }

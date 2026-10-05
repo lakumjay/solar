@@ -63,7 +63,10 @@ class ReadingController extends Controller
             $cleanData = collect($data)->except('outputs');
             foreach ($meterFields as $field) {
                 if (!isset($cleanData[$field]) || $cleanData[$field] === '' || $cleanData[$field] === null) {
-                    $cleanData[$field] = 0.00;
+                    $cleanData[$field] = null;
+                } else {
+                    $val = (float) $cleanData[$field];
+                    $cleanData[$field] = $val > 0 ? $val : null;
                 }
             }
 

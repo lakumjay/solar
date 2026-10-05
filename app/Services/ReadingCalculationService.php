@@ -22,12 +22,22 @@ class ReadingCalculationService
         foreach (DailyReading::where('company_id', $companyId)->orderBy('reading_date')->get() as $row) {
             foreach (self::METERS as $meter => $multiplier) {
                 $reading = $row->{$meter.'_reading'};
-                $row->{$meter.'_unit'} = ($reading !== null && array_key_exists($meter, $previous))
-                    ? round(((float) $reading - (float) $previous[$meter]) * (float) $company->$multiplier, 2)
-                    : null;
+                $mult = (float) ($company->$multiplier ?? 1.0);
 
-                if ($reading !== null) {
-                    $previous[$meter] = $reading;
+                if ($reading !== null && (float) $reading > 0) {
+                    $readingVal = (float) $reading;
+                    if (isset($previous[$meter]) && (float) $previous[$meter] > 0) {
+                        $diff = $readingVal - (float) $previous[$meter];
+                        // Only save valid non-negative differences. If diff is negative (meter typo or invalid reading), set null to prevent negative corruption.
+                        $row->{$meter.'_unit'} = $diff >= 0 ? round($diff * $mult, 2) : null;
+                    } else {
+                        // Baseline first reading: unit is null
+                        $row->{$meter.'_unit'} = null;
+                    }
+                    $previous[$meter] = $readingVal;
+                } else {
+                    // Blank/skipped reading: units is null, do NOT overwrite previous baseline
+                    $row->{$meter.'_unit'} = null;
                 }
             }
 
