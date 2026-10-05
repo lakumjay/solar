@@ -58,6 +58,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                 const row = rows.find(r => String(r.employee_id) === String(emp.id) || String(r.employee?.id) === String(emp.id));
                 const lat = row && row.clock_in_latitude && Number(row.clock_in_latitude) !== 0 ? Number(row.clock_in_latitude) : null;
                 const lng = row && row.clock_in_longitude && Number(row.clock_in_longitude) !== 0 ? Number(row.clock_in_longitude) : null;
+                const isLive = Boolean(row && !row.clock_out_at && lat);
                 return {
                     employee_id: emp.id,
                     name: emp.name || emp.user?.name || 'Employee',
@@ -66,12 +67,16 @@ export default function AttendancePage({canCorrect, canRecord}) {
                     company_name: 'SolarFlow Shared',
                     company_id: null,
                     avatar_url: emp.profile_photo_url || null,
-                    is_live: Boolean(row && !row.clock_out_at && lat),
+                    is_live: isLive,
                     last_seen: row ? 'Time In પરથી સિંક' : 'GPS પિંગની રાહ જુએ છે',
                     status: row ? (row.clock_out_at ? 'Shift Ended' : 'Working') : 'Not Checked In',
                     latitude: lat,
                     longitude: lng,
                     accuracy: row?.clock_in_accuracy || 15,
+                    speed: isLive ? 0 : null,
+                    movement: isLive ? 'stationary' : 'offline',
+                    movement_icon: isLive ? '🧍‍♂️' : '⚪',
+                    movement_label: isLive ? 'સાઇટ પર સ્થિર (0 km/h)' : 'ઑફલાઇન',
                     map_url: lat && lng ? `https://www.google.com/maps?q=${lat},${lng}` : null,
                 };
             });
@@ -228,8 +233,8 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                 style={{
                                     border: 0,
                                     borderRadius: '9px',
-                                    padding: '6px 10px',
-                                    fontSize: '11px',
+                                    padding: '6px 12px',
+                                    fontSize: '11.5px',
                                     fontWeight: 700,
                                     cursor: 'pointer',
                                     background: mapMode === 'satellite' ? '#2563eb' : 'transparent',
@@ -243,31 +248,12 @@ export default function AttendancePage({canCorrect, canRecord}) {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setMapMode('sentinel')}
-                                style={{
-                                    border: 0,
-                                    borderRadius: '9px',
-                                    padding: '6px 10px',
-                                    fontSize: '11px',
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    background: mapMode === 'sentinel' ? '#059669' : 'transparent',
-                                    color: mapMode === 'sentinel' ? '#ffffff' : '#334155',
-                                    boxShadow: mapMode === 'sentinel' ? '0 2px 6px rgba(5,150,105,0.3)' : 'none',
-                                    transition: 'all 0.15s ease'
-                                }}
-                                title="Zoom Earth: દરરોજનો તાજો સેટેલાઇટ (No Login)"
-                            >
-                                🌍 Zoom Earth (તાજો સેટેલાઇટ)
-                            </button>
-                            <button
-                                type="button"
                                 onClick={() => setMapMode('roadmap')}
                                 style={{
                                     border: 0,
                                     borderRadius: '9px',
-                                    padding: '6px 10px',
-                                    fontSize: '11px',
+                                    padding: '6px 12px',
+                                    fontSize: '11.5px',
                                     fontWeight: 700,
                                     cursor: 'pointer',
                                     background: mapMode === 'roadmap' ? '#0f172a' : 'transparent',
@@ -439,32 +425,6 @@ export default function AttendancePage({canCorrect, canRecord}) {
 
                             {emp.is_live && emp.latitude && emp.longitude ? (
                                 <div style={{display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '2px'}}>
-                                    {/* 🛰️ Zoom Earth Daily Fresh Satellite (No Login Required) */}
-                                    {mapMode === 'sentinel' && (
-                                        <div style={{
-                                            background: '#ecfdf5',
-                                            border: '1px solid #a7f3d0',
-                                            borderRadius: '8px',
-                                            padding: '6px 10px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'space-between',
-                                            fontSize: '10.5px',
-                                            color: '#065f46',
-                                            gap: '6px'
-                                        }}>
-                                            <span>🌍 Zoom Earth: દરરોજનો તાજો સેટેલાઇટ (No Login)</span>
-                                            <a
-                                                href={`https://zoom.earth/#view=${emp.latitude},${emp.longitude},17z/layers=daily`}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                style={{color: '#047857', fontWeight: 800, textDecoration: 'underline', whiteSpace: 'nowrap'}}
-                                            >
-                                                ઓપન કરો ↗
-                                            </a>
-                                        </div>
-                                    )}
-
                                     {/* 🗺️ Default Embedded Small Interactive Map */}
                                     <div style={{
                                         position: 'relative',
@@ -495,7 +455,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                             left: '12px',
                                             background: emp.movement === 'bike' ? 'rgba(245, 158, 11, 0.95)' : emp.movement === 'walking' ? 'rgba(2, 132, 199, 0.95)' : 'rgba(22, 163, 74, 0.95)',
                                             color: '#ffffff',
-                                            padding: '4px 9px',
+                                            padding: '4px 10px',
                                             borderRadius: '20px',
                                             fontSize: '11px',
                                             fontWeight: 800,
@@ -506,14 +466,14 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                             zIndex: 4
                                         }}>
                                             <span style={{
-                                                fontSize: '14px',
+                                                fontSize: '15px',
                                                 display: 'inline-block',
                                                 animation: emp.movement === 'bike' ? 'rideBike 0.8s ease-in-out infinite' : emp.movement === 'walking' ? 'bounceWalk 0.7s ease-in-out infinite' : 'none'
                                             }}>
                                                 {emp.movement_icon || (emp.movement === 'bike' ? '🏍️' : emp.movement === 'walking' ? '🚶‍♂️' : '🧍‍♂️')}
                                             </span>
                                             <span>
-                                                {emp.movement === 'bike' ? `Bike: ${Math.round(emp.speed || 0)} km/h` : emp.movement === 'walking' ? `Walking: ${Math.round(emp.speed || 4)} km/h` : 'સ્થિર છે'}
+                                                {emp.movement === 'bike' ? `Bike: ${Math.round(emp.speed || 0)} km/h` : emp.movement === 'walking' ? `Walking: ${Math.round(emp.speed || 4)} km/h` : 'સ્થિર છે (0 km/h)'}
                                             </span>
                                         </div>
 
@@ -590,7 +550,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                         }}>
                                             <span>{emp.movement_icon || '📍'}</span>
                                             <b style={{color: '#38bdf8'}}>
-                                                {mapMode === 'sentinel' ? 'ESA Sentinel-2' : mapMode === 'satellite' ? 'Google Satellite' : 'Roadmap'}
+                                                {mapMode === 'satellite' ? 'Google Satellite' : 'Roadmap'}
                                             </b>
                                             <span>· Zoom: {zoomLevel}x</span>
                                         </div>
@@ -1051,10 +1011,10 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                 onClick={() => setMapMode('satellite')}
                                 style={{
                                     border: 0,
-                                    padding: '4px 8px',
-                                    fontSize: '10.5px',
+                                    padding: '5px 12px',
+                                    fontSize: '11px',
                                     fontWeight: 700,
-                                    borderRadius: '6px',
+                                    borderRadius: '7px',
                                     cursor: 'pointer',
                                     background: mapMode === 'satellite' ? '#2563eb' : 'transparent',
                                     color: '#ffffff'
@@ -1064,29 +1024,13 @@ export default function AttendancePage({canCorrect, canRecord}) {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setMapMode('sentinel')}
-                                style={{
-                                    border: 0,
-                                    padding: '4px 8px',
-                                    fontSize: '10.5px',
-                                    fontWeight: 700,
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                    background: mapMode === 'sentinel' ? '#059669' : 'transparent',
-                                    color: '#ffffff'
-                                }}
-                            >
-                                🌍 Zoom Earth
-                            </button>
-                            <button
-                                type="button"
                                 onClick={() => setMapMode('roadmap')}
                                 style={{
                                     border: 0,
-                                    padding: '4px 8px',
-                                    fontSize: '10.5px',
+                                    padding: '5px 12px',
+                                    fontSize: '11px',
                                     fontWeight: 700,
-                                    borderRadius: '6px',
+                                    borderRadius: '7px',
                                     cursor: 'pointer',
                                     background: mapMode === 'roadmap' ? '#475569' : 'transparent',
                                     color: '#ffffff'
@@ -1166,33 +1110,13 @@ export default function AttendancePage({canCorrect, canRecord}) {
                         </div>
                         <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
                             <a
-                                href={`https://zoom.earth/#view=${selectedMapEmployee.latitude},${selectedMapEmployee.longitude},18z/layers=daily`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="secondary"
-                                style={{textDecoration: 'none', padding: '8px 12px', fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: '6px', background: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46', fontWeight: 700}}
-                                title="Zoom Earth Daily Satellite View (No Login)"
-                            >
-                                🌍 Zoom Earth (તાજો સેટેલાઇટ) ↗
-                            </a>
-                            <a
-                                href={`https://www.bing.com/maps?cp=${selectedMapEmployee.latitude}~${selectedMapEmployee.longitude}&lvl=19&style=h`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="secondary"
-                                style={{textDecoration: 'none', padding: '8px 12px', fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: '6px', background: '#f0f9ff', borderColor: '#bae6fd', color: '#0369a1', fontWeight: 700}}
-                                title="Bing Aerial HD Satellite (No Login)"
-                            >
-                                🛰️ Bing Aerial HD ↗
-                            </a>
-                            <a
                                 href={selectedMapEmployee.map_url}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="primary"
                                 style={{textDecoration: 'none', padding: '8px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px'}}
                             >
-                                <ExternalLink size={14}/> Maps App
+                                <ExternalLink size={14}/> Maps App માં જુઓ
                             </a>
                             <button
                                 type="button"

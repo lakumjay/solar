@@ -83,13 +83,42 @@ class EmployeeLocationController extends Controller
                 $employee->update(['user_id' => $user->id]);
             }
 
+            $speed = $validated['speed'] ?? null;
+            if (($speed === null || $speed <= 0) && Schema::hasTable('employee_locations')) {
+                try {
+                    $lastLoc = EmployeeLocation::where('employee_id', $employee->id)
+                        ->orderBy('id', 'desc')
+                        ->first();
+                    if ($lastLoc && $lastLoc->recorded_at) {
+                        $diffSeconds = now()->diffInSeconds($lastLoc->recorded_at);
+                        if ($diffSeconds >= 5 && $diffSeconds <= 300) {
+                            $earthRadius = 6371000; // meters
+                            $latFrom = deg2rad((float)$lastLoc->latitude);
+                            $lonFrom = deg2rad((float)$lastLoc->longitude);
+                            $latTo = deg2rad((float)$validated['latitude']);
+                            $lonTo = deg2rad((float)$validated['longitude']);
+                            $latDelta = $latTo - $latFrom;
+                            $lonDelta = $lonTo - $lonFrom;
+                            $angle = 2 * asin(sqrt(pow(sin($latDelta / 2), 2) + cos($latFrom) * cos($latTo) * pow(sin($lonDelta / 2), 2)));
+                            $distanceMeters = $angle * $earthRadius;
+                            if ($distanceMeters > 6) {
+                                $calcSpeedKmh = ($distanceMeters / $diffSeconds) * 3.6;
+                                $speed = round(min(140, $calcSpeedKmh), 1);
+                            } else {
+                                $speed = 0;
+                            }
+                        }
+                    }
+                } catch (\Throwable $e) {}
+            }
+
             try {
                 $location = EmployeeLocation::create([
                     'employee_id' => $employee->id,
                     'latitude' => $validated['latitude'],
                     'longitude' => $validated['longitude'],
                     'accuracy' => $validated['accuracy'] ?? null,
-                    'speed' => $validated['speed'] ?? null,
+                    'speed' => $speed,
                     'heading' => $validated['heading'] ?? null,
                     'status_label' => $validated['status_label'] ?? 'Active',
                     'recorded_at' => now(),
@@ -98,6 +127,7 @@ class EmployeeLocationController extends Controller
                 return response()->json([
                     'message' => 'Location updated successfully.',
                     'employee_id' => $employee->id,
+                    'speed' => $speed,
                     'recorded_at' => $location->recorded_at->toIso8601String(),
                 ]);
             } catch (\Throwable $e) {
@@ -245,10 +275,10 @@ class EmployeeLocationController extends Controller
                 $lastSeenHuman = $carbonDate->diffForHumans();
             }
 
-            // 🏍️ Movement mode: bike (>= 12 km/h), walking (2 to 12 km/h), stationary (< 2 km/h)
-            $movement = 'stationary';
-            $movementIcon = '📍';
-            $movementLabel = 'સ્થિર છે (સાઇટ પર)';
+            // 🏍️ Movement mode: bike (>= 12 km/h), walking (2 to 12 km/h), stationary (< 2 km/h or live at site)
+            $movement = 'offline';
+            $movementIcon = '⚪';
+            $movementLabel = 'ઑફલાઇન';
 
             if ($speed !== null && $speed >= 12) {
                 $movement = 'bike';
@@ -256,12 +286,13 @@ class EmployeeLocationController extends Controller
                 $movementLabel = 'બાઇક પર ગતિમાં (~' . round($speed) . ' km/h)';
             } elseif ($speed !== null && $speed >= 2) {
                 $movement = 'walking';
-                $movementIcon = '🚶';
-                $movementLabel = 'ચાલી રહ્યો છે (~' . round($speed) . ' km/h)';
-            } elseif ($isLive) {
+                $movementIcon = '🚶‍♂️';
+                $movementLabel = 'પગપાળા ચાલે છે (~' . round($speed) . ' km/h)';
+            } elseif ($isLive || ($todayAttendance && !$todayAttendance->clock_out_at && $lat)) {
                 $movement = 'stationary';
-                $movementIcon = '📍';
-                $movementLabel = 'સ્થિર છે (સાઇટ પર)';
+                $movementIcon = '🧍‍♂️';
+                $movementLabel = 'સાઇટ પર સ્થિર (0 km/h)';
+                if ($speed === null) $speed = 0;
             } else {
                 $movement = 'offline';
                 $movementIcon = '⚪';
