@@ -17,7 +17,7 @@
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js?v=44').then(reg => {
+                navigator.serviceWorker.register('/sw.js?v=45').then(reg => {
                     reg.update();
                 }).catch(err => console.log('SW registration failed', err));
             });

@@ -38,12 +38,8 @@ class SharedExpenseService
                 $company->update(['expense_percentage' => $this->percentageBasisPoints($submitted[$company->id]['percentage']) / 100]);
             }
 
-            // Recalculate all historical shared expenses using the new percentages
-            $recalculatedCount = $this->recalculateAllHistoricalExpenses();
-
-            $this->activity->log($actor, null, 'updated', 'expense_percentages', null, "Shared expense percentages updated. Recalculated {$recalculatedCount} historical expenses.", [
+            $this->activity->log($actor, null, 'updated', 'expense_percentages', null, 'Shared expense percentages updated', [
                 'percentages' => $companies->mapWithKeys(fn (Company $company) => [$company->name => (float) $company->fresh()->expense_percentage])->all(),
-                'recalculated_count' => $recalculatedCount,
             ]);
 
             return $this->settings();
