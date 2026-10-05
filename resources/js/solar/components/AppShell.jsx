@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import {Activity, BarChart3, Boxes, Building2, CalendarCheck2, Camera, ChevronRight, ClipboardPlus, Clock3, CloudSun, Film, Gauge, IndianRupee, LogOut, Menu, Sun, UserCheck, Users, WalletCards, X, Zap} from 'lucide-react';
-import {api} from '../api';
+import {api, logout} from '../api';
 import MobileAppView from './MobileAppView';
 import NotificationPermissionModal from './NotificationPermissionModal';
 import AppSplashScreen from './AppSplashScreen';
@@ -294,7 +294,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
                             </span>
                         </div>
                         <nav>{navigation.map(([key, label, Icon]) => <button key={key} className={page === key ? 'nav active' : 'nav'} onClick={() => choosePage(key)}><Icon size={18}/><span>{label}</span><ChevronRight size={15}/></button>)}</nav>
-                        <button className="nav signout" onClick={() => api('logout', {method: 'POST'}).then(() => window.location.reload())}><LogOut size={18}/><span>Sign out</span></button>
+                        <button className="nav signout" onClick={logout}><LogOut size={18}/><span>Sign out</span></button>
                     </aside>
                     {menuOpen && <div className="scrim" onClick={() => setMenuOpen(false)}/>} 
                     <main className="content">

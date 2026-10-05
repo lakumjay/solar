@@ -49,7 +49,7 @@ import {
     ShieldAlert,
     Check
 } from 'lucide-react';
-import {api} from '../api';
+import {api, logout} from '../api';
 import ISolarCloudVisualizer from './ISolarCloudVisualizer';
 import NotificationPermissionModal from './NotificationPermissionModal';
 import {getPanchangDetails, getTomorrowBankHolidayAlert, getViRechargeAlert, GUJARATI_WEEKDAYS, GUJARATI_MONTHS} from '../utils/panchang';
@@ -2776,7 +2776,7 @@ export default function MobileAppView({
                             <button
                                 type="button"
                                 className="drawer-logout-btn"
-                                onClick={() => api('logout', {method: 'POST'}).then(() => window.location.reload())}
+                                onClick={logout}
                             >
                                 <LogOut size={16}/>
                                 <span>Sign Out / Log Out</span>

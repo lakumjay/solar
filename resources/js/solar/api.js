@@ -23,6 +23,17 @@ export async function api(path, options = {}) {
     return payload;
 }
 
+export async function logout() {
+    try {
+        await api('logout', {method: 'POST'});
+    } catch (e) {}
+    try {
+        localStorage.clear();
+        sessionStorage.clear();
+    } catch (e) {}
+    window.location.href = '/';
+}
+
 export function urlBase64ToUint8Array(base64String) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
     const base64 = (base64String + padding)
