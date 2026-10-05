@@ -163,21 +163,59 @@ export function getPanchangDetails(dateObj) {
 }
 
 /**
- * Check if tomorrow is a Bank Holiday (Advance Warning)
+ * Check if tomorrow is a Bank Holiday (Advance Warning with Consecutive Days)
  */
 export function getTomorrowBankHolidayAlert(currentDate = new Date()) {
     const tomorrow = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate() + 1);
-    const details = getPanchangDetails(tomorrow);
+    const tomorrowDetails = getPanchangDetails(tomorrow);
 
-    if (details.isBankHoliday) {
+    if (tomorrowDetails.isBankHoliday) {
+        let consecutiveDays = 1;
+        const reasons = [tomorrowDetails.bankHolidayReason];
+
+        for (let i = 2; i <= 4; i++) {
+            const nextDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate() + i);
+            const nextDetails = getPanchangDetails(nextDay);
+            if (nextDetails.isBankHoliday) {
+                consecutiveDays++;
+                if (nextDetails.bankHolidayReason && !reasons.includes(nextDetails.bankHolidayReason)) {
+                    reasons.push(nextDetails.bankHolidayReason);
+                }
+            } else {
+                break;
+            }
+        }
+
+        const reasonText = reasons.join(' + ');
+        const dayCountText = consecutiveDays > 1 ? `કાલથી ${consecutiveDays} દિવસ` : 'આવતીકાલે';
+
         return {
             active: true,
-            tomorrowDate: details.dateStr,
-            tomorrowDay: details.dayNameGu,
-            reason: details.bankHolidayReason,
-            message: `આવતીકાલે (${details.dayNameGu}) બેંક રજા રહેશે: ${details.bankHolidayReason}. પેમેન્ટ / ટ્રાન્ઝેક્શન અગાઉથી આયોજિત કરો.`
+            tomorrowDate: tomorrowDetails.dateStr,
+            tomorrowDay: tomorrowDetails.dayNameGu,
+            consecutiveDays,
+            reason: reasonText,
+            title: consecutiveDays > 1 ? `🏦 કાલથી ${consecutiveDays} દિવસ બેંક બંધ રહેશે` : `🏦 આવતીકાલે બેંક રજા`,
+            message: `${dayCountText} બેંક બંધ રહેશે (${reasonText}). તમામ પેમેન્ટ / બેંકિંગ કામકાજ આજે જ પૂર્ણ કરી લેવા.`
         };
     }
 
     return { active: false };
 }
+
+/**
+ * Vi SIM Recharge Alert (Active between 2nd and 5th of every month)
+ */
+export function getViRechargeAlert(currentDate = new Date()) {
+    const day = currentDate.getDate();
+    if (day >= 2 && day <= 5) {
+        return {
+            active: true,
+            dayRange: '૨ થી ૫ તારીખ',
+            title: '📶 Vi સિમ કાર્ડ રિચાર્જ એલર્ટ (તારીખ ૨ થી ૫)',
+            message: 'તમામ સોલાર પ્લાન્ટ્સ (Sunrise, Rajeshwari, Nilkanth) ના ડેટા લોગર અને ઇન્વર્ટર કમ્યુનિકેશન માટે Vi સિમ કાર્ડ્સનું સમયસર રિચાર્જ કરી લેવું જેથી લાઇવ મોનિટરિંગ ચાલુ રહે.'
+        };
+    }
+    return { active: false };
+}
+

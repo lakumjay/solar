@@ -52,7 +52,7 @@ import {
 import {api} from '../api';
 import ISolarCloudVisualizer from './ISolarCloudVisualizer';
 import NotificationPermissionModal from './NotificationPermissionModal';
-import {getPanchangDetails, getTomorrowBankHolidayAlert, GUJARATI_WEEKDAYS, GUJARATI_MONTHS} from '../utils/panchang';
+import {getPanchangDetails, getTomorrowBankHolidayAlert, getViRechargeAlert, GUJARATI_WEEKDAYS, GUJARATI_MONTHS} from '../utils/panchang';
 
 export default function MobileAppView({
     user,
@@ -738,6 +738,7 @@ export default function MobileAppView({
 
     const todayPanchang = getPanchangDetails(new Date());
     const tomorrowBankHoliday = getTomorrowBankHolidayAlert(new Date());
+    const viRechargeAlert = getViRechargeAlert(new Date());
 
     return (
         <div className={`mobile-app-container ${currentSky.themeClass}`}>
@@ -852,43 +853,6 @@ export default function MobileAppView({
             ) : (
                 /* MAIN DASHBOARD CONTENT WITH 3D ANIMATED ISOMETRIC VISUALIZER */
                 <main className="mobile-dashboard-scroll">
-                    {/* 🏝️ FLOATING DYNAMIC ISLAND CAPSULE WIDGET */}
-                    <div
-                        className="dynamic-island-pill"
-                        onClick={() => {
-                            triggerHaptic([30]);
-                            setIslandExpanded(!islandExpanded);
-                        }}
-                        title="ઝડપી સારાંશ જોવા ટેપ કરો"
-                    >
-                        <div className="island-collapsed-content">
-                            <div className="island-power-badge">
-                                <span className="island-pulse-laser"></span>
-                                <span style={{fontWeight: 800}}>{displayIslandPower !== '0.00 MW' ? displayIslandPower : (rawKw > 0 ? `${rawKw.toFixed(2)} kW` : '0.00 kW')}</span>
-                            </div>
-                            <div style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#94a3b8'}}>
-                                {islandExpanded ? <ChevronUp size={14} color="#34d399"/> : <ChevronDown size={14} color="#94a3b8"/>}
-                            </div>
-                        </div>
-
-                        {islandExpanded && (
-                            <div className="island-expanded-tray">
-                                <div className="island-tray-item">
-                                    <span>આજનું ઉત્પાદન</span>
-                                    <strong>{data?.today_units_kwh ? `${data.today_units_kwh} kWh` : '0 kWh'}</strong>
-                                </div>
-                                <div className="island-tray-item">
-                                    <span>અંદાજિત આવક</span>
-                                    <strong style={{color: '#34d399'}}>₹{data?.total_revenue_rs ? `${data.total_revenue_rs}` : '0'}</strong>
-                                </div>
-                                <div className="island-tray-item">
-                                    <span>કુલ પ્લાન્ટ ક્ષમતા</span>
-                                    <strong>{data?.installed_capacity_mwp ? `${data.installed_capacity_mwp} MW` : '3.00 MW'}</strong>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
                     {/* Subhead Status Row with Gujarati Panchang Day & Tithi */}
                     <div className="mobile-subhead-section">
                         <div className="plant-live-status-row" style={{justifyContent: 'center'}}>
@@ -929,7 +893,36 @@ export default function MobileAppView({
                         </div>
                     </div>
 
-                    {/* 🏦 Advance Bank Holiday Warning Banner */}
+                    {/* 📶 Vi SIM Recharge Reminder Banner (2nd to 5th of every month) */}
+                    {viRechargeAlert && viRechargeAlert.active && (
+                        <div style={{
+                            margin: '0 12px 10px 12px',
+                            background: '#eff6ff',
+                            border: '1.5px solid #60a5fa',
+                            borderRadius: '12px',
+                            padding: '10px 14px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '5px',
+                            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.08)'
+                        }}>
+                            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px'}}>
+                                <div style={{display: 'flex', alignItems: 'center', gap: '7px'}}>
+                                    <span style={{background: '#2563eb', color: '#ffffff', fontSize: '10.5px', fontWeight: 800, padding: '2px 8px', borderRadius: '5px'}}>
+                                        {viRechargeAlert.title}
+                                    </span>
+                                </div>
+                                <span style={{fontSize: '10px', background: '#dbeafe', color: '#1d4ed8', fontWeight: 800, padding: '2px 6px', borderRadius: '4px'}}>
+                                    બધી કંપનીઓ
+                                </span>
+                            </div>
+                            <p style={{fontSize: '11px', color: '#1e3a8a', margin: 0, lineHeight: 1.4, fontWeight: 600}}>
+                                {viRechargeAlert.message}
+                            </p>
+                        </div>
+                    )}
+
+                    {/* 🏦 Advance Bank Holiday Warning Banner (Consecutive Days Alert) */}
                     {tomorrowBankHoliday && tomorrowBankHoliday.active && (
                         <div style={{
                             margin: '0 12px 10px 12px',
@@ -938,23 +931,26 @@ export default function MobileAppView({
                             borderRadius: '12px',
                             padding: '10px 14px',
                             display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: '8px',
-                            flexWrap: 'wrap',
+                            flexDirection: 'column',
+                            gap: '5px',
                             boxShadow: '0 2px 8px rgba(220, 38, 38, 0.08)'
                         }}>
-                            <div style={{display: 'flex', alignItems: 'center', gap: '7px'}}>
-                                <span style={{background: '#dc2626', color: '#ffffff', fontSize: '11px', fontWeight: 800, padding: '2px 7px', borderRadius: '5px'}}>
-                                    🏦 આવતીકાલે બેંક રજા
+                            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap'}}>
+                                <div style={{display: 'flex', alignItems: 'center', gap: '7px'}}>
+                                    <span style={{background: '#dc2626', color: '#ffffff', fontSize: '11px', fontWeight: 800, padding: '2px 7px', borderRadius: '5px'}}>
+                                        {tomorrowBankHoliday.title || '🏦 બેંક રજા એલર્ટ'}
+                                    </span>
+                                    <b style={{fontSize: '12px', color: '#991b1b'}}>
+                                        {tomorrowBankHoliday.reason}
+                                    </b>
+                                </div>
+                                <span style={{fontSize: '10.5px', color: '#b91c1c', fontWeight: 700}}>
+                                    નાણાકીય આયોજન કરો ⚠️
                                 </span>
-                                <b style={{fontSize: '12px', color: '#991b1b'}}>
-                                    {tomorrowBankHoliday.reason}
-                                </b>
                             </div>
-                            <span style={{fontSize: '10.5px', color: '#b91c1c', fontWeight: 700}}>
-                                નાણાકીય વ્યવહારનું આયોજન કરો ⚠️
-                            </span>
+                            <p style={{fontSize: '11px', color: '#7f1d1d', margin: 0, lineHeight: 1.4, fontWeight: 600}}>
+                                {tomorrowBankHoliday.message}
+                            </p>
                         </div>
                     )}
 
