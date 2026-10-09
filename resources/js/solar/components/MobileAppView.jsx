@@ -768,64 +768,59 @@ export default function MobileAppView({
                     </div>
                 </div>
 
-                <div className="mobile-header-actions" style={{display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0}}>
-                    {/* Compact Language Toggle Pill */}
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '2px',
-                        background: 'rgba(255, 255, 255, 0.15)',
-                        backdropFilter: 'blur(6px)',
-                        padding: '3px 6px',
-                        borderRadius: '20px',
-                        border: '1px solid rgba(255, 255, 255, 0.25)'
-                    }}>
-                        <Globe size={11} style={{color: '#86efac'}}/>
-                        <select
-                            value={currentLang}
-                            onChange={(e) => setLanguage(e.target.value)}
-                            style={{
-                                background: 'transparent',
-                                border: 'none',
-                                fontSize: '10.5px',
-                                fontWeight: 800,
-                                color: '#ffffff',
-                                outline: 'none',
-                                cursor: 'pointer',
-                                padding: 0
-                            }}
-                        >
-                            <option value="gu" style={{color: '#0f172a'}}>ગુજ</option>
-                            <option value="en" style={{color: '#0f172a'}}>EN</option>
-                        </select>
-                    </div>
+                <div className="mobile-header-actions" style={{display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0}}>
+                    {/* Ultra-compact Language Switcher Badge */}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            triggerHaptic([30]);
+                            const nextLang = currentLang === 'gu' ? 'en' : 'gu';
+                            setLanguage(nextLang);
+                        }}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            background: 'rgba(255, 255, 255, 0.16)',
+                            backdropFilter: 'blur(8px)',
+                            padding: '4px 8px',
+                            borderRadius: '16px',
+                            border: '1px solid rgba(255, 255, 255, 0.28)',
+                            color: '#ffffff',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            lineHeight: 1
+                        }}
+                        title={currentLang === 'gu' ? 'Switch to English' : 'ગુજરાતી કરો'}
+                    >
+                        <Globe size={12} style={{color: '#86efac'}}/>
+                        <span>{currentLang === 'gu' ? 'ગુજ' : 'EN'}</span>
+                    </button>
 
-                    {/* AI Voice Call Button with Pulsing Glow */}
+                    {/* Compact Pure Call Icon Button (📞 Call Icon Only) */}
                     <button
                         type="button"
                         onClick={() => {
                             triggerHaptic([40]);
                             setShowVoiceCall(true);
                         }}
+                        className="mobile-icon-btn call-ai-btn"
                         style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
+                            width: '34px',
+                            height: '34px',
+                            borderRadius: '50%',
                             background: 'linear-gradient(135deg, #16a34a, #15803d)',
                             color: '#ffffff',
-                            border: '1px solid rgba(255, 255, 255, 0.3)',
-                            borderRadius: '20px',
-                            padding: '4px 8px',
-                            fontSize: '10.5px',
-                            fontWeight: 800,
-                            boxShadow: '0 2px 8px rgba(22, 163, 74, 0.4)',
+                            border: '1.5px solid rgba(255, 255, 255, 0.4)',
+                            display: 'grid',
+                            placeItems: 'center',
+                            boxShadow: '0 2px 10px rgba(22, 163, 74, 0.5)',
                             cursor: 'pointer'
                         }}
-                        title="AI Voice Call (SolarFlow)"
+                        title={t('callAi')}
                     >
-                        <Phone size={11} className="animate-pulse" />
-                        <span>AI Call</span>
-                        <Sparkles size={9} style={{color: '#fef08a'}}/>
+                        <Phone size={16} className="animate-pulse" />
                     </button>
 
                     <button
@@ -833,16 +828,16 @@ export default function MobileAppView({
                         className="mobile-icon-btn notif-bell-btn"
                         onClick={handleOpenNotifCenter}
                         title="Notification Center & Alerts"
-                        style={{width: '32px', height: '32px'}}
+                        style={{width: '34px', height: '34px'}}
                     >
-                        <Bell size={16}/>
+                        <Bell size={17}/>
                         {hasUnreadNotif && <span className="notif-red-dot" style={{top: '4px', right: '5px'}}/>}
                     </button>
-                    <div className="mobile-user-avatar" onClick={() => setMoreMenuOpen(true)} style={{width: '32px', height: '32px', fontSize: '12px', overflow: 'hidden', border: activeCompany?.owner_photo_url ? '2px solid #f59e0b' : 'none'}}>
+                    <div className="mobile-user-avatar" onClick={() => setMoreMenuOpen(true)} style={{width: '34px', height: '34px', fontSize: '13px', overflow: 'hidden', border: activeCompany?.owner_photo_url ? '2px solid #f59e0b' : 'none'}}>
                         {activeCompany?.owner_photo_url ? (
                             <img src={activeCompany.owner_photo_url} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}}/>
                         ) : (
-                            user?.name ? user.name.slice(0, 1).toUpperCase() : <User size={14}/>
+                            user?.name ? user.name.slice(0, 1).toUpperCase() : <User size={15}/>
                         )}
                     </div>
                 </div>
@@ -2352,7 +2347,7 @@ export default function MobileAppView({
                         }}
                     >
                         <Zap size={19}/>
-                        <span>Live Solar</span>
+                        <span>{t('liveSolar')}</span>
                     </button>
 
                     {can('enter_readings') && (
@@ -2360,13 +2355,13 @@ export default function MobileAppView({
                             type="button"
                             className={`bnav-item ${page === 'entry' ? 'active' : ''}`}
                             onClick={() => {
-                                playNavClickSound();
-                                setPage('entry');
-                            }}
-                        >
-                            <ClipboardPlus size={19}/>
-                            <span>Entry</span>
-                        </button>
+                            playNavClickSound();
+                            setPage('entry');
+                        }}
+                    >
+                        <ClipboardPlus size={19}/>
+                        <span>{t('entry')}</span>
+                    </button>
                     )}
 
                     {(user.role === 'employee' || can('view_attendance')) && (
@@ -2379,7 +2374,7 @@ export default function MobileAppView({
                             }}
                         >
                             <UserCheck size={19}/>
-                            <span>Attendance</span>
+                            <span>{t('attendance')}</span>
                         </button>
                     )}
 
@@ -2393,7 +2388,7 @@ export default function MobileAppView({
                             }}
                         >
                             <BarChart3 size={19}/>
-                            <span>Reports</span>
+                            <span>{t('reports')}</span>
                         </button>
                     )}
 
@@ -2406,7 +2401,7 @@ export default function MobileAppView({
                         }}
                     >
                         <Camera size={19}/>
-                        <span>Gallery</span>
+                        <span>{t('gallery')}</span>
                     </button>
 
                     <button
@@ -2418,7 +2413,7 @@ export default function MobileAppView({
                         }}
                     >
                         <MoreHorizontal size={19}/>
-                        <span>More</span>
+                        <span>{t('more')}</span>
                     </button>
                 </nav>
             )}

@@ -195,23 +195,23 @@ export default function AppShell({user, page, setPage, companies, companyId, set
     const can = permission => user.role === 'super_admin' || user.permissions.includes(permission);
     const activeCompany = companies.find(company => String(company.id) === String(companyId));
     const navigation = [
-        ['dashboard', '⚡ Live Solar', Zap],
-        can('enter_readings') && ['entry', 'Daily Entry', ClipboardPlus],
-        can('view_reports') && ['reports', 'Reports', BarChart3],
-        ['gallery', 'Gallery', Camera],
-        ['reels', 'Reels', Film],
-        ['expenses', 'Expenses', IndianRupee],
-        user.role === 'super_admin' && ['companies', 'Companies', Building2],
-        (user.role === 'super_admin' || can('manage_company_users')) && ['users', 'Users & Access', Users],
-        (user.role === 'super_admin' || can('manage_company_users')) && ['activity', 'Activity Log', Activity],
-        can('view_employees') && ['employees', 'Employees', Users],
-        can('view_attendance') && ['attendance', 'Attendance', UserCheck],
-        can('view_attendance') && ['leave-holidays', 'Leave & Holidays', CalendarCheck2],
-        can('view_attendance_reports') && ['attendance-reports', 'Attendance Reports', BarChart3],
-        (user.role === 'super_admin' || user.role === 'company_admin') && ['salaries', 'Monthly Salary', WalletCards],
-        ['stock', 'Stock Management', Boxes],
-        user.role === 'employee' && ['my-attendance', 'My Attendance', Clock3],
-        user.role === 'employee' && ['my-salary', 'My Salary', IndianRupee],
+        ['dashboard', `⚡ ${t('liveSolar')}`, Zap],
+        can('enter_readings') && ['entry', t('dailyEntry'), ClipboardPlus],
+        can('view_reports') && ['reports', t('reports'), BarChart3],
+        ['gallery', t('gallery'), Camera],
+        ['reels', t('reels'), Film],
+        ['expenses', t('expenses'), IndianRupee],
+        user.role === 'super_admin' && ['companies', t('companies'), Building2],
+        (user.role === 'super_admin' || can('manage_company_users')) && ['users', t('users'), Users],
+        (user.role === 'super_admin' || can('manage_company_users')) && ['activity', t('activityLog'), Activity],
+        can('view_employees') && ['employees', t('employees'), Users],
+        can('view_attendance') && ['attendance', t('attendance'), UserCheck],
+        can('view_attendance') && ['leave-holidays', t('leaveHoliday'), CalendarCheck2],
+        can('view_attendance_reports') && ['attendance-reports', t('attendanceReports'), BarChart3],
+        (user.role === 'super_admin' || user.role === 'company_admin') && ['salaries', t('salaries'), WalletCards],
+        ['stock', t('stock'), Boxes],
+        user.role === 'employee' && ['my-attendance', t('myAttendance'), Clock3],
+        user.role === 'employee' && ['my-salary', t('mySalary'), IndianRupee],
     ].filter(Boolean);
     const titles = {
         dashboard: ['Live Solar Generation & Real-Time Flow', companyId === 'all' ? 'All Companies Live Sync' : activeCompany?.name],
@@ -313,18 +313,30 @@ export default function AppShell({user, page, setPage, companies, companyId, set
                         <header className="topbar">
                             <button className="mobile-menu" onClick={() => setMenuOpen(true)}><Menu/></button>
                             <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginLeft: 'auto'}}>
-                                {/* Language Dropdown (Gujarati / English) */}
-                                <div style={{display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '4px 10px', borderRadius: '8px', border: '1px solid #e2e8f0'}}>
-                                    <Globe size={15} style={{color: '#15803d'}}/>
-                                    <select
-                                        value={currentLang}
-                                        onChange={(e) => setLanguage(e.target.value)}
-                                        style={{background: 'transparent', border: 'none', fontSize: '13px', fontWeight: 600, color: '#334155', cursor: 'pointer', outline: 'none'}}
-                                    >
-                                        <option value="gu">ગુજરાતી (Gujarati)</option>
-                                        <option value="en">English</option>
-                                    </select>
-                                </div>
+                                {/* Language Switcher Pill */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const nextLang = currentLang === 'gu' ? 'en' : 'gu';
+                                        setLanguage(nextLang);
+                                    }}
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        background: '#f8fafc',
+                                        padding: '6px 12px',
+                                        borderRadius: '20px',
+                                        border: '1px solid #cbd5e1',
+                                        fontSize: '12px',
+                                        fontWeight: 700,
+                                        color: '#334155',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    <Globe size={14} style={{color: '#16a34a'}}/>
+                                    <span>{currentLang === 'gu' ? 'ગુજરાતી' : 'English'}</span>
+                                </button>
 
                                 {/* AI Voice Call Button */}
                                 <button
@@ -333,22 +345,20 @@ export default function AppShell({user, page, setPage, companies, companyId, set
                                     style={{
                                         display: 'inline-flex',
                                         alignItems: 'center',
-                                        gap: '8px',
-                                        background: 'linear-gradient(135deg, #15803d, #166534)',
+                                        justifyContent: 'center',
+                                        width: '38px',
+                                        height: '38px',
+                                        borderRadius: '50%',
+                                        background: 'linear-gradient(135deg, #16a34a, #15803d)',
                                         color: '#ffffff',
-                                        border: 'none',
-                                        borderRadius: '10px',
-                                        padding: '8px 16px',
-                                        fontSize: '13px',
-                                        fontWeight: 700,
+                                        border: '1.5px solid rgba(255, 255, 255, 0.4)',
                                         cursor: 'pointer',
-                                        boxShadow: '0 4px 14px rgba(21, 128, 61, 0.35)',
+                                        boxShadow: '0 4px 14px rgba(22, 163, 74, 0.4)',
                                         transition: 'all 0.2s ease'
                                     }}
+                                    title={t('callAi')}
                                 >
-                                    <Phone size={16} className="animate-pulse" />
-                                    <span>{t('callAi')}</span>
-                                    <Sparkles size={14} style={{color: '#fef08a'}}/>
+                                    <Phone size={17} className="animate-pulse" />
                                 </button>
 
                                 {((user.role === 'super_admin' && ['dashboard', 'reports', 'entry', 'activity'].includes(page)) || (!user.company_id && ['dashboard', 'reports', 'entry', 'activity', 'stock'].includes(page)) || (user.role === 'employee' && page === 'entry')) && <label className="company-switch"><span>Company</span><select value={companyId} onChange={event => setCompanyId(event.target.value)}>{page !== 'entry' && <option value="all">All Companies</option>}{companies.map(company => <option value={company.id} key={company.id}>{company.name}</option>)}</select></label>}
