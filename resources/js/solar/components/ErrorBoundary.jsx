@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { getLanguage } from '../utils/translations';
 
 export default class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -57,11 +58,11 @@ export default class ErrorBoundary extends React.Component {
                         </div>
 
                         <h2 style={{fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: '0 0 8px'}}>
-                            એપ્લિકેશનમાં લોડિંગ સમસ્યા આવી
+                            {getLanguage() === 'en' ? 'Application Loading Issue' : 'એપ્લિકેશનમાં લોડિંગ સમસ્યા આવી'}
                         </h2>
 
                         <p style={{fontSize: '13px', color: '#64748b', margin: '0 0 20px', lineHeight: 1.5}}>
-                            નવા અપડેટ પછી બ્રાઉઝર કેશ અથવા ડેટાના કારણે આ થઈ શકે છે. નીચેનું બટન દબાવીને રિફ્રેશ કરો.
+                            {getLanguage() === 'en' ? 'This might be due to browser caching after an update. Please reload using the button below.' : 'નવા અપડેટ પછી બ્રાઉઝર કેશ અથવા ડેટાના કારણે આ થઈ શકે છે. નીચેનું બટન દબાવીને રિફ્રેશ કરો.'}
                         </p>
 
                         {this.state.error && (
@@ -103,7 +104,7 @@ export default class ErrorBoundary extends React.Component {
                             }}
                         >
                             <RefreshCw size={16}/>
-                            સાઇટ રિફ્રેશ કરો (Reload App)
+                            {getLanguage() === 'en' ? 'Reload Application' : 'સાઇટ રિફ્રેશ કરો (Reload App)'}
                         </button>
                     </div>
                 </div>

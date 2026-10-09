@@ -54,7 +54,7 @@ import {
 import {api, logout} from '../api';
 import ISolarCloudVisualizer from './ISolarCloudVisualizer';
 import NotificationPermissionModal from './NotificationPermissionModal';
-import VoiceCallModal from './VoiceCallModal';
+import VoiceCallModal, { unlockVoiceCallAudio } from './VoiceCallModal';
 import {getLanguage, setLanguage, t} from '../utils/translations';
 import {getPanchangDetails, getTomorrowBankHolidayAlert, getViRechargeAlert, GUJARATI_WEEKDAYS, GUJARATI_MONTHS} from '../utils/panchang';
 
@@ -139,19 +139,19 @@ export default function MobileAppView({
 
     const handleFanCleaned = async () => {
         triggerHaptic([45]);
-        if (!confirm('શું તમે ઇન્વર્ટર કૂલિંગ ફેન અને જાળીની ધૂળ (Dust) બ્લોઅરથી સાફ કરી લીધી છે? આનાથી ૧૦ દિવસનું નવું સાઇકલ શરૂ થશે.')) {
+        if (!confirm(currentLang === 'en' ? 'Have you cleaned the inverter cooling fan and mesh dust with a blower? This will start a new 10-day cycle.' : 'શું તમે ઇન્વર્ટર કૂલિંગ ફેન અને જાળીની ધૂળ (Dust) બ્લોઅરથી સાફ કરી લીધી છે? આનાથી ૧૦ દિવસનું નવું સાઇકલ શરૂ થશે.')) {
             return;
         }
         setCleaningFanLoading(true);
         try {
             await api('inverters/maintenance/fan-cleaned', {
                 method: 'POST',
-                body: JSON.stringify({ notes: 'કૂલિંગ ફેન અને જાળી બ્લોઅરથી સાફ કરવામાં આવી.' })
+                body: JSON.stringify({ notes: currentLang === 'en' ? 'Cooling fan and mesh cleaned with blower.' : 'કૂલિંગ ફેન અને જાળી બ્લોઅરથી સાફ કરવામાં આવી.' })
             });
             triggerHaptic([50, 60, 100]);
             if (fetchLiveSolar) await fetchLiveSolar(true);
         } catch (err) {
-            alert('સેવ કરવામાં ભૂલ આવી: ' + (err.message || 'Error'));
+            alert((currentLang === 'en' ? 'Error saving: ' : 'સેવ કરવામાં ભૂલ આવી: ') + (err.message || 'Error'));
         } finally {
             setCleaningFanLoading(false);
         }
@@ -280,12 +280,12 @@ export default function MobileAppView({
                     method: 'POST',
                     body: JSON.stringify({ companies: companiesPayload }),
                 });
-                setCurtailMessage(res.message || 'મલ્ટિ-કંપની કર્ટલમેન્ટ સફળતાપૂર્વક સેટ થઈ ગયું છે.');
+                setCurtailMessage(res.message || (currentLang === 'en' ? 'Multi-company curtailment set successfully.' : 'મલ્ટિ-કંપની કર્ટલમેન્ટ સફળતાપૂર્વક સેટ થઈ ગયું છે.'));
             } else {
                 // Single company payload
                 const activeCId = selectedCurtailCompIds[0] || curtailActiveTabId;
                 const cfg = curtailConfigs[activeCId];
-                if (!cfg) throw new Error('કંપની પસંદ કરવામાં આવી નથી.');
+                if (!cfg) throw new Error(currentLang === 'en' ? 'No company selected.' : 'કંપની પસંદ કરવામાં આવી નથી.');
 
                 const res = await api('curtailments', {
                     method: 'POST',
@@ -297,7 +297,7 @@ export default function MobileAppView({
                         notes: cfg.notes || 'PGVCL Curtailment Order',
                     }),
                 });
-                setCurtailMessage(res.message || 'કર્ટલમેન્ટ સફળતાપૂર્વક સેટ થઈ ગયું છે.');
+                setCurtailMessage(res.message || (currentLang === 'en' ? 'Curtailment set successfully.' : 'કર્ટલમેન્ટ સફળતાપૂર્વક સેટ થઈ ગયું છે.'));
             }
 
             setTimeout(() => {
@@ -306,7 +306,7 @@ export default function MobileAppView({
                 if (fetchLiveSolar) fetchLiveSolar(true);
             }, 600);
         } catch (err) {
-            setCurtailMessage(err.message || 'કર્ટલમેન્ટ સેટ કરવામાં ભૂલ આવી.');
+            setCurtailMessage(err.message || (currentLang === 'en' ? 'Error setting curtailment.' : 'કર્ટલમેન્ટ સેટ કરવામાં ભૂલ આવી.'));
         } finally {
             setCurtailSaving(false);
         }
@@ -411,8 +411,8 @@ export default function MobileAppView({
 
     const handleRestoreAll = async (targetCompanyId = null) => {
         const confirmMsg = targetCompanyId
-            ? 'શું તમે આ કંપની માટે PGVCL કર્ટલમેન્ટ પૂર્ણ કરી ૧૦૦% ફુલ પાવર ચાલુ કરવા માંગો છો?'
-            : 'શું તમે તમામ પ્લાન્ટ માટે PGVCL કર્ટલમેન્ટ પૂર્ણ કરી ૧૦૦% ફુલ પાવર ચાલુ કરવા માંગો છો?';
+            ? (currentLang === 'en' ? 'Do you want to complete PGVCL curtailment and restore 100% full power for this company?' : 'શું તમે આ કંપની માટે PGVCL કર્ટલમેન્ટ પૂર્ણ કરી ૧૦૦% ફુલ પાવર ચાલુ કરવા માંગો છો?')
+            : (currentLang === 'en' ? 'Do you want to complete PGVCL curtailment and restore 100% full power for all plants?' : 'શું તમે તમામ પ્લાન્ટ માટે PGVCL કર્ટલમેન્ટ પૂર્ણ કરી ૧૦૦% ફુલ પાવર ચાલુ કરવા માંગો છો?');
         if (!confirm(confirmMsg)) return;
         try {
             await api('curtailments/restore-all', {
@@ -715,28 +715,28 @@ export default function MobileAppView({
             return {
                 themeClass: 'sky-theme-dawn',
                 label: 'Sunrise Glow',
-                labelGu: '🌅 સોનેરી સૂર્યોદય',
+                labelGu: currentLang === 'en' ? 'Sunrise Glow' : '🌅 સોનેરી સૂર્યોદય',
                 icon: '🌅'
             };
         } else if (hour >= 9 && hour < 16) {
             return {
                 themeClass: 'sky-theme-noon',
                 label: 'Peak Solar Azure',
-                labelGu: '☀️ પીક સૂર્યપ્રકાશ (હાઇ જનરેશન)',
+                labelGu: currentLang === 'en' ? 'Peak Solar Azure' : '☀️ પીક સૂર્યપ્રકાશ (હાઇ જનરેશન)',
                 icon: '☀️'
             };
         } else if (hour >= 16 && hour < 19) {
             return {
                 themeClass: 'sky-theme-sunset',
                 label: 'Amber Sunset Dusk',
-                labelGu: '🌇 સાંધ્ય સોનેરી આકાશ',
+                labelGu: currentLang === 'en' ? 'Amber Sunset Dusk' : '🌇 સાંધ્ય સોનેરી આકાશ',
                 icon: '🌇'
             };
         } else {
             return {
                 themeClass: 'sky-theme-night',
                 label: 'OLED Midnight Standby',
-                labelGu: '⚡ પ્લાન્ટ સ્ટેન્ડબાય',
+                labelGu: currentLang === 'en' ? 'Plant Standby' : '⚡ પ્લાન્ટ સ્ટેન્ડબાય',
                 icon: '🌙'
             };
         }
@@ -803,6 +803,7 @@ export default function MobileAppView({
                         type="button"
                         onClick={() => {
                             triggerHaptic([40]);
+                            unlockVoiceCallAudio();
                             setShowVoiceCall(true);
                         }}
                         className="mobile-icon-btn call-ai-btn"
@@ -1064,7 +1065,7 @@ export default function MobileAppView({
                                 </span>
                             </div>
                             <p style={{fontSize: '11px', color: '#7f1d1d', margin: 0, lineHeight: 1.4, fontWeight: 600}}>
-                                દિવસે તડકો હોવા છતાં પ્લાન્ટનું લાઈવ ઉત્પાદન 0 kW છે. PGVCL 66kV સબસ્ટેશન લાઇન અથવા 11kV બ્રેકર ટ્રીપ થયું હોવાની શક્યતા છે. સબસ્ટેશન સ્ટાફનો સંપર્ક કરો.
+                                {currentLang === 'en' ? 'Plant power is 0 kW during daylight hours. High probability of PGVCL 66kV substation line or 11kV breaker tripping. Please contact substation staff.' : 'દિવસે તડકો હોવા છતાં પ્લાન્ટનું લાઈવ ઉત્પાદન 0 kW છે. PGVCL 66kV સબસ્ટેશન લાઇન અથવા 11kV બ્રેકર ટ્રીપ થયું હોવાની શક્યતા છે. સબસ્ટેશન સ્ટાફનો સંપર્ક કરો.'}
                             </p>
                         </div>
                     )}
@@ -1096,7 +1097,7 @@ export default function MobileAppView({
                                 <div style={{minWidth: 0}}>
                                     <div style={{display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap'}}>
                                         <b style={{fontSize: '13px', color: curtailmentSystem.is_any_active ? '#9a3412' : '#0f291e', fontWeight: 800}}>
-                                            {curtailmentSystem.is_any_active ? '⚡ PGVCL કર્ટલમેન્ટ ચાલુ છે' : '⚡ PGVCL: ૧૦૦% ફુલ પાવર'}
+                                            {curtailmentSystem.is_any_active ? (currentLang === 'en' ? '⚡ PGVCL Curtailment Active' : '⚡ PGVCL કર્ટલમેન્ટ ચાલુ છે') : (currentLang === 'en' ? '⚡ PGVCL: 100% Full Power' : '⚡ PGVCL: ૧૦૦% ફુલ પાવર')}
                                         </b>
                                         {curtailmentSystem.is_any_active && (
                                             <span style={{
@@ -1107,14 +1108,14 @@ export default function MobileAppView({
                                                 padding: '2px 7px',
                                                 borderRadius: '6px'
                                             }}>
-                                                {curtailmentSystem.active_count} પ્લાન્ટ
+                                                {curtailmentSystem.active_count} {currentLang === 'en' ? 'Plants' : 'પ્લાન્ટ'}
                                             </span>
                                         )}
                                     </div>
                                     <span style={{fontSize: '11px', color: curtailmentSystem.is_any_active ? '#c2410c' : '#64748b', display: 'block', marginTop: '1px'}}>
                                         {curtailmentSystem.is_any_active
-                                            ? 'PGVCL ઓર્ડર મુજબ ઉત્પાદન ઘટાડેલું છે.'
-                                            : 'બધા પ્લાન્ટ ૧૦૦% ક્ષમતાથી ચાલુ છે.'}
+                                            ? (currentLang === 'en' ? 'Production reduced per PGVCL order.' : 'PGVCL ઓર્ડર મુજબ ઉત્પાદન ઘટાડેલું છે.')
+                                            : (currentLang === 'en' ? 'All plants running at 100% capacity.' : 'બધા પ્લાન્ટ ૧૦૦% ક્ષમતાથી ચાલુ છે.')}
                                     </span>
                                 </div>
                             </div>
@@ -1140,7 +1141,7 @@ export default function MobileAppView({
                                         }}
                                     >
                                         <Zap size={13}/>
-                                        ૧૦૦% ફુલ પાવર
+                                        {currentLang === 'en' ? '100% Full Power' : '૧૦૦% ફુલ પાવર'}
                                     </button>
                                 ) : (
                                     <button
@@ -1162,7 +1163,7 @@ export default function MobileAppView({
                                         }}
                                     >
                                         <Sliders size={13}/>
-                                        ઘટાડો સેટ કરો
+                                        {currentLang === 'en' ? 'Set Curtailment' : 'ઘટાડો સેટ કરો'}
                                     </button>
                                 )}
 
@@ -1184,7 +1185,7 @@ export default function MobileAppView({
                                     }}
                                 >
                                     <History size={12}/>
-                                    ઇતિહાસ
+                                    {currentLang === 'en' ? 'History' : 'ઇતિહાસ'}
                                 </button>
                             </div>
                         </div>
@@ -1229,8 +1230,8 @@ export default function MobileAppView({
                                         <div style={{marginTop: '6px', background: '#fff7ed', borderRadius: '6px', padding: '6px 8px', border: '1px dashed #fed7aa', fontSize: '11px'}}>
                                             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', flexWrap: 'wrap'}}>
                                                 <div style={{display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap'}}>
-                                                    <span style={{color: '#9a3412', fontWeight: 700}}>🔌 બંધ ઇન્વર્ટર:</span>
-                                                    <b style={{color: '#1e293b'}}>{curt.inverter_names && curt.inverter_names.length > 0 ? curt.inverter_names.join(', ') : 'તમામ ઇન્વર્ટર'}</b>
+                                                    <span style={{color: '#9a3412', fontWeight: 700}}>{currentLang === 'en' ? '🔌 Cut Inverters:' : '🔌 બંધ ઇન્વર્ટર:'}</span>
+                                                    <b style={{color: '#1e293b'}}>{curt.inverter_names && curt.inverter_names.length > 0 ? curt.inverter_names.join(', ') : (currentLang === 'en' ? 'All Inverters' : 'તમામ ઇન્વર્ટર')}</b>
                                                 </div>
                                                 <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
                                                     <button
@@ -1250,7 +1251,7 @@ export default function MobileAppView({
                                                             cursor: 'pointer'
                                                         }}
                                                     >
-                                                        ✏️ બદલો
+                                                        {currentLang === 'en' ? '✏️ Change' : '✏️ બદલો'}
                                                     </button>
                                                     <button
                                                         type="button"
@@ -1265,9 +1266,9 @@ export default function MobileAppView({
                                                             fontWeight: 700,
                                                             cursor: 'pointer'
                                                         }}
-                                                        title="આ કંપની માટે પાવર કટ બંધ કરી ૧૦૦% ફુલ પાવર ચાલુ કરો"
+                                                        title={currentLang === 'en' ? 'Stop power cut and restore 100% full power for this company' : 'આ કંપની માટે પાવર કટ બંધ કરી ૧૦૦% ફુલ પાવર ચાલુ કરો'}
                                                     >
-                                                        🟢 ૧૦૦% Restore
+                                                        {currentLang === 'en' ? '🟢 100% Restore' : '🟢 ૧૦૦% Restore'}
                                                     </button>
                                                 </div>
                                             </div>
@@ -1291,7 +1292,7 @@ export default function MobileAppView({
                                                 if (pvChips.length > 0) {
                                                     return (
                                                         <div style={{display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap', marginTop: '4px'}}>
-                                                            <span style={{color: '#c2410c', fontWeight: 700}}>⚡ બંધ PV:</span>
+                                                            <span style={{color: '#c2410c', fontWeight: 700}}>{currentLang === 'en' ? '⚡ Cut PV:' : '⚡ બંધ PV:'}</span>
                                                             {pvChips.map((pv, pIdx) => (
                                                                 <span key={pIdx} style={{background: '#ea580c', color: '#fff', fontSize: '9.5px', fontWeight: 800, padding: '1px 5px', borderRadius: '3px'}}>
                                                                     {pv}
@@ -1302,7 +1303,7 @@ export default function MobileAppView({
                                                 }
                                                 return (
                                                     <div style={{marginTop: '2px', fontSize: '10px', color: '#7c2d12', fontWeight: 600}}>
-                                                        (પસંદ કરેલ ઇન્વર્ટરના તમામ PV સ્ટ્રિંગ્સ પર લાગુ)
+                                                        {currentLang === 'en' ? '(Applied to all PV strings of selected inverters)' : '(પસંદ કરેલ ઇન્વર્ટરના તમામ PV સ્ટ્રિંગ્સ પર લાગુ)'}
                                                     </div>
                                                 );
                                             })()}
@@ -1353,7 +1354,7 @@ export default function MobileAppView({
                                                             if (val >= 1 && val <= 100) {
                                                                 handleQuickStepChange(curt.company_id, val);
                                                             } else {
-                                                                alert('ટકાવારી ૧ થી ૧૦૦ વચ્ચે લખો (દા.ત. 22).');
+                                                                alert(currentLang === 'en' ? 'Please enter percentage between 1 and 100 (e.g. 22).' : 'ટકાવારી ૧ થી ૧૦૦ વચ્ચે લખો (દા.ત. 22).');
                                                             }
                                                         }}
                                                         style={{fontSize: '9.5px', padding: '1px 5px', borderRadius: '3px', border: 'none', background: '#ea580c', color: '#fff', fontWeight: 700, cursor: 'pointer'}}
@@ -1377,7 +1378,7 @@ export default function MobileAppView({
                                                     cursor: 'pointer'
                                                 }}
                                             >
-                                                ૧૦૦% Restore
+                                                {currentLang === 'en' ? '100% Restore' : '૧૦૦% Restore'}
                                             </button>
                                         </div>
                                     </div>
@@ -1494,9 +1495,9 @@ export default function MobileAppView({
                                 <div className="hourly-forecast-head">
                                     <div className="hourly-forecast-title">
                                         <Sparkles size={13} style={{color: '#0284c7'}}/>
-                                        <b>કલાકવાર ઉત્પાદન અંદાજ (Hourly Forecast)</b>
+                                        <b>{currentLang === 'en' ? 'Hourly Generation Forecast' : 'કલાકવાર ઉત્પાદન અંદાજ (Hourly Forecast)'}</b>
                                     </div>
-                                    <span className="hourly-forecast-sub">સાંજ સુધી</span>
+                                    <span className="hourly-forecast-sub">{currentLang === 'en' ? 'Till Evening' : 'સાંજ સુધી'}</span>
                                 </div>
                                 <div className="hourly-forecast-pills-row">
                                     {predictions.hourly_forecast.map((hf, hIdx) => (
@@ -1517,15 +1518,15 @@ export default function MobileAppView({
                             <div className="cleaning-head-left">
                                 <h3>
                                     <span style={{color: '#d97706'}}>⚡</span>
-                                    પ્લાન્ટ સ્માર્ટ ડાયગ્નોસ્ટિક & સફાઈ એલર્ટ
+                                    {currentLang === 'en' ? 'Plant Smart Diagnostics & Cleaning Alert' : 'પ્લાન્ટ સ્માર્ટ ડાયગ્નોસ્ટિક & સફાઈ એલર્ટ'}
                                     {((cleaningAlerts.length > 0) || (data?.smart_insights?.underperforming_inverters?.length > 0) || data?.smart_insights?.grid_downtime?.is_down) && (
                                         <span className="cleaning-head-badge">
-                                            🔴 {(cleaningAlerts.length || 0) + (data?.smart_insights?.underperforming_inverters?.length || 0) + (data?.smart_insights?.grid_downtime?.is_down ? 1 : 0)} ચેતવણી
+                                            🔴 {(cleaningAlerts.length || 0) + (data?.smart_insights?.underperforming_inverters?.length || 0) + (data?.smart_insights?.grid_downtime?.is_down ? 1 : 0)} {currentLang === 'en' ? 'Warnings' : 'ચેતવણી'}
                                         </span>
                                     )}
                                 </h3>
                                 <p className="cleaning-head-subtitle">
-                                    નબળા ઇન્વર્ટર, પાવર લોસ, ગ્રીડ ટ્રીપિંગ અને ધૂળનું ઓટોમેટિક AI નિદાન
+                                    {currentLang === 'en' ? 'Automatic AI diagnostics for weak inverters, power loss, grid tripping and dust' : 'નબળા ઇન્વર્ટર, પાવર લોસ, ગ્રીડ ટ્રીપિંગ અને ધૂળનું ઓટોમેટિક AI નિદાન'}
                                 </p>
                             </div>
                         </div>
@@ -1594,7 +1595,7 @@ export default function MobileAppView({
                                             fontSize: '11px',
                                             fontWeight: 800
                                         }}>
-                                            કમ્પ્લીટ સેવ ✅
+                                            {currentLang === 'en' ? 'Saved Successfully ✅' : 'કમ્પ્લીટ સેવ ✅'}
                                         </span>
                                     ) : (
                                         <button
@@ -1616,10 +1617,10 @@ export default function MobileAppView({
                                             }}
                                         >
                                             {dailyReadingStatus.status === 'meter_missing'
-                                                ? '➕ મીટર રીડિંગ ભરો'
+                                                ? (currentLang === 'en' ? '➕ Enter Meter Reading' : '➕ મીટર રીડિંગ ભરો')
                                                 : dailyReadingStatus.status === 'due_now'
-                                                    ? '➕ રીડિંગ ભરો'
-                                                    : '➕ ડેઇલી એન્ટ્રી ભરો'}
+                                                    ? (currentLang === 'en' ? '➕ Enter Reading' : '➕ રીડિંગ ભરો')
+                                                    : (currentLang === 'en' ? '➕ Enter Daily Entry' : '➕ ડેઇલી એન્ટ્રી ભરો')}
                                         </button>
                                     )}
                                 </div>
@@ -1682,11 +1683,11 @@ export default function MobileAppView({
                                             cursor: 'pointer'
                                         }}
                                     >
-                                        ➕ બાકી રીડિંગ ભરો
+                                        {currentLang === 'en' ? '➕ Enter Pending Reading' : '➕ બાકી રીડિંગ ભરો'}
                                     </button>
                                 </div>
                                 <span style={{fontSize: '11.5px', color: '#b91c1c'}}>
-                                    નીચેની તારીખનું ડેઇલી રીડિંગ અથવા મીટર રીડિંગ ભરવાનું બાકી છે:
+                                    {currentLang === 'en' ? 'Daily reading or meter reading is pending for the following date:' : 'નીચેની તારીખનું ડેઇલી રીડિંગ અથવા મીટર રીડિંગ ભરવાનું બાકી છે:'}
                                 </span>
                                 <div style={{display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '2px'}}>
                                     {pastReadingMissing.missing_dates?.map((mDate, dIdx) => (
@@ -1759,7 +1760,7 @@ export default function MobileAppView({
                                         }}
                                     >
                                         <Wind size={13}/>
-                                        {cleaningFanLoading ? 'સેવ થાય છે...' : 'આજે ફેન સાફ કર્યો (તારીખ સેવ કરો)'}
+                                        {cleaningFanLoading ? (currentLang === 'en' ? 'Saving...' : 'સેવ થાય છે...') : (currentLang === 'en' ? 'Fan Cleaned Today (Save Date)' : 'આજે ફેન સાફ કર્યો (તારીખ સેવ કરો)')}
                                     </button>
                                 </div>
                                 <div>
@@ -1767,7 +1768,7 @@ export default function MobileAppView({
                                         {fanCleaningStatus.title}
                                     </b>
                                     <span style={{fontSize: '11px', color: fanCleaningStatus.is_overdue ? '#b91c1c' : fanCleaningStatus.is_approaching ? '#b45309' : '#15803d', lineHeight: 1.4}}>
-                                        {fanCleaningStatus.message} (છેલ્લી સફાઈ: <b>{fanCleaningStatus.last_cleaned_at}</b>)
+                                        {fanCleaningStatus.message} ({currentLang === 'en' ? 'Last cleaned: ' : 'છેલ્લી સફાઈ: '}<b>{fanCleaningStatus.last_cleaned_at}</b>)
                                     </span>
                                 </div>
                             </div>
@@ -1787,7 +1788,7 @@ export default function MobileAppView({
                             }}>
                                 <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                                     <span style={{background: '#dc2626', color: '#fff', fontSize: '11px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px'}}>
-                                        {gridOutageAlert.badge || '⚡ ગ્રીડ સપ્લાય ટ્રીપ'}
+                                        {gridOutageAlert.badge || (currentLang === 'en' ? '⚡ Grid Supply Trip' : '⚡ ગ્રીડ સપ્લાય ટ્રીપ')}
                                     </span>
                                     <b style={{fontSize: '12.5px', color: '#991b1b'}}>
                                         {gridOutageAlert.title}
@@ -1836,7 +1837,7 @@ export default function MobileAppView({
                                                 cursor: 'pointer'
                                             }}
                                         >
-                                            🟢 ૧૦૦% Restore
+                                            {currentLang === 'en' ? '🟢 100% Restore' : '🟢 ૧૦૦% Restore'}
                                         </button>
                                     </div>
                                 ))}
@@ -1861,7 +1862,7 @@ export default function MobileAppView({
                                         }}>
                                             <div style={{display: 'flex', alignItems: 'center', gap: '7px'}}>
                                                 <span style={{background: isFireRisk ? '#dc2626' : '#e11d48', color: '#fff', fontSize: '11px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px'}}>
-                                                    {oAlert.badge || (isFireRisk ? '🚨 ઇન્વર્ટર આગ ખતરો' : '🔥 ઇન્વર્ટર હીટ એલર્ટ')}
+                                                    {oAlert.badge || (isFireRisk ? (currentLang === 'en' ? '🚨 Inverter Fire Risk' : '🚨 ઇન્વર્ટર આગ ખતરો') : (currentLang === 'en' ? '🔥 Inverter Heat Alert' : '🔥 ઇન્વર્ટર હીટ એલર્ટ'))}
                                                 </span>
                                                 <b style={{fontSize: '12.5px', color: isFireRisk ? '#991b1b' : '#9f1239'}}>
                                                     {oAlert.title}
@@ -1881,7 +1882,7 @@ export default function MobileAppView({
                             <div className="grid-downtime-alert-banner" style={{marginBottom: '8px'}}>
                                 <div className="grid-downtime-head">
                                     <span className="grid-downtime-tag">
-                                        <Activity size={13}/> 🚨 ગ્રીડ ટ્રીપિંગ ({data.smart_insights.grid_downtime.downtime_minutes} મિનિટ)
+                                        <Activity size={13}/> 🚨 {currentLang === 'en' ? `Grid Tripping (${data.smart_insights.grid_downtime.downtime_minutes} min)` : `ગ્રીડ ટ્રીપિંગ (${data.smart_insights.grid_downtime.downtime_minutes} મિનિટ)`}
                                     </span>
                                     <span className="grid-downtime-loss-val">
                                         -{data.smart_insights.grid_downtime.lost_units_kwh} kWh (₹{data.smart_insights.grid_downtime.lost_revenue_rs})
@@ -1896,10 +1897,10 @@ export default function MobileAppView({
                             <div className="weather-storm-banner" style={{marginBottom: '8px'}}>
                                 <div className="weather-storm-head">
                                     <span className="weather-storm-tag">
-                                        <Wind size={13}/> 🚨 તેજ પવન એલર્ટ (Wind Storm)
+                                        <Wind size={13}/> 🚨 {currentLang === 'en' ? 'Wind Storm Alert' : 'તેજ પવન એલર્ટ (Wind Storm)'}
                                     </span>
                                     <span className="weather-storm-speed">
-                                        {weather.storm_alert.wind_speed} (ઝાટકા: {weather.storm_alert.wind_gusts})
+                                        {weather.storm_alert.wind_speed} ({currentLang === 'en' ? 'Gusts: ' : 'ઝાટકા: '}{weather.storm_alert.wind_gusts})
                                     </span>
                                 </div>
                                 <p className="weather-storm-msg">
@@ -1923,9 +1924,9 @@ export default function MobileAppView({
                                             </span>
                                         </div>
                                         <div className="underperf-stats-row">
-                                            <span>જનરેશન: <b>{uInv.today_kwh}</b></span>
-                                            <span>એવરેજ: <b>{uInv.benchmark_kwh}</b></span>
-                                            <span>ઓછું: <b style={{color: '#dc2626'}}>-{uInv.diff_pct}%</b></span>
+                                            <span>{currentLang === 'en' ? 'Gen: ' : 'જનરેશન: '}<b>{uInv.today_kwh}</b></span>
+                                            <span>{currentLang === 'en' ? 'Avg: ' : 'એવરેજ: '}<b>{uInv.benchmark_kwh}</b></span>
+                                            <span>{currentLang === 'en' ? 'Lower: ' : 'ઓછું: '}<b style={{color: '#dc2626'}}>-{uInv.diff_pct}%</b></span>
                                         </div>
                                         <p className="underperf-advice">💡 {uInv.advice}</p>
                                     </div>
@@ -1944,11 +1945,11 @@ export default function MobileAppView({
                                         </div>
                                         <div className="cleaning-banner-pills-row" style={{paddingLeft: '6px', marginTop: '4px'}}>
                                             <span className="pill-healthy-baseline">
-                                                સામાન્ય કરંટ: {alert.healthy_avg} A
+                                                {currentLang === 'en' ? 'Baseline: ' : 'સામાન્ય કરંટ: '}{alert.healthy_avg} A
                                             </span>
                                             {alert.strings && alert.strings.map((str, sIdx) => (
                                                 <span key={sIdx} className="pill-problem-string">
-                                                    {str.string_label}: {str.current_a} A ({str.drop_pct}% પાવર લોસ - ધોવાની જરૂર)
+                                                    {str.string_label}: {str.current_a} A ({str.drop_pct}% {currentLang === 'en' ? 'Power Loss - Wash Needed' : 'પાવર લોસ - ધોવાની જરૂર'})
                                                 </span>
                                             ))}
                                         </div>
@@ -1988,7 +1989,7 @@ export default function MobileAppView({
                                         padding: '2px 8px',
                                         borderRadius: '12px'
                                     }}>
-                                        {rainAlert.status === 'raining_now' ? 'વરસાદ ચાલુ છે' : 'વરસાદની આગાહી'}
+                                        {rainAlert.status === 'raining_now' ? (currentLang === 'en' ? 'Raining Now' : 'વરસાદ ચાલુ છે') : (currentLang === 'en' ? 'Rain Forecast' : 'વરસાદની આગાહી')}
                                     </span>
                                     <CloudRain size={16} style={{color: '#1d4ed8'}}/>
                                     <span style={{fontSize: '12px', color: '#1e3a8a', fontWeight: 600}}>
@@ -1996,9 +1997,9 @@ export default function MobileAppView({
                                     </span>
                                 </div>
                                 <div style={{display: 'flex', gap: '10px', fontSize: '11px', color: '#1e40af', fontWeight: 700, marginTop: '6px', flexWrap: 'wrap'}}>
-                                    <span>શરૂઆત: <b>{rainAlert.start_time}</b></span>
-                                    <span>અંદાજિત રોકાણ: <b>{rainAlert.stop_time}</b></span>
-                                    <span>શક્યતા: <b>{rainAlert.probability}%</b></span>
+                                    <span>{currentLang === 'en' ? 'Start: ' : 'શરૂઆત: '}<b>{rainAlert.start_time}</b></span>
+                                    <span>{currentLang === 'en' ? 'Est. Stop: ' : 'અંદાજિત રોકાણ: '}<b>{rainAlert.stop_time}</b></span>
+                                    <span>{currentLang === 'en' ? 'Probability: ' : 'શક્યતા: '}<b>{rainAlert.probability}%</b></span>
                                 </div>
                             </div>
                         )}
@@ -2008,9 +2009,9 @@ export default function MobileAppView({
                                 <CheckCircle size={17} style={{color: '#16a34a', flexShrink: 0}}/>
                                 <span>
                                     {cleaningSystem.is_window_active && cleaningSystem.is_irradiance_sufficient ? (
-                                        'બધા PV સ્ટ્રિંગ્સ નોર્મલ કરંટ આપી રહ્યા છે. અત્યારે કોઈ પેનલ પર વધુ પડતી ધૂળ કે તાત્કાલિક સફાઈની જરૂરિયાત નથી.'
+                                        currentLang === 'en' ? 'All PV strings are delivering normal current. No immediate washing needed.' : 'બધા PV સ્ટ્રિંગ્સ નોર્મલ કરંટ આપી રહ્યા છે. અત્યારે કોઈ પેનલ પર વધુ પડતી ધૂળ કે તાત્કાલિક સફાઈની જરૂરિયાત નથી.'
                                     ) : (
-                                        'સ્માર્ટ વેધર ચેક: સૂર્યપ્રકાશ પૂરો હોય (10:30 AM થી 4:00 PM અને Irradiance > 600 W/m²) ત્યારે જ એક્યુરેટ સફાઈ એલર્ટ ચકાસાય છે.'
+                                        currentLang === 'en' ? 'Smart Weather Check: Cleaning alerts verified when irradiance > 600 W/m² (10:30 AM to 4:00 PM).' : 'સ્માર્ટ વેધર ચેક: સૂર્યપ્રકાશ પૂરો હોય (10:30 AM થી 4:00 PM અને Irradiance > 600 W/m²) ત્યારે જ એક્યુરેટ સફાઈ એલર્ટ ચકાસાય છે.'
                                     )}
                                 </span>
                             </div>
@@ -2143,7 +2144,7 @@ export default function MobileAppView({
                                                                         <span className="inv-name-text">{inv.name || `Inverter ${idx + 1}`}</span>
                                                                         {invNeedsCleaning && (
                                                                             <span className="inv-cleaning-alert-badge">
-                                                                                ⚠️ સફાઈ
+                                                                                ⚠️ {currentLang === 'en' ? 'Wash' : 'સફાઈ'}
                                                                             </span>
                                                                         )}
                                                                     </div>
@@ -2233,7 +2234,7 @@ export default function MobileAppView({
                                             setPage('entry');
                                         }}
                                     >
-                                        <span>📝 ડેઇલી એન્ટ્રી / મીટર રીડિંગ</span>
+                                        <span>{currentLang === 'en' ? '📝 Daily Entry / Reading' : '📝 ડેઇલી એન્ટ્રી / મીટર રીડિંગ'}</span>
                                         <div className="radial-icon-circle" style={{background: '#10b981'}}>
                                             <ClipboardPlus size={15}/>
                                         </div>
@@ -2248,7 +2249,7 @@ export default function MobileAppView({
                                         handleFanCleaned();
                                     }}
                                 >
-                                    <span>💨 ૧૦ દિવસ ફેન ક્લિનિંગ સેવ</span>
+                                    <span>{currentLang === 'en' ? '💨 Save 10-Day Fan Cleaning' : '💨 ૧૦ દિવસ ફેન ક્લિનિંગ સેવ'}</span>
                                     <div className="radial-icon-circle" style={{background: '#e11d48'}}>
                                         <Wind size={15}/>
                                     </div>
@@ -2264,7 +2265,7 @@ export default function MobileAppView({
                                             handleRestoreAll('all');
                                         }}
                                     >
-                                        <span>🟢 PGVCL: ૧૦૦% ફુલ પાવર</span>
+                                        <span>{currentLang === 'en' ? '🟢 PGVCL: 100% Full Power' : '🟢 PGVCL: ૧૦૦% ફુલ પાવર'}</span>
                                         <div className="radial-icon-circle" style={{background: '#16a34a'}}>
                                             <Zap size={15}/>
                                         </div>
@@ -2279,7 +2280,7 @@ export default function MobileAppView({
                                             openCurtailModal(null, 20);
                                         }}
                                     >
-                                        <span>⚡ PGVCL પાવર કટ સેટ કરો</span>
+                                        <span>{currentLang === 'en' ? '⚡ Set PGVCL Power Cut' : '⚡ PGVCL પાવર કટ સેટ કરો'}</span>
                                         <div className="radial-icon-circle" style={{background: '#f97316'}}>
                                             <Sliders size={15}/>
                                         </div>
@@ -2295,7 +2296,7 @@ export default function MobileAppView({
                                         setPage('gallery');
                                     }}
                                 >
-                                    <span>📸 પ્લાન્ટ ફોટો / કેમેરા</span>
+                                    <span>{currentLang === 'en' ? '📸 Plant Photos / Camera' : '📸 પ્લાન્ટ ફોટો / કેમેરા'}</span>
                                     <div className="radial-icon-circle" style={{background: '#3b82f6'}}>
                                         <Camera size={15}/>
                                     </div>
@@ -2311,7 +2312,7 @@ export default function MobileAppView({
                                             setPage('reports');
                                         }}
                                     >
-                                        <span>📊 માસિક જનરેશન રિપોર્ટ</span>
+                                        <span>{currentLang === 'en' ? '📊 Monthly Generation Report' : '📊 માસિક જનરેશન રિપોર્ટ'}</span>
                                         <div className="radial-icon-circle" style={{background: '#8b5cf6'}}>
                                             <BarChart3 size={15}/>
                                         </div>
@@ -2682,7 +2683,7 @@ export default function MobileAppView({
                                     onClick={handleClearAllNotifications}
                                 >
                                     <Trash2 size={15}/>
-                                    <span>બધી ક્લિયર કરો</span>
+                                    <span>{currentLang === 'en' ? 'Clear All' : 'બધી ક્લિયર કરો'}</span>
                                 </button>
                             )}
                             <button
@@ -2691,7 +2692,7 @@ export default function MobileAppView({
                                 style={{flex: 1}}
                                 onClick={() => setNotifCenterOpen(false)}
                             >
-                                બંધ કરો (Close)
+                                {currentLang === 'en' ? 'Close' : 'બંધ કરો (Close)'}
                             </button>
                         </div>
                     </div>
@@ -2722,7 +2723,7 @@ export default function MobileAppView({
                                     </span>
                                     {activeCompany?.owner_name && (
                                         <span style={{marginLeft: '6px', color: '#64748b', fontSize: '11px'}}>
-                                            · ઓનર: {activeCompany.owner_name}
+                                            · {currentLang === 'en' ? 'Owner: ' : 'ઓનર: '}{activeCompany.owner_name}
                                         </span>
                                     )}
                                 </p>
@@ -2739,7 +2740,7 @@ export default function MobileAppView({
                                 onClick={() => { setPage('gallery'); setMoreMenuOpen(false); }}
                             >
                                 <Camera size={18}/>
-                                <span>Gallery (પ્લાન્ટ ફોટા)</span>
+                                <span>{currentLang === 'en' ? 'Gallery (Plant Photos)' : 'Gallery (પ્લાન્ટ ફોટા)'}</span>
                             </button>
 
                             <button
@@ -2759,7 +2760,7 @@ export default function MobileAppView({
                                     onClick={() => { setPage('expenses'); setMoreMenuOpen(false); }}
                                 >
                                     <IndianRupee size={18}/>
-                                    <span>Expenses (ખર્ચ)</span>
+                                    <span>{currentLang === 'en' ? 'Expenses (Shared Costs)' : 'Expenses (ખર્ચ)'}</span>
                                 </button>
                             )}
 
@@ -2770,7 +2771,7 @@ export default function MobileAppView({
                                     onClick={() => { setPage(salaryTargetPage); setMoreMenuOpen(false); }}
                                 >
                                     <WalletCards size={18}/>
-                                    <span>Salaries (પગાર)</span>
+                                    <span>{currentLang === 'en' ? 'Salaries (Payroll)' : 'Salaries (પગાર)'}</span>
                                 </button>
                             )}
 
@@ -2907,10 +2908,10 @@ export default function MobileAppView({
                                 <div>
                                     <h3 style={{display: 'flex', alignItems: 'center', gap: '6px', color: '#9a3412', fontSize: '14px', margin: 0, fontWeight: 800}}>
                                         <Sliders size={16} style={{color: '#ea580c'}}/>
-                                        PGVCL પાવર ઘટાડો સેટ કરો (Curtailment)
+                                        {currentLang === 'en' ? 'Set PGVCL Curtailment' : 'PGVCL પાવર ઘટાડો સેટ કરો (Curtailment)'}
                                     </h3>
                                     <span style={{fontSize: '11px', color: '#7c2d12', marginTop: '2px', display: 'block'}}>
-                                        ઇન્વર્ટર અને PV સ્ટ્રિંગ લેવલ સિલેક્શન
+                                        {currentLang === 'en' ? 'Inverter & PV String Level Selection' : 'ઇન્વર્ટર અને PV સ્ટ્રિંગ લેવલ સિલેક્શન'}
                                     </span>
                                 </div>
                                 <button
@@ -2933,16 +2934,19 @@ export default function MobileAppView({
                                         padding: '7px 10px',
                                         fontSize: '11px',
                                         color: '#92400e',
-                                        lineHeight: '1.4'
                                     }}>
-                                        💡 <b>PGVCL નિયમ:</b> જે PV સ્ટ્રિંગ અથવા ઇન્વર્ટર બંધ કરશો, તેના પર ધૂળ/કચરાની ચેતવણી (Dust Alert) આપોઆપ બંધ થઈ જશે.
+                                        {currentLang === 'en' ? (
+                                            <>💡 <b>PGVCL Rule:</b> Turning off inverters or PV strings automatically pauses dust alerts for those units.</>
+                                        ) : (
+                                            <>💡 <b>PGVCL નિયમ:</b> જે PV સ્ટ્રિંગ અથવા ઇન્વર્ટર બંધ કરશો, તેના પર ધૂળ/કચરાની ચેતવણી (Dust Alert) આપોઆપ બંધ થઈ જશે.</>
+                                        )}
                                     </div>
 
                                     {/* 1. Company Mode Switch (Single vs Multi) */}
                                     <div style={{background: '#f8fafc', padding: '9px 10px', borderRadius: '8px', border: '1px solid #e2e8f0'}}>
                                         <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px'}}>
                                             <span style={{fontSize: '11.5px', fontWeight: 800, color: '#334155'}}>
-                                                🏢 કંપની પસંદગી:
+                                                {currentLang === 'en' ? '🏢 Company Selection:' : '🏢 કંપની પસંદગી:'}
                                             </span>
                                             <button
                                                 type="button"
@@ -2967,14 +2971,14 @@ export default function MobileAppView({
                                                     cursor: 'pointer'
                                                 }}
                                             >
-                                                {isMultiCompanyMode ? '✅ બહુવિધ કંપનીઓ (Multi)' : '➕ બહુવિધ કંપનીઓ પસંદ કરો'}
+                                                {isMultiCompanyMode ? (currentLang === 'en' ? '✅ Multiple Companies (Multi)' : '✅ બહુવિધ કંપનીઓ (Multi)') : (currentLang === 'en' ? '➕ Select Multiple Companies' : '➕ બહુવિધ કંપનીઓ પસંદ કરો')}
                                             </button>
                                         </div>
 
                                         {isMultiCompanyMode ? (
                                             <div>
                                                 <div style={{fontSize: '10.5px', color: '#64748b', marginBottom: '6px'}}>
-                                                    બધી કે પસંદગીની કંપનીઓ ટીક કરો:
+                                                    {currentLang === 'en' ? 'Select all or specific companies:' : 'બધી કે પસંદગીની કંપનીઓ ટીક કરો:'}
                                                 </div>
                                                 <div style={{display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px'}}>
                                                     {availableComps.map(c => {
@@ -3008,7 +3012,7 @@ export default function MobileAppView({
 
                                                 {/* Selected company tabs */}
                                                 <div style={{display: 'flex', alignItems: 'center', gap: '4px', borderTop: '1px dashed #cbd5e1', paddingTop: '6px'}}>
-                                                    <span style={{fontSize: '10px', color: '#64748b', whiteSpace: 'nowrap'}}>સેટિંગ્સ:</span>
+                                                    <span style={{fontSize: '10px', color: '#64748b', whiteSpace: 'nowrap'}}>{currentLang === 'en' ? 'Settings:' : 'સેટિંગ્સ:'}</span>
                                                     <div style={{display: 'flex', gap: '4px', overflowX: 'auto'}}>
                                                         {selectedCurtailCompIds.map(cId => {
                                                             const cfg = curtailConfigs[cId];
@@ -3071,10 +3075,10 @@ export default function MobileAppView({
                                         }}>
                                             <div>
                                                 <span style={{fontSize: '11px', fontWeight: 800, color: '#15803d', display: 'block'}}>
-                                                    ⚡ {activeCfg.name} માં પાવર કટ ચાલુ છે
+                                                    ⚡ {activeCfg.name} {currentLang === 'en' ? 'power cut is active' : 'માં પાવર કટ ચાલુ છે'}
                                                 </span>
                                                 <span style={{fontSize: '9.5px', color: '#166534'}}>
-                                                    માત્ર આ એક જ કંપની માટે પાવર કટ બંધ કરવો છે?
+                                                    {currentLang === 'en' ? 'Stop power cut only for this company?' : 'માત્ર આ એક જ કંપની માટે પાવર કટ બંધ કરવો છે?'}
                                                 </span>
                                             </div>
                                             <button
@@ -3095,7 +3099,7 @@ export default function MobileAppView({
                                                     whiteSpace: 'nowrap'
                                                 }}
                                             >
-                                                🟢 ૧૦૦% Restore (ચાલુ કરો)
+                                                {currentLang === 'en' ? '🟢 100% Restore' : '🟢 ૧૦૦% Restore (ચાલુ કરો)'}
                                             </button>
                                         </div>
                                     )}
@@ -3105,7 +3109,7 @@ export default function MobileAppView({
                                         <div style={{background: '#ffffff', padding: '9px 10px', borderRadius: '8px', border: '1px solid #e2e8f0'}}>
                                             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px'}}>
                                                 <label style={{fontSize: '11.5px', fontWeight: 700, color: '#334155'}}>
-                                                    {activeCfg.name} - પાવર કટ (%):
+                                                    {activeCfg.name} - {currentLang === 'en' ? 'Power Cut (%):' : 'પાવર કટ (%):'}
                                                 </label>
                                                 <div style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
                                                     <input
@@ -3170,10 +3174,10 @@ export default function MobileAppView({
                                             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px'}}>
                                                 <div>
                                                     <span style={{fontSize: '11.5px', fontWeight: 800, color: '#1e293b', display: 'block'}}>
-                                                        ઇન્વર્ટર અને PV સ્ટ્રિંગ્સ કંટ્રોલ
+                                                        {currentLang === 'en' ? 'Inverter & PV Strings Control' : 'ઇન્વર્ટર અને PV સ્ટ્રિંગ્સ કંટ્રોલ'}
                                                     </span>
                                                     <span style={{fontSize: '10px', color: '#64748b'}}>
-                                                        કુલ {(activeCfg.inverters || []).length} ઇન્વર્ટર | {(activeCfg.inverter_ids || []).length} સિલેક્ટ
+                                                        {currentLang === 'en' ? `Total ${(activeCfg.inverters || []).length} inverters | ${(activeCfg.inverter_ids || []).length} selected` : `કુલ ${(activeCfg.inverters || []).length} ઇન્વર્ટર | ${(activeCfg.inverter_ids || []).length} સિલેક્ટ`}
                                                     </span>
                                                 </div>
                                                 <div style={{display: 'flex', gap: '4px'}}>
@@ -3182,14 +3186,14 @@ export default function MobileAppView({
                                                         onClick={() => toggleAllInverters(true)}
                                                         style={{fontSize: '9.5px', padding: '2px 5px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', color: '#334155'}}
                                                     >
-                                                        બધા પસંદ
+                                                        {currentLang === 'en' ? 'Select All' : 'બધા પસંદ'}
                                                     </button>
                                                     <button
                                                         type="button"
                                                         onClick={() => toggleAllInverters(false)}
                                                         style={{fontSize: '9.5px', padding: '2px 5px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', color: '#334155'}}
                                                     >
-                                                        બધા રદ
+                                                        {currentLang === 'en' ? 'Clear All' : 'બધા રદ'}
                                                     </button>
                                                 </div>
                                             </div>
@@ -3235,11 +3239,11 @@ export default function MobileAppView({
                                                                                 borderRadius: '3px',
                                                                                 fontWeight: 700
                                                                             }}>
-                                                                                {pvCount} PV કટ
+                                                                                {pvCount} {currentLang === 'en' ? 'PV Cut' : 'PV કટ'}
                                                                             </span>
                                                                         ) : isInvChecked ? (
                                                                             <span style={{fontSize: '9.5px', color: '#16a34a', fontWeight: 600}}>
-                                                                                (બધા PV ચાલુ)
+                                                                                {currentLang === 'en' ? '(All PV On)' : '(બધા PV ચાલુ)'}
                                                                             </span>
                                                                         ) : null}
                                                                     </div>
@@ -3263,7 +3267,7 @@ export default function MobileAppView({
                                                                         fontWeight: 600
                                                                     }}
                                                                 >
-                                                                    <span>PV સ્ટ્રિંગ્સ</span>
+                                                                    <span>{currentLang === 'en' ? 'PV Strings' : 'PV સ્ટ્રિંગ્સ'}</span>
                                                                     {isAccordionOpen ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}
                                                                 </button>
                                                             </div>
@@ -3277,12 +3281,12 @@ export default function MobileAppView({
                                                                 }}>
                                                                     <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px'}}>
                                                                         <div style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', color: '#64748b'}}>
-                                                                            <span>PV કંટ્રોલ:</span>
+                                                                            <span>{currentLang === 'en' ? 'PV Control:' : 'PV કંટ્રોલ:'}</span>
                                                                             <span style={{display: 'inline-flex', alignItems: 'center', gap: '2px'}}>
-                                                                                <span style={{color: '#16a34a', fontSize: '9px'}}>●</span> ચાલુ
+                                                                                <span style={{color: '#16a34a', fontSize: '9px'}}>●</span> {currentLang === 'en' ? 'ON' : 'ચાલુ'}
                                                                             </span>
                                                                             <span style={{display: 'inline-flex', alignItems: 'center', gap: '2px'}}>
-                                                                                <span style={{color: '#ea580c', fontSize: '9px'}}>●</span> કટ
+                                                                                <span style={{color: '#ea580c', fontSize: '9px'}}>●</span> {currentLang === 'en' ? 'CUT' : 'કટ'}
                                                                             </span>
                                                                         </div>
                                                                         <div style={{display: 'flex', gap: '3px'}}>
@@ -3291,14 +3295,14 @@ export default function MobileAppView({
                                                                                 onClick={() => toggleAllPvsForInverter(invId, true)}
                                                                                 style={{fontSize: '9px', padding: '1px 5px', borderRadius: '3px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', color: '#334155'}}
                                                                             >
-                                                                                બધા કટ
+                                                                                {currentLang === 'en' ? 'Cut All' : 'બધા કટ'}
                                                                             </button>
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={() => toggleAllPvsForInverter(invId, false)}
                                                                                 style={{fontSize: '9px', padding: '1px 5px', borderRadius: '3px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', color: '#334155'}}
                                                                             >
-                                                                                બધા ચાલુ
+                                                                                {currentLang === 'en' ? 'All ON' : 'બધા ચાલુ'}
                                                                             </button>
                                                                         </div>
                                                                     </div>
@@ -3334,7 +3338,7 @@ export default function MobileAppView({
                                                                                         justifyContent: 'center',
                                                                                         gap: '4px'
                                                                                     }}
-                                                                                    title={isSelected ? `${stringLabel} પાવર કટ (બંધ)` : `${stringLabel} સામાન્ય (ચાલુ)`}
+                                                                                    title={isSelected ? `${stringLabel} ${currentLang === 'en' ? 'Power Cut (OFF)' : 'પાવર કટ (બંધ)'}` : `${stringLabel} ${currentLang === 'en' ? 'Normal (ON)' : 'સામાન્ય (ચાલુ)'}`}
                                                                                 >
                                                                                     <span style={{
                                                                                         display: 'inline-block',
@@ -3361,13 +3365,13 @@ export default function MobileAppView({
                                     {activeCfg && (
                                         <div className="solar-field-group">
                                             <label style={{display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#334155', marginBottom: '4px'}}>
-                                                નોંધ (Notes / Reason):
+                                                {currentLang === 'en' ? 'Notes / Reason:' : 'નોંધ (Notes / Reason):'}
                                             </label>
                                             <input
                                                 type="text"
                                                 value={activeCfg.notes || ''}
                                                 onChange={e => updateActiveCurtailConfig('notes', e.target.value)}
-                                                placeholder="દા.ત. PGVCL Grid Curtailment Order"
+                                                placeholder={currentLang === 'en' ? 'e.g. PGVCL Grid Curtailment Order' : 'દા.ત. PGVCL Grid Curtailment Order'}
                                                 style={{width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px'}}
                                             />
                                         </div>
@@ -3377,8 +3381,8 @@ export default function MobileAppView({
                                         <div style={{
                                             padding: '8px',
                                             borderRadius: '6px',
-                                            background: curtailMessage.includes('ભૂલ') ? '#fef2f2' : '#f0fdf4',
-                                            color: curtailMessage.includes('ભૂલ') ? '#b91c1c' : '#15803d',
+                                            background: (curtailMessage.toLowerCase().includes('error') || curtailMessage.includes('ભૂલ')) ? '#fef2f2' : '#f0fdf4',
+                                            color: (curtailMessage.toLowerCase().includes('error') || curtailMessage.includes('ભૂલ')) ? '#b91c1c' : '#15803d',
                                             fontSize: '11.5px',
                                             fontWeight: 600
                                         }}>
@@ -3394,7 +3398,7 @@ export default function MobileAppView({
                                         onClick={() => setShowCurtailModal(false)}
                                         style={{padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', cursor: 'pointer'}}
                                     >
-                                        રદ કરો (Cancel)
+                                        {currentLang === 'en' ? 'Cancel' : 'રદ કરો (Cancel)'}
                                     </button>
                                     <button
                                         type="submit"
@@ -3410,7 +3414,7 @@ export default function MobileAppView({
                                             cursor: 'pointer'
                                         }}
                                     >
-                                        {curtailSaving ? 'લાગુ થઈ રહ્યું છે...' : `⚡ ${isMultiCompanyMode && selectedCurtailCompIds.length > 1 ? `બધી (${selectedCurtailCompIds.length}) કંપનીઓ માટે સેટ કરો` : 'PGVCL ઘટાડો સેટ કરો'}`}
+                                        {curtailSaving ? (currentLang === 'en' ? 'Applying...' : 'લાગુ થઈ રહ્યું છે...') : `⚡ ${isMultiCompanyMode && selectedCurtailCompIds.length > 1 ? (currentLang === 'en' ? `Set for all (${selectedCurtailCompIds.length}) companies` : `બધી (${selectedCurtailCompIds.length}) કંપનીઓ માટે સેટ કરો`) : (currentLang === 'en' ? 'Apply Curtailment' : 'PGVCL ઘટાડો સેટ કરો')}`}
                                     </button>
                                 </div>
                             </form>
@@ -3432,10 +3436,10 @@ export default function MobileAppView({
                                 <div>
                                     <h3 style={{display: 'flex', alignItems: 'center', gap: '6px', color: '#0369a1', fontSize: '14px', margin: 0, fontWeight: 800}}>
                                         <History size={16} style={{color: '#0284c7'}}/>
-                                        PGVCL કર્ટલમેન્ટ ઇતિહાસ & લોસ હિસાબ
+                                        {currentLang === 'en' ? 'Curtailment History & Loss Calculation' : 'PGVCL કર્ટલમેન્ટ ઇતિહાસ & લોસ હિસાબ'}
                                     </h3>
                                     <span style={{fontSize: '10.5px', color: '#0284c7', display: 'block', marginTop: '2px'}}>
-                                        ઇન્વર્ટર, PV સ્ટ્રિંગ્સ અને ટાઇમલાઇન હિસ્ટોગ્રામ
+                                        {currentLang === 'en' ? 'Inverter, PV Strings & Timeline Histogram' : 'ઇન્વર્ટર, PV સ્ટ્રિંગ્સ અને ટાઇમલાઇન હિસ્ટોગ્રામ'}
                                     </span>
                                 </div>
                                 <button
@@ -3458,7 +3462,7 @@ export default function MobileAppView({
                                 }}>
                                     <div style={{background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '7px', padding: '8px 10px'}}>
                                         <span style={{fontSize: '10.5px', color: '#991b1b', fontWeight: 600, display: 'block'}}>
-                                            કુલ યુનિટ્સ લોસ:
+                                            {currentLang === 'en' ? 'Total Units Loss:' : 'કુલ યુનિટ્સ લોસ:'}
                                         </span>
                                         <span style={{fontSize: '15px', fontWeight: 800, color: '#dc2626'}}>
                                             -{totalLostKwh.toFixed(1)} <small style={{fontSize: '11px'}}>kWh</small>
@@ -3466,7 +3470,7 @@ export default function MobileAppView({
                                     </div>
                                     <div style={{background: '#fff1f2', border: '1px solid #ffe4e6', borderRadius: '7px', padding: '8px 10px'}}>
                                         <span style={{fontSize: '10.5px', color: '#9f1239', fontWeight: 600, display: 'block'}}>
-                                            કુલ અંદાજિત નુકસાન:
+                                            {currentLang === 'en' ? 'Total Estimated Loss:' : 'કુલ અંદાજિત નુકસાન:'}
                                         </span>
                                         <span style={{fontSize: '15px', fontWeight: 800, color: '#be123c'}}>
                                             -₹{totalLostRs.toFixed(2)}
@@ -3476,11 +3480,11 @@ export default function MobileAppView({
 
                                 {historyLoading ? (
                                     <div style={{padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '12px'}}>
-                                        ઇતિહાસ લોડ થઈ રહ્યો છે...
+                                        {currentLang === 'en' ? 'Loading history...' : 'ઇતિહાસ લોડ થઈ રહ્યો છે...'}
                                     </div>
                                 ) : historyList.length === 0 ? (
                                     <div style={{padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '12px'}}>
-                                        અત્યાર સુધી કોઈ પાછલો કર્ટલમેન્ટ રેકોર્ડ નથી.
+                                        {currentLang === 'en' ? 'No past curtailment records found.' : 'અત્યાર સુધી કોઈ પાછલો કર્ટલમેન્ટ રેકોર્ડ નથી.'}
                                     </div>
                                 ) : (
                                     <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
@@ -3518,11 +3522,11 @@ export default function MobileAppView({
                                                             <b style={{fontSize: '12.5px', color: '#0f172a'}}>🏢 {hItem.company_name}</b>
                                                             {hItem.is_active ? (
                                                                 <span style={{fontSize: '9.5px', background: '#fee2e2', color: '#dc2626', padding: '1px 5px', borderRadius: '3px', fontWeight: 800}}>
-                                                                    🔴 ચાલુ છે
+                                                                    🔴 {currentLang === 'en' ? 'Active' : 'ચાલુ છે'}
                                                                 </span>
                                                             ) : (
                                                                 <span style={{fontSize: '9.5px', background: '#f0fdf4', color: '#16a34a', padding: '1px 5px', borderRadius: '3px', fontWeight: 700}}>
-                                                                    ✅ પૂર્ણ
+                                                                    ✅ {currentLang === 'en' ? 'Completed' : 'પૂર્ણ'}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -3535,7 +3539,7 @@ export default function MobileAppView({
                                                     <div>
                                                         <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10.5px', marginBottom: '3px'}}>
                                                             <span style={{color: '#475569', fontWeight: 700}}>
-                                                                કર્ટલમેન્ટ ઘટાડો: <b style={{color: barColor}}>{pct}%</b>
+                                                                {currentLang === 'en' ? 'Curtailment Cut: ' : 'કર્ટલમેન્ટ ઘટાડો: '}<b style={{color: barColor}}>{pct}%</b>
                                                             </span>
                                                             <span style={{color: '#64748b', fontSize: '10px'}}>
                                                                 {hItem.duration_human}
@@ -3561,8 +3565,8 @@ export default function MobileAppView({
 
                                                     {/* Row 3: Timestamps */}
                                                     <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10.5px', color: '#64748b'}}>
-                                                        <span>⏰ શરૂ: <b>{hItem.started_at_human}</b></span>
-                                                        <span>🏁 પૂરું: <b>{hItem.ended_at_human}</b></span>
+                                                        <span>⏰ {currentLang === 'en' ? 'Started: ' : 'શરૂ: '}<b>{hItem.started_at_human}</b></span>
+                                                        <span>🏁 {currentLang === 'en' ? 'Ended: ' : 'પૂરું: '}<b>{hItem.ended_at_human}</b></span>
                                                     </div>
 
                                                     {/* Row 4: Inverters & PV Strings Shut Down */}
@@ -3578,7 +3582,7 @@ export default function MobileAppView({
                                                         }}>
                                                             {hItem.inverter_names && hItem.inverter_names.length > 0 && (
                                                                 <div style={{display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
-                                                                    <span style={{color: '#64748b', fontWeight: 600}}>ઇન્વર્ટર:</span>
+                                                                    <span style={{color: '#64748b', fontWeight: 600}}>{currentLang === 'en' ? 'Inverters:' : 'ઇન્વર્ટર:'}</span>
                                                                     {hItem.inverter_names.map((inm, inIdx) => (
                                                                         <span key={inIdx} style={{background: '#e2e8f0', color: '#334155', padding: '1px 5px', borderRadius: '3px', fontSize: '10px', fontWeight: 700}}>
                                                                             {inm}
@@ -3588,7 +3592,7 @@ export default function MobileAppView({
                                                             )}
                                                             {flatPvList.length > 0 && (
                                                                 <div style={{display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap'}}>
-                                                                    <span style={{color: '#ea580c', fontWeight: 600}}>બંધ PV:</span>
+                                                                    <span style={{color: '#ea580c', fontWeight: 600}}>{currentLang === 'en' ? 'Cut PV:' : 'બંધ PV:'}</span>
                                                                     {flatPvList.map((pv, pIdx) => (
                                                                         <span key={pIdx} style={{background: '#ffedd5', color: '#c2410c', padding: '1px 5px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 800}}>
                                                                             {pv}
@@ -3626,7 +3630,7 @@ export default function MobileAppView({
                                     onClick={() => setShowCurtailHistory(false)}
                                     style={{fontSize: '11.5px', padding: '5px 12px', borderRadius: '5px', border: '1px solid #cbd5e1', background: '#ffffff', cursor: 'pointer'}}
                                 >
-                                    બંધ કરો (Close)
+                                    {currentLang === 'en' ? 'Close' : 'બંધ કરો (Close)'}
                                 </button>
                             </div>
                         </div>

@@ -4,8 +4,16 @@ import {api} from '../api';
 import {Empty, Field, Loading, Metric} from '../components/Common';
 import {monthStart, today} from '../config';
 import {number, indianAmount, shortDate} from '../format';
+import { getLanguage, t } from '../utils/translations';
 
 export default function ExpensesPage({currentUser}) {
+    const [currentLang, setCurrentLang] = useState(getLanguage());
+
+    useEffect(() => {
+        const handleLangChange = (e) => setCurrentLang(e.detail);
+        window.addEventListener('solarflow_language_change', handleLangChange);
+        return () => window.removeEventListener('solarflow_language_change', handleLangChange);
+    }, []);
     const [from, setFrom] = useState(monthStart());
     const [to, setTo] = useState(today());
     const [data, setData] = useState(null);
@@ -97,10 +105,10 @@ export default function ExpensesPage({currentUser}) {
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '14px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px'}}>
                         <div>
                             <h2 style={{margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px'}}>
-                                <span>📑</span> કંપની વાઇઝ રોકાણ & લેતી-દેતી હિસાબ (ગુજરાતી સારાંશ)
+                                <span>📑</span> {currentLang === 'en' ? 'Company Investment & Settlement Summary' : 'કંપની વાઇઝ રોકાણ & લેતી-દેતી હિસાબ (ગુજરાતી સારાંશ)'}
                             </h2>
                             <p style={{margin: '3px 0 0', fontSize: '12px', color: '#64748b'}}>
-                                દરેક ભાગીદાર કંપનીએ અત્યાર સુધીમાં કેટલા રૂપિયા ચૂકવ્યા અને કોની પાસેથી કેટલા લેવાના/આપવાના બાકી છે તેનો ચોખ્ખો હિસાબ.
+                                {currentLang === 'en' ? 'Clear summary of total partner contributions and pending receivables/payables.' : 'દરેક ભાગીદાર કંપનીએ અત્યાર સુધીમાં કેટલા રૂપિયા ચૂકવ્યા અને કોની પાસેથી કેટલા લેવાના/આપવાના બાકી છે તેનો ચોખ્ખો હિસાબ.'}
                             </p>
                         </div>
                         <div style={{
@@ -112,7 +120,7 @@ export default function ExpensesPage({currentUser}) {
                             flexDirection: 'column',
                             alignItems: 'flex-end'
                         }}>
-                            <span style={{fontSize: '10.5px', fontWeight: 700, color: '#047857'}}>અત્યાર સુધીનો કુલ શેરિંગ ખર્ચ પૂલ</span>
+                            <span style={{fontSize: '10.5px', fontWeight: 700, color: '#047857'}}>{currentLang === 'en' ? 'Overall Total Shared Expenses Pool' : 'અત્યાર સુધીનો કુલ શેરિંગ ખર્ચ પૂલ'}</span>
                             <strong style={{fontSize: '18px', fontWeight: 900, color: '#065f46'}}>₹{data.gujarati_summary.total_spent_formatted}</strong>
                         </div>
                     </div>
@@ -146,7 +154,7 @@ export default function ExpensesPage({currentUser}) {
                                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px'}}>
                                         <div>
                                             <b style={{fontSize: '14px', color: '#0f172a'}}>{comp.name}</b>
-                                            <div style={{fontSize: '11px', color: '#64748b'}}>ભાગીદારી હિસ્સો: <b>{comp.percentage}%</b></div>
+                                            <div style={{fontSize: '11px', color: '#64748b'}}>{currentLang === 'en' ? 'Ownership Share:' : 'ભાગીદારી હિસ્સો:'} <b>{comp.percentage}%</b></div>
                                         </div>
                                         <span style={{
                                             fontSize: '10.5px',
@@ -170,24 +178,24 @@ export default function ExpensesPage({currentUser}) {
                                         border: '1px solid rgba(0,0,0,0.05)'
                                     }}>
                                         <div>
-                                            <div style={{fontSize: '10px', color: '#64748b', fontWeight: 600}}>કુલ કાઢેલ રકમ (આપ્યા):</div>
+                                            <div style={{fontSize: '10px', color: '#64748b', fontWeight: 600}}>{currentLang === 'en' ? 'Total Paid by Company:' : 'કુલ કાઢેલ રકમ (આપ્યા):'}</div>
                                             <div style={{fontSize: '14px', fontWeight: 850, color: '#0f172a'}}>₹{comp.total_paid_formatted}</div>
                                         </div>
                                         <div>
-                                            <div style={{fontSize: '10px', color: '#64748b', fontWeight: 600}}>ટકાવારી મુજબ હિસ્સો:</div>
+                                            <div style={{fontSize: '10px', color: '#64748b', fontWeight: 600}}>{currentLang === 'en' ? 'Expected Share (%):' : 'ટકાવારી મુજબ હિસ્સો:'}</div>
                                             <div style={{fontSize: '13px', fontWeight: 750, color: '#475569'}}>₹{comp.fair_share_formatted}</div>
                                         </div>
                                     </div>
 
                                     <div style={{fontSize: '11.5px', color: '#334155', lineHeight: '1.4', marginTop: '2px'}}>
                                         {isReceivable && (
-                                            <span>🟢 <b>{comp.name}</b> એ પોતાના હિસ્સા કરતાં વધુ ખર્ચ કર્યો હોવાથી બીજી કંપનીઓ પાસેથી <b>₹{Math.abs(comp.net_balance).toLocaleString('en-IN', {minimumFractionDigits: 2})} લેવાના બાકી</b> છે.</span>
+                                            <span>🟢 <b>{comp.name}</b> {currentLang === 'en' ? 'has spent more than its share. Receivable from partner companies:' : 'એ પોતાના હિસ્સા કરતાં વધુ ખર્ચ કર્યો હોવાથી બીજી કંપનીઓ પાસેથી'} <b>₹{Math.abs(comp.net_balance).toLocaleString('en-IN', {minimumFractionDigits: 2})} લેવાના બાકી</b> છે.</span>
                                         )}
                                         {isPayable && (
-                                            <span>🔴 <b>{comp.name}</b> એ પોતાના હિસ્સા કરતાં ઓછો ખર્ચ કર્યો હોવાથી બીજી કંપનીઓને <b>₹{Math.abs(comp.net_balance).toLocaleString('en-IN', {minimumFractionDigits: 2})} આપવાના બાકી</b> છે.</span>
+                                            <span>🔴 <b>{comp.name}</b> {currentLang === 'en' ? 'has spent less than its share. Payable to partner companies:' : 'એ પોતાના હિસ્સા કરતાં ઓછો ખર્ચ કર્યો હોવાથી બીજી કંપનીઓને'} <b>₹{Math.abs(comp.net_balance).toLocaleString('en-IN', {minimumFractionDigits: 2})} આપવાના બાકી</b> છે.</span>
                                         )}
                                         {comp.status_type === 'settled' && (
-                                            <span>⚪ બધા હિસાબો સંપૂર્ણ સરભર થયેલા છે.</span>
+                                            <span>⚪ {currentLang === 'en' ? 'All accounts are fully settled.' : 'બધા હિસાબો સંપૂર્ણ સરભર થયેલા છે.'}</span>
                                         )}
                                     </div>
                                 </div>
@@ -207,7 +215,7 @@ export default function ExpensesPage({currentUser}) {
                             gap: '6px'
                         }}>
                             <b style={{fontSize: '12px', color: '#92400e', display: 'flex', alignItems: 'center', gap: '6px'}}>
-                                <span>📌</span> પેન્ડિંગ ચૂકવણી વિગત (કોણે કોને કેટલા આપવાના છે):
+                                <span>📌</span> {currentLang === 'en' ? 'Pending Settlements (Who pays whom):' : 'પેન્ડિંગ ચૂકવણી વિગત (કોણે કોને કેટલા આપવાના છે):'}
                             </b>
                             <div style={{display: 'flex', flexDirection: 'column', gap: '4px'}}>
                                 {data.gujarati_summary.pending_settlements.map((ps, idx) => (
@@ -274,7 +282,7 @@ export default function ExpensesPage({currentUser}) {
                                         <td className="strong">{pair.first_company.name} ↔ {pair.second_company.name}</td>
                                         <td>
                                             {pair.status === 'cleared'
-                                                ? 'No amount pending (સરભર)'
+                                                ? (currentLang === 'en' ? 'No amount pending (Settled)' : 'No amount pending (સરભર)')
                                                 : <span><b>{pair.debtor_company.name}</b> pays <b>{pair.creditor_company.name}</b></span>}
                                         </td>
                                         <td className="strong" style={{color: pair.status === 'cleared' ? '#64748b' : '#b91c1c'}}>
@@ -517,15 +525,15 @@ function LedgerRow({entry, canManage, onEdit, onCancel, onReverse}) {
                     {entry.allocations?.map(row => {
                         const net = row.net_effect ?? ((row.amount_paid || 0) - row.amount);
                         const netText = net > 0.001
-                            ? `(+₹${number(net)} લેવાના)`
+                            ? (currentLang === 'en' ? `(+₹${number(net)} Receivable)` : `(+₹${number(net)} લેવાના)`)
                             : net < -0.001
-                                ? `(-₹${number(Math.abs(net))} દેવાના)`
-                                : '(સરભર)';
+                                ? (currentLang === 'en' ? `(-₹${number(Math.abs(net))} Payable)` : `(-₹${number(Math.abs(net))} દેવાના)`)
+                                : (currentLang === 'en' ? '(Settled)' : '(સરભર)');
                         const netColor = net > 0.001 ? '#15803d' : net < -0.001 ? '#b91c1c' : '#64748b';
 
                         return (
                             <span key={row.company.id}>
-                                <b>{row.company.name}</b> {number(row.percentage)}% · ખર્ચ: ₹{number(row.amount)}{' '}
+                                <b>{row.company.name}</b> {number(row.percentage)}% · {currentLang === 'en' ? 'Expense: ' : 'ખર્ચ: '}₹{number(row.amount)}{' '}
                                 <small style={{color: netColor, fontWeight: 700}}>{netText}</small>
                             </span>
                         );
@@ -705,13 +713,13 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
     const step1Valid = expenseDate && purchaserName.trim() && description.trim() && parsedAmount > 0;
     const step3Valid = payerMode === 'single' ? true : isPaidValid;
 
-    const scopeLabel = allocationScope === 'single' ? '૧ કંપની (100% Direct)'
-        : allocationScope === 'two' ? '૨ કંપનીઓ (2 Companies)'
-        : 'ત્રણેય કંપનીઓ (All 3 Master %)';
+    const scopeLabel = allocationScope === 'single' ? (currentLang === 'en' ? '1 Company (100% Direct)' : '૧ કંપની (100% Direct)')
+        : allocationScope === 'two' ? (currentLang === 'en' ? '2 Companies' : '૨ કંપનીઓ (2 Companies)')
+        : (currentLang === 'en' ? 'All 3 Companies (Master %)' : 'ત્રણેય કંપનીઓ (All 3 Master %)');
 
     const payerLabel = payerMode === 'single'
         ? companies.find(c => String(c.id) === String(singlePayerId))?.name || '—'
-        : `${selectedPayers.length} કંપનીઓ`;
+        : (currentLang === 'en' ? `${selectedPayers.length} Companies` : `${selectedPayers.length} કંપનીઓ`);
 
     const save = async event => {
         event.preventDefault();
@@ -771,15 +779,15 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
                 {/* Header */}
                 <div className="panel-head expense-sheet-head">
                     <div>
-                        <h2>{entry ? 'Edit Shared Expense' : 'Add Shared Expense (શેર્ડ ખર્ચ)'}</h2>
-                        <p>કંપનીઓ વચ્ચે ભાગીદારી ખર્ચ અને ચૂકવણીની સરળ એન્ટ્રી</p>
+                        <h2>{entry ? (currentLang === 'en' ? 'Edit Shared Expense' : 'Edit Shared Expense (શેર્ડ ખર્ચ)') : (currentLang === 'en' ? 'Add Shared Expense' : 'Add Shared Expense (શેર્ડ ખર્ચ)')}</h2>
+                        <p>{currentLang === 'en' ? 'Shared expense entry and settlement management across partner companies' : 'કંપનીઓ વચ્ચે ભાગીદારી ખર્ચ અને ચૂકવણીની સરળ એન્ટ્રી'}</p>
                     </div>
                     <button type="button" className="icon-button ghost modal-close-chip" onClick={onClose}><X size={18}/></button>
                 </div>
 
                 {/* Step Progress Bar */}
                 <div className="expense-step-progress">
-                    {['માહિતી', 'ખર્ચ કોનો?', 'ચૂકવ્યા?', 'Confirm'].map((label, i) => (
+                    {(currentLang === 'en' ? ['Info', 'Beneficiary', 'Paid By', 'Confirm'] : ['માહિતી', 'ખર્ચ કોનો?', 'ચૂકવ્યા?', 'Confirm']).map((label, i) => (
                         <div key={i} className={`step-prog-item ${step === i + 1 ? 'active' : step > i + 1 ? 'done' : ''}`}>
                             <div className="step-prog-circle">{step > i + 1 ? '✓' : i + 1}</div>
                             <span>{label}</span>
@@ -794,14 +802,14 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
                         <div className="wizard-step-panel">
                             <div className="wizard-step-title">
                                 <span className="step-num-badge">1</span>
-                                <b>ખર્ચની મૂળ માહિતી</b>
+                                <b>{currentLang === 'en' ? 'Basic Expense Details' : 'ખર્ચની મૂળ માહિતી'}</b>
                             </div>
 
-                            <Field label="Expense Date (ખર્ચની તારીખ)">
+                            <Field label={currentLang === 'en' ? 'Expense Date' : 'Expense Date (ખર્ચની તારીખ)'}>
                                 <input type="date" max={today()} value={expenseDate} onChange={e => setExpenseDate(e.target.value)} required/>
                             </Field>
 
-                            <Field label="Total Amount (કુલ રકમ ₹)">
+                            <Field label={currentLang === 'en' ? 'Total Amount (₹)' : 'Total Amount (કુલ રકમ ₹)'}>
                                 <input
                                     type="number"
                                     min="0.01"
@@ -819,19 +827,19 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
                                 )}
                             </Field>
 
-                            <Field label="Purchased By (ખર્ચ કરનારનું નામ)">
+                            <Field label={currentLang === 'en' ? 'Purchased By' : 'Purchased By (ખર્ચ કરનારનું નામ)'}>
                                 <input value={purchaserName} maxLength="150" onChange={e => setPurchaserName(e.target.value)} required/>
                             </Field>
 
-                            <Field label="Description (ખર્ચની વિગત)">
+                            <Field label={currentLang === 'en' ? 'Description' : 'Description (ખર્ચની વિગત)'}>
                                 <input value={description} maxLength="255" onChange={e => setDescription(e.target.value)} required/>
                             </Field>
 
-                            <Field label="Notes (નોંધ / Remarks)">
+                            <Field label={currentLang === 'en' ? 'Notes / Remarks' : 'Notes (નોંધ / Remarks)'}>
                                 <input value={notes} onChange={e => setNotes(e.target.value)}/>
                             </Field>
 
-                            <Field label="Receipt upload (બિલની રસીદ)">
+                            <Field label={currentLang === 'en' ? 'Receipt Upload' : 'Receipt upload (બિલની રસીદ)'}>
                                 <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={e => setReceipt(e.target.files?.[0] || null)}/>
                             </Field>
 
@@ -849,27 +857,27 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
                         <div className="wizard-step-panel">
                             <div className="wizard-step-title">
                                 <span className="step-num-badge">2</span>
-                                <b>ખર્ચ કોના માટે થયો છે? (Beneficiary Scope)</b>
+                                <b>{currentLang === 'en' ? 'Beneficiary Scope' : 'ખર્ચ કોના માટે થયો છે? (Beneficiary Scope)'}</b>
                             </div>
 
                             <div className="scope-pills-row">
                                 <label className={`scope-pill-btn ${allocationScope === 'all' ? 'active' : ''}`}>
                                     <input type="radio" name="alloc_scope" checked={allocationScope === 'all'} onChange={() => setAllocationScope('all')}/>
-                                    <span>ત્રણેય કંપનીઓ (All 3 Master %)</span>
+                                    <span>{currentLang === 'en' ? 'All 3 Companies (Master %)' : 'ત્રણેય કંપનીઓ (All 3 Master %)'}</span>
                                 </label>
                                 <label className={`scope-pill-btn ${allocationScope === 'two' ? 'active' : ''}`}>
                                     <input type="radio" name="alloc_scope" checked={allocationScope === 'two'} onChange={() => setAllocationScope('two')}/>
-                                    <span>૨ કંપનીઓ (2 Companies)</span>
+                                    <span>{currentLang === 'en' ? '2 Companies' : '૨ કંપનીઓ (2 Companies)'}</span>
                                 </label>
                                 <label className={`scope-pill-btn ${allocationScope === 'single' ? 'active' : ''}`}>
                                     <input type="radio" name="alloc_scope" checked={allocationScope === 'single'} onChange={() => setAllocationScope('single')}/>
-                                    <span>૧ કંપની (100% Direct)</span>
+                                    <span>{currentLang === 'en' ? '1 Company (100% Direct)' : '૧ કંપની (100% Direct)'}</span>
                                 </label>
                             </div>
 
                             {allocationScope === 'two' && (
                                 <div className="scope-sub-panel">
-                                    <span className="sub-panel-label">કોઈપણ ૨ કંપની પસંદ કરો:</span>
+                                    <span className="sub-panel-label">{currentLang === 'en' ? 'Select any 2 companies:' : 'કોઈપણ ૨ કંપની પસંદ કરો:'}</span>
                                     <div className="companies-chips-list">
                                         {companies.map(c => (
                                             <label key={c.id} className={`company-check-chip ${selectedBeneficiaries.includes(c.id) ? 'checked' : ''}`}>
@@ -883,7 +891,7 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
 
                             {allocationScope === 'single' && (
                                 <div className="scope-sub-panel">
-                                    <span className="sub-panel-label">કઈ કંપનીનો પોતાનો ખર્ચ છે?</span>
+                                    <span className="sub-panel-label">{currentLang === 'en' ? 'Which company incurred this expense?' : 'કઈ કંપનીનો પોતાનો ખર્ચ છે?'}</span>
                                     <select value={singleBeneficiaryId} onChange={e => setSingleBeneficiaryId(e.target.value)} className="clean-select-box">
                                         {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                     </select>
@@ -907,31 +915,31 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
                         <div className="wizard-step-panel">
                             <div className="wizard-step-title">
                                 <span className="step-num-badge green-badge">3</span>
-                                <b>પૈસા કોણે ચૂકવ્યા? (Who Paid the Bill?)</b>
+                                <b>{currentLang === 'en' ? 'Who Paid the Bill?' : 'પૈસા કોણે ચૂકવ્યા? (Who Paid the Bill?)'}</b>
                             </div>
 
                             <div className="payer-mode-switch-group">
                                 <label className={`payer-mode-pill ${payerMode === 'single' ? 'active' : ''}`}>
                                     <input type="radio" name="payer_mode" checked={payerMode === 'single'} onChange={() => setPayerMode('single')}/>
-                                    <span>૧ કંપનીએ</span>
+                                    <span>{currentLang === 'en' ? '1 Company' : '૧ કંપનીએ'}</span>
                                 </label>
                                 <label className={`payer-mode-pill ${payerMode === 'multiple' ? 'active' : ''}`}>
                                     <input type="radio" name="payer_mode" checked={payerMode === 'multiple'} onChange={() => setPayerMode('multiple')}/>
-                                    <span>બે કે વધુ કંપનીઓએ</span>
+                                    <span>{currentLang === 'en' ? 'Two or more companies' : 'બે કે વધુ કંપનીઓએ'}</span>
                                 </label>
                             </div>
 
                             {payerMode === 'single' ? (
                                 <div className="single-payer-wrap">
-                                    <span className="sub-panel-label">ચૂકવનાર કંપની:</span>
+                                    <span className="sub-panel-label">{currentLang === 'en' ? 'Payer Company:' : 'ચૂકવનાર કંપની:'}</span>
                                     <select value={singlePayerId} onChange={e => setSinglePayerId(e.target.value)} className="clean-select-box">
-                                        {companies.map(c => <option key={c.id} value={c.id}>{c.name} (૧૦૦% = ₹{number(parsedAmount)})</option>)}
+                                        {companies.map(c => <option key={c.id} value={c.id}>{c.name} (100% = ₹{number(parsedAmount)})</option>)}
                                     </select>
                                 </div>
                             ) : (
                                 <div className="multiple-payers-wrap">
                                     <div className="split-action-header">
-                                        <span className="sub-panel-label">દરેક કંપનીએ ચૂકવેલ રકમ દાખલ કરો:</span>
+                                        <span className="sub-panel-label">{currentLang === 'en' ? 'Enter amount paid by each company:' : 'દરેક કંપનીએ ચૂકવેલ રકમ દાખલ કરો:'}</span>
                                         <button type="button" onClick={handleSplitEqually} className="quick-split-pill-btn" title="Divide equally">
                                             <Split size={13}/> <span>⚡ Split Equally</span>
                                         </button>
@@ -964,11 +972,9 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
                                         })}
                                     </div>
                                     <div className={`split-validation-status-bar ${isPaidValid ? 'valid-status' : 'invalid-status'}`}>
-                                        <span>કુલ ચૂકવેલ: <b>₹{number(totalPaidSum)}</b> / ₹{number(parsedAmount)}</span>
+                                        <span>{currentLang === 'en' ? 'Total Paid: ' : 'કુલ ચૂકવેલ: '}<b>₹{number(totalPaidSum)}</b> / ₹{number(parsedAmount)}</span>
                                         <span>
-                                            {isPaidValid ? '✓ રકમ પરફેક્ટ મેચ છે'
-                                                : paidDiff > 0 ? `બાકી ₹${number(paidDiff)} ચૂકવવાના છે`
-                                                : `₹${number(Math.abs(paidDiff))} વધારે લખાયા છે`}
+                                            {isPaidValid ? (currentLang === 'en' ? '✓ Amounts match perfectly' : '✓ રકમ પરફેક્ટ મેચ છે') : paidDiff > 0 ? (currentLang === 'en' ? `Pending ₹${number(paidDiff)} payable` : `બાકી ₹${number(paidDiff)} ચૂકવવાના છે`) : (currentLang === 'en' ? `₹${number(Math.abs(paidDiff))} excess entered` : `₹${number(Math.abs(paidDiff))} વધારે લખાયા છે`)}
                                         </span>
                                     </div>
                                 </div>
@@ -981,35 +987,35 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
                         <div className="wizard-step-panel">
                             <div className="wizard-step-title">
                                 <Sparkles size={15} style={{color: '#d97706'}}/>
-                                <b>Confirm & Submit — સઘળી વિગત ચકાસો</b>
+                                <b>{currentLang === 'en' ? 'Confirm & Submit — Review Details' : 'Confirm & Submit — સઘળી વિગત ચકાસો'}</b>
                             </div>
 
                             {/* Summary card */}
                             <div className="confirm-summary-card">
-                                <div className="confirm-summary-row"><span>📅 તારીખ</span><b>{expenseDate}</b></div>
+                                <div className="confirm-summary-row"><span>{currentLang === 'en' ? '📅 Date' : '📅 તારીખ'}</span><b>{expenseDate}</b></div>
                                 <div className="confirm-summary-row highlight-row">
-                                    <span>💰 કુલ રકમ</span>
+                                    <span>{currentLang === 'en' ? '💰 Total Amount' : '💰 કુલ રકમ'}</span>
                                     <div>
                                         <b style={{fontSize: '18px', color: '#15803d'}}>₹{Number(parsedAmount).toLocaleString('en-IN')}</b>
                                         {amountWord && <small style={{color: '#16a34a', display: 'block'}}>{amountWord}</small>}
                                     </div>
                                 </div>
-                                <div className="confirm-summary-row"><span>👤 ખર્ચ કરનાર</span><b>{purchaserName}</b></div>
-                                <div className="confirm-summary-row"><span>📝 વિગત</span><b>{description}</b></div>
-                                <div className="confirm-summary-row"><span>🏢 ખર્ચ Scope</span><b>{scopeLabel}</b></div>
-                                <div className="confirm-summary-row"><span>💳 ચૂકવ્યા</span><b>{payerLabel}</b></div>
+                                <div className="confirm-summary-row"><span>{currentLang === 'en' ? '👤 Purchaser' : '👤 ખર્ચ કરનાર'}</span><b>{purchaserName}</b></div>
+                                <div className="confirm-summary-row"><span>{currentLang === 'en' ? '📝 Description' : '📝 વિગત'}</span><b>{description}</b></div>
+                                <div className="confirm-summary-row"><span>{currentLang === 'en' ? '🏢 Scope' : '🏢 ખર્ચ Scope'}</span><b>{scopeLabel}</b></div>
+                                <div className="confirm-summary-row"><span>{currentLang === 'en' ? '💳 Paid By' : '💳 ચૂકવ્યા'}</span><b>{payerLabel}</b></div>
                             </div>
 
                             {/* Live allocation preview */}
                             <div className="wizard-step-title" style={{marginTop: '10px'}}>
-                                <span style={{fontSize: '12px', fontWeight: 700, color: '#64748b'}}>📊 Company-wise હિસ્સો:</span>
+                                <span style={{fontSize: '12px', fontWeight: 700, color: '#64748b'}}>{currentLang === 'en' ? '📊 Company-wise Share:' : '📊 Company-wise હિસ્સો:'}</span>
                             </div>
                             <div className="preview-alloc-cards-list">
                                 {previewAllocations.map(row => {
                                     const paid = previewPaidMap[row.id] || 0;
                                     const share = row.shareAmount || 0;
                                     const net = Number((paid - share).toFixed(2));
-                                    const netText = net > 0.001 ? `+₹${number(net)} (લેવાના)` : net < -0.001 ? `-₹${number(Math.abs(net))} (દેવાના)` : '₹0.00 (સરભર)';
+                                    const netText = net > 0.001 ? (currentLang === 'en' ? `+₹${number(net)} (Receivable)` : `+₹${number(net)} (લેવાના)`) : net < -0.001 ? (currentLang === 'en' ? `-₹${number(Math.abs(net))} (Payable)` : `-₹${number(Math.abs(net))} (દેવાના)`) : (currentLang === 'en' ? '₹0.00 (Settled)' : '₹0.00 (સરભર)');
                                     const netClass = net > 0.001 ? 'net-receivable' : net < -0.001 ? 'net-payable' : 'net-even';
                                     return (
                                         <div key={row.id} className="preview-alloc-row-card">
@@ -1018,8 +1024,8 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
                                                 <small>({number(row.percentage)}%)</small>
                                             </div>
                                             <div className="alloc-amounts-col">
-                                                <span>ચૂકવ્યા: <b>₹{number(paid)}</b></span>
-                                                <span>હિસ્સો: <b>₹{number(share)}</b></span>
+                                                <span>{currentLang === 'en' ? 'Paid: ' : 'ચૂકવ્યા: '}<b>₹{number(paid)}</b></span>
+                                                <span>{currentLang === 'en' ? 'Share: ' : 'હિસ્સો: '}<b>₹{number(share)}</b></span>
                                             </div>
                                             <span className={`net-status-badge ${netClass}`}>{netText}</span>
                                         </div>
@@ -1042,7 +1048,7 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
                         </button>
                     ) : (
                         <button type="button" className="secondary modal-cancel-btn" onClick={onClose}>
-                            રદ કરો
+                            {currentLang === 'en' ? 'Cancel' : 'રદ કરો'}
                         </button>
                     )}
 
@@ -1067,7 +1073,7 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
                             className="primary expense-submit-btn"
                             disabled={busy || (payerMode === 'multiple' && !isPaidValid)}
                         >
-                            {busy ? 'સેવ થઈ રહ્યું છે...' : entry ? '✓ Update Expense' : '✓ ખર્ચ સેવ કરો'}
+                            {busy ? (currentLang === 'en' ? 'Saving...' : 'સેવ થઈ રહ્યું છે...') : entry ? '✓ Update Expense' : (currentLang === 'en' ? '✓ Save Expense' : '✓ ખર્ચ સેવ કરો')}
                         </button>
                     )}
                 </div>
@@ -1132,7 +1138,7 @@ function SettlementForm({pair, onClose, onSaved}) {
             <form className="modal modal-sheet settlement-modal" onSubmit={save} onClick={e => e.stopPropagation()} style={{maxWidth: '540px'}}>
                 <div className="panel-head">
                     <div>
-                        <h2>Record balance settlement (ચૂકવણી / સેટલમેન્ટ)</h2>
+                        <h2>{currentLang === 'en' ? 'Record Balance Settlement' : 'Record balance settlement (ચૂકવણી / સેટલમેન્ટ)'}</h2>
                         <p>
                             <b>{pair.debtor_company.name}</b> pays <b>{pair.creditor_company.name}</b>
                         </p>
@@ -1147,14 +1153,14 @@ function SettlementForm({pair, onClose, onSaved}) {
                             <div style={{fontSize: '22px', fontWeight: 850, color: '#78350f', letterSpacing: '-0.02em'}}>₹{number(totalOpen)}</div>
                         </div>
                         <span className="status warning" style={{fontSize: '11px', padding: '4px 10px', borderRadius: '20px', fontWeight: 750}}>
-                            બાકી લેવાના નીકળે છે
+                            {currentLang === 'en' ? 'balance receivable' : 'બાકી લેવાના નીકળે છે'}
                         </span>
                     </div>
 
                     {/* Quick Presets (100% Full, 50% Half, 25%) */}
                     <div style={{marginTop: '2px'}}>
                         <span style={{fontSize: '11.5px', color: '#475569', fontWeight: 700, display: 'block', marginBottom: '6px'}}>
-                            ઝડપી રકમ પસંદગી (Quick Amount Presets):
+                            {currentLang === 'en' ? 'Quick Amount Presets:' : 'ઝડપી રકમ પસંદગી (Quick Amount Presets):'}
                         </span>
                         <div style={{display: 'flex', gap: '6px', flexWrap: 'wrap'}}>
                             <button
@@ -1172,7 +1178,7 @@ function SettlementForm({pair, onClose, onSaved}) {
                                     cursor: 'pointer'
                                 }}
                             >
-                                ૧૦૦% Full (₹{number(totalOpen)})
+                                100% Full (₹{number(totalOpen)})
                             </button>
                             <button
                                 type="button"
@@ -1188,7 +1194,7 @@ function SettlementForm({pair, onClose, onSaved}) {
                                     cursor: 'pointer'
                                 }}
                             >
-                                ૫૦% Half (₹{number(totalOpen / 2)})
+                                50% Half (₹{number(totalOpen / 2)})
                             </button>
                             <button
                                 type="button"
@@ -1204,16 +1210,16 @@ function SettlementForm({pair, onClose, onSaved}) {
                                     cursor: 'pointer'
                                 }}
                             >
-                                ૨૫% (₹{number(totalOpen / 4)})
+                                25% (₹{number(totalOpen / 4)})
                             </button>
                         </div>
                     </div>
 
                     <div className="form-grid two">
-                        <Field label="Payment date (ચૂકવણી તારીખ)">
+                        <Field label={currentLang === 'en' ? 'Payment Date' : 'Payment date (ચૂકવણી તારીખ)'}>
                             <input type="date" max={today()} value={settledOn} onChange={e => setSettledOn(e.target.value)} required/>
                         </Field>
-                        <Field label="Amount to settle (ચૂકવવાની રકમ ₹)">
+                        <Field label={currentLang === 'en' ? 'Amount to Settle (₹)' : 'Amount to settle (ચૂકવવાની રકમ ₹)'}>
                             <input
                                 type="number"
                                 min="0.01"
@@ -1229,34 +1235,34 @@ function SettlementForm({pair, onClose, onSaved}) {
                     </div>
 
                     <div className="form-grid two">
-                        <Field label="Payment mode (ચૂકવણી પદ્ધતિ)">
+                        <Field label={currentLang === 'en' ? 'Payment Mode' : 'Payment mode (ચૂકવણી પદ્ધતિ)'}>
                             <select value={paymentMode} onChange={e => setPaymentMode(e.target.value)}>
                                 <option value="bank_transfer">Bank Transfer / NEFT / RTGS</option>
-                                <option value="cash">Cash (રોકડ)</option>
+                                <option value="cash">{currentLang === 'en' ? 'Cash' : 'Cash (રોકડ)'}</option>
                                 <option value="upi">UPI / GPay / PhonePe</option>
                                 <option value="cheque">Cheque</option>
                                 <option value="other">Other</option>
                             </select>
                         </Field>
-                        <Field label="Settlement status (સેટલમેન્ટ સ્થિતિ)">
+                        <Field label={currentLang === 'en' ? 'Settlement Status' : 'Settlement status (સેટલમેન્ટ સ્થિતિ)'}>
                             <input
                                 type="text"
-                                value={settlementType === 'full' ? '૧૦૦% Full Settlement (ખાતું ક્લિયર)' : `Partial (બાકી ₹${number(remainingBalance)})`}
+                                value={settlementType === 'full' ? (currentLang === 'en' ? '100% Full Settlement (Cleared)' : '૧૦૦% Full Settlement (ખાતું ક્લિયર)') : (currentLang === 'en' ? `Partial (Remaining ₹${number(remainingBalance)})` : `Partial (બાકી ₹${number(remainingBalance)})`)}
                                 disabled
                                 style={{fontWeight: 750, color: settlementType === 'full' ? '#15803d' : '#b45309'}}
                             />
                         </Field>
                     </div>
 
-                    <Field label="Reference / Notes (વિગત / UTR ટ્રાન્ઝેક્શન નંબર)">
+                    <Field label={currentLang === 'en' ? 'Reference / Transaction Notes' : 'Reference / Notes (વિગત / UTR ટ્રાન્ઝેક્શન નંબર)'}>
                         <textarea rows="2" value={notes} onChange={e => setNotes(e.target.value)}/>
                     </Field>
 
                     {/* Remaining Balance Indicator */}
                     <div style={{background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px'}}>
-                        <span style={{color: '#64748b', fontWeight: 600}}>ચૂકવણી બાદ બાકી રહેતું બેલેન્સ:</span>
+                        <span style={{color: '#64748b', fontWeight: 600}}>{currentLang === 'en' ? 'Remaining Balance After Payment:' : 'ચૂકવણી બાદ બાકી રહેતું બેલેન્સ:'}</span>
                         <b style={{fontSize: '14px', color: remainingBalance > 0 ? '#b91c1c' : '#15803d', fontWeight: 800}}>
-                            {remainingBalance > 0 ? `₹${number(remainingBalance)}` : '₹0.00 (સંપૂર્ણ ક્લિયર)'}
+                            {remainingBalance > 0 ? `₹${number(remainingBalance)}` : (currentLang === 'en' ? '₹0.00 (Fully Settled)' : '₹0.00 (સંપૂર્ણ ક્લિયર)')}
                         </b>
                     </div>
 
@@ -1265,10 +1271,10 @@ function SettlementForm({pair, onClose, onSaved}) {
 
                 <div className="modal-sticky-footer">
                     <button type="button" className="secondary modal-cancel-btn" onClick={onClose}>
-                        Cancel (રદ કરો)
+                        {currentLang === 'en' ? 'Cancel' : 'Cancel (રદ કરો)'}
                     </button>
                     <button className="primary expense-submit-btn" disabled={busy}>
-                        {busy ? 'સેવ થઈ રહ્યું છે...' : `✓ Record ${settlementType === 'full' ? 'Full' : 'Partial'} Payment`}
+                        {busy ? (currentLang === 'en' ? 'Saving...' : 'સેવ થઈ રહ્યું છે...') : `✓ Record ${settlementType === 'full' ? 'Full' : 'Partial'} Payment`}
                     </button>
                 </div>
             </form>

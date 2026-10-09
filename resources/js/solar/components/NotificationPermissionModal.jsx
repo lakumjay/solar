@@ -1,11 +1,19 @@
 import React, {useState, useEffect} from 'react';
 import {Bell, CheckCircle, ShieldAlert, Sparkles, X} from 'lucide-react';
 import {syncPushSubscription} from '../api';
+import {getLanguage} from '../utils/translations';
 
 export default function NotificationPermissionModal() {
     const [showModal, setShowModal] = useState(false);
     const [permissionStatus, setPermissionStatus] = useState('default');
     const [requesting, setRequesting] = useState(false);
+    const [currentLang, setCurrentLang] = useState(() => getLanguage());
+
+    useEffect(() => {
+        const handler = (e) => setCurrentLang(e.detail || getLanguage());
+        window.addEventListener('solarflow_language_change', handler);
+        return () => window.removeEventListener('solarflow_language_change', handler);
+    }, []);
 
     useEffect(() => {
         if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -28,7 +36,7 @@ export default function NotificationPermissionModal() {
 
     const handleRequestPermission = async () => {
         if (typeof window === 'undefined' || !('Notification' in window)) {
-            alert('આ બ્રાઉઝરમાં નોટિફિકેશન સપોર્ટ નથી.');
+            alert(currentLang === 'en' ? 'Notifications are not supported in this browser.' : 'આ બ્રાઉઝરમાં નોટિફિકેશન સપોર્ટ નથી.');
             return;
         }
 
@@ -44,7 +52,7 @@ export default function NotificationPermissionModal() {
                 // Trigger quick confirmation test notification
                 try {
                     const options = {
-                        body: 'સોલાર પ્લાન્ટ એલર્ટ્સ અને રોજના ઉત્પાદન રિપોર્ટ સક્રિય થઈ ગયા છે.',
+                        body: currentLang === 'en' ? 'Solar plant alerts and daily generation reports are now active.' : 'સોલાર પ્લાન્ટ એલર્ટ્સ અને રોજના ઉત્પાદન રિપોર્ટ સક્રિય થઈ ગયા છે.',
                         icon: '/icons/icon-192.png',
                         badge: '/icons/icon-192.png',
                     };
@@ -58,7 +66,7 @@ export default function NotificationPermissionModal() {
                     console.log('Confirmation notification error', e);
                 }
             } else if (result === 'denied') {
-                alert('નોટિફિકેશન બ્લોક થયેલું છે. કૃપા કરીને Chrome સેટિંગ્સમાંથી SolarFlow માટે Notification Allow કરો.');
+                alert(currentLang === 'en' ? 'Notifications are blocked. Please allow notifications for SolarFlow in your browser settings.' : 'નોટિફિકેશન બ્લોક થયેલું છે. કૃપા કરીને Chrome સેટિંગ્સમાંથી SolarFlow માટે Notification Allow કરો.');
             }
         } catch (error) {
             console.error('Permission request failed', error);
@@ -144,7 +152,7 @@ export default function NotificationPermissionModal() {
                     margin: '0 0 8px',
                     lineHeight: 1.3
                 }}>
-                    🔔 નોટિફિકેશન ચાલુ કરવું ફરજિયાત છે
+                    {currentLang === 'en' ? '🔔 Enable Plant Notifications' : '🔔 નોટિફિકેશન ચાલુ કરવું ફરજિયાત છે'}
                 </h3>
 
                 <p style={{
@@ -154,7 +162,9 @@ export default function NotificationPermissionModal() {
                     margin: '0 0 18px',
                     fontWeight: 500
                 }}>
-                    સોલાર પ્લાન્ટના મહત્વપૂર્ણ એલર્ટ્સ, પેનલ સફાઈ ચેતવણી અને <b>રોજના રાત્રે 8:00 PM ના દૈનિક ઉત્પાદન (યુનિટ્સ + કમાણી)</b> નો રિપોર્ટ મેળવવા માટે નોટિફિકેશન મંજૂર કરો.
+                    {currentLang === 'en'
+                        ? <>Enable notifications to receive critical plant alerts, cleaning reminders, and <b>daily 8:00 PM generation (units + revenue)</b> reports.</>
+                        : <>સોલાર પ્લાન્ટના મહત્વપૂર્ણ એલર્ટ્સ, પેનલ સફાઈ ચેતવણી અને <b>રોજના રાત્રે 8:00 PM ના દૈનિક ઉત્પાદન (યુનિટ્સ + કમાણી)</b> નો રિપોર્ટ મેળવવા માટે નોટિફિકેશન મંજૂર કરો.</>}
                 </p>
 
                 <div style={{
@@ -169,15 +179,15 @@ export default function NotificationPermissionModal() {
                 }}>
                     <div style={{display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#16a34a', marginBottom: '4px'}}>
                         <CheckCircle size={14} />
-                        <span>રોજ 8:00 PM ઓટોમેટિક યુનિટ્સ રિપોર્ટ</span>
+                        <span>{currentLang === 'en' ? 'Daily 8:00 PM automatic generation report' : 'રોજ 8:00 PM ઓટોમેટિક યુનિટ્સ રિપોર્ટ'}</span>
                     </div>
                     <div style={{display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#0284c7', marginBottom: '4px'}}>
                         <CheckCircle size={14} />
-                        <span>લાઈવ વરસાદ અને વાવાઝોડું એલર્ટ</span>
+                        <span>{currentLang === 'en' ? 'Live rain and storm weather alerts' : 'લાઈવ વરસાદ અને વાવાઝોડું એલર્ટ'}</span>
                     </div>
                     <div style={{display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#d97706'}}>
                         <CheckCircle size={14} />
-                        <span>પેનલ ધૂળ અને સફાઈ ચેતવણી</span>
+                        <span>{currentLang === 'en' ? 'Panel dust & inverter fan cleaning reminders' : 'પેનલ ધૂળ અને સફાઈ ચેતવણી'}</span>
                     </div>
                 </div>
 
@@ -204,7 +214,7 @@ export default function NotificationPermissionModal() {
                     }}
                 >
                     <Bell size={17} />
-                    <span>{requesting ? 'પરમિશન મંગાઈ રહી છે...' : 'નોટિફિકેશન ચાલુ કરો (Allow Notification)'}</span>
+                    <span>{requesting ? (currentLang === 'en' ? 'Requesting permission...' : 'પરમિશન મંગાઈ રહી છે...') : (currentLang === 'en' ? 'Allow Notifications' : 'નોટિફિકેશન ચાલુ કરો (Allow Notification)')}</span>
                 </button>
             </div>
         </div>

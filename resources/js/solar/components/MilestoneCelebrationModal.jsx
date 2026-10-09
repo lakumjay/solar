@@ -1,13 +1,21 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {Trophy, Sparkles, X, Zap, IndianRupee} from 'lucide-react';
+import {getLanguage} from '../utils/translations';
 
 export default function MilestoneCelebrationModal({user, activeCompany, liveData}) {
     const [milestone, setMilestone] = useState(null);
+    const [currentLang, setCurrentLang] = useState(() => getLanguage());
     const canvasRef = useRef(null);
     const animationFrameRef = useRef(null);
 
+    useEffect(() => {
+        const handler = (e) => setCurrentLang(e.detail || getLanguage());
+        window.addEventListener('solarflow_language_change', handler);
+        return () => window.removeEventListener('solarflow_language_change', handler);
+    }, []);
+
     const ownerName = activeCompany?.owner_name || (user?.name === 'Super Admin' ? 'Lakum Jay' : user?.name) || 'Lakum Jay';
-    const ownerTitle = activeCompany?.owner_designation || 'Solar Plant Owner & Director';
+    const ownerTitle = activeCompany?.owner_designation || (currentLang === 'en' ? 'Solar Plant Owner & Director' : 'સોલાર પ્લાન્ટ ઓનર & ડિરેક્ટર');
     const ownerPhoto = activeCompany?.owner_photo_url || null;
 
     // 🔊 Synthesized Victory Chime Sound
@@ -121,9 +129,9 @@ export default function MilestoneCelebrationModal({user, activeCompany, liveData
             setMilestone({
                 id: '1000',
                 todayKey: `milestone_1000_${todayStr}`,
-                badge: '🎯 ૧,૦૦૦ યુનિટ્સ માઇલસ્ટોન પૂર્ણ',
-                title: 'અભિનંદન ' + ownerName + ' સર!',
-                subtitle: 'આજે ૧,૦૦૦ kWh ઉત્પાદન સફળતાપૂર્વક પૂર્ણ થયું છે!',
+                badge: currentLang === 'en' ? '🎯 1,000 Units Milestone Achieved' : '🎯 ૧,૦૦૦ યુનિટ્સ માઇલસ્ટોન પૂર્ણ',
+                title: (currentLang === 'en' ? 'Congratulations ' : 'અભિનંદન ') + ownerName + (currentLang === 'en' ? ' Sir!' : ' સર!'),
+                subtitle: currentLang === 'en' ? '1,000 kWh solar generation successfully completed today!' : 'આજે ૧,૦૦૦ kWh ઉત્પાદન સફળતાપૂર્વક પૂર્ણ થયું છે!',
                 units: currentUnits.toFixed(2),
                 revenue: currentRevenue.toFixed(2),
                 liveKw: liveData.realtime_power_kw || '1805.4',
@@ -137,9 +145,9 @@ export default function MilestoneCelebrationModal({user, activeCompany, liveData
             setMilestone({
                 id: '5000',
                 todayKey: `milestone_5000_${todayStr}`,
-                badge: '⚡ ૫,૦૦૦ યુનિટ્સ મેજર રેકોર્ડ',
-                title: 'અભિનંદન ' + ownerName + ' સર!',
-                subtitle: 'આજે પ્લાન્ટે ૫,૦૦૦ kWh યુનિટ્સનો વિશાળ આંકડો પાર કર્યો!',
+                badge: currentLang === 'en' ? '⚡ 5,000 Units Major Record' : '⚡ ૫,૦૦૦ યુનિટ્સ મેજર રેકોર્ડ',
+                title: (currentLang === 'en' ? 'Congratulations ' : 'અભિનંદન ') + ownerName + (currentLang === 'en' ? ' Sir!' : ' સર!'),
+                subtitle: currentLang === 'en' ? 'The plant crossed a massive 5,000 kWh units milestone today!' : 'આજે પ્લાન્ટે ૫,૦૦૦ kWh યુનિટ્સનો વિશાળ આંકડો પાર કર્યો!',
                 units: currentUnits.toFixed(2),
                 revenue: currentRevenue.toFixed(2),
                 liveKw: liveData.realtime_power_kw || '1805.4',
@@ -153,9 +161,9 @@ export default function MilestoneCelebrationModal({user, activeCompany, liveData
             setMilestone({
                 id: '10000',
                 todayKey: `milestone_10000_${todayStr}`,
-                badge: '🏆 ૧૦,૦૦૦ kWh ગોલ્ડન માઇલસ્ટોન',
-                title: 'અભિનંદન ' + ownerName + ' સર!',
-                subtitle: 'અદભુત પ્રદર્શન! ૧૦,૦૦૦+ kWh યુનિટ્સનું ઐતિહાસિક ઉત્પાદન!',
+                badge: currentLang === 'en' ? '🏆 10,000 kWh Golden Milestone' : '🏆 ૧૦,૦૦૦ kWh ગોલ્ડન માઇલસ્ટોન',
+                title: (currentLang === 'en' ? 'Congratulations ' : 'અભિનંદન ') + ownerName + (currentLang === 'en' ? ' Sir!' : ' સર!'),
+                subtitle: currentLang === 'en' ? 'Outstanding performance! Historic 10,000+ kWh daily solar output!' : 'અદભુત પ્રદર્શન! ૧૦,૦૦૦+ kWh યુનિટ્સનું ઐતિહાસિક ઉત્પાદન!',
                 units: currentUnits.toFixed(2),
                 revenue: currentRevenue.toFixed(2),
                 liveKw: liveData.realtime_power_kw || '1805.4',
@@ -169,9 +177,9 @@ export default function MilestoneCelebrationModal({user, activeCompany, liveData
             setMilestone({
                 id: 'eod',
                 todayKey: `milestone_eod_${todayStr}`,
-                badge: '🌅 આજનો દૈનિક સૂર્ય ઉર્જા રિપોર્ટ',
-                title: 'આજનો દિવસ સફળ રહ્યો, ' + ownerName + ' સર!',
-                subtitle: 'આજના દિવસનું કુલ સોલાર ઉત્પાદન અને કમાણી રિપોર્ટ તૈયાર છે.',
+                badge: currentLang === 'en' ? '🌅 Daily Solar Wrap-up Report' : '🌅 આજનો દૈનિક સૂર્ય ઉર્જા રિપોર્ટ',
+                title: (currentLang === 'en' ? 'Successful Day, ' : 'આજનો દિવસ સફળ રહ્યો, ') + ownerName + (currentLang === 'en' ? ' Sir!' : ' સર!'),
+                subtitle: currentLang === 'en' ? "Today's total generation and revenue report is ready." : 'આજના દિવસનું કુલ સોલાર ઉત્પાદન અને કમાણી રિપોર્ટ તૈયાર છે.',
                 units: currentUnits.toFixed(2),
                 revenue: currentRevenue.toFixed(2),
                 liveKw: liveData.realtime_power_kw || '0.00',
@@ -179,7 +187,7 @@ export default function MilestoneCelebrationModal({user, activeCompany, liveData
             });
             return;
         }
-    }, [liveData, ownerName]);
+    }, [liveData, ownerName, currentLang]);
 
     const handleDismiss = () => {
         if (milestone?.todayKey) {
@@ -237,19 +245,19 @@ export default function MilestoneCelebrationModal({user, activeCompany, liveData
                 {/* Metrics Highlight Grid */}
                 <div className="milestone-metrics-grid">
                     <div className="m-metric-box green">
-                        <span className="m-metric-lbl"><Zap size={13}/> કુલ યુનિટ્સ (Generation)</span>
+                        <span className="m-metric-lbl"><Zap size={13}/> {currentLang === 'en' ? 'Total Generation' : 'કુલ યુનિટ્સ (Generation)'}</span>
                         <b className="m-metric-val">{milestone.units} <small>kWh</small></b>
                     </div>
 
                     <div className="m-metric-box gold">
-                        <span className="m-metric-lbl"><IndianRupee size={13}/> અંદાજિત કમાણી (Revenue)</span>
+                        <span className="m-metric-lbl"><IndianRupee size={13}/> {currentLang === 'en' ? 'Estimated Revenue' : 'અંદાજિત કમાણી (Revenue)'}</span>
                         <b className="m-metric-val">₹ {milestone.revenue}</b>
                     </div>
                 </div>
 
                 {/* Subtle Dismiss Hint */}
                 <div className="milestone-touch-hint">
-                    <span>👆 બંધ કરવા સ્ક્રીન પર ગમે ત્યાં ટચ કરો</span>
+                    <span>{currentLang === 'en' ? '👆 Tap anywhere on screen to close' : '👆 બંધ કરવા સ્ક્રીન પર ગમે ત્યાં ટચ કરો'}</span>
                 </div>
             </div>
         </div>

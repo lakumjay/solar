@@ -3,8 +3,16 @@ import {Activity, AlertCircle, AlertTriangle, Bell, Check, CheckCircle, ChevronD
 import {api} from '../api';
 import {Loading} from '../components/Common';
 import ISolarCloudVisualizer from '../components/ISolarCloudVisualizer';
+import { getLanguage, t } from '../utils/translations';
 
 export default function DashboardPage({companyId, currentUser}) {
+    const [currentLang, setCurrentLang] = useState(getLanguage());
+
+    useEffect(() => {
+        const handleLangChange = (e) => setCurrentLang(e.detail);
+        window.addEventListener('solarflow_language_change', handleLangChange);
+        return () => window.removeEventListener('solarflow_language_change', handleLangChange);
+    }, []);
     const [liveData, setLiveData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -64,14 +72,14 @@ export default function DashboardPage({companyId, currentUser}) {
                 method: 'POST',
                 body: JSON.stringify(curtailForm),
             });
-            setCurtailMessage(res.message || 'કર્ટલમેન્ટ સફળતાપૂર્વક સેટ થઈ ગયું છે.');
+            setCurtailMessage(res.message || (currentLang === 'en' ? 'Curtailment set successfully.' : 'કર્ટલમેન્ટ સફળતાપૂર્વક સેટ થઈ ગયું છે.'));
             setTimeout(() => {
                 setShowCurtailModal(false);
                 setCurtailMessage('');
                 fetchLiveSolar(true);
             }, 600);
         } catch (err) {
-            setCurtailMessage(err.message || 'કર્ટલમેન્ટ સેટ કરવામાં ભૂલ આવી.');
+            setCurtailMessage(err.message || (currentLang === 'en' ? 'Error setting curtailment.' : 'કર્ટલમેન્ટ સેટ કરવામાં ભૂલ આવી.'));
         } finally {
             setCurtailSaving(false);
         }
@@ -94,8 +102,8 @@ export default function DashboardPage({companyId, currentUser}) {
 
     const handleRestoreAll = async (targetCompanyId = null) => {
         const confirmMsg = targetCompanyId
-            ? 'શું તમે આ કંપની માટે PGVCL કર્ટલમેન્ટ પૂર્ણ કરી ૧૦૦% ફુલ પાવર ચાલુ કરવા માંગો છો?'
-            : 'શું તમે તમામ પ્લાન્ટ માટે PGVCL કર્ટલમેન્ટ પૂર્ણ કરી ૧૦૦% ફુલ પાવર ચાલુ કરવા માંગો છો?';
+            ? (currentLang === 'en' ? 'Do you want to complete PGVCL curtailment and restore 100% full power for this company?' : 'શું તમે આ કંપની માટે PGVCL કર્ટલમેન્ટ પૂર્ણ કરી ૧૦૦% ફુલ પાવર ચાલુ કરવા માંગો છો?')
+            : (currentLang === 'en' ? 'Do you want to complete PGVCL curtailment and restore 100% full power for all plants?' : 'શું તમે તમામ પ્લાન્ટ માટે PGVCL કર્ટલમેન્ટ પૂર્ણ કરી ૧૦૦% ફુલ પાવર ચાલુ કરવા માંગો છો?');
         if (!confirm(confirmMsg)) {
             return;
         }
@@ -116,14 +124,14 @@ export default function DashboardPage({companyId, currentUser}) {
     const [cleaningFanLoading, setCleaningFanLoading] = useState(false);
 
     const handleFanCleaned = async () => {
-        if (!confirm('શું તમે ઇન્વર્ટર કૂલિંગ ફેન અને જાળીની ધૂળ (Dust) બ્લોઅરથી સાફ કરી લીધી છે? આનાથી ૧૦ દિવસનું નવું સાઇકલ શરૂ થશે.')) {
+        if (!confirm(currentLang === 'en' ? 'Have you cleaned the inverter cooling fan and mesh dust with a blower? This will start a new 10-day cycle.' : 'શું તમે ઇન્વર્ટર કૂલિંગ ફેન અને જાળીની ધૂળ (Dust) બ્લોઅરથી સાફ કરી લીધી છે? આનાથી ૧૦ દિવસનું નવું સાઇકલ શરૂ થશે.')) {
             return;
         }
         setCleaningFanLoading(true);
         try {
             await api('inverters/maintenance/fan-cleaned', {
                 method: 'POST',
-                body: JSON.stringify({ notes: 'કૂલિંગ ફેન અને જાળી બ્લોઅરથી સાફ કરવામાં આવી.' })
+                body: JSON.stringify({ notes: currentLang === 'en' ? 'Cooling fan and mesh cleaned with blower.' : 'કૂલિંગ ફેન અને જાળી બ્લોઅરથી સાફ કરવામાં આવી.' })
             });
             await fetchLiveSolar(true);
         } catch (err) {
@@ -286,7 +294,7 @@ export default function DashboardPage({companyId, currentUser}) {
         const perm = await Notification.requestPermission();
         setNotifStatus(perm);
         if (perm === 'granted') {
-            triggerNativePush('SolarFlow Alert System', 'મોબાઈલ / વેબ નોટિફિકેશન સફળતાપૂર્વક ચાલુ થઈ ગયું છે!');
+            triggerNativePush('SolarFlow Alert System', currentLang === 'en' ? 'Mobile / Web notifications successfully enabled!' : 'મોબાઈલ / વેબ નોટિફિકેશન સફળતાપૂર્વક ચાલુ થઈ ગયું છે!');
         }
     };
 
@@ -448,7 +456,7 @@ export default function DashboardPage({companyId, currentUser}) {
                         <div>
                             <div style={{display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap'}}>
                                 <b style={{fontSize: '13px', color: curtailmentSystem.is_any_active ? '#9a3412' : '#0f172a'}}>
-                                    {curtailmentSystem.is_any_active ? '⚡ PGVCL પાવર કર્ટલમેન્ટ ચાલુ છે (Curtailment Active)' : '⚡ PGVCL પાવર: ૧૦૦% ફુલ મોડ ચાલુ છે'}
+                                    {curtailmentSystem.is_any_active ? (currentLang === 'en' ? '⚡ PGVCL Curtailment Active' : '⚡ PGVCL પાવર કર્ટલમેન્ટ ચાલુ છે (Curtailment Active)') : (currentLang === 'en' ? '⚡ PGVCL: 100% Full Power Active' : '⚡ PGVCL પાવર: ૧૦૦% ફુલ મોડ ચાલુ છે')}
                                 </b>
                                 {curtailmentSystem.is_any_active && (
                                     <span style={{
@@ -459,14 +467,14 @@ export default function DashboardPage({companyId, currentUser}) {
                                         padding: '1px 7px',
                                         borderRadius: '10px'
                                     }}>
-                                        {curtailmentSystem.active_count} કંપની કર્ટલમેન્ટ
+                                        {curtailmentSystem.active_count} {currentLang === 'en' ? 'Companies Curtailed' : 'કંપની કર્ટલમેન્ટ'}
                                     </span>
                                 )}
                             </div>
                             <span style={{fontSize: '11px', color: curtailmentSystem.is_any_active ? '#c2410c' : '#64748b', display: 'block'}}>
                                 {curtailmentSystem.is_any_active
-                                    ? 'PGVCL ઓર્ડર મુજબ ઉત્પાદન ઘટાડેલું છે. આ સ્ટ્રિંગ્સ માટે ખોટા સફાઈ એલર્ટ આપમેળે બંધ છે.'
-                                    : 'બધા પ્લાન્ટ પૂર્ણ ૧૦૦% ક્ષમતાથી ઉત્પાદન આપી રહ્યા છે.'}
+                                    ? (currentLang === 'en' ? 'Production reduced per PGVCL order. Dust alerts paused for these strings.' : 'PGVCL ઓર્ડર મુજબ ઉત્પાદન ઘટાડેલું છે. આ સ્ટ્રિંગ્સ માટે ખોટા સફાઈ એલર્ટ આપમેળે બંધ છે.')
+                                    : (currentLang === 'en' ? 'All plants producing at full 100% capacity.' : 'બધા પ્લાન્ટ પૂર્ણ ૧૦૦% ક્ષમતાથી ઉત્પાદન આપી રહ્યા છે.')}
                             </span>
                         </div>
                     </div>
@@ -492,7 +500,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                 }}
                             >
                                 <Zap size={13}/>
-                                ⚡ ૧૦૦% ફુલ પાવર શરૂ કરો (Master Restore)
+                                {currentLang === 'en' ? '⚡ Restore 100% Full Power (Master Restore)' : '⚡ ૧૦૦% ફુલ પાવર શરૂ કરો (Master Restore)'}
                             </button>
                         ) : (
                             <button
@@ -513,7 +521,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                 }}
                             >
                                 <Sliders size={13}/>
-                                ➕ PGVCL કર્ટલમેન્ટ સેટ કરો
+                                {currentLang === 'en' ? '➕ Set PGVCL Curtailment' : '➕ PGVCL કર્ટલમેન્ટ સેટ કરો'}
                             </button>
                         )}
 
@@ -535,7 +543,7 @@ export default function DashboardPage({companyId, currentUser}) {
                             }}
                         >
                             <History size={12}/>
-                            ઇતિહાસ & નુકસાન
+                            {currentLang === 'en' ? 'History & Loss' : 'ઇતિહાસ & નુકસાન'}
                         </button>
                     </div>
                 </div>
@@ -561,10 +569,10 @@ export default function DashboardPage({companyId, currentUser}) {
                                             padding: '2px 7px',
                                             borderRadius: '5px'
                                         }}>
-                                            {curt.percentage}% કર્ટલમેન્ટ
+                                            {curt.percentage}% {currentLang === 'en' ? 'Curtailment' : 'કર્ટલમેન્ટ'}
                                         </span>
                                         <b style={{fontSize: '12.5px', color: '#0f172a'}}>🏢 {curt.company_name}</b>
-                                        <span style={{fontSize: '10.5px', color: '#64748b'}}>({curt.started_at_human} થી ચાલુ)</span>
+                                        <span style={{fontSize: '10.5px', color: '#64748b'}}>({currentLang === 'en' ? 'Active since ' : ''}{curt.started_at_human}{currentLang === 'en' ? '' : ' થી ચાલુ'})</span>
                                     </div>
 
                                     <div style={{display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap'}}>
@@ -577,7 +585,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                             fontSize: '11px',
                                             fontWeight: 800
                                         }}>
-                                            -{curt.lost_kwh} kWh (~₹{curt.lost_revenue_rs} નુકસાન)
+                                            -{curt.lost_kwh} kWh (~₹{curt.lost_revenue_rs} {currentLang === 'en' ? 'Loss' : 'નુકસાન'})
                                         </span>
                                         <span style={{
                                             background: '#f8fafc',
@@ -608,7 +616,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                         borderRadius: '5px'
                                     }}>
                                         <Clock size={11} style={{color: '#ea580c'}}/>
-                                        <b>સ્ટેપ ટાઇમલાઇન:</b>
+                                        <b>{currentLang === 'en' ? 'Step Timeline:' : 'સ્ટેપ ટાઇમલાઇન:'}</b>
                                         {curt.step_history.map((st, sIdx) => (
                                             <span key={sIdx} style={{display: 'inline-flex', alignItems: 'center', gap: '3px'}}>
                                                 <span style={{fontWeight: 700, color: '#c2410c'}}>{st.changed_at_human} ({st.to_percentage}%)</span>
@@ -621,7 +629,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                 {/* Quick Step Selector Chips + Actions Bar */}
                                 <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', marginTop: '6px', paddingTop: '6px', borderTop: '1px dashed #fed7aa'}}>
                                     <div style={{display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap'}}>
-                                        <span style={{fontSize: '10.5px', fontWeight: 700, color: '#475569'}}>સ્ટેપ બદલો:</span>
+                                        <span style={{fontSize: '10.5px', fontWeight: 700, color: '#475569'}}>{currentLang === 'en' ? 'Change Step:' : 'સ્ટેપ બદલો:'}</span>
                                         {[10, 20, 40, 80].map(pct => (
                                             <button
                                                 key={pct}
@@ -648,7 +656,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                                 type="number"
                                                 min="1"
                                                 max="100"
-                                                placeholder="દા.ત. 22"
+                                                placeholder={currentLang === 'en' ? 'e.g. 22' : 'દા.ત. 22'}
                                                 value={inlineCustomPct[curt.company_id] !== undefined ? inlineCustomPct[curt.company_id] : ''}
                                                 onChange={e => setInlineCustomPct({...inlineCustomPct, [curt.company_id]: e.target.value})}
                                                 onKeyDown={e => {
@@ -660,7 +668,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                                     }
                                                 }}
                                                 style={{width: '52px', padding: '2px 4px', fontSize: '11px', borderRadius: '3px', border: '1px solid #cbd5e1', fontWeight: 700, textAlign: 'center'}}
-                                                title="પોતાની કસ્ટમ ટકાવારી લખો (જેમ કે 22%)"
+                                                title={currentLang === 'en' ? 'Enter custom percentage (e.g. 22%)' : 'પોતાની કસ્ટમ ટકાવારી લખો (જેમ કે 22%)'}
                                             />
                                             <span style={{fontSize: '10.5px', fontWeight: 700, color: '#64748b'}}>%</span>
                                             <button
@@ -670,7 +678,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                                     if (val >= 1 && val <= 100) {
                                                         handleQuickStepChange(curt.company_id, val);
                                                     } else {
-                                                        alert('કૃપા કરી ૧ થી ૧૦૦ વચ્ચે ટકાવારી લખો (દા.ત. 22).');
+                                                        alert(currentLang === 'en' ? 'Please enter a percentage between 1 and 100 (e.g. 22).' : 'કૃપા કરી ૧ થી ૧૦૦ વચ્ચે ટકાવારી લખો (દા.ત. 22).');
                                                     }
                                                 }}
                                                 style={{
@@ -684,7 +692,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                                     cursor: 'pointer'
                                                 }}
                                             >
-                                                બદલો
+                                                {currentLang === 'en' ? 'Change' : 'બદલો'}
                                             </button>
                                         </div>
 
@@ -701,7 +709,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                                 cursor: 'pointer'
                                             }}
                                         >
-                                            ⚙️ સંપૂર્ણ સેટિંગ
+                                            {currentLang === 'en' ? '⚙️ Full Settings' : '⚙️ સંપૂર્ણ સેટિંગ'}
                                         </button>
                                     </div>
 
@@ -723,7 +731,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                         }}
                                     >
                                         <Check size={11}/>
-                                        આ કંપની Restore કરો (100% ON)
+                                        {currentLang === 'en' ? 'Restore this company (100% ON)' : 'આ કંપની Restore કરો (100% ON)'}
                                     </button>
                                 </div>
                             </div>
@@ -738,15 +746,15 @@ export default function DashboardPage({companyId, currentUser}) {
                     <div className="cleaning-head-left">
                         <h3>
                             <span style={{color: '#d97706'}}>⚡</span>
-                            પ્લાન્ટ સ્માર્ટ ડાયગ્નોસ્ટિક & સફાઈ એલર્ટ
+                            {currentLang === 'en' ? 'Plant Smart Diagnostics & Cleaning Alert' : 'પ્લાન્ટ સ્માર્ટ ડાયગ્નોસ્ટિક & સફાઈ એલર્ટ'}
                             {(cleaningAlerts.length > 0 || underperformingInverters.length > 0 || gridDowntime?.is_down) && (
                                 <span className="cleaning-head-badge">
-                                    🔴 {cleaningAlerts.length + underperformingInverters.length + (gridDowntime?.is_down ? 1 : 0)} ચેતવણી
+                                    🔴 {cleaningAlerts.length + underperformingInverters.length + (gridDowntime?.is_down ? 1 : 0)} {currentLang === 'en' ? 'Warnings' : 'ચેતવણી'}
                                 </span>
                             )}
                         </h3>
                         <p className="cleaning-head-subtitle">
-                            નબળા ઇન્વર્ટર, પાવર લોસ, ગ્રીડ ટ્રીપિંગ અને ધૂળનું ઓટોમેટિક AI નિદાન
+                            {currentLang === 'en' ? 'Automatic AI diagnostics for weak inverters, power loss, grid tripping and dust' : 'નબળા ઇન્વર્ટર, પાવર લોસ, ગ્રીડ ટ્રીપિંગ અને ધૂળનું ઓટોમેટિક AI નિદાન'}
                         </p>
                     </div>
 
@@ -758,7 +766,7 @@ export default function DashboardPage({companyId, currentUser}) {
                             title="Enable Mobile/Desktop Push Notification"
                         >
                             <Bell size={13}/>
-                            {notifStatus === 'granted' ? 'નોટિફિકેશન સક્રિય છે' : 'મોબાઈલ નોટિફિકેશન ચાલુ કરો'}
+                            {notifStatus === 'granted' ? (currentLang === 'en' ? 'Notifications Active' : 'નોટિફિકેશન સક્રિય છે') : (currentLang === 'en' ? 'Enable Notifications' : 'મોબાઈલ નોટિફિકેશન ચાલુ કરો')}
                         </button>
                     </div>
                 </div>
@@ -876,7 +884,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                 fontSize: '11.5px',
                                 fontWeight: 700
                             }}>
-                                કમ્પ્લીટ સેવ ✅
+                                {currentLang === 'en' ? 'Saved Successfully ✅' : 'કમ્પ્લીટ સેવ ✅'}
                             </span>
                         ) : (
                             <a
@@ -899,10 +907,10 @@ export default function DashboardPage({companyId, currentUser}) {
                                 }}
                             >
                                 {dailyReadingStatus.status === 'meter_missing'
-                                    ? '➕ મીટર રીડિંગ ભરો'
+                                    ? (currentLang === 'en' ? '➕ Enter Meter Reading' : '➕ મીટર રીડિંગ ભરો')
                                     : dailyReadingStatus.status === 'due_now'
-                                        ? '➕ રીડિંગ ભરો'
-                                        : '➕ ડેઇલી એન્ટ્રી ભરો'}
+                                        ? (currentLang === 'en' ? '➕ Enter Reading' : '➕ રીડિંગ ભરો')
+                                        : (currentLang === 'en' ? '➕ Enter Daily Entry' : '➕ ડેઇલી એન્ટ્રી ભરો')}
                             </a>
                         )}
                     </div>
@@ -951,7 +959,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                         </b>
                                     </div>
                                     <span style={{fontSize: '11.5px', color: '#b91c1c'}}>
-                                        નીચેની તારીખનું ડેઇલી રીડિંગ સિસ્ટમમાં મળ્યું નથી (ભરવાનું બાકી છે):
+                                        {currentLang === 'en' ? 'Daily reading for the following date is pending:' : 'નીચેની તારીખનું ડેઇલી રીડિંગ સિસ્ટમમાં મળ્યું નથી (ભરવાનું બાકી છે):'}
                                     </span>
                                 </div>
                             </div>
@@ -970,7 +978,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                     gap: '4px'
                                 }}
                             >
-                                ➕ બાકી રીડિંગ ભરો
+                                {currentLang === 'en' ? '➕ Enter Pending Reading' : '➕ બાકી રીડિંગ ભરો'}
                             </a>
                         </div>
 
@@ -1044,7 +1052,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                         cursor: 'pointer'
                                     }}
                                 >
-                                    🟢 ૧૦૦% પાવર કરો (Restore)
+                                    {currentLang === 'en' ? '🟢 100% Full Power (Restore)' : '🟢 ૧૦૦% પાવર કરો (Restore)'}
                                 </button>
                             </div>
                         ))}
@@ -1095,7 +1103,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                     </b>
                                 </div>
                                 <span style={{fontSize: '11.5px', color: fanCleaningStatus.is_overdue ? '#b91c1c' : fanCleaningStatus.is_approaching ? '#b45309' : '#15803d'}}>
-                                    {fanCleaningStatus.message} (છેલ્લી સફાઈ: <b>{fanCleaningStatus.last_cleaned_at}</b>)
+                                    {fanCleaningStatus.message} ({currentLang === 'en' ? 'Last cleaned: ' : 'છેલ્લી સફાઈ: '}<b>{fanCleaningStatus.last_cleaned_at}</b>)
                                 </span>
                             </div>
                         </div>
@@ -1119,7 +1127,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                 }}
                             >
                                 <Check size={14}/>
-                                {cleaningFanLoading ? 'નોંધાઈ રહ્યું છે...' : '✅ ફેન સાફ થઈ ગયો (Done)'}
+                                {cleaningFanLoading ? (currentLang === 'en' ? 'Recording...' : 'નોંધાઈ રહ્યું છે...') : (currentLang === 'en' ? '✅ Fan Cleaned (Done)' : '✅ ફેન સાફ થઈ ગયો (Done)')}
                             </button>
                         </div>
                     </div>
@@ -1154,7 +1162,7 @@ export default function DashboardPage({companyId, currentUser}) {
                             </div>
                             <div>
                                 <b style={{fontSize: '13px', color: gridDowntime.is_down ? '#991b1b' : '#166534', display: 'block'}}>
-                                    {gridDowntime.title || (gridDowntime.is_down ? '🚨 PGVCL લાઈટ કપાત ચાલુ છે' : '⚡ PGVCL ગ્રીડ પાવર સામાન્ય છે')}
+                                    {gridDowntime.title || (gridDowntime.is_down ? (currentLang === 'en' ? '🚨 PGVCL Grid Outage' : '🚨 PGVCL લાઈટ કપાત ચાલુ છે') : (currentLang === 'en' ? '⚡ PGVCL Grid Power Normal' : '⚡ PGVCL ગ્રીડ પાવર સામાન્ય છે'))}
                                 </b>
                                 <span style={{fontSize: '11.5px', color: gridDowntime.is_down ? '#b91c1c' : '#15803d'}}>
                                     {gridDowntime.message}
@@ -1180,10 +1188,10 @@ export default function DashboardPage({companyId, currentUser}) {
                     <div className="weather-storm-banner" style={{marginBottom: '10px'}}>
                         <div className="weather-storm-head">
                             <span className="weather-storm-tag">
-                                <Wind size={13}/> 🚨 તેજ પવન & વાવાઝોડું એલર્ટ (Wind Damage Warning)
+                                <Wind size={13}/> 🚨 {currentLang === 'en' ? 'Storm & High Wind Alert (Wind Damage Warning)' : 'તેજ પવન & વાવાઝોડું એલર્ટ (Wind Damage Warning)'}
                             </span>
                             <span className="weather-storm-speed">
-                                ઝડપ: {weather.storm_alert.wind_speed} (ઝાટકા: {weather.storm_alert.wind_gusts})
+                                {currentLang === 'en' ? 'Speed: ' : 'ઝડપ: '}{weather.storm_alert.wind_speed} ({currentLang === 'en' ? 'Gusts: ' : 'ઝાટકા: '}{weather.storm_alert.wind_gusts})
                             </span>
                         </div>
                         <p className="weather-storm-msg">
@@ -1203,15 +1211,15 @@ export default function DashboardPage({companyId, currentUser}) {
                                         <b>{uInv.title}</b>
                                     </div>
                                     <span className="underperf-loss-chip">
-                                        -{uInv.diff_kwh} kWh (₹{uInv.loss_rs} લોસ)
+                                        -{uInv.diff_kwh} kWh (₹{uInv.loss_rs} {currentLang === 'en' ? 'loss' : 'લોસ'})
                                     </span>
                                 </div>
                                 <div className="underperf-stats-row">
-                                    <span>આજનું જનરેશન: <b>{uInv.today_kwh} kWh</b></span>
-                                    <span>સામાન્ય એવરેજ: <b>{uInv.benchmark_kwh} kWh</b></span>
-                                    <span>ઓછું: <b style={{color: '#dc2626'}}>-{uInv.diff_pct}%</b></span>
+                                    <span>{currentLang === 'en' ? 'Today Generation: ' : 'આજનું જનરેશન: '}<b>{uInv.today_kwh} kWh</b></span>
+                                    <span>{currentLang === 'en' ? 'Normal Benchmark: ' : 'સામાન્ય એવરેજ: '}<b>{uInv.benchmark_kwh} kWh</b></span>
+                                    <span>{currentLang === 'en' ? 'Lower: ' : 'ઓછું: '}<b style={{color: '#dc2626'}}>-{uInv.diff_pct}%</b></span>
                                 </div>
-                                <p className="underperf-advice">💡 <b>સલાહ:</b> {uInv.advice}</p>
+                                <p className="underperf-advice">💡 <b>{currentLang === 'en' ? 'Advice:' : 'સલાહ:'}</b> {uInv.advice}</p>
                             </div>
                         ))}
                     </div>
@@ -1228,7 +1236,7 @@ export default function DashboardPage({companyId, currentUser}) {
                             <span className="rain-pill" style={{
                                 background: rainAlert.status === 'raining_now' ? '#2563eb' : '#0284c7'
                             }}>
-                                {rainAlert.status === 'raining_now' ? 'વરસાદ ચાલુ છે' : 'વરસાદની આગાહી'}
+                                {rainAlert.status === 'raining_now' ? (currentLang === 'en' ? 'Raining Now' : 'વરસાદ ચાલુ છે') : (currentLang === 'en' ? 'Rain Forecast' : 'વરસાદની આગાહી')}
                             </span>
                             <CloudRain size={18} className="weather-rain-icon" style={{color: '#1d4ed8'}}/>
                             <span style={{fontSize: '12.5px', color: '#1e3a8a', fontWeight: 600}}>
@@ -1236,9 +1244,9 @@ export default function DashboardPage({companyId, currentUser}) {
                             </span>
                         </div>
                         <div style={{display: 'flex', gap: '14px', fontSize: '11.5px', color: '#1e40af', fontWeight: 700, marginTop: '4px', paddingLeft: '26px'}}>
-                            <span>શરૂઆત: <b>{rainAlert.start_time}</b></span>
-                            <span>રોકાવાનો અંદાજ (Stop Time): <b>{rainAlert.stop_time}</b></span>
-                            <span>શક્યતા: <b>{rainAlert.probability}%</b></span>
+                            <span>{currentLang === 'en' ? 'Start: ' : 'શરૂઆત: '}<b>{rainAlert.start_time}</b></span>
+                            <span>{currentLang === 'en' ? 'Est. Stop Time: ' : 'રોકાવાનો અંદાજ (Stop Time): '}<b>{rainAlert.stop_time}</b></span>
+                            <span>{currentLang === 'en' ? 'Probability: ' : 'શક્યતા: '}<b>{rainAlert.probability}%</b></span>
                         </div>
                     </div>
                 )}
@@ -1264,7 +1272,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                             padding: '3px 8px',
                                             borderRadius: '6px'
                                         }}>
-                                            {alert.badge || '⚠️ લાઈવ નોટિસ'}
+                                            {alert.badge || (currentLang === 'en' ? '⚠️ Live Notice' : '⚠️ લાઈવ નોટિસ')}
                                         </span>
                                         <b style={{fontSize: '13px', color: '#0f172a'}}>🏢 {alert.company_name}</b>
                                     </div>
@@ -1282,13 +1290,13 @@ export default function DashboardPage({companyId, currentUser}) {
                                 {(alert.type === 'inverter_overheat' || alert.type === 'inverter_fire_risk') && (
                                     <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '11px', marginTop: '4px'}}>
                                         <span style={{background: '#ffe4e6', color: '#be123c', padding: '3px 8px', borderRadius: '4px', border: '1px solid #fecdd3', fontWeight: 700}}>
-                                            🌡️ અંદાજિત હીટ: {alert.temp_c}°C
+                                            {currentLang === 'en' ? '🌡️ Est. Heat: ' : '🌡️ અંદાજિત હીટ: '}{alert.temp_c}°C
                                         </span>
                                         <span style={{background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: '4px', border: '1px solid #fde68a', fontWeight: 700}}>
-                                            ⚡ લોડ: {alert.load_pct}% ({alert.live_kw} kW)
+                                            {currentLang === 'en' ? '⚡ Load: ' : '⚡ લોડ: '}{alert.load_pct}% ({alert.live_kw} kW)
                                         </span>
                                         <span style={{background: '#fee2e2', color: '#991b1b', padding: '3px 8px', borderRadius: '4px', border: '1px solid #fca5a5', fontWeight: 700}}>
-                                            {alert.type === 'inverter_fire_risk' ? '🚨 ઇમરજન્સી: સાઈટ પર ઇન્વર્ટર તપાસો અથવા તરત ટ્રીપ કરો!' : '⚠️ સાઇટ ચેકલિસ્ટ: કૂલિંગ ફેન અને ફિલ્ટર જાળી બ્લોઅરથી સાફ કરો'}
+                                            {alert.type === 'inverter_fire_risk' ? (currentLang === 'en' ? '🚨 Emergency: Inspect inverter on site or trip immediately!' : '🚨 ઇમરજન્સી: સાઈટ પર ઇન્વર્ટર તપાસો અથવા તરત ટ્રીપ કરો!') : (currentLang === 'en' ? '⚠️ Site Checklist: Clean cooling fan and filter mesh with blower' : '⚠️ સાઇટ ચેકલિસ્ટ: કૂલિંગ ફેન અને ફિલ્ટર જાળી બ્લોઅરથી સાફ કરો')}
                                         </span>
                                     </div>
                                 )}
@@ -1296,10 +1304,10 @@ export default function DashboardPage({companyId, currentUser}) {
                                 {alert.healthy_avg > 0 && alert.worst_current !== undefined && (
                                     <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '11px'}}>
                                         <span style={{background: '#ecfdf5', color: '#166534', padding: '3px 8px', borderRadius: '4px', border: '1px solid #86efac', fontWeight: 700}}>
-                                            સામાન્ય કરંટ: {alert.healthy_avg} Amps
+                                            {currentLang === 'en' ? 'Baseline: ' : 'સામાન્ય કરંટ: '}{alert.healthy_avg} Amps
                                         </span>
                                         <span style={{background: '#fee2e2', color: '#991b1b', padding: '3px 8px', borderRadius: '4px', border: '1px solid #fca5a5', fontWeight: 700}}>
-                                            {alert.string_label || 'ખામીવાળો'} કરંટ: {alert.worst_current} Amps ({alert.drop_pct || 50}% પાવર ડ્રોપ)
+                                            {alert.string_label || (currentLang === 'en' ? 'Faulty' : 'ખામીવાળો')} {currentLang === 'en' ? 'Current: ' : 'કરંટ: '}{alert.worst_current} Amps ({alert.drop_pct || 50}% {currentLang === 'en' ? 'Power Drop' : 'પાવર ડ્રોપ'})
                                         </span>
                                     </div>
                                 )}
@@ -1311,9 +1319,9 @@ export default function DashboardPage({companyId, currentUser}) {
                         <CheckCircle size={18} style={{color: '#16a34a'}}/>
                         <span>
                             {cleaningSystem.is_window_active && cleaningSystem.is_irradiance_sufficient ? (
-                                'બધા PV સ્ટ્રિંગ્સ નોર્મલ કરંટ આપી રહ્યા છે. અત્યારે કોઈ પેનલ પર વધુ પડતી ધૂળ કે તાત્કાલિક સફાઈની જરૂરિયાત નથી.'
+                                currentLang === 'en' ? 'All PV strings delivering normal current. No immediate washing needed.' : 'બધા PV સ્ટ્રિંગ્સ નોર્મલ કરંટ આપી રહ્યા છે. અત્યારે કોઈ પેનલ પર વધુ પડતી ધૂળ કે તાત્કાલિક સફાઈની જરૂરિયાત નથી.'
                             ) : (
-                                'સ્માર્ટ વેધર ચેક: સૂર્યપ્રકાશ પૂરો હોય (10:30 AM થી 4:00 PM અને Irradiance > 600 W/m²) ત્યારે જ એક્યુરેટ સફાઈ એલર્ટ ચકાસાય છે.'
+                                currentLang === 'en' ? 'Smart Weather Check: Cleaning alerts verified when irradiance > 600 W/m² (10:30 AM to 4:00 PM).' : 'સ્માર્ટ વેધર ચેક: સૂર્યપ્રકાશ પૂરો હોય (10:30 AM થી 4:00 PM અને Irradiance > 600 W/m²) ત્યારે જ એક્યુરેટ સફાઈ એલર્ટ ચકાસાય છે.'
                             )}
                         </span>
                     </div>
@@ -1408,9 +1416,9 @@ export default function DashboardPage({companyId, currentUser}) {
                     <div className="hourly-forecast-head">
                         <div className="hourly-forecast-title">
                             <Sparkles size={14} style={{color: '#0284c7'}}/>
-                            <b>કલાકવાર ઉત્પાદન અંદાજ (Hourly Generation Forecast)</b>
+                            <b>{currentLang === 'en' ? 'Hourly Generation Forecast' : 'કલાકવાર ઉત્પાદન અંદાજ (Hourly Generation Forecast)'}</b>
                         </div>
-                        <span className="hourly-forecast-sub">સૂર્યાસ્ત સુધીનું અનુમાન</span>
+                        <span className="hourly-forecast-sub">{currentLang === 'en' ? 'Forecast until sunset' : 'સૂર્યાસ્ત સુધીનું અનુમાન'}</span>
                     </div>
                     <div className="hourly-forecast-pills-row">
                         {predictions.hourly_forecast.map((hf, hIdx) => (
@@ -1461,7 +1469,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                                 <div className="inverter-name-sn">
                                                     <b>
                                                         {inv.name}
-                                                        {hasAlert && <span style={{color: '#dc2626', marginLeft: '5px', fontSize: '11px'}}>⚠️ સફાઈ</span>}
+                                                        {hasAlert && <span style={{color: '#dc2626', marginLeft: '5px', fontSize: '11px'}}>⚠️ {currentLang === 'en' ? 'Wash' : 'સફાઈ'}</span>}
                                                         {inv.estimated_temp_c !== null && inv.estimated_temp_c !== undefined && (
                                                             <span style={{
                                                                 color: inv.estimated_temp_c >= 64 ? '#dc2626' : '#d97706',
@@ -1685,7 +1693,7 @@ export default function DashboardPage({companyId, currentUser}) {
                         <div className="solar-modal-head" style={{background: '#fff7ed', borderBottom: '1px solid #fed7aa'}}>
                             <h3 style={{color: '#9a3412', display: 'flex', alignItems: 'center', gap: '8px'}}>
                                 <Power size={18} style={{color: '#ea580c'}}/>
-                                PGVCL પાવર કર્ટલમેન્ટ સેટિંગ
+                                {currentLang === 'en' ? 'PGVCL Curtailment Settings' : 'PGVCL પાવર કર્ટલમેન્ટ સેટિંગ'}
                             </h3>
                             <button
                                 type="button"
@@ -1699,7 +1707,7 @@ export default function DashboardPage({companyId, currentUser}) {
                             <div className="solar-modal-body" style={{padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px'}}>
                                 <div>
                                     <label style={{display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '5px'}}>
-                                        કંપની / પ્લાન્ટ પસંદ કરો
+                                        {currentLang === 'en' ? 'Select Company / Plant' : 'કંપની / પ્લાન્ટ પસંદ કરો'}
                                     </label>
                                     <select
                                         value={curtailForm.company_id}
@@ -1716,7 +1724,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                         required
                                         style={{width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px'}}
                                     >
-                                        <option value="">-- કંપની પસંદ કરો --</option>
+                                        <option value="">{currentLang === 'en' ? '-- Select Company --' : '-- કંપની પસંદ કરો --'}</option>
                                         {companies.map(c => (
                                             <option key={c.company_id} value={c.company_id}>
                                                 {c.company_name}
@@ -1728,7 +1736,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                 {/* Curtailment Percentage Selection */}
                                 <div>
                                     <label style={{display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '5px'}}>
-                                        કેટલા ટકા (%) કર્ટલમેન્ટ કરવું છે?
+                                        {currentLang === 'en' ? 'Curtailment Percentage (%)' : 'કેટલા ટકા (%) કર્ટલમેન્ટ કરવું છે?'}
                                     </label>
                                     <div style={{display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px'}}>
                                         {[80, 50, 40, 30, 25, 22, 20, 15, 10, 5].map(pct => (
@@ -1761,7 +1769,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                             required
                                             style={{width: '90px', padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 700}}
                                         />
-                                        <span style={{fontSize: '13px', fontWeight: 700, color: '#475569'}}>% ક્ષમતા બંધ રાખવી</span>
+                                        <span style={{fontSize: '13px', fontWeight: 700, color: '#475569'}}>{currentLang === 'en' ? '% Capacity to Curtail' : '% ક્ષમતા બંધ રાખવી'}</span>
                                     </div>
                                 </div>
 
@@ -1769,7 +1777,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                 <div>
                                     <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px'}}>
                                         <label style={{fontSize: '12px', fontWeight: 700, color: '#334155', margin: 0}}>
-                                            કઈ PV સ્ટ્રિંગ્સ બંધ રાખવી છે?
+                                            {currentLang === 'en' ? 'Select PV strings to curtail:' : 'કઈ PV સ્ટ્રિંગ્સ બંધ રાખવી છે?'}
                                         </label>
                                         <button
                                             type="button"
@@ -1784,7 +1792,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                             }}
                                             style={{fontSize: '11px', color: '#0284c7', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, padding: 0}}
                                         >
-                                            {curtailForm.pv_strings?.length === 16 ? 'બધી અનચેક કરો' : 'બધી પસંદ કરો (All 16)'}
+                                            {curtailForm.pv_strings?.length === 16 ? (currentLang === 'en' ? 'Uncheck All' : 'બધી અનચેક કરો') : (currentLang === 'en' ? 'Select All (All 16)' : 'બધી પસંદ કરો (All 16)')}
                                         </button>
                                     </div>
                                     <div style={{
@@ -1839,13 +1847,13 @@ export default function DashboardPage({companyId, currentUser}) {
                                 {/* Notes / Reason */}
                                 <div>
                                     <label style={{display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '5px'}}>
-                                        કારણ / PGVCL ઓર્ડર વિગત
+                                        {currentLang === 'en' ? 'Reason / PGVCL Order Details' : 'કારણ / PGVCL ઓર્ડર વિગત'}
                                     </label>
                                     <input
                                         type="text"
                                         value={curtailForm.notes}
                                         onChange={e => setCurtailForm({...curtailForm, notes: e.target.value})}
-                                        placeholder="દા.ત. PGVCL Order - High Grid Power / Substation Call"
+                                        placeholder={currentLang === 'en' ? 'e.g. PGVCL Order - High Grid Power / Substation Call' : 'દા.ત. PGVCL Order - High Grid Power / Substation Call'}
                                         style={{width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px'}}
                                     />
                                 </div>
@@ -1855,9 +1863,9 @@ export default function DashboardPage({companyId, currentUser}) {
                                         fontSize: '12px',
                                         padding: '8px 12px',
                                         borderRadius: '6px',
-                                        background: curtailMessage.includes('સફળતાપૂર્વક') ? '#ecfdf5' : '#fef2f2',
-                                        color: curtailMessage.includes('સફળતાપૂર્વક') ? '#065f46' : '#991b1b',
-                                        border: curtailMessage.includes('સફળતાપૂર્વક') ? '1px solid #a7f3d0' : '1px solid #fecaca',
+                                        background: (curtailMessage.toLowerCase().includes('success') || curtailMessage.includes('સફળતાપૂર્વક')) ? '#ecfdf5' : '#fef2f2',
+                                        color: (curtailMessage.toLowerCase().includes('success') || curtailMessage.includes('સફળતાપૂર્વક')) ? '#065f46' : '#991b1b',
+                                        border: (curtailMessage.toLowerCase().includes('success') || curtailMessage.includes('સફળતાપૂર્વક')) ? '1px solid #a7f3d0' : '1px solid #fecaca',
                                     }}>
                                         {curtailMessage}
                                     </div>
@@ -1885,7 +1893,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                         fontWeight: 700
                                     }}
                                 >
-                                    {curtailSaving ? 'લાગુ થઈ રહ્યું છે...' : '⚡ PGVCL કર્ટલમેન્ટ લાગુ કરો'}
+                                    {curtailSaving ? (currentLang === 'en' ? 'Applying...' : 'લાગુ થઈ રહ્યું છે...') : (currentLang === 'en' ? '⚡ Apply PGVCL Curtailment' : '⚡ PGVCL કર્ટલમેન્ટ લાગુ કરો')}
                                 </button>
                             </div>
                         </form>
@@ -1900,7 +1908,7 @@ export default function DashboardPage({companyId, currentUser}) {
                         <div className="solar-modal-head" style={{background: '#f8fafc', borderBottom: '1px solid #e2e8f0'}}>
                             <h3 style={{display: 'flex', alignItems: 'center', gap: '8px', color: '#0f172a'}}>
                                 <History size={18} style={{color: '#0284c7'}}/>
-                                PGVCL કર્ટલમેન્ટ & પાવર લોસ હિસાબ (History Logs)
+                                {currentLang === 'en' ? 'PGVCL Curtailment & Power Loss Logs' : 'PGVCL કર્ટલમેન્ટ & પાવર લોસ હિસાબ (History Logs)'}
                             </h3>
                             <button
                                 type="button"
@@ -1914,11 +1922,11 @@ export default function DashboardPage({companyId, currentUser}) {
                         <div className="solar-modal-body" style={{padding: '14px', maxHeight: '65vh', overflowY: 'auto'}}>
                             {historyLoading ? (
                                 <div style={{padding: '30px', textAlign: 'center', color: '#64748b', fontSize: '13px'}}>
-                                    ઇતિહાસ લોડ થઈ રહ્યો છે...
+                                    {currentLang === 'en' ? 'Loading history logs...' : 'ઇતિહાસ લોડ થઈ રહ્યો છે...'}
                                 </div>
                             ) : historyList.length === 0 ? (
                                 <div style={{padding: '30px', textAlign: 'center', color: '#64748b', fontSize: '13px'}}>
-                                    અત્યાર સુધી કોઈ પાછલો કર્ટલમેન્ટ રેકોર્ડ નથી.
+                                    {currentLang === 'en' ? 'No past curtailment records found.' : 'અત્યાર સુધી કોઈ પાછલો કર્ટલમેન્ટ રેકોર્ડ નથી.'}
                                 </div>
                             ) : (
                                 <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
@@ -1945,14 +1953,14 @@ export default function DashboardPage({companyId, currentUser}) {
                                                     <b style={{fontSize: '12.5px', color: '#0f172a'}}>🏢 {hItem.company_name}</b>
                                                 </div>
                                                 <span style={{fontSize: '11px', color: '#64748b', fontWeight: 600}}>
-                                                    📅 {hItem.date} ({hItem.started_at_human} થી {hItem.ended_at_human})
+                                                    📅 {hItem.date} ({hItem.started_at_human} {currentLang === 'en' ? 'to' : 'થી'} {hItem.ended_at_human})
                                                 </span>
                                             </div>
 
                                             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', fontSize: '11.5px', marginTop: '6px', paddingTop: '6px', borderTop: '1px dashed #f1f5f9'}}>
                                                 <div style={{display: 'flex', gap: '10px', color: '#475569'}}>
-                                                    <span>સમયગાળો: <b>{hItem.duration_human}</b></span>
-                                                    <span>યુઝર: <b>{hItem.user_name}</b></span>
+                                                    <span>{currentLang === 'en' ? 'Duration: ' : 'સમયગાળો: '}<b>{hItem.duration_human}</b></span>
+                                                    <span>{currentLang === 'en' ? 'User: ' : 'યુઝર: '}<b>{hItem.user_name}</b></span>
                                                 </div>
                                                 <div style={{display: 'flex', gap: '6px', alignItems: 'center'}}>
                                                     <span style={{background: '#fef2f2', color: '#dc2626', padding: '2px 7px', borderRadius: '4px', fontWeight: 800}}>
@@ -1976,7 +1984,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                 onClick={() => setShowCurtailHistory(false)}
                                 style={{fontSize: '12px', padding: '5px 12px'}}
                             >
-                                બંધ કરો (Close)
+                                {currentLang === 'en' ? 'Close' : 'બંધ કરો (Close)'}
                             </button>
                         </div>
                     </div>

@@ -7,6 +7,25 @@ import { api } from '../api';
 import { PcmPlayer, CallTonePlayer } from '../lib/audio';
 import { getLanguage, t } from '../utils/translations';
 
+// Helper to unlock Web Audio & SpeechSynthesis immediately on user click gesture
+export function unlockVoiceCallAudio() {
+    try {
+        if (typeof window !== 'undefined') {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.resume();
+                const silent = new SpeechSynthesisUtterance(' ');
+                silent.volume = 0.01;
+                window.speechSynthesis.speak(silent);
+            }
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) {
+                const ctx = new AudioCtx();
+                ctx.resume().then(() => ctx.close()).catch(() => {});
+            }
+        }
+    } catch (_) {}
+}
+
 export default function VoiceCallModal({ isOpen, onClose, user }) {
     const [callStatus, setCallStatus] = useState('dialing'); // dialing, connected, speaking, listening, ended, error
     const [errorMessage, setErrorMessage] = useState('');
@@ -52,7 +71,6 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
                     return !maleKeywords.some(m => name.includes(m));
                 });
 
-                // Find best Indian female voice
                 let selected = null;
                 if (lang === 'gu') {
                     selected = femaleCandidates.find(v => {
@@ -67,10 +85,10 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
                     selected = femaleCandidates.find(v => {
                         const l = (v?.lang || '').toLowerCase();
                         const n = (v?.name || '').toLowerCase();
-                        return l.includes('in') && femaleKeywords.some(k => n.includes(k));
+                        return (l.includes('in') || l.startsWith('en')) && femaleKeywords.some(k => n.includes(k));
                     }) || femaleCandidates.find(v => {
                         const l = (v?.lang || '').toLowerCase();
-                        return l.startsWith('en') && femaleKeywords.some(k => n.includes(k));
+                        return l.includes('in') || l.startsWith('en');
                     });
                 }
 
@@ -188,7 +206,7 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
             console.error('Call connection error:', err);
             if (tonePlayerRef.current) tonePlayerRef.current.stop();
             setCallStatus('error');
-            setErrorMessage(err.message || 'કૉલ કનેક્ટ થઈ શક્યો નથી.');
+            setErrorMessage(err.message || (getLanguage() === 'en' ? 'Could not connect call.' : 'કૉલ કનેક્ટ થઈ શક્યો નથી.'));
         }
     };
 
@@ -293,37 +311,96 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
         speakAiResponse(fallbackReply);
     };
 
-    // Strictly Fixed Female Voice (Priya / Neha Style)
+    // Strictly Fixed Female Voice (Priya / Neha Style) with Bulletproof Web Audio Fallback
     const speakAiResponse = (text) => {
+        if (!text) return;
         setCurrentAiSpeech(text);
         setCallStatus('speaking');
 
-        if ('speechSynthesis' in window && isSpeakerOn) {
-            window.speechSynthesis.cancel();
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window && isSpeakerOn) {
+            try {
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.resume();
+            } catch (_) {}
 
-            const utterance = new SpeechSynthesisUtterance(text);
             const lang = getLanguage();
-            utterance.lang = lang === 'gu' ? 'gu-IN' : 'en-IN';
-            
-            // Sweet, clear Indian Female tone
+            const utterance = new SpeechSynthesisUtterance(text);
+            window.__solarflow_current_utterance = utterance; // Prevents browser garbage collection bug!
+
             utterance.pitch = 1.15;
             utterance.rate = 0.98;
+            utterance.volume = 1.0;
 
-            if (femaleVoiceRef.current) {
-                utterance.voice = femaleVoiceRef.current;
+            const voices = window.speechSynthesis.getVoices() || [];
+            let chosenVoice = null;
+
+            if (lang === 'en') {
+                utterance.lang = 'en-IN';
+                const femaleKeywords = ['priya', 'neha', 'kavya', 'veena', 'zira', 'lekha', 'female', 'india', 'rishi'];
+                chosenVoice = voices.find(v => {
+                    const l = (v.lang || '').toLowerCase();
+                    const n = (v.name || '').toLowerCase();
+                    return (l.includes('in') || l.startsWith('en')) && femaleKeywords.some(k => n.includes(k));
+                }) || voices.find(v => (v.lang || '').toLowerCase().includes('in')) || voices.find(v => (v.lang || '').toLowerCase().startsWith('en'));
+            } else {
+                // Gujarati
+                const guVoice = voices.find(v => (v.lang || '').toLowerCase().startsWith('gu'));
+                if (guVoice) {
+                    chosenVoice = guVoice;
+                    utterance.lang = 'gu-IN';
+                } else {
+                    // If device lacks native Gujarati TTS voice (e.g. iOS Safari), use Indian Hindi or Indian English voice
+                    const hiVoice = voices.find(v => (v.lang || '').toLowerCase().startsWith('hi'));
+                    if (hiVoice) {
+                        chosenVoice = hiVoice;
+                        utterance.lang = 'hi-IN';
+                    } else {
+                        const inVoice = voices.find(v => (v.lang || '').toLowerCase().includes('in'));
+                        chosenVoice = inVoice || voices[0];
+                        utterance.lang = chosenVoice?.lang || 'en-IN';
+                    }
+                }
+            }
+
+            if (chosenVoice) {
+                utterance.voice = chosenVoice;
             }
 
             utterance.onend = () => {
                 setCallStatus('connected');
                 setCurrentAiSpeech('');
+                window.__solarflow_current_utterance = null;
             };
 
-            utterance.onerror = () => {
+            utterance.onerror = (e) => {
+                console.warn('SpeechSynthesis error, retrying without voice override:', e);
+                if (utterance.voice) {
+                    try {
+                        const fallbackUtterance = new SpeechSynthesisUtterance(text);
+                        window.__solarflow_current_utterance = fallbackUtterance;
+                        fallbackUtterance.lang = lang === 'en' ? 'en-IN' : 'gu-IN';
+                        fallbackUtterance.volume = 1.0;
+                        fallbackUtterance.onend = () => {
+                            setCallStatus('connected');
+                            setCurrentAiSpeech('');
+                            window.__solarflow_current_utterance = null;
+                        };
+                        window.speechSynthesis.speak(fallbackUtterance);
+                        return;
+                    } catch (_) {}
+                }
                 setCallStatus('connected');
                 setCurrentAiSpeech('');
+                window.__solarflow_current_utterance = null;
             };
 
-            window.speechSynthesis.speak(utterance);
+            try {
+                window.speechSynthesis.speak(utterance);
+            } catch (err) {
+                console.warn('speechSynthesis.speak failed:', err);
+                setCallStatus('connected');
+                setCurrentAiSpeech('');
+            }
         } else {
             setTimeout(() => {
                 setCallStatus('connected');

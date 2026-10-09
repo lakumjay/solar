@@ -1,5 +1,6 @@
 import React, {useState} from 'react';
 import {CheckCircle, Clock, HelpCircle, Sun, Cloud, CloudRain, CloudLightning, Wind, AlertTriangle, Share2} from 'lucide-react';
+import {getLanguage} from '../utils/translations';
 
 export default function ISolarCloudVisualizer({data, weather, isEmployee}) {
     const selectedWeather = weather?.type || 'sunny';
@@ -112,14 +113,14 @@ export default function ISolarCloudVisualizer({data, weather, isEmployee}) {
             {selectedWeather === 'rain' && (
                 <div className="weather-live-banner rain-banner">
                     <CloudRain size={15} className="weather-banner-icon animate-bounce"/>
-                    <span>🌧️ લાઈવ વરસાદ શરૂ છે (Rain In Progress): પેનલ પર વરસાદી પાણીથી પાવર મોનિટરિંગ સક્રિય છે.</span>
+                    <span>{getLanguage() === 'en' ? '🌧️ Rain in progress: Live power generation and water flow monitoring active.' : '🌧️ લાઈવ વરસાદ શરૂ છે (Rain In Progress): પેનલ પર વરસાદી પાણીથી પાવર મોનિટરિંગ સક્રિય છે.'}</span>
                 </div>
             )}
 
             {selectedWeather === 'storm' && (
                 <div className="weather-live-banner storm-banner">
                     <CloudLightning size={15} className="weather-banner-icon flash-icon"/>
-                    <span>⛈️ વાવાઝોડું & તોફાન એલર્ટ (Storm Active): ભારે પવન અને વીજળી સુરક્ષા માટે સેફ્ટી ગ્રીડ મોડ ઓન છે.</span>
+                    <span>{getLanguage() === 'en' ? '⛈️ Storm alert active: Safety grid mode enabled for high wind and lightning.' : '⛈️ વાવાઝોડું & તોફાન એલર્ટ (Storm Active): ભારે પવન અને વીજળી સુરક્ષા માટે સેફ્ટી ગ્રીડ મોડ ઓન છે.'}</span>
                 </div>
             )}
 

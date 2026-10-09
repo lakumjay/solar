@@ -3,6 +3,7 @@ import {Camera, CheckCircle2, Clock, Clock3, Coffee, ExternalLink, Lock, LogIn, 
 import {api} from '../api';
 import {Empty, Field} from '../components/Common';
 import LiveBackCameraModal from '../components/LiveBackCameraModal';
+import {getLanguage} from '../utils/translations';
 
 const localDate = () => {
     const now = new Date();
@@ -79,6 +80,13 @@ export default function MyAttendancePage({companyId}) {
     const [leaveForm, setLeaveForm] = useState({date_from: localDate(), date_to: localDate(), day_part: 'full_day', reason: ''});
     const [message, setMessage] = useState('');
     const [busy, setBusy] = useState(false);
+    const [currentLang, setCurrentLang] = useState(() => getLanguage());
+
+    useEffect(() => {
+        const handler = (e) => setCurrentLang(e.detail || getLanguage());
+        window.addEventListener('solarflow_language_change', handler);
+        return () => window.removeEventListener('solarflow_language_change', handler);
+    }, []);
 
     const load = async () => {
         try {
@@ -344,9 +352,9 @@ export default function MyAttendancePage({companyId}) {
                         }}>
                             <Lock size={16} style={{color: '#d97706', flexShrink: 0}}/>
                             <span>
-                                <b>ટાઈમ-આઉટ લૉક છે:</b> {today.has_approved_half_day
-                                    ? `હાફ-ડે રજા મંજૂર થયેલી હોવાથી ટાઈમ આઉટ બપોરે 01:00 PM પછી અનલૉક થશે.`
-                                    : `ફૂલ-ડે શિફ્ટ માટે ટાઈમ આઉટ સાંજે 06:00 PM પછી જ અનલૉક થશે. (જો હાફ-ડે રજા મંજૂર હોય તો બપોરે 01:00 PM પછી).`
+                                <b>{currentLang === 'en' ? 'Time-Out is Locked:' : 'ટાઈમ-આઉટ લૉક છે:'}</b> {today.has_approved_half_day
+                                    ? (currentLang === 'en' ? 'Time out will unlock after 01:00 PM as half-day leave is approved.' : 'હાફ-ડે રજા મંજૂર થયેલી હોવાથી ટાઈમ આઉટ બપોરે 01:00 PM પછી અનલૉક થશે.')
+                                    : (currentLang === 'en' ? 'For a full-day shift, Time Out unlocks after 06:00 PM. (After 01:00 PM if half-day leave is approved).' : 'ફૂલ-ડે શિફ્ટ માટે ટાઈમ આઉટ સાંજે 06:00 PM પછી જ અનલૉક થશે. (જો હાફ-ડે રજા મંજૂર હોય તો બપોરે 01:00 PM પછી).')
                                 }
                             </span>
                         </div>
@@ -365,18 +373,18 @@ export default function MyAttendancePage({companyId}) {
                         }}>
                             <CheckCircle2 size={16} style={{color: '#16a34a', flexShrink: 0}}/>
                             <span>
-                                <b>ટાઈમ-આઉટ અનલૉક છે:</b> {today.has_approved_half_day ? 'Approved Half-Day Shift Complete' : '06:00 PM Regular Shift Complete'}. તમે હવે કામની વિગતો ભરીને Time Out કરી શકો છો.
+                                <b>{currentLang === 'en' ? 'Time-Out is Unlocked:' : 'ટાઈમ-આઉટ અનલૉક છે:'}</b> {today.has_approved_half_day ? (currentLang === 'en' ? 'Approved Half-Day Shift Complete' : 'હાફ-ડે શિફ્ટ પૂર્ણ') : (currentLang === 'en' ? '06:00 PM Regular Shift Complete' : '06:00 PM શિફ્ટ પૂર્ણ')}. {currentLang === 'en' ? 'You can now fill in work details and Time Out.' : 'તમે હવે કામની વિગતો ભરીને Time Out કરી શકો છો.'}
                             </span>
                         </div>
                     )}
 
                     {activeBreak && <div className="info-banner">Break out before completing your day.</div>}
 
-                    <Field label="What did you do today? (આજે શું કામ કર્યું?)">
+                    <Field label={currentLang === 'en' ? 'What did you do today?' : 'What did you do today? (આજે શું કામ કર્યું?)'}>
                         <textarea value={clockOutForm.work_done} onChange={event => setClockOutForm({...clockOutForm, work_done: event.target.value})} rows="4" required/>
                     </Field>
 
-                    <Field label="What did you learn today? (આજે નવું શું શીખ્યા?)">
+                    <Field label={currentLang === 'en' ? 'What did you learn today?' : 'What did you learn today? (આજે નવું શું શીખ્યા?)'}>
                         <textarea value={clockOutForm.learned} onChange={event => setClockOutForm({...clockOutForm, learned: event.target.value})} rows="4" required/>
                     </Field>
 
@@ -405,7 +413,7 @@ export default function MyAttendancePage({companyId}) {
                 <form className="panel" onSubmit={requestLeave}>
                     <div className="panel-head">
                         <div>
-                            <h2>Request leave (રજાની અરજી)</h2>
+                            <h2>{currentLang === 'en' ? 'Request Leave' : 'Request leave (રજાની અરજી)'}</h2>
                             <p>Half-day or full-day leave approval by manager.</p>
                         </div>
                         <Send/>

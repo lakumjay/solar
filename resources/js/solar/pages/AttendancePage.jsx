@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {ClockAlert, ExternalLink, MapPin, Navigation, PencilLine, Plus, Radio, RefreshCw, Search, Smartphone, User, X} from 'lucide-react';
 import {api} from '../api';
+import { getLanguage, t } from '../utils/translations';
 import {DatePicker, Empty, Field} from '../components/Common';
 
 const localDate = () => {
@@ -16,6 +17,13 @@ const localDateTime = (value, date, fallback = '18:00') => {
 const displayTime = value => value ? new Date(value).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: true}) : 'Missing';
 
 export default function AttendancePage({canCorrect, canRecord}) {
+    const [currentLang, setCurrentLang] = useState(getLanguage());
+
+    useEffect(() => {
+        const handleLangChange = (e) => setCurrentLang(e.detail);
+        window.addEventListener('solarflow_language_change', handleLangChange);
+        return () => window.removeEventListener('solarflow_language_change', handleLangChange);
+    }, []);
     const [employees, setEmployees] = useState([]);
     const [rows, setRows] = useState([]);
     const [date, setDate] = useState(localDate());
@@ -68,7 +76,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                     company_id: null,
                     avatar_url: emp.profile_photo_url || null,
                     is_live: isLive,
-                    last_seen: row ? 'Time In પરથી સિંક' : 'GPS પિંગની રાહ જુએ છે',
+                    last_seen: row ? (currentLang === 'en' ? 'Synced from Time In' : 'Time In પરથી સિંક') : (currentLang === 'en' ? 'Waiting for GPS ping' : 'GPS પિંગની રાહ જુએ છે'),
                     status: row ? (row.clock_out_at ? 'Shift Ended' : 'Working') : 'Not Checked In',
                     latitude: lat,
                     longitude: lng,
@@ -76,7 +84,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                     speed: isLive ? 0 : null,
                     movement: isLive ? 'stationary' : 'offline',
                     movement_icon: isLive ? '🧍‍♂️' : '⚪',
-                    movement_label: isLive ? 'સાઇટ પર સ્થિર (0 km/h)' : 'ઑફલાઇન',
+                    movement_label: isLive ? (currentLang === 'en' ? 'Stationary on site (0 km/h)' : 'સાઇટ પર સ્થિર (0 km/h)') : (currentLang === 'en' ? 'Offline' : 'ઑફલાઇન'),
                     map_url: lat && lng ? `https://www.google.com/maps?q=${lat},${lng}` : null,
                 };
             });
@@ -179,14 +187,14 @@ export default function AttendancePage({canCorrect, canRecord}) {
         `}</style>
         <div className="cards attendance-cards">
             <article className="metric">
-                <span>{isToday ? 'પૂર્ણ શિફ્ટ (Completed)' : 'Completed present'}</span>
+                <span>{isToday ? (currentLang === 'en' ? 'Completed Shift' : 'પૂર્ણ શિફ્ટ (Completed)') : (currentLang === 'en' ? 'Completed Present' : 'Completed present')}</span>
                 <strong>{totals.present}</strong>
-                <small>{isToday ? 'આજે પૂર્ણ થયેલ' : 'selected date'}</small>
+                <small>{isToday ? (currentLang === 'en' ? 'Completed today' : 'આજે પૂર્ણ થયેલ') : (currentLang === 'en' ? 'Selected date' : 'selected date')}</small>
             </article>
             <article className={`metric ${isToday ? 'on' : 'amber'}`} style={isToday ? {background: '#ecfdf5', borderColor: '#a7f3d0'} : {}}>
-                <span style={isToday ? {color: '#065f46'} : {}}>{isToday ? '🟢 ચાલુ શિફ્ટ (Working Now)' : 'Missing Time Out'}</span>
+                <span style={isToday ? {color: '#065f46'} : {}}>{isToday ? (currentLang === 'en' ? '🟢 Working Now' : '🟢 ચાલુ શિફ્ટ (Working Now)') : (currentLang === 'en' ? 'Missing Time Out' : 'Missing Time Out')}</span>
                 <strong style={isToday ? {color: '#047857'} : {}}>{isToday ? totals.working_now : totals.missing_out}</strong>
-                <small style={isToday ? {color: '#059669'} : {}}>{isToday ? 'હાલ સાઇટ પર કાર્યરત' : 'needs attention'}</small>
+                <small style={isToday ? {color: '#059669'} : {}}>{isToday ? (currentLang === 'en' ? 'Currently working on site' : 'હાલ સાઇટ પર કાર્યરત') : (currentLang === 'en' ? 'Needs attention' : 'needs attention')}</small>
             </article>
             <article className="metric">
                 <span>Late arrivals</span>
@@ -209,14 +217,14 @@ export default function AttendancePage({canCorrect, canRecord}) {
                         <div style={{display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px'}}>
                             <h2 style={{display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '16px', fontWeight: 800, color: '#123e30'}}>
                                 <Navigation size={18} style={{color: '#22c55e', flexShrink: 0}}/>
-                                કર્મચારી લાઈવ લોકેશન ટ્રેકર
+                                {currentLang === 'en' ? 'Employee Live Location Tracker' : 'કર્મચારી લાઈવ લોકેશન ટ્રેકર'}
                             </h2>
                             <span className="status on" style={{padding: '3px 8px', fontSize: '11px', fontWeight: 800, whiteSpace: 'nowrap'}}>
                                 🟢 {activeLiveCount} Live Online
                             </span>
                         </div>
                         <p style={{margin: '4px 0 0', fontSize: '11.5px', color: '#627c70'}}>
-                            એમ્પ્લોયીનો ફોન/PWA ઓપન અથવા મિનિમાઇઝ હોય ત્યારે રીઅલ-ટાઇમ GPS (Syncs every 30s)
+                            {currentLang === 'en' ? 'Real-time GPS tracker when employee app/PWA is active or in background (Syncs every 30s)' : 'એમ્પ્લોયીનો ફોન/PWA ઓપન અથવા મિનિમાઇઝ હોય ત્યારે રીઅલ-ટાઇમ GPS (Syncs every 30s)'}
                         </p>
                     </div>
                     <div style={{display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap'}}>
@@ -242,7 +250,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                     boxShadow: mapMode === 'satellite' ? '0 2px 6px rgba(37,99,235,0.3)' : 'none',
                                     transition: 'all 0.15s ease'
                                 }}
-                                title="ગૂગલ સેટેલાઇટ મેપ"
+                                title={currentLang === 'en' ? 'Google Satellite Map' : 'ગૂગલ સેટેલાઇટ મેપ'}
                             >
                                 🛰️ Google Satellite
                             </button>
@@ -261,9 +269,9 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                     boxShadow: mapMode === 'roadmap' ? '0 2px 6px rgba(15,23,42,0.3)' : 'none',
                                     transition: 'all 0.15s ease'
                                 }}
-                                title="સામાન્ય રોડમેપ"
+                                title={currentLang === 'en' ? 'Standard Roadmap' : 'સામાન્ય રોડમેપ'}
                             >
-                                🗺️ રોડમેપ
+                                {currentLang === 'en' ? '🗺️ Roadmap' : '🗺️ રોડમેપ'}
                             </button>
                         </div>
                         <button
@@ -274,7 +282,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                             style={{display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '7px 12px', fontSize: '11.5px', borderRadius: '10px', fontWeight: 600}}
                             title="Refresh Live GPS coordinates"
                         >
-                            <RefreshCw size={13} className={loadingLocations ? 'spin' : ''}/> રીફ્રેશ
+                            <RefreshCw size={13} className={loadingLocations ? 'spin' : ''}/> {currentLang === 'en' ? 'Refresh' : 'રીફ્રેશ'}
                         </button>
                     </div>
                 </div>
@@ -364,7 +372,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                     <div style={{flex: 1}}>
                                         <div>{emp.leave_info.message}</div>
                                         <small style={{display: 'block', fontSize: '10px', opacity: 0.85, marginTop: '2px'}}>
-                                            {emp.leave_info.is_approved ? 'રજા મંજૂર થયેલ છે (Approved Leave)' : 'રજા અપ્રૂવલ લીધી નહોતી / ગેરહાજર'}
+                                            {emp.leave_info.is_approved ? (currentLang === 'en' ? 'Approved Leave' : 'રજા મંજૂર થયેલ છે (Approved Leave)') : (currentLang === 'en' ? 'Unapproved Leave / Absent' : 'રજા અપ્રૂવલ લીધી નહોતી / ગેરહાજર')}
                                         </small>
                                     </div>
                                     <span style={{
@@ -402,11 +410,11 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                     </span>
                                     <div>
                                         <b style={{color: emp.movement === 'bike' ? '#b45309' : emp.movement === 'walking' ? '#0369a1' : '#1e293b'}}>
-                                            {emp.movement_label || (emp.movement === 'bike' ? 'બાઇક પર ગતિમાં' : emp.movement === 'walking' ? 'પગપાળા ચાલે છે' : 'સ્થિર છે (સાઇટ પર)')}
+                                            {emp.movement_label || (emp.movement === 'bike' ? (currentLang === 'en' ? 'Moving on bike' : 'બાઇક પર ગતિમાં') : emp.movement === 'walking' ? (currentLang === 'en' ? 'Walking' : 'પગપાળા ચાલે છે') : (currentLang === 'en' ? 'Stationary (On site)' : 'સ્થિર છે (સાઇટ પર)'))}
                                         </b>
                                         {emp.speed ? (
                                             <small style={{display: 'block', color: '#64748b', fontSize: '10px'}}>
-                                                ઝડપ: {Math.round(emp.speed)} km/h
+                                                {currentLang === 'en' ? 'Speed: ' : 'ઝડપ: '}{Math.round(emp.speed)} km/h
                                             </small>
                                         ) : null}
                                     </div>
@@ -473,7 +481,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                                 {emp.movement_icon || (emp.movement === 'bike' ? '🏍️' : emp.movement === 'walking' ? '🚶‍♂️' : '🧍‍♂️')}
                                             </span>
                                             <span>
-                                                {emp.movement === 'bike' ? `Bike: ${Math.round(emp.speed || 0)} km/h` : emp.movement === 'walking' ? `Walking: ${Math.round(emp.speed || 4)} km/h` : 'સ્થિર છે (0 km/h)'}
+                                                {emp.movement === 'bike' ? `Bike: ${Math.round(emp.speed || 0)} km/h` : emp.movement === 'walking' ? `Walking: ${Math.round(emp.speed || 4)} km/h` : (currentLang === 'en' ? 'Stationary (0 km/h)' : 'સ્થિર છે (0 km/h)')}
                                             </span>
                                         </div>
 
@@ -505,7 +513,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                                     padding: 0,
                                                     boxShadow: '0 2px 6px rgba(0,0,0,0.25)'
                                                 }}
-                                                title="Zoom In (નજીક લાવો)"
+                                                title={currentLang === 'en' ? 'Zoom In' : 'Zoom In (નજીક લાવો)'}
                                             >
                                                 +
                                             </button>
@@ -527,7 +535,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                                     padding: 0,
                                                     boxShadow: '0 2px 6px rgba(0,0,0,0.25)'
                                                 }}
-                                                title="Zoom Out (દૂર કરો)"
+                                                title={currentLang === 'en' ? 'Zoom Out' : 'Zoom Out (દૂર કરો)'}
                                             >
                                                 -
                                             </button>
@@ -558,7 +566,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
 
                                     {/* 🔘 Mobile Quick Zoom Presets */}
                                     <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px'}}>
-                                        <span style={{fontSize: '11px', color: '#64748b', fontWeight: 600}}>ઝૂમ લેવલ:</span>
+                                        <span style={{fontSize: '11px', color: '#64748b', fontWeight: 600}}>{currentLang === 'en' ? 'Zoom Level:' : 'ઝૂમ લેવલ:'}</span>
                                         <div style={{display: 'flex', gap: '4px'}}>
                                             <button
                                                 type="button"
@@ -574,7 +582,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                                     cursor: 'pointer'
                                                 }}
                                             >
-                                                🔍 21x (અલ્ટ્રા નજીક)
+                                                {currentLang === 'en' ? '🔍 21x (Ultra Close)' : '🔍 21x (અલ્ટ્રા નજીક)'}
                                             </button>
                                             <button
                                                 type="button"
@@ -590,7 +598,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                                     cursor: 'pointer'
                                                 }}
                                             >
-                                                🏠 19x (નજીક)
+                                                {currentLang === 'en' ? '🏠 19x (Close)' : '🏠 19x (નજીક)'}
                                             </button>
                                             <button
                                                 type="button"
@@ -606,7 +614,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                                     cursor: 'pointer'
                                                 }}
                                             >
-                                                🗺️ 16x (એરિયા)
+                                                {currentLang === 'en' ? '🗺️ 16x (Area)' : '🗺️ 16x (એરિયા)'}
                                             </button>
                                         </div>
                                     </div>
@@ -628,7 +636,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                                 borderRadius: '8px'
                                             }}
                                         >
-                                            <MapPin size={13}/> મોટો મેપ જુઓ
+                                            <MapPin size={13}/> {currentLang === 'en' ? 'View Full Map' : 'મોટો મેપ જુઓ'}
                                         </button>
                                         <a
                                             href={emp.map_url}
@@ -649,7 +657,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                             }}
                                             title="Open in Google Maps App"
                                         >
-                                            <ExternalLink size={13}/> Maps App માં જુઓ
+                                            <ExternalLink size={13}/> {currentLang === 'en' ? 'Open in Maps App' : 'Maps App માં જુઓ'}
                                         </a>
                                     </div>
                                 </div>
@@ -670,13 +678,13 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                     <span style={{fontSize: '16px'}}>⚪</span>
                                     <b style={{color: '#475569'}}>
                                         {emp.leave_info && emp.leave_info.has_leave
-                                            ? (emp.leave_info.is_approved ? '🌴 આજે રજા મંજૂર થયેલ છે' : '⚠️ રજા અપ્રૂવલ લીધી નહોતી')
-                                            : 'કર્મચારી હાલમાં ઑફલાઇન છે'}
+                                            ? (emp.leave_info.is_approved ? (currentLang === 'en' ? '🌴 Approved Leave Today' : '🌴 આજે રજા મંજૂર થયેલ છે') : (currentLang === 'en' ? '⚠️ Unapproved Leave' : '⚠️ રજા અપ્રૂવલ લીધી નહોતી'))
+                                            : (currentLang === 'en' ? 'Employee currently offline' : 'કર્મચારી હાલમાં ઑફલાઇન છે')}
                                     </b>
                                     <span style={{fontSize: '10.5px', color: '#94a3b8'}}>
                                         {emp.leave_info && emp.leave_info.has_leave
                                             ? emp.leave_info.message
-                                            : 'જ્યારે કર્મચારી એપ ઓપન કરશે ત્યારે જ તેમનો લાઈવ લોકેશન મેપ અહીં દેખાશે.'}
+                                            : (currentLang === 'en' ? 'Live GPS location map will appear here once employee opens app.' : 'જ્યારે કર્મચારી એપ ઓપન કરશે ત્યારે જ તેમનો લાઈવ લોકેશન મેપ અહીં દેખાશે.')}
                                     </span>
                                 </div>
                             )}
@@ -685,7 +693,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                 </div>
             ) : (
                 <div style={{textAlign: 'center', padding: '20px', color: '#64748b', fontSize: '13px'}}>
-                    હાલ કોઈ કર્મચારી લાઈવ ટ્રેકિંગ માટે ઉપલબ્ધ નથી.
+                    {currentLang === 'en' ? 'No employees currently active for live tracking.' : 'હાલ કોઈ કર્મચારી લાઈવ ટ્રેકિંગ માટે ઉપલબ્ધ નથી.'}
                 </div>
             )}
         </section>
@@ -707,9 +715,9 @@ export default function AttendancePage({canCorrect, canRecord}) {
                 }}>
                     <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px'}}>
                         <b style={{fontSize: '12.5px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px'}}>
-                            🌴 આજે રજા પર / હાજર ન થયેલા કર્મચારીઓ ({employees.filter(emp => emp.active && !emp.manager_attendance_only && !rows.some(r => String(r.employee_id) === String(emp.id) || String(r.employee?.id) === String(emp.id))).length})
+                            {currentLang === 'en' ? '🌴 Employees On Leave / Not Present Today' : '🌴 આજે રજા પર / હાજર ન થયેલા કર્મચારીઓ'} ({employees.filter(emp => emp.active && !emp.manager_attendance_only && !rows.some(r => String(r.employee_id) === String(emp.id) || String(r.employee?.id) === String(emp.id))).length})
                         </b>
-                        <span style={{fontSize: '10.5px', color: '#64748b', fontWeight: 600}}>આજની સ્થિતિ (૧૧:૦૦ AM)</span>
+                        <span style={{fontSize: '10.5px', color: '#64748b', fontWeight: 600}}>{currentLang === 'en' ? 'Today Status (11:00 AM)' : 'આજની સ્થિતિ (૧૧:૦૦ AM)'}</span>
                     </div>
                     <div style={{display: 'flex', flexDirection: 'column', gap: '6px'}}>
                         {employees.filter(emp => emp.active && !emp.manager_attendance_only && !rows.some(r => String(r.employee_id) === String(emp.id) || String(r.employee?.id) === String(emp.id))).map(abs => {
@@ -718,12 +726,12 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                 has_leave: true,
                                 is_approved: abs.today_leave.is_approved,
                                 message: abs.today_leave.is_approved
-                                    ? `${abs.name} આજે રજા પર છે (આજે રજા મંજૂર થયેલ છે - ${abs.today_leave.leave_type})`
-                                    : `${abs.name} રજા પર છે (રજા અપ્રૂવલ લીધી નહોતી)`
+                                    ? (currentLang === 'en' ? `${abs.name} is on approved leave today (${abs.today_leave.leave_type})` : `${abs.name} આજે રજા પર છે (આજે રજા મંજૂર થયેલ છે - ${abs.today_leave.leave_type})`)
+                                    : (currentLang === 'en' ? `${abs.name} is absent (Unapproved leave)` : `${abs.name} રજા પર છે (રજા અપ્રૂવલ લીધી નહોતી)`)
                             } : {
                                 has_leave: new Date().getHours() >= 11,
                                 is_approved: false,
-                                message: `${abs.name} આજે ૧૧:૦૦ વાગ્યા સુધી હાજર થયા નથી (રજા અપ્રૂવલ લીધી નહોતી - રજા પર છે)`
+                                message: (currentLang === 'en' ? `${abs.name} not present by 11:00 AM (Unapproved leave - absent)` : `${abs.name} આજે ૧૧:૦૦ વાગ્યા સુધી હાજર થયા નથી (રજા અપ્રૂવલ લીધી નહોતી - રજા પર છે)`)
                             });
                             return (
                                 <div key={abs.id} style={{
@@ -753,7 +761,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                         background: leaveInfo?.is_approved ? '#10b981' : '#f59e0b',
                                         color: '#fff'
                                     }}>
-                                        {leaveInfo?.is_approved ? 'મંજૂર રજા' : 'મંજૂરી વિના'}
+                                        {leaveInfo?.is_approved ? (currentLang === 'en' ? 'Approved' : 'મંજૂર રજા') : (currentLang === 'en' ? 'Unapproved' : 'મંજૂરી વિના')}
                                     </span>
                                 </div>
                             );
@@ -774,7 +782,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                     <td>{row.selfie_url ? <button type="button" className="photo-preview-button" onClick={() => setSelfiePreview({url: row.selfie_url, employee: row.employee.user.name, date: row.attendance_date})}><img className="selfie-thumb" src={row.selfie_url} alt={`${row.employee.user.name} Time In selfie`}/></button> : <small>Not provided — manager entry</small>}</td>
                     <td><span className="break-selfies">{row.breaks.filter(item => item.return_selfie_url).map((item, index) => <a key={item.id} href={item.return_selfie_url} target="_blank" rel="noreferrer"><img className="selfie-thumb" src={item.return_selfie_url} alt={`Break return ${index + 1}`}/></a>)}{!row.breaks.some(item => item.return_selfie_url) && '—'}</span></td>
                     <td>{displayTime(row.clock_in_at)}{row.is_late && <small className="danger-text">Late</small>}</td>
-                    <td>{row.clock_out_at ? displayTime(row.clock_out_at) : (isToday ? <span className="status on" style={{fontSize: '11px', padding: '2px 7px'}}>🟢 ચાલુ શિફ્ટ</span> : <span className="status warning" style={{fontSize: '11px', padding: '2px 7px'}}>⚠️ Time Out બાકી</span>)}</td>
+                    <td>{row.clock_out_at ? displayTime(row.clock_out_at) : (isToday ? <span className="status on" style={{fontSize: '11px', padding: '2px 7px'}}>{currentLang === 'en' ? '🟢 Active Shift' : '🟢 ચાલુ શિફ્ટ'}</span> : <span className="status warning" style={{fontSize: '11px', padding: '2px 7px'}}>{currentLang === 'en' ? '⚠️ Missing Time Out' : '⚠️ Time Out બાકી'}</span>)}</td>
                     <td>{(() => {
                         if (row.clock_out_at) {
                             return (row.work_minutes / 60).toFixed(2);
@@ -784,12 +792,12 @@ export default function AttendancePage({canCorrect, canRecord}) {
                             const diffMins = Math.max(0, Math.floor((Date.now() - inMs) / 60000));
                             const breakMins = Number(row.break_minutes || 0);
                             const netMins = Math.max(0, diffMins - breakMins);
-                            return <span style={{color: '#16a34a', fontWeight: 700}} title="Shift in progress">{(netMins / 60).toFixed(2)} <small style={{fontSize: '10px'}}>(ચાલુ)</small></span>;
+                            return <span style={{color: '#16a34a', fontWeight: 700}} title="Shift in progress">{(netMins / 60).toFixed(2)} <small style={{fontSize: '10px'}}>{currentLang === 'en' ? '(Active)' : '(ચાલુ)'}</small></span>;
                         }
                         return (row.work_minutes / 60).toFixed(2);
                     })()}</td>
                     <td>{(Number(row.break_minutes) / 60).toFixed(2)}</td>
-                    <td><i className={`status ${row.status === 'present' ? 'on' : (!row.clock_out_at && isToday ? 'on' : 'warning')}`}>{!row.clock_out_at && isToday ? 'ચાલુ શિફ્ટ (Active)' : row.status.replaceAll('_', ' ')}</i></td>
+                    <td><i className={`status ${row.status === 'present' ? 'on' : (!row.clock_out_at && isToday ? 'on' : 'warning')}`}>{!row.clock_out_at && isToday ? (currentLang === 'en' ? 'Active Shift' : 'ચાલુ શિફ્ટ (Active)') : row.status.replaceAll('_', ' ')}</i></td>
                     <td>{row.clock_in_latitude !== null && row.clock_in_longitude !== null ? <a className="map-link" href={`https://maps.google.com/?q=${row.clock_in_latitude},${row.clock_in_longitude}`} target="_blank" rel="noreferrer"><MapPin size={14}/> Map</a> : <small>Not provided — manager entry</small>}</td>
                     <td><span className="note-preview" title={`${row.work_done || ''}\n${row.learned || ''}${row.entry_reason ? `\nReason: ${row.entry_reason}` : ''}`}>{row.work_done || '—'}{row.entry_source === 'manager' && <small>By {row.recorded_by?.name || 'authorized user'} · {row.entry_reason}</small>}</span></td>
                     {canCorrect && <td><button className="link" onClick={() => openCorrection(row)}><PencilLine size={15}/> Correct</button></td>}
@@ -800,8 +808,8 @@ export default function AttendancePage({canCorrect, canRecord}) {
             <form className="modal modal-sheet manual-attendance-modal" onSubmit={saveManual} onClick={e => e.stopPropagation()} style={{maxWidth: '620px'}}>
                 <div className="panel-head">
                     <div>
-                        <h2>કર્મચારી હાજરી ઉમેરો (Add Attendance)</h2>
-                        <p>સેલ્ફી અથવા GPS વગર અધિકૃત મેનેજર દ્વારા હાજરી એન્ટ્રી</p>
+                        <h2>{currentLang === 'en' ? 'Add Employee Attendance' : 'કર્મચારી હાજરી ઉમેરો (Add Attendance)'}</h2>
+                        <p>{currentLang === 'en' ? 'Authorized manager attendance entry without selfie or GPS' : 'સેલ્ફી અથવા GPS વગર અધિકૃત મેનેજર દ્વારા હાજરી એન્ટ્રી'}</p>
                     </div>
                     <button type="button" className="icon-button ghost" onClick={() => setManual(null)}><X size={18}/></button>
                 </div>
@@ -810,51 +818,51 @@ export default function AttendancePage({canCorrect, canRecord}) {
                     <div className="audit-warning" style={{marginBottom: '10px', padding: '8px 12px', fontSize: '11px'}}>
                         <ClockAlert size={16}/>
                         <span>
-                            <b>⚠️ આ એક્શન ઓડિટ લોગમાં કાયમી રેકોર્ડ થશે</b>
-                            <small>તમારું નામ, એન્ટ્રી સમય અને દર્શાવેલ કારણ ડેટાબેઝમાં સેવ થશે.</small>
+                            <b>{currentLang === 'en' ? '⚠️ This action is permanently recorded in audit logs' : '⚠️ આ એક્શન ઓડિટ લોગમાં કાયમી રેકોર્ડ થશે'}</b>
+                            <small>{currentLang === 'en' ? 'Your name, entry time and reason will be saved in audit log.' : 'તમારું નામ, એન્ટ્રી સમય અને દર્શાવેલ કારણ ડેટાબેઝમાં સેવ થશે.'}</small>
                         </span>
                     </div>
 
                     <div className="attendance-manual-grid">
-                        <Field label="કર્મચારી (Employee)">
+                        <Field label={currentLang === 'en' ? 'Employee' : 'કર્મચારી (Employee)'}>
                             <select value={manual.employee_id} onChange={event => changeManualEmployee(event.target.value)} required>
                                 {eligibleEmployees.map(employee => <option key={employee.id} value={employee.id}>{employee.employee_code} · {employee.name}</option>)}
                             </select>
                         </Field>
-                        <Field label="હાજરી તારીખ (Date)">
+                        <Field label={currentLang === 'en' ? 'Attendance Date' : 'હાજરી તારીખ (Date)'}>
                             <input type="date" max={localDate()} value={manual.attendance_date} onChange={event => changeManualDate(event.target.value)} required/>
                         </Field>
-                        <Field label="આવવાનો સમય (Time In)">
+                        <Field label={currentLang === 'en' ? 'Time In' : 'આવવાનો સમય (Time In)'}>
                             <input type="datetime-local" value={manual.clock_in_at} onChange={event => setManual({...manual, clock_in_at: event.target.value})} required/>
                         </Field>
-                        <Field label="જવાનો સમય (Time Out)">
+                        <Field label={currentLang === 'en' ? 'Time Out' : 'જવાનો સમય (Time Out)'}>
                             <input type="datetime-local" value={manual.clock_out_at} onChange={event => setManual({...manual, clock_out_at: event.target.value})} required/>
                         </Field>
-                        <Field label="બ્રેક મિનિટ (Break Min)">
+                        <Field label={currentLang === 'en' ? 'Break Minutes' : 'બ્રેક મિનિટ (Break Min)'}>
                             <input type="number" min="0" max="1439" value={manual.break_minutes} onChange={event => setManual({...manual, break_minutes: event.target.value})} required/>
                         </Field>
-                        <Field label="હાજરી પૂરવાનું કારણ (Reason)">
+                        <Field label={currentLang === 'en' ? 'Reason' : 'હાજરી પૂરવાનું કારણ (Reason)'}>
                             <input
                                 type="text"
-                                placeholder="દા.ત. ફોન નહોતો / ભૂલ"
+                                placeholder={currentLang === 'en' ? 'e.g. Phone dead / forgot' : 'દા.ત. ફોન નહોતો / ભૂલ'}
                                 value={manual.entry_reason}
                                 onChange={event => setManual({...manual, entry_reason: event.target.value})}
                                 required
                             />
                         </Field>
                         <div className="attendance-manual-fullrow">
-                            <Field label="કામની વિગત (Work Done)">
+                            <Field label={currentLang === 'en' ? 'Work Done' : 'કામની વિગત (Work Done)'}>
                                 <textarea
-                                    placeholder="આજે કરેલ કામ..."
+                                    placeholder={currentLang === 'en' ? 'Work performed today...' : 'આજે કરેલ કામ...'}
                                     value={manual.work_done}
                                     onChange={event => setManual({...manual, work_done: event.target.value})}
                                     rows="2"
                                     required
                                 />
                             </Field>
-                            <Field label="નવું શીખ્યા (Learned)">
+                            <Field label={currentLang === 'en' ? 'Learned' : 'નવું શીખ્યા (Learned)'}>
                                 <textarea
-                                    placeholder="આજે શું શીખ્યા..."
+                                    placeholder={currentLang === 'en' ? 'What was learned today...' : 'આજે શું શીખ્યા...'}
                                     value={manual.learned}
                                     onChange={event => setManual({...manual, learned: event.target.value})}
                                     rows="2"
@@ -867,10 +875,10 @@ export default function AttendancePage({canCorrect, canRecord}) {
 
                 <div className="modal-sticky-footer">
                     <button type="button" className="secondary modal-cancel-btn" onClick={() => setManual(null)}>
-                        રદ કરો (Cancel)
+                        {currentLang === 'en' ? 'Cancel' : 'રદ કરો (Cancel)'}
                     </button>
                     <button type="submit" className="primary expense-submit-btn">
-                        ✓ Save Attendance (હાજરી સેવ કરો)
+                        {currentLang === 'en' ? '✓ Save Attendance' : '✓ Save Attendance (હાજરી સેવ કરો)'}
                     </button>
                 </div>
             </form>
@@ -880,7 +888,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
             <form className="modal modal-sheet correction-modal" onSubmit={saveCorrection} onClick={e => e.stopPropagation()} style={{maxWidth: '580px'}}>
                 <div className="panel-head">
                     <div>
-                        <h2>{correction.had_clock_out ? 'હાજરી સુધારો (Correct Attendance)' : 'બાકી Time Out પૂર્ણ કરો (Complete Time Out)'}</h2>
+                        <h2>{correction.had_clock_out ? (currentLang === 'en' ? 'Correct Attendance' : 'હાજરી સુધારો (Correct Attendance)') : (currentLang === 'en' ? 'Complete Time Out' : 'બાકી Time Out પૂર્ણ કરો (Complete Time Out)')}</h2>
                         <p>{correction.employee} · {correction.attendance_date}</p>
                     </div>
                     <button type="button" className="icon-button ghost" onClick={() => setCorrection(null)}><X size={18}/></button>
@@ -890,34 +898,34 @@ export default function AttendancePage({canCorrect, canRecord}) {
                     <div className="audit-warning">
                         <ClockAlert/>
                         <span>
-                            <b>⚠️ આ સુધારો ઓડિટ લોગમાં રેકોર્ડ થશે</b>
-                            <small>જૂનો સમય, નવો સમય અને સુધારાનું કારણ કાયમી સેવ થશે.</small>
+                            <b>{currentLang === 'en' ? '⚠️ This correction will be recorded in audit log' : '⚠️ આ સુધારો ઓડિટ લોગમાં રેકોર્ડ થશે'}</b>
+                            <small>{currentLang === 'en' ? 'Old time, new time and reason are permanently saved.' : 'જૂનો સમય, નવો સમય અને સુધારાનું કારણ કાયમી સેવ થશે.'}</small>
                         </span>
                     </div>
 
-                    <Field label="જવાનો સમય (Time Out)">
+                    <Field label={currentLang === 'en' ? 'Time Out' : 'જવાનો સમય (Time Out)'}>
                         <input type="datetime-local" value={correction.clock_out_at} onChange={event => setCorrection({...correction, clock_out_at: event.target.value})} required/>
                     </Field>
 
-                    <Field label="કર્મચારીએ આજે શું કામ કર્યું? (Work Done)">
+                    <Field label={currentLang === 'en' ? 'Work Done' : 'કર્મચારીએ આજે શું કામ કર્યું? (Work Done)'}>
                         <textarea value={correction.work_done} onChange={event => setCorrection({...correction, work_done: event.target.value})} rows="3" required/>
                     </Field>
 
-                    <Field label="કર્મચારીએ આજે નવું શું શીખ્યું? (What Learned)">
+                    <Field label={currentLang === 'en' ? 'What Learned' : 'કર્મચારીએ આજે નવું શું શીખ્યું? (What Learned)'}>
                         <textarea value={correction.learned} onChange={event => setCorrection({...correction, learned: event.target.value})} rows="3" required/>
                     </Field>
 
-                    <Field label="સુધારાનું કારણ (Correction Reason)">
+                    <Field label={currentLang === 'en' ? 'Correction Reason' : 'સુધારાનું કારણ (Correction Reason)'}>
                         <textarea value={correction.correction_reason} onChange={event => setCorrection({...correction, correction_reason: event.target.value})} rows="2" required/>
                     </Field>
                 </div>
 
                 <div className="modal-sticky-footer">
                     <button type="button" className="secondary modal-cancel-btn" onClick={() => setCorrection(null)}>
-                        રદ કરો (Cancel)
+                        {currentLang === 'en' ? 'Cancel' : 'રદ કરો (Cancel)'}
                     </button>
                     <button type="submit" className="primary expense-submit-btn">
-                        ✓ Save Audited Correction (સેવ કરો)
+                        {currentLang === 'en' ? '✓ Save Audited Correction' : '✓ Save Audited Correction (સેવ કરો)'}
                     </button>
                 </div>
             </form>
@@ -938,7 +946,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                     }}>
                         <div>
                             <h3 style={{margin: 0, fontSize: '15px', fontWeight: 800, color: '#f0fdf4'}}>
-                                📍 {selectedMapEmployee.name} ({selectedMapEmployee.employee_code}) · લાઈવ લોકેશન
+                                📍 {selectedMapEmployee.name} ({selectedMapEmployee.employee_code}) · {currentLang === 'en' ? 'Live Location' : 'લાઈવ લોકેશન'}
                             </h3>
                             <p style={{margin: '3px 0 0', fontSize: '11px', color: '#86efac'}}>
                                 {selectedMapEmployee.designation} · {selectedMapEmployee.company_name} · {selectedMapEmployee.last_seen}
@@ -990,7 +998,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                 {selectedMapEmployee.movement_icon || (selectedMapEmployee.movement === 'bike' ? '🏍️' : selectedMapEmployee.movement === 'walking' ? '🚶‍♂️' : '🧍‍♂️')}
                             </span>
                             <span>
-                                {selectedMapEmployee.movement === 'bike' ? `Bike: ${Math.round(selectedMapEmployee.speed || 0)} km/h` : selectedMapEmployee.movement === 'walking' ? `Walking: ${Math.round(selectedMapEmployee.speed || 4)} km/h` : 'સ્થિર છે (સાઇટ પર)'}
+                                {selectedMapEmployee.movement === 'bike' ? `Bike: ${Math.round(selectedMapEmployee.speed || 0)} km/h` : selectedMapEmployee.movement === 'walking' ? `Walking: ${Math.round(selectedMapEmployee.speed || 4)} km/h` : (currentLang === 'en' ? 'Stationary (On site)' : 'સ્થિર છે (સાઇટ પર)')}
                             </span>
                         </div>
 
@@ -1066,7 +1074,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                     cursor: 'pointer',
                                     boxShadow: '0 2px 6px rgba(0,0,0,0.25)'
                                 }}
-                                title="Zoom In (નજીક લાવો)"
+                                title={currentLang === 'en' ? 'Zoom In' : 'Zoom In (નજીક લાવો)'}
                             >
                                 +
                             </button>
@@ -1087,7 +1095,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                     cursor: 'pointer',
                                     boxShadow: '0 2px 6px rgba(0,0,0,0.25)'
                                 }}
-                                title="Zoom Out (દૂર કરો)"
+                                title={currentLang === 'en' ? 'Zoom Out' : 'Zoom Out (દૂર કરો)'}
                             >
                                 -
                             </button>
@@ -1116,7 +1124,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                 className="primary"
                                 style={{textDecoration: 'none', padding: '8px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px'}}
                             >
-                                <ExternalLink size={14}/> Maps App માં જુઓ
+                                <ExternalLink size={14}/> {currentLang === 'en' ? 'Open in Maps App' : 'Maps App માં જુઓ'}
                             </a>
                             <button
                                 type="button"
@@ -1124,7 +1132,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                 onClick={() => setSelectedMapEmployee(null)}
                                 style={{padding: '8px 14px', fontSize: '12px'}}
                             >
-                                બંધ કરો
+                                {currentLang === 'en' ? 'Close' : 'બંધ કરો'}
                             </button>
                         </div>
                     </div>

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import {api} from '../api';
 import {Empty, Loading} from '../components/Common';
+import {getLanguage} from '../utils/translations';
 
 export default function ReelsPage({currentUser, companyId}) {
     const [reels, setReels] = useState([]);
@@ -1004,7 +1005,7 @@ export default function ReelsPage({currentUser, companyId}) {
                                     type="text"
                                     value={reelTitle}
                                     onChange={e => setReelTitle(e.target.value)}
-                                    placeholder="દા.ત. સાળંગપુર પ્લાન્ટ ડેઇલી રીલ અથવા ઇન્સ્પેક્શન વાઇબ"
+                                    placeholder={getLanguage() === 'en' ? 'e.g. Salangpur Plant Daily Reel or Inspection Vibe' : 'દા.ત. સાળંગપુર પ્લાન્ટ ડેઇલી રીલ અથવા ઇન્સ્પેક્શન વાઇબ'}
                                     disabled={isUploading}
                                     style={{
                                         width: '100%',

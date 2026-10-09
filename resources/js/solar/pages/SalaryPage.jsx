@@ -3,6 +3,7 @@ import {CalendarClock, CircleDollarSign, Download, IndianRupee, PencilLine, Plus
 import {api} from '../api';
 import {Empty, Field, Loading, Metric} from '../components/Common';
 import {number, shortDate} from '../format';
+import {getLanguage} from '../utils/translations';
 
 const currentMonth = () => new Date().toISOString().slice(0, 7);
 const rupees = value => `₹${number(value)}`;
@@ -71,7 +72,7 @@ function AdjustmentForm({form, setForm, onClose, onSaved}) {
             <Field label="Company (Optional)"><select value={form.company_id || ''} onChange={event => setForm({...form, company_id: event.target.value ? Number(event.target.value) : ''})}><option value="">All / None (Company neutral)</option>{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
         </div>
         <Field label="Work details / Reason"><textarea rows="3" maxLength="1000" placeholder="Explain the extra work performed or reason for addition..." value={form.reason} onChange={event => setForm({...form, reason: event.target.value})} required/></Field>
-        {form.type === 'addition' && <label className="toggle" style={{display: 'flex', alignItems: 'center', gap: '8px', margin: '8px 0', fontSize: '13px', cursor: 'pointer'}}><input type="checkbox" checked={!!form.add_to_shared_expenses} onChange={event => setForm({...form, add_to_shared_expenses: event.target.checked})}/><span>Add to Company Shared Expenses (કંપની ખર્ચમાં ઉમેરો)</span></label>}
+        {form.type === 'addition' && <label className="toggle" style={{display: 'flex', alignItems: 'center', gap: '8px', margin: '8px 0', fontSize: '13px', cursor: 'pointer'}}><input type="checkbox" checked={!!form.add_to_shared_expenses} onChange={event => setForm({...form, add_to_shared_expenses: event.target.checked})}/><span>{getLanguage() === 'en' ? 'Add to Company Shared Expenses' : 'Add to Company Shared Expenses (કંપની ખર્ચમાં ઉમેરો)'}</span></label>}
         {error && <div className="error">{error}</div>}
         <div className="form-actions"><span>This reason and work date will be visible to the employee.</span><button className="primary" disabled={busy}>{busy ? 'Saving…' : 'Record addition'}</button></div></form></div>;
 }

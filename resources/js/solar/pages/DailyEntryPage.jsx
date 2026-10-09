@@ -4,8 +4,16 @@ import {api} from '../api';
 import {METERS, today} from '../config';
 import {DatePicker, Empty, Field} from '../components/Common';
 import {fixedTwo} from '../format';
+import { getLanguage, t } from '../utils/translations';
 
 export default function DailyEntryPage({company: initialCompany, companies = [], companyId, setCompanyId, user, canEdit = true}) {
+    const [currentLang, setCurrentLang] = useState(getLanguage());
+
+    useEffect(() => {
+        const handleLangChange = (e) => setCurrentLang(e.detail);
+        window.addEventListener('solarflow_language_change', handleLangChange);
+        return () => window.removeEventListener('solarflow_language_change', handleLangChange);
+    }, []);
     const validCompanies = useMemo(() => companies.filter(c => String(c.id) !== 'all'), [companies]);
     const [selectedCompId, setSelectedCompId] = useState(() => {
         if (initialCompany && String(initialCompany.id) !== 'all') return String(initialCompany.id);
@@ -67,7 +75,7 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
         if (targetDate !== today()) {
             setMessage({
                 type: 'error',
-                text: `⚠️ iSolarCloud લાઈવ ઓટો-ફેચ માત્ર આજના દિવસ (${today()}) માટે જ ઉપલબ્ધ છે. જૂની તારીખ (${targetDate}) માં આજના લાઈવ યુનિટ્સ ઓવરરાઈટ નહીં થાય. કૃપા કરીને જૂની તારીખના યુનિટ્સ મેન્યુઅલી દાખલ કરો.`
+                text: currentLang === 'en' ? `⚠️ iSolarCloud live auto-fetch is only available for today (${today()}). Live units will not overwrite past date (${targetDate}). Please enter past date units manually.` : `⚠️ iSolarCloud લાઈવ ઓટો-ફેચ માત્ર આજના દિવસ (${today()}) માટે જ ઉપલબ્ધ છે. જૂની તારીખ (${targetDate}) માં આજના લાઈવ યુનિટ્સ ઓવરરાઈટ નહીં થાય. કૃપા કરીને જૂની તારીખના યુનિટ્સ મેન્યુઅલી દાખલ કરો.`
             });
             return;
         }
@@ -94,13 +102,13 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
                 setAutoFetched(true);
                 setMessage({
                     type: 'success',
-                    text: `iSolarCloud માંથી આજના ઇન્વર્ટર લાઈવ યુનિટ્સ સફળતાપૂર્વક મેળવી લીધા (${syncResult.synced_count || Object.keys(syncResult.outputs).length} ઇન્વર્ટર).`
+                    text: currentLang === 'en' ? `Successfully fetched today's live units from iSolarCloud (${syncResult.synced_count || Object.keys(syncResult.outputs).length} inverters).` : `iSolarCloud માંથી આજના ઇન્વર્ટર લાઈવ યુનિટ્સ સફળતાપૂર્વક મેળવી લીધા (${syncResult.synced_count || Object.keys(syncResult.outputs).length} ઇન્વર્ટર).`
                 });
             }
         } catch (e) {
             setMessage({
                 type: 'error',
-                text: 'iSolarCloud સિંક કરવામાં સમસ્યા: ' + (e.message || 'Error')
+                text: (currentLang === 'en' ? 'Error syncing iSolarCloud: ' : 'iSolarCloud સિંક કરવામાં સમસ્યા: ') + (e.message || 'Error')
             });
         } finally {
             setSyncingCloud(false);
@@ -209,13 +217,13 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
 
             setMessage({
                 type: 'success',
-                text: '✅ રીડિંગ સફળતાપૂર્વક સેવ થઈ ગયું છે. યુનિટ્સની ગણતરી અપડેટ થઈ ગઈ છે.'
+                text: currentLang === 'en' ? '✅ Reading saved successfully. Units calculated and updated.' : '✅ રીડિંગ સફળતાપૂર્વક સેવ થઈ ગયું છે. યુનિટ્સની ગણતરી અપડેટ થઈ ગઈ છે.'
             });
 
             setTimeout(() => setSaveSuccess(false), 4000);
         } catch (exception) {
             triggerHaptic([100, 50, 100]);
-            setMessage({type: 'error', text: exception.message || 'સેવ કરવામાં ભૂલ આવી.'});
+            setMessage({type: 'error', text: exception.message || (currentLang === 'en' ? 'Error saving reading.' : 'સેવ કરવામાં ભૂલ આવી.')});
         } finally {
             setBusy(false);
         }
@@ -236,7 +244,7 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
                 boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
             }}>
                 <span style={{fontSize: '12px', fontWeight: 800, color: '#15803d', display: 'flex', alignItems: 'center', gap: '5px'}}>
-                    🏢 કંપની પસંદ કરો (Company):
+                    {currentLang === 'en' ? '🏢 Select Company:' : '🏢 કંપની પસંદ કરો (Company):'}
                 </span>
                 <div style={{display: 'flex', gap: '6px', flexWrap: 'wrap'}}>
                     {companies.filter(c => String(c.id) !== 'all').map(comp => {
@@ -272,21 +280,21 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
         <section className="panel entry-date" style={{borderRadius: '16px', background: '#ffffff', border: '1.5px solid #d1e7dd', boxShadow: '0 4px 14px rgba(0, 0, 0, 0.04)'}}>
             <div>
                 <p className="step" style={{color: '#15803d', fontWeight: 800}}>STEP 1</p>
-                <h2 style={{color: '#0f291e', fontWeight: 800}}>તારીખ પસંદ કરો (Entry Date)</h2>
-                <p style={{color: '#475569'}}>જો આ તારીખનો ડેટા પહેલેથી હશે, તો તે આપોઆપ એડિટિંગ માટે લોડ થશે.</p>
+                <h2 style={{color: '#0f291e', fontWeight: 800}}>{currentLang === 'en' ? 'Select Date' : 'તારીખ પસંદ કરો (Entry Date)'}</h2>
+                <p style={{color: '#475569'}}>{currentLang === 'en' ? 'If data exists for this date, it will load automatically for editing.' : 'જો આ તારીખનો ડેટા પહેલેથી હશે, તો તે આપોઆપ એડિટિંગ માટે લોડ થશે.'}</p>
             </div>
             <DatePicker label="Entry date" value={date} onChange={setDate} align="right"/>
         </section>
 
         {existing && (
             <div className="info-banner" style={{background: '#eff6ff', borderColor: '#bfdbfe', color: '#1e40af', borderRadius: '12px', padding: '12px 16px'}}>
-                ℹ️ <b>આ તારીખની એન્ટ્રી પહેલેથી હાજર છે.</b> તમે નીચેના મીટર રીડિંગ્સ અથવા ઇન્વર્ટર યુનિટ્સ અપડેટ કરીને સેવ કરી શકો છો.
+                {currentLang === 'en' ? <>ℹ️ <b>Entry for this date already exists.</b> You can update meter readings or inverter units below.</> : <>ℹ️ <b>આ તારીખની એન્ટ્રી પહેલેથી હાજર છે.</b> તમે નીચેના મીટર રીડિંગ્સ અથવા ઇન્વર્ટર યુનિટ્સ અપડેટ કરીને સેવ કરી શકો છો.</>}
             </div>
         )}
 
         {autoFetched && !existing && (
             <div className="info-banner" style={{background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534', borderRadius: '12px', padding: '12px 16px'}}>
-                ⚡ iSolarCloud માંથી લાઇવ ઇન્વર્ટર રીડિંગ્સ આપોઆપ લોડ થઈ ગયા છે!
+                {currentLang === 'en' ? '⚡ Live inverter readings loaded automatically from iSolarCloud!' : '⚡ iSolarCloud માંથી લાઇવ ઇન્વર્ટર રીડિંગ્સ આપોઆપ લોડ થઈ ગયા છે!'}
             </div>
         )}
 
@@ -294,8 +302,8 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
             <div className="panel-head" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px'}}>
                 <div>
                     <p className="step" style={{color: '#15803d', fontWeight: 800}}>STEP 2</p>
-                    <h2 style={{color: '#0f291e', fontWeight: 800}}>ઇન્વર્ટર દૈનિક ઉત્પાદન (Inverter Generation)</h2>
-                    <p style={{color: '#475569'}}>ઓટો-સેવ થયેલા અથવા લાઇવ યુનિટ્સ (kWh). કુલ અંદાજિત જનરેશન: <b style={{color: '#059669'}}>{totalInverterGeneration} kWh</b></p>
+                    <h2 style={{color: '#0f291e', fontWeight: 800}}>{currentLang === 'en' ? 'Inverter Daily Generation' : 'ઇન્વર્ટર દૈનિક ઉત્પાદન (Inverter Generation)'}</h2>
+                    <p style={{color: '#475569'}}>{currentLang === 'en' ? 'Auto-synced or live units (kWh). Total generation: ' : 'ઓટો-સેવ થયેલા અથવા લાઇવ યુનિટ્સ (kWh). કુલ અંદાજિત જનરેશન: '} <b style={{color: '#059669'}}>{totalInverterGeneration} kWh</b></p>
                 </div>
                 {isToday ? (
                     <button
@@ -320,10 +328,10 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
                             boxShadow: '0 3px 10px rgba(217, 119, 6, 0.25)',
                             transition: 'all 0.15s ease'
                         }}
-                        title="આજના દિવસનું લાઈવ ઉત્પાદન iSolarCloud માંથી મેળવો"
+                        title={currentLang === 'en' ? "Fetch today's live generation from iSolarCloud" : 'આજના દિવસનું લાઈવ ઉત્પાદન iSolarCloud માંથી મેળવો'}
                     >
                         <RefreshCw size={14} className={syncingCloud ? 'spin' : ''}/>
-                        <span>{syncingCloud ? 'સિંક થાય છે...' : '⚡ આજના લાઈવ યુનિટ્સ ફેચ કરો'}</span>
+                        <span>{syncingCloud ? (currentLang === 'en' ? 'Syncing...' : 'સિંક થાય છે...') : (currentLang === 'en' ? "⚡ Fetch Today's Live Units" : '⚡ આજના લાઈવ યુનિટ્સ ફેચ કરો')}</span>
                     </button>
                 ) : (
                     <div style={{
@@ -338,7 +346,7 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
                         fontSize: '11.5px',
                         fontWeight: 700
                     }}>
-                        <span>🔒 મેન્યુઅલ એન્ટ્રી મોડ (ભૂતકાળની તારીખ)</span>
+                        <span>{currentLang === 'en' ? '🔒 Manual Entry Mode (Past Date)' : '🔒 મેન્યુઅલ એન્ટ્રી મોડ (ભૂતકાળની તારીખ)'}</span>
                     </div>
                 )}
             </div>
@@ -352,7 +360,7 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
                     return (
                         <Field
                             key={inverter.id}
-                            label={`${inverter.name} ${isZeroOrBlank ? '✏️ (મેન્યુઅલ એન્ટ્રી)' : ''}`}
+                            label={`${inverter.name} ${isZeroOrBlank ? (currentLang === 'en' ? '✏️ (Manual)' : '✏️ (મેન્યુઅલ એન્ટ્રી)') : ''}`}
                             suffix="kWh"
                         >
                             <div className="smart-input-wrapper">
@@ -371,7 +379,7 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
                                     }}
                                 />
                                 {isValidNumber && (
-                                    <div className="input-valid-tick" title="વેલિડ યુનિટ">
+                                    <div className="input-valid-tick" title={currentLang === 'en' ? 'Valid Unit' : 'વેલિડ યુનિટ'}>
                                         <CheckCircle2 size={16}/>
                                     </div>
                                 )}
@@ -386,8 +394,8 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
             <div className="panel-head">
                 <div>
                     <p className="step" style={{color: '#15803d', fontWeight: 800}}>STEP 3</p>
-                    <h2 style={{color: '#0f291e', fontWeight: 800}}>કુલ મીટર રીડિંગ્સ (Cumulative meter readings)</h2>
-                    <p style={{color: '#475569'}}>સાંજે ૭:૦૦ વાગ્યા પછી ફિઝિકલ મીટર રીડિંગ નાખો (અગાઉના રીડિંગ × મલ્ટીપ્લાયરના આધારે પાવર ગણાશે).</p>
+                    <h2 style={{color: '#0f291e', fontWeight: 800}}>{currentLang === 'en' ? 'Cumulative Meter Readings' : 'કુલ મીટર રીડિંગ્સ (Cumulative meter readings)'}</h2>
+                    <p style={{color: '#475569'}}>{currentLang === 'en' ? 'Enter physical meter reading after 7:00 PM (Calculated with previous readings × multipliers).' : 'સાંજે ૭:૦૦ વાગ્યા પછી ફિઝિકલ મીટર રીડિંગ નાખો (અગાઉના રીડિંગ × મલ્ટીપ્લાયરના આધારે પાવર ગણાશે).'}</p>
                 </div>
             </div>
             <div className="form-grid">
@@ -413,7 +421,7 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
                                     }}
                                 />
                                 {isValidMeter && (
-                                    <div className="input-valid-tick" title="મીટર રીડિંગ ઓકે">
+                                    <div className="input-valid-tick" title={currentLang === 'en' ? 'Meter reading valid' : 'મીટર રીડિંગ ઓકે'}>
                                         <CheckCircle2 size={16}/>
                                     </div>
                                 )}
@@ -443,7 +451,7 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
         )}
 
         <div className="form-actions" style={{position: 'sticky', bottom: 0, zIndex: 30}}>
-            <span>મીટર રીડિંગ્સ (જો ઉપલબ્ધ હોય તો નાખો, સાંજે ૭:૦૦ પછી)</span>
+            <span>{currentLang === 'en' ? 'Meter readings (if available, enter after 7:00 PM)' : 'મીટર રીડિંગ્સ (જો ઉપલબ્ધ હોય તો નાખો, સાંજે ૭:૦૦ પછી)'}</span>
             <button
                 type="submit"
                 className={`btn-morph-save ${busy ? 'saving' : ''} ${saveSuccess ? 'success' : ''}`}
@@ -452,22 +460,22 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
                 {busy ? (
                     <>
                         <RefreshCw size={15} className="spin"/>
-                        <span>સેવ થઈ રહ્યું છે…</span>
+                        <span>{currentLang === 'en' ? 'Saving…' : 'સેવ થઈ રહ્યું છે…'}</span>
                     </>
                 ) : saveSuccess ? (
                     <>
                         <CheckCircle2 size={16}/>
-                        <span>✅ સફળતાપૂર્વક સેવ થઈ ગયું!</span>
+                        <span>{currentLang === 'en' ? '✅ Saved Successfully!' : '✅ સફળતાપૂર્વક સેવ થઈ ગયું!'}</span>
                     </>
                 ) : existing ? (
                     <>
                         <Zap size={15}/>
-                        <span>અપડેટ કરો (Update & Recalculate)</span>
+                        <span>{currentLang === 'en' ? 'Update & Recalculate' : 'અપડેટ કરો (Update & Recalculate)'}</span>
                     </>
                 ) : (
                     <>
                         <Zap size={15}/>
-                        <span>દૈનિક રીડિંગ સેવ કરો (Save Daily Reading)</span>
+                        <span>{currentLang === 'en' ? 'Save Daily Reading' : 'દૈનિક રીડિંગ સેવ કરો (Save Daily Reading)'}</span>
                     </>
                 )}
             </button>

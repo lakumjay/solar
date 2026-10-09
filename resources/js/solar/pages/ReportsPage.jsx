@@ -4,6 +4,7 @@ import {api} from '../api';
 import {METERS, monthStart, today} from '../config';
 import {number, shortDate} from '../format';
 import {DatePicker, Empty, Metric} from '../components/Common';
+import {getLanguage} from '../utils/translations';
 
 const COMPANY_REPORT_COLUMNS = [
     ['plant_import_reading', 'Plant Import Reading'],
@@ -40,6 +41,13 @@ export default function ReportsPage({companyId, companies}) {
     const [meterColumns, setMeterColumns] = useState(COMPANY_REPORT_COLUMNS.map(([key]) => key));
     const selectedReportCompany = companies.find(company => String(company.id) === reportCompanyId);
     const [inverterIds, setInverterIds] = useState((selectedReportCompany?.inverters || []).map(inverter => String(inverter.id)));
+    const [currentLang, setCurrentLang] = useState(() => getLanguage());
+
+    useEffect(() => {
+        const handler = (e) => setCurrentLang(e.detail || getLanguage());
+        window.addEventListener('solarflow_language_change', handler);
+        return () => window.removeEventListener('solarflow_language_change', handler);
+    }, []);
     const load = () => {
         setError('');
         setReportLoading(true);
@@ -80,7 +88,7 @@ export default function ReportsPage({companyId, companies}) {
                 }
             });
             if (!response.ok) {
-                throw new Error('PDF ડાઉનલોડ નિષ્ફળ થયું (Status: ' + response.status + ')');
+                throw new Error(currentLang === 'en' ? 'PDF download failed (Status: ' + response.status + ')' : 'PDF ડાઉનલોડ નિષ્ફળ થયું (Status: ' + response.status + ')');
             }
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
@@ -92,7 +100,7 @@ export default function ReportsPage({companyId, companies}) {
             a.remove();
             setTimeout(() => window.URL.revokeObjectURL(url), 1000);
         } catch (err) {
-            alert('PDF ડાઉનલોડ કરવામાં ભૂલ આવી: ' + (err.message || 'Error'));
+            alert((currentLang === 'en' ? 'Error downloading PDF: ' : 'PDF ડાઉનલોડ કરવામાં ભૂલ આવી: ') + (err.message || 'Error'));
         } finally {
             setDownloadingPdf(false);
         }
@@ -111,18 +119,20 @@ export default function ReportsPage({companyId, companies}) {
                             Weather / Issue Report
                         </h2>
                         <p style={{marginTop: '4px', color: '#134e4a', fontSize: '12px'}}>
-                            તારીખવાર ઓછા ઉત્પાદનનું કારણ (વરસાદ/વાદળ 🌧️, PGVCL કર્ટેલમેન્ટ ⚡, ઇન્વર્ટર ફોલ્ટ 🔌 કે ધૂળ 🧼) અને વિગતવાર પૃથક્કરણ.
+                            {currentLang === 'en'
+                                ? 'Date-wise root cause analysis for low generation (Rain/Clouds 🌧️, PGVCL Curtailment ⚡, Inverter Fault 🔌 or Dust 🧼).'
+                                : 'તારીખવાર ઓછા ઉત્પાદનનું કારણ (વરસાદ/વાદળ 🌧️, PGVCL કર્ટેલમેન્ટ ⚡, ઇન્વર્ટર ફોલ્ટ 🔌 કે ધૂળ 🧼) અને વિગતવાર પૃથક્કરણ.'}
                         </p>
                         {weatherIssueData && (
                             <div style={{display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px'}}>
                                 <span style={{background: '#dcfce7', color: '#166534', padding: '3px 8px', borderRadius: '5px', fontSize: '11px', fontWeight: 700}}>
-                                    🟢 સામાન્ય: {weatherIssueData.normal_days} દિવસ
+                                    🟢 {currentLang === 'en' ? 'Normal: ' : 'સામાન્ય: '}{weatherIssueData.normal_days} {currentLang === 'en' ? 'Days' : 'દિવસ'}
                                 </span>
                                 <span style={{background: '#ffedd5', color: '#9a3412', padding: '3px 8px', borderRadius: '5px', fontSize: '11px', fontWeight: 700}}>
-                                    🔴 ઓછા યુનિટ્સ: {weatherIssueData.low_days} દિવસ
+                                    🔴 {currentLang === 'en' ? 'Low Units: ' : 'ઓછા યુનિટ્સ: '}{weatherIssueData.low_days} {currentLang === 'en' ? 'Days' : 'દિવસ'}
                                 </span>
                                 <span style={{background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: '5px', fontSize: '11px', fontWeight: 600}}>
-                                    અપેક્ષિત: ~{number(weatherIssueData.expected_daily_units)} kWh / દિવસ
+                                    {currentLang === 'en' ? 'Expected: ~' : 'અપેક્ષિત: ~'}{number(weatherIssueData.expected_daily_units)} kWh / {currentLang === 'en' ? 'Day' : 'દિવસ'}
                                 </span>
                             </div>
                         )}
@@ -147,14 +157,14 @@ export default function ReportsPage({companyId, companies}) {
                             }}
                         >
                             <FileText size={16}/>
-                            {downloadingPdf ? 'PDF ડાઉનલોડ થઈ રહી છે...' : 'Weather / Issue Report (PDF)'}
+                            {downloadingPdf ? (currentLang === 'en' ? 'Downloading PDF...' : 'PDF ડાઉનલોડ થઈ રહી છે...') : 'Weather / Issue Report (PDF)'}
                         </button>
                     </div>
                 </div>
 
                 {weatherIssueLoading && !weatherIssueData && (
                     <div style={{padding: '12px', textAlign: 'center', color: '#0f766e', fontSize: '11.5px', fontWeight: 600}}>
-                        વિશ્લેષણ ડેટા તૈયાર થઈ રહ્યો છે... (Analyzing Weather & Issues...)
+                        {currentLang === 'en' ? 'Analyzing Weather & Issues...' : 'વિશ્લેષણ ડેટા તૈયાર થઈ રહ્યો છે... (Analyzing Weather & Issues...)'}
                     </div>
                 )}
 
@@ -163,7 +173,7 @@ export default function ReportsPage({companyId, companies}) {
                     <div style={{marginTop: '12px', background: '#ffffff', borderRadius: '8px', padding: '10px', border: '1px solid #ccfbf1'}}>
                         <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '6px'}}>
                             <span style={{fontSize: '12px', fontWeight: 700, color: '#0f766e'}}>
-                                દૈનિક વિશ્લેષણ પત્રક ({shortDate(weatherIssueData.from)} થી {shortDate(weatherIssueData.to)}):
+                                {currentLang === 'en' ? 'Daily Analysis Sheet' : 'દૈનિક વિશ્લેષણ પત્રક'} ({shortDate(weatherIssueData.from)} {currentLang === 'en' ? 'to' : 'થી'} {shortDate(weatherIssueData.to)}):
                             </span>
                             <div style={{display: 'flex', gap: '4px'}}>
                                 <button
@@ -180,7 +190,7 @@ export default function ReportsPage({companyId, companies}) {
                                         cursor: 'pointer'
                                     }}
                                 >
-                                    બધા દિવસો ({weatherIssueData.rows.length})
+                                    {currentLang === 'en' ? 'All Days' : 'બધા દિવસો'} ({weatherIssueData.rows.length})
                                 </button>
                                 <button
                                     type="button"
@@ -196,7 +206,7 @@ export default function ReportsPage({companyId, companies}) {
                                         cursor: 'pointer'
                                     }}
                                 >
-                                    ⚠️ માત્ર ઓછા યુનિટ્સ ({weatherIssueData.low_days})
+                                    ⚠️ {currentLang === 'en' ? 'Low Units Only' : 'માત્ર ઓછા યુનિટ્સ'} ({weatherIssueData.low_days})
                                 </button>
                             </div>
                         </div>
@@ -205,11 +215,11 @@ export default function ReportsPage({companyId, companies}) {
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>તારીખ</th>
-                                        <th>ઉત્પાદન (kWh)</th>
-                                        <th>સ્થિતિ</th>
-                                        <th>ઓછા યુનિટનું કારણ (Issue / Reason)</th>
-                                        <th>વિગતવાર વિશ્લેષણ (Analysis)</th>
+                                        <th>{currentLang === 'en' ? 'Date' : 'તારીખ'}</th>
+                                        <th>{currentLang === 'en' ? 'Generation (kWh)' : 'ઉત્પાદન (kWh)'}</th>
+                                        <th>{currentLang === 'en' ? 'Status' : 'સ્થિતિ'}</th>
+                                        <th>{currentLang === 'en' ? 'Issue / Reason' : 'ઓછા યુનિટનું કારણ (Issue / Reason)'}</th>
+                                        <th>{currentLang === 'en' ? 'Analysis' : 'વિગતવાર વિશ્લેષણ (Analysis)'}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -230,7 +240,7 @@ export default function ReportsPage({companyId, companies}) {
                                                 <td>
                                                     {r.status === 'normal' ? (
                                                         <span style={{background: '#dcfce7', color: '#166534', padding: '2px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 700}}>
-                                                            🟢 સામાન્ય
+                                                            🟢 {currentLang === 'en' ? 'Normal' : 'સામાન્ય'}
                                                         </span>
                                                     ) : r.status === 'low' ? (
                                                         <span style={{background: '#ffedd5', color: '#9a3412', padding: '2px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 700}}>
@@ -265,7 +275,7 @@ export default function ReportsPage({companyId, companies}) {
 
         {reportLoading && !data && (
             <div className="panel" style={{textAlign: 'center', padding: '16px', color: '#0f766e', fontWeight: 600}}>
-                રિપોર્ટ લોડ થઈ રહ્યો છે... (Loading Report...)
+                {currentLang === 'en' ? 'Loading Report...' : 'રિપોર્ટ લોડ થઈ રહ્યો છે... (Loading Report...)'}
             </div>
         )}
 

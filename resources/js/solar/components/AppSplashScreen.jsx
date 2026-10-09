@@ -1,13 +1,27 @@
 import React, {useEffect, useState} from 'react';
 import {Sun, Sparkles, Zap, Building2, CheckCircle2} from 'lucide-react';
+import {getLanguage} from '../utils/translations';
 
 export default function AppSplashScreen({user, activeCompany, liveData, onFinish}) {
     const [visible, setVisible] = useState(true);
     const [progress, setProgress] = useState(15);
+    const [currentLang, setCurrentLang] = useState(() => getLanguage());
 
-    // Get time-appropriate Gujarati greeting
+    useEffect(() => {
+        const handler = (e) => setCurrentLang(e.detail || getLanguage());
+        window.addEventListener('solarflow_language_change', handler);
+        return () => window.removeEventListener('solarflow_language_change', handler);
+    }, []);
+
+    // Get time-appropriate bilingual greeting
     const getGreeting = () => {
         const hour = new Date().getHours();
+        if (currentLang === 'en') {
+            if (hour >= 4 && hour < 12) return 'Good Morning';
+            if (hour >= 12 && hour < 17) return 'Good Afternoon';
+            if (hour >= 17 && hour < 21) return 'Good Evening';
+            return 'Good Night';
+        }
         if (hour >= 4 && hour < 12) return 'શુભ સવાર';
         if (hour >= 12 && hour < 17) return 'શુભ બપોર';
         if (hour >= 17 && hour < 21) return 'શુભ સાંજ';
@@ -15,7 +29,7 @@ export default function AppSplashScreen({user, activeCompany, liveData, onFinish
     };
 
     const ownerName = activeCompany?.owner_name || user?.name || 'Lakum Jay';
-    const ownerTitle = activeCompany?.owner_designation || (user?.role === 'super_admin' ? 'Solar Plant Owner & Director' : 'Solar Plant Executive');
+    const ownerTitle = activeCompany?.owner_designation || (user?.role === 'super_admin' ? (currentLang === 'en' ? 'Solar Plant Owner & Director' : 'સોલાર પ્લાન્ટ ઓનર & ડિરેક્ટર') : (currentLang === 'en' ? 'Solar Plant Executive' : 'સોલાર પ્લાન્ટ એક્ઝિક્યુટિવ'));
     const ownerPhoto = activeCompany?.owner_photo_url || null;
     const companyName = activeCompany?.name || 'Nilkanth / Rajeshwari Solar Plant';
 
@@ -56,7 +70,7 @@ export default function AppSplashScreen({user, activeCompany, liveData, onFinish
                 {/* 2. Brand Name & Badge */}
                 <div className="splash-brand-row">
                     <h1 className="splash-brand-title">Solar<span className="brand-flow">Flow</span></h1>
-                    <span className="splash-brand-pill">⚡ Live Energy Intelligence</span>
+                    <span className="splash-brand-pill">{currentLang === 'en' ? '⚡ Live Energy Intelligence' : '⚡ લાઈવ એનર્જી ઇન્ટેલિજન્સ'}</span>
                 </div>
 
                 {/* 3. VIP Owner Profile Card with Golden Ring */}
@@ -74,7 +88,7 @@ export default function AppSplashScreen({user, activeCompany, liveData, onFinish
 
                     <div className="splash-owner-details">
                         <div className="splash-greeting-label">
-                            {getGreeting()}, <span className="splash-highlight">{ownerName} સર! 👋</span>
+                            {getGreeting()}, <span className="splash-highlight">{ownerName} {currentLang === 'en' ? 'Sir!' : 'સર!'} 👋</span>
                         </div>
                         <p className="splash-owner-role">{ownerTitle}</p>
                         <p className="splash-comp-name"><Building2 size={12}/> {companyName}</p>
@@ -88,14 +102,16 @@ export default function AppSplashScreen({user, activeCompany, liveData, onFinish
                     </div>
                     <div className="splash-progress-status">
                         <span className="splash-status-text">
-                            {progress < 100 ? 'પ્લાન્ટ લાઈવ સિન્ક થઈ રહ્યો છે...' : '✓ ૧૦ ઇન્વર્ટર્સ કનેક્ટેડ · લાઈવ ફ્લો સક્રિય'}
+                            {progress < 100
+                                ? (currentLang === 'en' ? 'Plant syncing live in progress...' : 'પ્લાન્ટ લાઈવ સિન્ક થઈ રહ્યો છે...')
+                                : (currentLang === 'en' ? '✓ 10 Inverters Connected · Live Flow Active' : '✓ ૧૦ ઇન્વર્ટર્સ કનેક્ટેડ · લાઈવ ફ્લો સક્રિય')}
                         </span>
                         <span className="splash-pct">{progress}%</span>
                     </div>
                 </div>
 
                 <div className="splash-tap-hint">
-                    ટેપ કરીને સ્કીપ કરો (Tap to continue)
+                    {currentLang === 'en' ? 'Tap anywhere to continue' : 'ટેપ કરીને આગળ વધો (Tap to continue)'}
                 </div>
             </div>
         </div>
