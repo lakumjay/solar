@@ -1,4 +1,4 @@
-// Comprehensive Language dictionary for SolarFlow (English and Gujarati)
+// Comprehensive Bilingual Dictionary for SolarFlow (English and Gujarati)
 
 export const translations = {
     gu: {
@@ -30,18 +30,39 @@ export const translations = {
         signOut: 'સાઇન આઉટ',
         allCompanies: 'બધી કંપનીઓ (કમ્બાઈન્ડ)',
         callAi: 'AI કોલ',
+        
+        // iPhone Call Screen
+        solarFlowCall: 'SolarFlow',
+        calling: 'કૉલિંગ...',
+        connected: 'કનેક્ટ થયેલ',
+        callEnded: 'કૉલ પૂર્ણ થયો',
+        callFailed: 'કૉલ નિષ્ફળ થયો',
         callStatusDialing: 'ડાયલ થઈ રહ્યું છે...',
         callStatusConnected: 'કોલ કનેક્ટ થયો છે - પૂછો',
-        callStatusListening: 'સાંભળી રહ્યું છે...',
+        callStatusListening: 'સાંભળી રહી છું...',
         callStatusSpeaking: 'SolarFlow બોલે છે...',
         callStatusMuted: 'માઇક મ્યુટ છે',
         callEnd: 'કોલ કટ કરો',
         mute: 'મ્યુટ',
         unmute: 'અનમ્યુટ',
+        keypad: 'કીપેડ',
         speaker: 'સ્પીકર',
-        language: 'ભાષા',
-        gujarati: 'ગુજરાતી',
-        english: 'English',
+        audio: 'ઓડિયો',
+        prompts: 'પ્રશ્નો',
+        visualizer: 'વોઇસ વેવ',
+        info: 'માહિતી',
+        plantInfo: 'પ્લાન્ટ વિગત',
+        hideKeypad: 'કીપેડ છુપાવો',
+        typeQuestionPlaceholder: 'અહીં તમારો પ્રશ્ન લખો...',
+        assistantTitle: 'AI વોઇસ આસિસ્ટન્ટ (Priya/Neha)',
+        createdBy: 'Created by Jay Sir',
+        quickQuestions: 'ઝડપી પ્રશ્નો',
+        qTodayUnits: 'આજના કુલ યુનિટ્સ કેટલા થયા?',
+        qCurtailment: 'PGVCL પાવર ઘટાડાનું સ્ટેટસ શું છે?',
+        qAttendance: 'આજે કોણ કોણ હાજર છે?',
+        qRevenue: 'આ મહિનાની અંદાજિત આવક કેટલી?',
+
+        // App Metrics & Cards
         todayGeneration: 'આજનું ઉત્પાદન',
         todayExport: 'આજનું એક્સપોર્ટ',
         todayImport: 'આજનું ઈમ્પોર્ટ',
@@ -51,9 +72,13 @@ export const translations = {
         offlineInverters: 'ઓફલાઈન ઇન્વર્ટર',
         totalRevenue: 'કુલ આવક',
         yesterday: 'ગઈકાલે',
+        today: 'આજે',
         thisMonth: 'આ મહિને',
         lastMonth: 'ગયા મહિને',
         switchLanguage: 'ભાષા બદલો',
+        language: 'ભાષા',
+        gujarati: 'ગુજરાતી',
+        english: 'English',
         curtailmentSet: 'ઘટાડો સેટ કરો',
         history: 'ઇતિહાસ',
         curtailmentActive: 'PGVCL પાવર ઘટાડો સક્રિય',
@@ -66,6 +91,40 @@ export const translations = {
         revenue: 'આવક',
         backToHome: '← પાછા જાઓ',
         notifications: 'નોટિફિકેશન & એલર્ટ્સ',
+        save: 'સેવ કરો',
+        cancel: 'રદ કરો',
+        edit: 'એડિટ કરો',
+        delete: 'ડિલીટ કરો',
+        filter: 'ફિલ્ટર',
+        search: 'શોધો',
+        exportText: 'એક્સપોર્ટ',
+        importText: 'ઈમ્પોર્ટ',
+        present: 'હાજર',
+        absent: 'ગેરહાજર',
+        halfDay: 'અડધો દિવસ',
+        paid: 'ચૂકવેલ',
+        pending: 'બાકી',
+        total: 'કુલ',
+        difference: 'તફાવત',
+        percentage: 'ટકાવારી',
+        date: 'તારીખ',
+        selectDate: 'તારીખ પસંદ કરો',
+        selectCompany: 'કંપની પસંદ કરો',
+        status: 'સ્થિતિ',
+        action: 'ક્રિયા',
+        refresh: 'રીફ્રેશ',
+        submit: 'સબમિટ',
+        success: 'સફળ',
+        error: 'ભૂલ',
+        warning: 'ચેતવણી',
+        loading: 'લોડ થઈ રહ્યું છે...',
+
+        // Months
+        months: [
+            'જાન્યુઆરી', 'ફેબ્રુઆરી', 'માર્ચ', 'એપ્રિલ', 'મે', 'જૂન',
+            'જુલાઈ', 'ઓગસ્ટ', 'સપ્ટેમ્બર', 'ઓક્ટોબર', 'નવેમ્બર', 'ડિસેમ્બર'
+        ],
+        daysShort: ['રવિ', 'સોમ', 'મંગળ', 'બુધ', 'ગુરુ', 'શુક્ર', 'શનિ'],
     },
     en: {
         appName: 'SolarFlow',
@@ -96,18 +155,39 @@ export const translations = {
         signOut: 'Sign Out',
         allCompanies: 'All Companies (Combined)',
         callAi: 'AI Call',
+
+        // iPhone Call Screen
+        solarFlowCall: 'SolarFlow',
+        calling: 'calling...',
+        connected: 'Connected',
+        callEnded: 'Call Ended',
+        callFailed: 'Call Failed',
         callStatusDialing: 'Dialing SolarFlow AI...',
         callStatusConnected: 'Connected - Speak Now',
         callStatusListening: 'Listening...',
         callStatusSpeaking: 'SolarFlow is speaking...',
         callStatusMuted: 'Microphone Muted',
         callEnd: 'End Call',
-        mute: 'Mute',
-        unmute: 'Unmute',
-        speaker: 'Speaker',
-        language: 'Language',
-        gujarati: 'Gujarati',
-        english: 'English',
+        mute: 'mute',
+        unmute: 'unmute',
+        keypad: 'keypad',
+        speaker: 'speaker',
+        audio: 'audio',
+        prompts: 'prompts',
+        visualizer: 'visualizer',
+        info: 'info',
+        plantInfo: 'Plant Info',
+        hideKeypad: 'Hide Keypad',
+        typeQuestionPlaceholder: 'Type your question here...',
+        assistantTitle: 'AI Voice Assistant (Priya/Neha)',
+        createdBy: 'Created by Jay Sir',
+        quickQuestions: 'Quick Questions',
+        qTodayUnits: "What are today's total units?",
+        qCurtailment: 'What is the PGVCL curtailment status?',
+        qAttendance: 'Who is present today?',
+        qRevenue: "What is this month's estimated revenue?",
+
+        // App Metrics & Cards
         todayGeneration: 'Today Generation',
         todayExport: 'Today Export',
         todayImport: 'Today Import',
@@ -117,9 +197,13 @@ export const translations = {
         offlineInverters: 'Offline Inverters',
         totalRevenue: 'Total Revenue',
         yesterday: 'Yesterday',
+        today: 'Today',
         thisMonth: 'This Month',
         lastMonth: 'Last Month',
         switchLanguage: 'Switch Language',
+        language: 'Language',
+        gujarati: 'Gujarati',
+        english: 'English',
         curtailmentSet: 'Set Curtailment',
         history: 'History',
         curtailmentActive: 'PGVCL Curtailment Active',
@@ -132,6 +216,40 @@ export const translations = {
         revenue: 'Revenue',
         backToHome: '← Back to Home',
         notifications: 'Notifications & Alerts',
+        save: 'Save',
+        cancel: 'Cancel',
+        edit: 'Edit',
+        delete: 'Delete',
+        filter: 'Filter',
+        search: 'Search',
+        exportText: 'Export',
+        importText: 'Import',
+        present: 'Present',
+        absent: 'Absent',
+        halfDay: 'Half Day',
+        paid: 'Paid',
+        pending: 'Pending',
+        total: 'Total',
+        difference: 'Difference',
+        percentage: 'Percentage',
+        date: 'Date',
+        selectDate: 'Select Date',
+        selectCompany: 'Select Company',
+        status: 'Status',
+        action: 'Action',
+        refresh: 'Refresh',
+        submit: 'Submit',
+        success: 'Success',
+        error: 'Error',
+        warning: 'Warning',
+        loading: 'Loading...',
+
+        // Months
+        months: [
+            'January', 'February', 'March', 'April', 'May', 'June',
+            'July', 'August', 'September', 'October', 'November', 'December'
+        ],
+        daysShort: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
     }
 };
 
@@ -157,7 +275,19 @@ export function setLanguage(lang) {
     }
 }
 
-export function t(key) {
+export function t(key, fallback = null) {
     const langDict = translations[currentLang] || translations.gu;
-    return langDict[key] || translations.en[key] || key;
+    if (langDict[key] !== undefined) return langDict[key];
+    if (translations.en[key] !== undefined) return translations.en[key];
+    return fallback !== null ? fallback : key;
+}
+
+export function getMonthName(monthIndex) {
+    const langDict = translations[currentLang] || translations.gu;
+    return langDict.months[monthIndex % 12] || '';
+}
+
+export function getDayShort(dayIndex) {
+    const langDict = translations[currentLang] || translations.gu;
+    return langDict.daysShort[dayIndex % 7] || '';
 }

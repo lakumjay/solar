@@ -3643,8 +3643,12 @@ export default function MobileAppView({
                             <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                                 <Calendar size={18} style={{color: '#fef08a'}}/>
                                 <div>
-                                    <h4 style={{margin: 0, fontSize: '15px', fontWeight: 800, color: '#ffffff'}}>ગુજરાતી પંચાંગ & કેલેન્ડર</h4>
-                                    <span style={{fontSize: '11px', color: '#bbf7d0'}}>{todayPanchang.dayNameGu} • {todayPanchang.tithiFull}</span>
+                                    <h4 style={{margin: 0, fontSize: '15px', fontWeight: 800, color: '#ffffff'}}>
+                                        {currentLang === 'en' ? 'Solar Calendar & Panchang' : 'ગુજરાતી પંચાંગ & કેલેન્ડર'}
+                                    </h4>
+                                    <span style={{fontSize: '11px', color: '#bbf7d0'}}>
+                                        {currentLang === 'en' ? todayPanchang.dayNameEn : todayPanchang.dayNameGu} • {todayPanchang.tithiFull}
+                                    </span>
                                 </div>
                             </div>
                             <button type="button" onClick={() => setShowPanchangModal(false)} style={{background: 'rgba(255,255,255,0.2)', border: 'none', color: '#ffffff', borderRadius: '50%', width: '28px', height: '28px', display: 'grid', placeItems: 'center', cursor: 'pointer'}}>
@@ -3659,10 +3663,12 @@ export default function MobileAppView({
                                 onClick={() => setCalMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
                                 style={{padding: '6px 12px', borderRadius: '8px', border: '1px solid #d1e7dd', background: '#f4faf6', color: '#15803d', fontWeight: 700, fontSize: '12px', cursor: 'pointer'}}
                             >
-                                ← પાછળ
+                                {currentLang === 'en' ? '← Prev' : '← પાછળ'}
                             </button>
                             <div style={{textAlign: 'center'}}>
-                                <b style={{fontSize: '15px', color: '#0f291e', display: 'block'}}>{GUJARATI_MONTHS[calMonth.getMonth()]} {calMonth.getFullYear()}</b>
+                                <b style={{fontSize: '15px', color: '#0f291e', display: 'block'}}>
+                                    {currentLang === 'en' ? calMonth.toLocaleDateString('en-US', {month: 'long'}) : GUJARATI_MONTHS[calMonth.getMonth()]} {calMonth.getFullYear()}
+                                </b>
                                 <small style={{fontSize: '10.5px', color: '#64748b'}}>{calMonth.toLocaleDateString('en-GB', {month: 'long', year: 'numeric'})}</small>
                             </div>
                             <button
@@ -3670,13 +3676,13 @@ export default function MobileAppView({
                                 onClick={() => setCalMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
                                 style={{padding: '6px 12px', borderRadius: '8px', border: '1px solid #d1e7dd', background: '#f4faf6', color: '#15803d', fontWeight: 700, fontSize: '12px', cursor: 'pointer'}}
                             >
-                                આગળ →
+                                {currentLang === 'en' ? 'Next →' : 'આગળ →'}
                             </button>
                         </div>
 
                         {/* Weekday Labels */}
                         <div style={{display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', textAlign: 'center', padding: '8px 12px 2px', background: '#f8fafc', borderBottom: '1px solid #f1f5f9'}}>
-                            {GUJARATI_WEEKDAYS.map((day, idx) => (
+                            {(currentLang === 'en' ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] : GUJARATI_WEEKDAYS).map((day, idx) => (
                                 <span key={day} style={{fontSize: '11px', fontWeight: 800, color: idx === 6 ? '#dc2626' : '#15803d'}}>
                                     {day}
                                 </span>
