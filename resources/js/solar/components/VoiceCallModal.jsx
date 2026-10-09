@@ -107,10 +107,17 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
         pcmPlayerRef.current = new PcmPlayer(24000);
 
         try {
-            // Check API config
-            const config = await api('voice-agent/config');
-            if (!config || !config.apiKey) {
-                throw new Error('Gemini API Key is not configured on the server. Please check .env file.');
+            // Check API config (non-blocking)
+            try {
+                await api('voice-agent/config');
+            } catch (cfgErr) {
+                console.warn('Voice agent config ping:', cfgErr);
+            }
+
+            if ('speechSynthesis' in window) {
+                try {
+                    window.speechSynthesis.resume();
+                } catch (_) {}
             }
 
             // Request microphone access

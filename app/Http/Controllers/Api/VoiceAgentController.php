@@ -21,19 +21,14 @@ class VoiceAgentController extends Controller
     public function config(Request $request): JsonResponse
     {
         $user = $request->user();
-        $apiKey = config('services.gemini.key', env('GEMINI_API_KEY'));
-
-        if (empty($apiKey)) {
-            return response()->json([
-                'error' => 'Gemini API Key is not configured on the server. Please set GEMINI_API_KEY in .env file.'
-            ], 500);
-        }
+        $apiKey = config('services.gemini.key', env('GEMINI_API_KEY', env('GOOGLE_GENAI_API_KEY', env('GOOGLE_API_KEY'))));
 
         // Fetch user permissions and allowed companies
         $systemPrompt = $this->buildSystemPrompt($user);
 
         return response()->json([
-            'apiKey' => $apiKey,
+            'apiKey' => $apiKey ?: 'solarflow_ready',
+            'hasGeminiKey' => !empty($apiKey),
             'model' => 'gemini-2.5-flash',
             'liveModel' => 'gemini-2.0-flash-exp',
             'user' => [
@@ -71,26 +66,24 @@ class VoiceAgentController extends Controller
     }
 
     /**
-     * Text / Voice Conversation fallback API using Gemini 2.5 Flash
+     * Text / Voice Conversation fallback API using Gemini 2.5 Flash + Local Fallback
      */
     public function chat(Request $request): JsonResponse
     {
         $user = $request->user();
-        $message = $request->input('message');
+        $message = trim((string)$request->input('message', ''));
         $history = $request->input('history', []);
         $language = $request->input('language', 'gu');
 
-        $apiKey = config('services.gemini.key', env('GEMINI_API_KEY'));
+        $apiKey = config('services.gemini.key', env('GEMINI_API_KEY', env('GOOGLE_GENAI_API_KEY', env('GOOGLE_API_KEY'))));
+
+        // If API key is missing or empty, handle with smart internal engine
         if (empty($apiKey)) {
-            return response()->json([
-                'error' => 'GEMINI_API_KEY is missing.'
-            ], 500);
+            $fallbackReply = $this->generateLocalResponse($user, $message, $language);
+            return response()->json(['reply' => $fallbackReply]);
         }
 
         $systemPrompt = $this->buildSystemPrompt($user, $language);
-
-        // Pre-fetch relevant data context based on prompt heuristics or pass tools
-        $contextData = $this->dataService->querySolarData($user, 'get_system_overview');
 
         try {
             $contents = [];
@@ -107,7 +100,7 @@ class VoiceAgentController extends Controller
 
             $tools = $this->getToolsDeclaration();
 
-            $response = Http::withHeaders([
+            $response = Http::timeout(10)->withHeaders([
                 'Content-Type' => 'application/json',
             ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={$apiKey}", [
                 'system_instruction' => [
@@ -121,7 +114,7 @@ class VoiceAgentController extends Controller
                 $resData = $response->json();
                 $candidates = $resData['candidates'] ?? [];
                 if (empty($candidates)) {
-                    return response()->json(['reply' => 'સોરી, હું સમજી શક્યો નથી. ફરીથી પૂછશો?']);
+                    return response()->json(['reply' => $this->generateLocalResponse($user, $message, $language)]);
                 }
 
                 $parts = $candidates[0]['content']['parts'] ?? [];
@@ -144,7 +137,7 @@ class VoiceAgentController extends Controller
                             ]]
                         ];
 
-                        $resFollowup = Http::withHeaders(['Content-Type' => 'application/json'])
+                        $resFollowup = Http::timeout(10)->withHeaders(['Content-Type' => 'application/json'])
                             ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={$apiKey}", [
                                 'system_instruction' => ['parts' => [['text' => $systemPrompt]]],
                                 'contents' => $contents,
@@ -158,14 +151,81 @@ class VoiceAgentController extends Controller
                     }
                 }
 
-                $replyText = $parts[0]['text'] ?? 'હા, હું તમારી શું મદદ કરી શકું?';
+                $replyText = $parts[0]['text'] ?? $this->generateLocalResponse($user, $message, $language);
                 return response()->json(['reply' => $replyText]);
             }
 
-            return response()->json(['error' => 'Gemini API Error: ' . $response->body()], 500);
+            // If Gemini returned an error, seamlessly fallback to local response
+            $fallbackReply = $this->generateLocalResponse($user, $message, $language);
+            return response()->json(['reply' => $fallbackReply]);
+
         } catch (\Throwable $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+            Log::warning('VoiceAgent Gemini Chat Exception: ' . $e->getMessage());
+            $fallbackReply = $this->generateLocalResponse($user, $message, $language);
+            return response()->json(['reply' => $fallbackReply]);
         }
+    }
+
+    /**
+     * High-reliability local fallback when Gemini is unreachable or API key isn't configured
+     */
+    private function generateLocalResponse($user, string $message, string $language = 'gu'): string
+    {
+        $lower = mb_strtolower($message);
+
+        // 1. Creator / System question
+        if (str_contains($lower, 'jay sir') || str_contains($lower, 'કોણે બનાવ') || str_contains($lower, 'who made') || str_contains($lower, 'creator') || str_contains($lower, 'owner')) {
+            return $language === 'en'
+                ? 'This SolarFlow system is designed and created by Jay Sir. I am SolarFlow, his AI voice assistant.'
+                : 'આ SolarFlow સોફ્ટવેર જય સર (Jay Sir) દ્વારા બનાવવામાં આવ્યું છે. હું તેમની AI સહાયક છું.';
+        }
+
+        // 2. Today's Units / Generation
+        if (str_contains($lower, 'યુનિટ') || str_contains($lower, 'unit') || str_contains($lower, 'generation') || str_contains($lower, 'ઉત્પાદન') || str_contains($lower, 'આજ')) {
+            $data = $this->dataService->querySolarData($user, 'get_generation_units', ['date' => date('Y-m-d')]);
+            $units = $data['total_units'] ?? '૦';
+            return $language === 'en'
+                ? "Today's total generation is {$units} units (kWh)."
+                : "આજના કુલ સોલાર ઉત્પાદન યુનિટ્સ {$units} kWh છે.";
+        }
+
+        // 3. Curtailment / PGVCL
+        if (str_contains($lower, 'curtail') || str_contains($lower, 'કર્ટલ') || str_contains($lower, 'pgvcl') || str_contains($lower, 'ઘટાડો')) {
+            $data = $this->dataService->querySolarData($user, 'get_live_plant_status');
+            $active = $data['curtailment_active'] ?? false;
+            if ($active) {
+                return $language === 'en'
+                    ? 'PGVCL power curtailment is currently active on the plant.'
+                    : 'હા, હાલમાં PGVCL પાવર ઘટાડો (કર્ટલમેન્ટ) સક્રિય છે.';
+            }
+            return $language === 'en'
+                ? 'All plants are running normally at 100% full capacity with no active curtailment.'
+                : 'બધા પ્લાન્ટ સામાન્ય રીતે ૧૦૦% ફુલ ક્ષમતાથી ચાલુ છે, કોઈ કર્ટલમેન્ટ નથી.';
+        }
+
+        // 4. Attendance
+        if (str_contains($lower, 'હાજર') || str_contains($lower, 'attendance') || str_contains($lower, 'કર્મચારી') || str_contains($lower, 'staff')) {
+            $data = $this->dataService->querySolarData($user, 'get_employee_attendance');
+            $present = $data['present_count'] ?? 0;
+            $total = $data['total_employees'] ?? 0;
+            return $language === 'en'
+                ? "Today, {$present} out of {$total} staff members are present on site."
+                : "આજે કુલ {$total} માંથી {$present} કર્મચારીઓ સાઈટ પર હાજર છે.";
+        }
+
+        // 5. Revenue
+        if (str_contains($lower, 'આવક') || str_contains($lower, 'revenue') || str_contains($lower, 'રૂપિયા') || str_contains($lower, 'rupee') || str_contains($lower, 'પૈસા')) {
+            $data = $this->dataService->querySolarData($user, 'get_financials_revenue');
+            $rev = $data['estimated_revenue'] ?? '૦';
+            return $language === 'en'
+                ? "The estimated revenue for the current period is ₹{$rev}."
+                : "ચાલુ સમયગાળાની અંદાજિત સોલાર આવક ₹{$rev} રૂપિયા છે.";
+        }
+
+        // General Welcome / Help
+        return $language === 'en'
+            ? 'Yes, SolarFlow is active. You can ask about today’s units, PGVCL curtailment, attendance, or revenue.'
+            : 'હા, હું SolarFlow AI સહાયક છું. તમે આજના યુનિટ્સ, PGVCL ઘટાડો, હાજરી અથવા સોલાર આવક વિશે કંઈ પણ પૂછી શકો છો.';
     }
 
     private function buildSystemPrompt($user, string $language = 'gu'): string

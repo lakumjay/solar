@@ -1,5 +1,5 @@
 // SolarFlow PWA Service Worker
-const CACHE_NAME = 'solarflow-cache-v46';
+const CACHE_NAME = 'solarflow-cache-v52';
 const ASSETS_TO_CACHE = [
   '/site.webmanifest',
   '/icons/icon-192.png',
@@ -31,8 +31,8 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   if (event.request.url.includes('/api/')) return; // Always dynamic for API
 
-  // HTML navigation requests: ALWAYS fetch fresh from network to avoid stale hashed script errors
-  if (event.request.mode === 'navigate') {
+  // HTML navigation & build assets: ALWAYS fetch fresh from network to avoid stale hashed script errors
+  if (event.request.mode === 'navigate' || event.request.url.includes('/build/')) {
     event.respondWith(
       fetch(event.request).catch(() => caches.match(event.request))
     );
