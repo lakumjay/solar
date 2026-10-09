@@ -1,7 +1,8 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {CalendarDays, ChevronLeft, ChevronRight, Factory, Sun, Sparkles} from 'lucide-react';
 import {number, shortDate} from '../format';
-import {GUJARATI_WEEKDAYS, GUJARATI_MONTHS, getPanchangDetails, toGujaratiDigits} from '../utils/panchang';
+import {GUJARATI_WEEKDAYS, ENGLISH_WEEKDAYS, GUJARATI_MONTHS, getPanchangDetails, toGujaratiDigits} from '../utils/panchang';
+import {getLanguage, t} from '../utils/translations';
 
 function parseDate(value) {
     if (!value) return null;
@@ -61,12 +62,20 @@ export function DatePicker({label, value, onChange, align = 'left'}) {
     const today = isoDate(todayObj);
     const todayPanchang = getPanchangDetails(selected || todayObj);
 
+    const [currentLang, setCurrentLang] = useState(getLanguage());
+    useEffect(() => {
+        const handleLang = (e) => setCurrentLang(e.detail);
+        window.addEventListener('solarflow_language_change', handleLang);
+        return () => window.removeEventListener('solarflow_language_change', handleLang);
+    }, []);
+
+    const isEn = currentLang === 'en';
     const displayValue = selected
-        ? `${selected.toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'})} (${todayPanchang.dayNameGu})`
-        : 'તારીખ પસંદ કરો (Select date)';
+        ? `${selected.toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'})} (${isEn ? todayPanchang.dayNameEn : todayPanchang.dayNameGu})`
+        : (isEn ? 'Select date' : 'તારીખ પસંદ કરો');
 
     const gujaratiMonthName = GUJARATI_MONTHS[visibleMonth.getMonth()];
-    const englishMonthName = visibleMonth.toLocaleDateString('en-GB', {month: 'short', year: 'numeric'});
+    const englishMonthName = visibleMonth.toLocaleDateString('en-GB', {month: 'long', year: 'numeric'});
 
     return <div className={`date-picker ${align === 'right' ? 'align-right' : ''}`} ref={root}>
         <span className="date-picker-label">{label}</span>
@@ -101,8 +110,12 @@ export function DatePicker({label, value, onChange, align = 'left'}) {
                     <ChevronLeft size={16}/>
                 </button>
                 <div style={{textAlign: 'center'}}>
-                    <b style={{fontSize: '14px', color: '#0f291e', display: 'block'}}>{gujaratiMonthName} {visibleMonth.getFullYear()}</b>
-                    <small style={{fontSize: '10px', color: '#64748b', fontWeight: 600}}>{englishMonthName}</small>
+                    <b style={{fontSize: '14px', color: '#0f291e', display: 'block'}}>
+                        {isEn ? englishMonthName : `${gujaratiMonthName} ${visibleMonth.getFullYear()}`}
+                    </b>
+                    <small style={{fontSize: '10px', color: '#64748b', fontWeight: 600}}>
+                        {isEn ? `${gujaratiMonthName} ${visibleMonth.getFullYear()}` : englishMonthName}
+                    </small>
                 </div>
                 <button
                     type="button"
@@ -114,9 +127,9 @@ export function DatePicker({label, value, onChange, align = 'left'}) {
                 </button>
             </div>
 
-            {/* Gujarati Weekdays Row */}
+            {/* Weekdays Row */}
             <div className="calendar-weekdays" style={{display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', textAlign: 'center', marginBottom: '4px'}}>
-                {GUJARATI_WEEKDAYS.map((day, idx) => (
+                {(isEn ? ENGLISH_WEEKDAYS : GUJARATI_WEEKDAYS).map((day, idx) => (
                     <span key={day} style={{fontSize: '11px', fontWeight: 800, color: idx === 6 ? '#dc2626' : '#15803d', padding: '4px 0'}}>
                         {day}
                     </span>
@@ -152,13 +165,13 @@ export function DatePicker({label, value, onChange, align = 'left'}) {
                                 position: 'relative',
                                 transition: 'all 0.1s ease'
                             }}
-                            title={`${panchang.dayNameGu} - ${panchang.tithiFull}${panchang.festivalName ? ` (${panchang.festivalName})` : ''}${panchang.bankHolidayReason ? ` [${panchang.bankHolidayReason}]` : ''}`}
+                            title={`${isEn ? panchang.dayNameEn : panchang.dayNameGu} - ${panchang.tithiFull}${panchang.festivalName ? ` (${panchang.festivalName})` : ''}${panchang.bankHolidayReason ? ` [${panchang.bankHolidayReason}]` : ''}`}
                         >
                             <span style={{fontSize: '12px', fontWeight: isSelected || isToday ? 800 : 700, lineHeight: 1.1}}>
                                 {day.getDate()}
                             </span>
                             <span style={{fontSize: '8px', fontWeight: 600, color: isSelected ? '#dcfce7' : panchang.isSpecialTithi ? '#b45309' : panchang.isBankHoliday ? '#ef4444' : '#64748b', lineHeight: 1, marginTop: '2px', whiteSpace: 'nowrap'}}>
-                                {panchang.festivalIcon ? panchang.festivalIcon : panchang.isEkadashi ? 'અગિ.' : panchang.isPoonam ? 'પૂનમ' : panchang.isAmavasya ? 'અમાસ' : panchang.tithiName.slice(0, 3)}
+                                {panchang.festivalIcon ? panchang.festivalIcon : (isEn ? (panchang.isBankHoliday ? 'Off' : panchang.tithiName.slice(0, 4)) : (panchang.isEkadashi ? 'અગિ.' : panchang.isPoonam ? 'પૂનમ' : panchang.isAmavasya ? 'અમાસ' : panchang.tithiName.slice(0, 3)))}
                             </span>
                         </button>
                     );
@@ -191,7 +204,7 @@ export function DatePicker({label, value, onChange, align = 'left'}) {
                         cursor: 'pointer'
                     }}
                 >
-                    આજે (Today)
+                    {isEn ? 'Today' : 'આજે'}
                 </button>
             </div>
         </div>}

@@ -751,8 +751,8 @@ export default function MobileAppView({
         : (rawMw > 0 ? `${rawMw.toFixed(2)} MW` : `${(rawKw / 1000).toFixed(2)} MW`);
 
     const todayPanchang = getPanchangDetails(new Date());
-    const tomorrowBankHoliday = getTomorrowBankHolidayAlert(new Date());
-    const viRechargeAlert = getViRechargeAlert(new Date());
+    const tomorrowBankHoliday = getTomorrowBankHolidayAlert(new Date(), currentLang);
+    const viRechargeAlert = getViRechargeAlert(new Date(), currentLang);
 
     return (
         <div className={`mobile-app-container ${currentSky.themeClass}`}>
@@ -952,11 +952,11 @@ export default function MobileAppView({
                                     textDecoration: 'none',
                                     maxWidth: '100%'
                                 }}
-                                title="ગુજરાતી પંચાંગ & કેલેન્ડર જોવા ટેપ કરો"
+                                title={currentLang === 'en' ? 'Tap to view Solar Calendar & Panchang' : 'ગુજરાતી પંચાંગ & કેલેન્ડર જોવા ટેપ કરો'}
                             >
                                 <Calendar size={13} style={{color: '#15803d', flexShrink: 0}}/>
                                 <span style={{fontSize: '11px', fontWeight: 700, color: '#0f291e', lineHeight: 1.2}}>
-                                    {currentTime || new Date().toLocaleDateString('en-GB')} • {todayPanchang.dayNameGu} ({todayPanchang.tithiFull})
+                                    {currentTime || new Date().toLocaleDateString('en-GB')} • {currentLang === 'en' ? todayPanchang.dayNameEn : todayPanchang.dayNameGu} ({todayPanchang.tithiFull})
                                 </span>
                             </button>
                         </div>
@@ -982,7 +982,7 @@ export default function MobileAppView({
                                     </span>
                                 </div>
                                 <span style={{fontSize: '10px', background: '#dbeafe', color: '#1d4ed8', fontWeight: 800, padding: '2px 6px', borderRadius: '4px'}}>
-                                    બધી કંપનીઓ
+                                    {t('allCompaniesLabel')}
                                 </span>
                             </div>
                             <p style={{fontSize: '11px', color: '#1e3a8a', margin: 0, lineHeight: 1.4, fontWeight: 600}}>
@@ -1007,14 +1007,14 @@ export default function MobileAppView({
                             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap'}}>
                                 <div style={{display: 'flex', alignItems: 'center', gap: '7px'}}>
                                     <span style={{background: '#dc2626', color: '#ffffff', fontSize: '11px', fontWeight: 800, padding: '2px 7px', borderRadius: '5px'}}>
-                                        {tomorrowBankHoliday.title || '🏦 બેંક રજા એલર્ટ'}
+                                        {tomorrowBankHoliday.title || (currentLang === 'en' ? '🏦 Bank Holiday Alert' : '🏦 બેંક રજા એલર્ટ')}
                                     </span>
                                     <b style={{fontSize: '12px', color: '#991b1b'}}>
                                         {tomorrowBankHoliday.reason}
                                     </b>
                                 </div>
                                 <span style={{fontSize: '10.5px', color: '#b91c1c', fontWeight: 700}}>
-                                    નાણાકીય આયોજન કરો ⚠️
+                                    {t('planFinance')}
                                 </span>
                             </div>
                             <p style={{fontSize: '11px', color: '#7f1d1d', margin: 0, lineHeight: 1.4, fontWeight: 600}}>
@@ -1046,10 +1046,10 @@ export default function MobileAppView({
                                         padding: '3px 8px',
                                         borderRadius: '6px'
                                     }}>
-                                        🚨 PGVCL 66kV / 11kV ટ્રીપ
+                                        {t('gridTripAlert')}
                                     </span>
                                     <b style={{fontSize: '12.5px', color: '#991b1b'}}>
-                                        પ્લાન્ટ પાવર ૦ kW ({data.smart_insights.grid_downtime.downtime_minutes} મિનિટ)
+                                        {currentLang === 'en' ? `Plant Power 0 kW (${data.smart_insights.grid_downtime.downtime_minutes} min)` : `પ્લાન્ટ પાવર ૦ kW (${data.smart_insights.grid_downtime.downtime_minutes} મિનિટ)`}
                                     </b>
                                 </div>
                                 <span style={{
@@ -2443,8 +2443,8 @@ export default function MobileAppView({
                         {isNotifCleared ? (
                             <div style={{padding: '30px 16px', textAlign: 'center', color: '#64748b'}}>
                                 <CheckCircle size={40} style={{color: '#16a34a', margin: '0 auto 12px', display: 'block'}}/>
-                                <h4 style={{margin: '0 0 6px', color: '#1e293b', fontSize: '15px', fontWeight: 700}}>બધી નોટિફિકેશન ક્લિયર થઈ ગઈ છે</h4>
-                                <p style={{fontSize: '12.5px', margin: '0 0 16px', lineHeight: 1.5}}>આજનું કોઈ નવું અનરીડ એલર્ટ બાકી નથી.</p>
+                                <h4 style={{margin: '0 0 6px', color: '#1e293b', fontSize: '15px', fontWeight: 700}}>{t('allNotifsCleared')}</h4>
+                                <p style={{fontSize: '12.5px', margin: '0 0 16px', lineHeight: 1.5}}>{t('noUnreadAlerts')}</p>
                                 <button
                                     type="button"
                                     style={{
@@ -2463,7 +2463,7 @@ export default function MobileAppView({
                                     onClick={handleRestoreNotifications}
                                 >
                                     <RefreshCw size={13}/>
-                                    <span>નોટિફિકેશન ફરી જુઓ (View All)</span>
+                                    <span>{t('viewAllNotifs')}</span>
                                 </button>
                             </div>
                         ) : (
@@ -2499,7 +2499,7 @@ export default function MobileAppView({
                                                     cursor: 'pointer'
                                                 }}
                                             >
-                                                {dailyReadingStatus.status === 'meter_missing' ? '➕ મીટર રીડિંગ ભરો' : '➕ ડેઇલી એન્ટ્રી ભરો'}
+                                                {dailyReadingStatus.status === 'meter_missing' ? t('fillMeterReading') : t('fillDailyEntry')}
                                             </button>
                                         </div>
                                     </div>
@@ -2511,7 +2511,7 @@ export default function MobileAppView({
                                             <Clock size={18}/>
                                         </div>
                                         <div className="notif-text-col">
-                                            <h4 style={{color: '#991b1b'}}>🚨 પાછલી તારીખનું રીડિંગ/મીટર બાકી</h4>
+                                            <h4 style={{color: '#991b1b'}}>{t('prevReadingPending')}</h4>
                                             <p style={{color: '#7f1d1d', margin: '3px 0'}}>{pastReadingMissing.message}</p>
                                             <button
                                                 type="button"
@@ -2531,7 +2531,7 @@ export default function MobileAppView({
                                                     cursor: 'pointer'
                                                 }}
                                             >
-                                                ➕ બાકી રીડિંગ ભરો
+                                                {t('fillPendingReading')}
                                             </button>
                                         </div>
                                     </div>
@@ -2543,7 +2543,7 @@ export default function MobileAppView({
                                             <Wind size={18}/>
                                         </div>
                                         <div className="notif-text-col">
-                                            <h4 style={{color: '#9f1239'}}>💨 ૧૦ દિવસ પૂરા: ઇન્વર્ટર ફેન સાફ કરો</h4>
+                                            <h4 style={{color: '#9f1239'}}>{t('cleanFan10Days')}</h4>
                                             <p style={{color: '#881337', margin: '3px 0'}}>{fanCleaningStatus.message}</p>
                                             <button
                                                 type="button"
@@ -2561,7 +2561,7 @@ export default function MobileAppView({
                                                     cursor: 'pointer'
                                                 }}
                                             >
-                                                {cleaningFanLoading ? 'સેવ થાય છે...' : 'આજે ફેન સાફ કર્યો (તારીખ સેવ કરો)'}
+                                                {cleaningFanLoading ? t('saving') : t('fanCleanedTodayBtn')}
                                             </button>
                                         </div>
                                     </div>
@@ -2573,9 +2573,9 @@ export default function MobileAppView({
                                         <Sun size={18}/>
                                     </div>
                                     <div className="notif-text-col">
-                                        <h4>⚡ આજનું દૈનિક સોલાર ઉત્પાદન (8:00 PM Report)</h4>
+                                        <h4>{t('dailyReportTitle')}</h4>
                                         <p style={{margin: '4px 0'}}>
-                                            કુલ યુનિટ્સ: <b>{liveData?.today_units_kwh || '15,699.90'} kWh</b> &nbsp;|&nbsp; અંદાજિત કમાણી: <b>₹ {liveData?.total_revenue_rs || '59,659.62'}</b>
+                                            {currentLang === 'en' ? 'Total Units: ' : 'કુલ યુનિટ્સ: '}<b>{liveData?.today_units_kwh || '15,699.90'} kWh</b> &nbsp;|&nbsp; {currentLang === 'en' ? 'Est. Revenue: ' : 'અંદાજિત કમાણી: '}<b>₹ {liveData?.total_revenue_rs || '59,659.62'}</b>
                                         </p>
                                         {liveData?.companies && liveData.companies.length > 0 && (
                                             <div style={{fontSize: '11.5px', color: '#166534', marginTop: '5px', lineHeight: 1.4}}>
@@ -2598,11 +2598,11 @@ export default function MobileAppView({
                                                 <AlertTriangle size={18}/>
                                             </div>
                                             <div className="notif-text-col">
-                                                <h4>⚠️ {ca.title || 'સોલાર પેનલ સફાઈ અને વોશિંગ ચેતવણી'}</h4>
-                                                <p style={{margin: '3px 0'}}>સામાન્ય બેઝલાઇન કરંટ: <b>{ca.healthy_avg} A</b></p>
+                                                <h4>⚠️ {ca.title || (currentLang === 'en' ? 'Solar Panel Cleaning Alert' : 'સોલાર પેનલ સફાઈ અને વોશિંગ ચેતવણી')}</h4>
+                                                <p style={{margin: '3px 0'}}>{currentLang === 'en' ? 'Baseline current: ' : 'સામાન્ય બેઝલાઇન કરંટ: '}<b>{ca.healthy_avg} A</b></p>
                                                 {ca.strings && ca.strings.map((str, sIdx) => (
                                                     <div key={sIdx} style={{fontSize: '11.5px', color: '#b91c1c', marginTop: '3px', fontWeight: 600}}>
-                                                        • <b>{str.string_label}:</b> {str.current_a} A ({str.drop_pct}% પાવર ડ્રોપ - તાત્કાલિક ધોવાની જરૂર)
+                                                        • <b>{str.string_label}:</b> {str.current_a} A ({str.drop_pct}% {currentLang === 'en' ? 'Power Drop - Wash Needed' : 'પાવર ડ્રોપ - તાત્કાલિક ધોવાની જરૂર'})
                                                     </div>
                                                 ))}
                                                 <small style={{display: 'block', marginTop: '6px', color: '#b45309'}}>Live Soiling & Dust System Alert</small>
@@ -2615,8 +2615,8 @@ export default function MobileAppView({
                                             <CheckCircle size={18}/>
                                         </div>
                                         <div className="notif-text-col">
-                                            <h4>પેનલ સફાઈ સ્ટેટસ: ઉત્તમ (Clean & Normal)</h4>
-                                            <p>બધા PV સ્ટ્રિંગ્સ પૂરતો અને નોર્મલ કરંટ આપી રહ્યા છે. કોઈ તાત્કાલિક વોશિંગની જરૂર નથી.</p>
+                                            <h4>{t('panelCleanHealthy')}</h4>
+                                            <p>{t('panelCleanHealthyDesc')}</p>
                                             <small>Live Panel Health Monitor</small>
                                         </div>
                                     </div>
@@ -2629,9 +2629,9 @@ export default function MobileAppView({
                                             <AlertTriangle size={18}/>
                                         </div>
                                         <div className="notif-text-col">
-                                            <h4 style={{color: '#991b1b'}}>🚨 વાવાઝોડું & પવન ડેમેજ ચેતવણી</h4>
+                                            <h4 style={{color: '#991b1b'}}>🚨 {currentLang === 'en' ? 'Storm & Wind Damage Warning' : 'વાવાઝોડું & પવન ડેમેજ ચેતવણી'}</h4>
                                             <p style={{color: '#7f1d1d'}}>{weather.storm_alert.message}</p>
-                                            <small style={{color: '#b91c1c'}}>પવનની ઝડપ: {weather.storm_alert.wind_speed}</small>
+                                            <small style={{color: '#b91c1c'}}>{currentLang === 'en' ? 'Wind speed: ' : 'પવનની ઝડપ: '}{weather.storm_alert.wind_speed}</small>
                                         </div>
                                     </div>
                                 ) : weather?.rain_alert?.active ? (
@@ -2642,7 +2642,7 @@ export default function MobileAppView({
                                         <div className="notif-text-col">
                                             <h4 style={{color: '#1e40af'}}>🌧️ {weather.rain_alert.title}</h4>
                                             <p>{weather.rain_alert.message}</p>
-                                            <small style={{color: '#3b82f6'}}>શરૂઆત: {weather.rain_alert.start_time} | અંદાજિત સ્ટોપ: {weather.rain_alert.stop_time}</small>
+                                            <small style={{color: '#3b82f6'}}>{currentLang === 'en' ? 'Start: ' : 'શરૂઆત: '}{weather.rain_alert.start_time} | {currentLang === 'en' ? 'Stop: ' : 'અંદાજિત સ્ટોપ: '}{weather.rain_alert.stop_time}</small>
                                         </div>
                                     </div>
                                 ) : (
@@ -2651,8 +2651,8 @@ export default function MobileAppView({
                                             <Radio size={18}/>
                                         </div>
                                         <div className="notif-text-col">
-                                            <h4>iSolarCloud Live Sync સક્રિય છે</h4>
-                                            <p>બધા ૧૦ ઇન્વર્ટર્સ કનેક્ટેડ છે અને લાઈવ પાવર જનરેશન ડેટાબેઝમાં સેવ થઈ રહ્યો છે.</p>
+                                            <h4>{t('cloudSyncActive')}</h4>
+                                            <p>{t('cloudSyncActiveDesc')}</p>
                                             <small>Live Cloud Sync Status</small>
                                         </div>
                                     </div>
@@ -3724,7 +3724,7 @@ export default function MobileAppView({
                                                 {day.getDate()}
                                             </span>
                                             <span style={{fontSize: '8px', fontWeight: 600, color: panchang.isSpecialTithi ? '#b45309' : panchang.isBankHoliday ? '#ef4444' : '#64748b', marginTop: '2px', whiteSpace: 'nowrap'}}>
-                                                {panchang.festivalIcon || (panchang.isEkadashi ? 'અગિ.' : panchang.isPoonam ? 'પૂનમ' : panchang.isAmavasya ? 'અમાસ' : panchang.tithiName.slice(0, 3))}
+                                                {panchang.festivalIcon || (currentLang === 'en' ? (panchang.isBankHoliday ? 'Off' : panchang.tithiName.slice(0, 4)) : (panchang.isEkadashi ? 'અગિ.' : panchang.isPoonam ? 'પૂનમ' : panchang.isAmavasya ? 'અમાસ' : panchang.tithiName.slice(0, 3)))}
                                             </span>
                                         </div>
                                     );
@@ -3736,7 +3736,7 @@ export default function MobileAppView({
                         <div style={{padding: '10px 16px', background: '#f0fdf4', borderTop: '1px solid #d1e7dd', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px'}}>
                             <div>
                                 <span style={{fontSize: '11.5px', fontWeight: 800, color: '#166534', display: 'block'}}>
-                                    આજે: {todayPanchang.dayNameGu} • {todayPanchang.tithiFull}
+                                    {currentLang === 'en' ? `Today: ${todayPanchang.dayNameEn}` : `આજે: ${todayPanchang.dayNameGu}`} • {todayPanchang.tithiFull}
                                 </span>
                                 {todayPanchang.festivalName && (
                                     <span style={{fontSize: '10.5px', color: '#b45309', fontWeight: 700}}>
@@ -3751,7 +3751,7 @@ export default function MobileAppView({
                                 }}
                                 style={{padding: '4px 10px', borderRadius: '6px', border: '1px solid #16a34a', background: '#ffffff', color: '#15803d', fontWeight: 700, fontSize: '11px', cursor: 'pointer'}}
                             >
-                                ચાલુ મહિનો
+                                {currentLang === 'en' ? 'Current Month' : 'ચાલુ મહિનો'}
                             </button>
                         </div>
                     </div>

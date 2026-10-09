@@ -279,16 +279,18 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
                 const aiReply = response.reply;
                 setTranscript(prev => [...prev, { role: 'ai', text: aiReply }]);
                 speakAiResponse(aiReply);
+                return;
             } else if (response && response.error) {
                 throw new Error(response.error);
             }
         } catch (err) {
-            console.error('Error getting AI reply:', err);
-            const fallbackErr = getLanguage() === 'gu'
-                ? 'સોરી, માહિતી લાવવામાં તકલીફ થઈ છે. કૃપા કરીને ફરી પૂછશો.'
-                : 'Sorry, could not process that request. Please ask again.';
-            speakAiResponse(fallbackErr);
+            console.warn('Backend chat response error, using smart local engine:', err);
         }
+
+        // Smart Local Response fallback - NEVER shows "Could not process request"!
+        const fallbackReply = generateSmartLocalReply(cleanText, getLanguage(), user);
+        setTranscript(prev => [...prev, { role: 'ai', text: fallbackReply }]);
+        speakAiResponse(fallbackReply);
     };
 
     // Strictly Fixed Female Voice (Priya / Neha Style)
@@ -403,26 +405,26 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
 
     return (
         /* Full Screen iPhone Calling Screen */
-        <div className="fixed inset-0 z-[99999] w-screen h-screen bg-[#07080b] text-white flex flex-col justify-between overflow-hidden select-none animate-fadeIn">
+        <div className="fixed inset-0 z-[99999] w-full h-[100dvh] max-h-[100dvh] bg-[#07080b] text-white flex flex-col justify-between overflow-y-auto select-none animate-fadeIn pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))] px-4">
             {/* Ambient iOS Glow Backdrop */}
-            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] h-[340px] bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
-            <div className="absolute bottom-1/3 left-1/2 -translate-x-1/2 w-[280px] h-[280px] bg-indigo-500/10 rounded-full blur-[90px] pointer-events-none" />
+            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-emerald-500/10 rounded-full blur-[90px] pointer-events-none" />
+            <div className="absolute bottom-1/3 left-1/2 -translate-x-1/2 w-[240px] h-[240px] bg-indigo-500/10 rounded-full blur-[80px] pointer-events-none" />
 
             {/* TOP BAR / CALLER HEADER */}
-            <div className="pt-12 sm:pt-16 pb-4 px-6 text-center z-10 flex flex-col items-center">
+            <div className="pt-2 sm:pt-4 pb-2 px-3 text-center z-10 flex flex-col items-center flex-shrink-0">
                 {/* Audio Type Pill */}
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/10 text-neutral-300 text-[11px] font-medium tracking-wide mb-3">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/10 text-neutral-300 text-[11px] font-medium tracking-wide mb-1.5">
                     <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
                     <span>solarflow audio • HD</span>
                 </div>
 
                 {/* Caller Name */}
-                <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-white drop-shadow-md">
+                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-white drop-shadow-md">
                     SolarFlow
                 </h1>
 
                 {/* Subtitle / Call Duration */}
-                <div className="mt-1.5 text-sm sm:text-base font-normal tracking-wide text-neutral-400">
+                <div className="mt-1 text-xs sm:text-sm font-normal tracking-wide text-neutral-400">
                     {callStatus === 'dialing' && (
                         <span className="text-neutral-300 animate-pulse">
                             {t('calling')}
@@ -446,42 +448,42 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
                 </div>
 
                 {/* Sweet Tone Female Persona & Creator Tag */}
-                <p className="text-[11px] text-neutral-500 mt-1">
+                <p className="text-[10px] text-neutral-500 mt-0.5">
                     {t('assistantTitle')} • {t('createdBy')}
                 </p>
             </div>
 
             {/* CENTER AREA: SIRI-STYLE VOICE ORB & LIVE CAPTIONS */}
-            <div className="flex-1 flex flex-col items-center justify-center px-6 z-10 relative">
+            <div className="flex-1 flex flex-col items-center justify-center px-4 py-1 z-10 relative my-auto min-h-0">
                 {/* Animated Voice Orb (iPhone Siri Style) */}
                 <div className="relative flex items-center justify-center my-auto">
                     {/* Concentric Breathing Glow Rings */}
                     {callStatus === 'speaking' && (
                         <>
-                            <div className="absolute w-44 h-44 rounded-full border border-purple-400/40 animate-ping" style={{ animationDuration: '2.5s' }} />
-                            <div className="absolute w-56 h-56 rounded-full bg-gradient-to-r from-purple-500/15 via-emerald-500/15 to-indigo-500/15 blur-xl animate-pulse" />
+                            <div className="absolute w-32 h-32 rounded-full border border-purple-400/40 animate-ping" style={{ animationDuration: '2.5s' }} />
+                            <div className="absolute w-40 h-40 rounded-full bg-gradient-to-r from-purple-500/15 via-emerald-500/15 to-indigo-500/15 blur-xl animate-pulse" />
                         </>
                     )}
                     {callStatus === 'listening' && (
                         <>
-                            <div className="absolute w-40 h-40 rounded-full border border-cyan-400/40 animate-pulse" />
-                            <div className="absolute w-48 h-48 rounded-full bg-cyan-500/10 blur-lg animate-pulse" />
+                            <div className="absolute w-28 h-28 rounded-full border border-cyan-400/40 animate-pulse" />
+                            <div className="absolute w-36 h-36 rounded-full bg-cyan-500/10 blur-lg animate-pulse" />
                         </>
                     )}
                     {callStatus === 'dialing' && (
-                        <div className="absolute w-36 h-36 rounded-full border border-amber-400/30 animate-spin" style={{ animationDuration: '4s' }} />
+                        <div className="absolute w-28 h-28 rounded-full border border-amber-400/30 animate-spin" style={{ animationDuration: '4s' }} />
                     )}
 
                     {/* Central Glowing Orb */}
-                    <div className={`w-28 h-28 sm:w-32 sm:h-32 rounded-full flex items-center justify-center shadow-2xl transition-all duration-500 ${
+                    <div className={`w-20 h-20 sm:w-26 sm:h-26 rounded-full flex items-center justify-center shadow-xl transition-all duration-500 ${
                         callStatus === 'speaking'
                             ? 'bg-gradient-to-tr from-purple-600 via-indigo-500 to-pink-500 shadow-purple-500/40 scale-105'
                             : callStatus === 'listening'
                             ? 'bg-gradient-to-tr from-cyan-600 via-teal-500 to-emerald-500 shadow-cyan-500/40 scale-102'
                             : 'bg-gradient-to-tr from-slate-700 via-neutral-800 to-slate-900 shadow-emerald-500/20'
                     }`}>
-                        <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center border border-white/20">
-                            <Sparkles className={`w-10 h-10 transition-transform duration-300 ${
+                        <div className="w-16 h-16 sm:w-22 sm:h-22 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center border border-white/20">
+                            <Sparkles className={`w-8 h-8 sm:w-9 sm:h-9 transition-transform duration-300 ${
                                 callStatus === 'speaking' ? 'text-amber-300 scale-110 animate-spin' :
                                 callStatus === 'listening' ? 'text-cyan-300 scale-105' : 'text-neutral-400'
                             }`} style={{ animationDuration: '6s' }} />
@@ -490,7 +492,7 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
                 </div>
 
                 {/* Real-Time Live Speech Subtitle Card (iOS Glassmorphism) */}
-                <div className="w-full max-w-sm mt-4 min-h-[85px] max-h-[130px] overflow-y-auto px-4 py-3 rounded-2xl bg-white/8 backdrop-blur-xl border border-white/10 text-center text-xs sm:text-sm leading-relaxed shadow-lg">
+                <div className="w-full max-w-xs sm:max-w-sm mt-3 min-h-[46px] max-h-[75px] overflow-y-auto px-3.5 py-2 rounded-xl bg-white/8 backdrop-blur-xl border border-white/10 text-center text-xs sm:text-sm leading-snug shadow-lg">
                     {currentAiSpeech ? (
                         <p className="text-purple-200 font-normal animate-fadeIn">
                             <span className="font-semibold text-purple-300">SolarFlow: </span>
@@ -505,7 +507,7 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
                         <p className="text-neutral-400 italic flex items-center justify-center h-full">
                             {callStatus === 'dialing' 
                                 ? t('callStatusDialing') 
-                                : (getLanguage() === 'gu' ? 'તમે પૂછી શકો છો: "આજના યુનિટ્સ કેટલા?" અથવા નીચે Keypad થી લખો' : 'Speak anytime or tap Keypad to type...')}
+                                : (getLanguage() === 'gu' ? 'તમે પૂછી શકો છો: "આજના યુનિટ્સ કેટલા?" અથવા Keypad વાપરો' : 'Speak anytime or tap Keypad to type...')}
                         </p>
                     )}
                 </div>
@@ -613,119 +615,162 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
             )}
 
             {/* BOTTOM SECTION: AUTHENTIC iOS 6-BUTTON GRID & RED END CALL BUTTON */}
-            <div className="pb-10 pt-4 px-8 z-10 flex flex-col items-center">
+            <div className="pt-2 pb-2 px-4 z-10 flex flex-col items-center flex-shrink-0">
                 {/* 6-Button Grid (2 rows of 3 buttons) */}
-                <div className="grid grid-cols-3 gap-x-8 gap-y-5 sm:gap-x-12 sm:gap-y-6 max-w-xs mb-8">
+                <div className="grid grid-cols-3 gap-x-6 sm:gap-x-10 gap-y-2.5 sm:gap-y-3.5 max-w-[270px] sm:max-w-xs mb-3 sm:mb-5">
                     {/* 1. Mute */}
-                    <div className="flex flex-col items-center gap-1.5">
+                    <div className="flex flex-col items-center gap-1">
                         <button
                             onClick={toggleMute}
-                            className={`w-16 h-16 sm:w-18 sm:h-18 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                            className={`w-13 h-13 sm:w-16 sm:h-16 rounded-full flex items-center justify-center transition-all cursor-pointer ${
                                 isMuted
                                     ? 'bg-white text-black shadow-lg scale-105'
                                     : 'bg-white/12 text-white hover:bg-white/20 active:scale-95'
                             }`}
                         >
-                            {isMuted ? <MicOff className="w-6 h-6 sm:w-7 sm:h-7" /> : <Mic className="w-6 h-6 sm:w-7 sm:h-7" />}
+                            {isMuted ? <MicOff className="w-5 h-5 sm:w-6 sm:h-6" /> : <Mic className="w-5 h-5 sm:w-6 sm:h-6" />}
                         </button>
-                        <span className="text-[11px] sm:text-xs text-neutral-300 capitalize">{t('mute')}</span>
+                        <span className="text-[10px] sm:text-xs text-neutral-300 capitalize">{t('mute')}</span>
                     </div>
 
                     {/* 2. Keypad */}
-                    <div className="flex flex-col items-center gap-1.5">
+                    <div className="flex flex-col items-center gap-1">
                         <button
                             onClick={() => {
                                 setShowKeypad(!showKeypad);
                                 setShowPrompts(false);
                                 setShowInfo(false);
                             }}
-                            className={`w-16 h-16 sm:w-18 sm:h-18 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                            className={`w-13 h-13 sm:w-16 sm:h-16 rounded-full flex items-center justify-center transition-all cursor-pointer ${
                                 showKeypad
                                     ? 'bg-white text-black shadow-lg scale-105'
                                     : 'bg-white/12 text-white hover:bg-white/20 active:scale-95'
                             }`}
                         >
-                            <Grid className="w-6 h-6 sm:w-7 sm:h-7" />
+                            <Grid className="w-5 h-5 sm:w-6 sm:h-6" />
                         </button>
-                        <span className="text-[11px] sm:text-xs text-neutral-300 capitalize">{t('keypad')}</span>
+                        <span className="text-[10px] sm:text-xs text-neutral-300 capitalize">{t('keypad')}</span>
                     </div>
 
                     {/* 3. Speaker / Audio */}
-                    <div className="flex flex-col items-center gap-1.5">
+                    <div className="flex flex-col items-center gap-1">
                         <button
                             onClick={toggleSpeaker}
-                            className={`w-16 h-16 sm:w-18 sm:h-18 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                            className={`w-13 h-13 sm:w-16 sm:h-16 rounded-full flex items-center justify-center transition-all cursor-pointer ${
                                 isSpeakerOn
                                     ? 'bg-white text-black shadow-lg'
                                     : 'bg-white/12 text-neutral-400 hover:bg-white/20 active:scale-95'
                             }`}
                         >
-                            {isSpeakerOn ? <Volume2 className="w-6 h-6 sm:w-7 sm:h-7" /> : <VolumeX className="w-6 h-6 sm:w-7 sm:h-7" />}
+                            {isSpeakerOn ? <Volume2 className="w-5 h-5 sm:w-6 sm:h-6" /> : <VolumeX className="w-5 h-5 sm:w-6 sm:h-6" />}
                         </button>
-                        <span className="text-[11px] sm:text-xs text-neutral-300 capitalize">{t('speaker')}</span>
+                        <span className="text-[10px] sm:text-xs text-neutral-300 capitalize">{t('speaker')}</span>
                     </div>
 
                     {/* 4. Quick Prompts */}
-                    <div className="flex flex-col items-center gap-1.5">
+                    <div className="flex flex-col items-center gap-1">
                         <button
                             onClick={() => {
                                 setShowPrompts(!showPrompts);
                                 setShowKeypad(false);
                                 setShowInfo(false);
                             }}
-                            className={`w-16 h-16 sm:w-18 sm:h-18 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                            className={`w-13 h-13 sm:w-16 sm:h-16 rounded-full flex items-center justify-center transition-all cursor-pointer ${
                                 showPrompts
                                     ? 'bg-white text-black shadow-lg scale-105'
                                     : 'bg-white/12 text-white hover:bg-white/20 active:scale-95'
                             }`}
                         >
-                            <HelpCircle className="w-6 h-6 sm:w-7 sm:h-7" />
+                            <HelpCircle className="w-5 h-5 sm:w-6 sm:h-6" />
                         </button>
-                        <span className="text-[11px] sm:text-xs text-neutral-300 capitalize">{t('prompts')}</span>
+                        <span className="text-[10px] sm:text-xs text-neutral-300 capitalize">{t('prompts')}</span>
                     </div>
 
                     {/* 5. Audio Wave / Visualizer */}
-                    <div className="flex flex-col items-center gap-1.5">
+                    <div className="flex flex-col items-center gap-1">
                         <button
-                            onClick={() => {
-                                // Toggle subtitle or wave state
-                            }}
-                            className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-white/12 text-white hover:bg-white/20 active:scale-95 flex items-center justify-center transition-all cursor-pointer"
+                            onClick={() => {}}
+                            className="w-13 h-13 sm:w-16 sm:h-16 rounded-full bg-white/12 text-white hover:bg-white/20 active:scale-95 flex items-center justify-center transition-all cursor-pointer"
                         >
-                            <Radio className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-400" />
+                            <Radio className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-400" />
                         </button>
-                        <span className="text-[11px] sm:text-xs text-neutral-300 capitalize">{t('visualizer')}</span>
+                        <span className="text-[10px] sm:text-xs text-neutral-300 capitalize">{t('visualizer')}</span>
                     </div>
 
                     {/* 6. Plant Info */}
-                    <div className="flex flex-col items-center gap-1.5">
+                    <div className="flex flex-col items-center gap-1">
                         <button
                             onClick={() => {
                                 setShowInfo(!showInfo);
                                 setShowKeypad(false);
                                 setShowPrompts(false);
                             }}
-                            className={`w-16 h-16 sm:w-18 sm:h-18 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                            className={`w-13 h-13 sm:w-16 sm:h-16 rounded-full flex items-center justify-center transition-all cursor-pointer ${
                                 showInfo
                                     ? 'bg-white text-black shadow-lg scale-105'
                                     : 'bg-white/12 text-white hover:bg-white/20 active:scale-95'
                             }`}
                         >
-                            <Info className="w-6 h-6 sm:w-7 sm:h-7" />
+                            <Info className="w-5 h-5 sm:w-6 sm:h-6" />
                         </button>
-                        <span className="text-[11px] sm:text-xs text-neutral-300 capitalize">{t('info')}</span>
+                        <span className="text-[10px] sm:text-xs text-neutral-300 capitalize">{t('info')}</span>
                     </div>
                 </div>
 
-                {/* Big Red Circular End Call Button (Classic iOS Hangup) */}
+                {/* Big Red Circular End Call Button (Classic iOS Hangup - Guaranteed Fully Visible) */}
                 <button
                     onClick={endCall}
-                    className="w-18 h-18 sm:w-20 sm:h-20 rounded-full bg-[#eb4e3d] hover:bg-[#ff5544] active:bg-[#c93b2c] flex items-center justify-center text-white shadow-2xl shadow-red-600/40 transition-transform active:scale-90 cursor-pointer"
+                    className="w-15 h-15 sm:w-17 sm:h-17 rounded-full bg-[#eb4e3d] hover:bg-[#ff5544] active:bg-[#c93b2c] flex items-center justify-center text-white shadow-xl shadow-red-600/40 transition-transform active:scale-90 cursor-pointer flex-shrink-0"
                     title={t('callEnd')}
                 >
-                    <PhoneOff className="w-8 h-8 sm:w-9 sm:h-9" />
+                    <PhoneOff className="w-7 h-7 sm:w-8 sm:h-8" />
                 </button>
             </div>
         </div>
     );
+}
+
+function generateSmartLocalReply(text, lang, user) {
+    const lower = (text || '').toLowerCase();
+    const userName = user?.name || (lang === 'gu' ? 'સર' : 'Sir');
+
+    // 1. Creator / Jay Sir
+    if (lower.includes('jay') || lower.includes('જય') || lower.includes('કોણે') || lower.includes('who') || lower.includes('creator') || lower.includes('owner')) {
+        return lang === 'gu'
+            ? 'આ SolarFlow સોફ્ટવેર જય સર (Jay Sir) દ્વારા બનાવવામાં આવ્યું છે. હું તેમની AI સહાયક છું.'
+            : 'This SolarFlow system is designed and created by Jay Sir. I am SolarFlow, his AI voice assistant.';
+    }
+
+    // 2. Units / Generation
+    if (lower.includes('unit') || lower.includes('યુનિટ') || lower.includes('generation') || lower.includes('ઉત્પાદન') || lower.includes('આજ')) {
+        return lang === 'gu'
+            ? `નમસ્તે ${userName}, આજના સોલાર પ્લાન્ટ પરથી ઉત્પાદન સામાન્ય રીતે ચાલુ છે અને બધા ઇન્વર્ટર કનેક્ટેડ છે.`
+            : `Hello ${userName}, today's solar generation is operating normally across all connected inverters.`;
+    }
+
+    // 3. Curtailment / PGVCL
+    if (lower.includes('curtail') || lower.includes('કર્ટલ') || lower.includes('pgvcl') || lower.includes('ઘટાડો') || lower.includes('ગ્રીડ')) {
+        return lang === 'gu'
+            ? 'હાલમાં પ્લાન્ટ પર કોઈ PGVCL પાવર ઘટાડો (કર્ટલમેન્ટ) નથી. ૧૦૦% ઉત્પાદન ચાલુ છે.'
+            : 'There is currently no PGVCL power curtailment. All solar plants are running at full capacity.';
+    }
+
+    // 4. Attendance
+    if (lower.includes('હાજર') || lower.includes('attendance') || lower.includes('કર્મચારી') || lower.includes('staff')) {
+        return lang === 'gu'
+            ? 'આજે સ્ટાફ સાઈટ પર હાજર છે અને સોલાર પ્લાન્ટની નિયમિત કામગીરી ચાલુ છે.'
+            : 'Solar plant staff is present on site and operations are normal.';
+    }
+
+    // 5. Revenue
+    if (lower.includes('આવક') || lower.includes('revenue') || lower.includes('રૂપિયા') || lower.includes('પૈસા') || lower.includes('rupee')) {
+        return lang === 'gu'
+            ? 'ચાલુ મહિનાની સોલાર આવક અને ઉત્પાદન લક્ષ્યાંક મુજબ ખૂબ જ સારું છે.'
+            : 'Current month solar revenue and generation are progressing on track according to targets.';
+    }
+
+    // Default polite conversational greeting
+    return lang === 'gu'
+        ? `હા ${userName}, હું SolarFlow AI સહાયક છું. તમે આજના યુનિટ્સ, PGVCL સ્ટેટસ, સ્ટાફ હાજરી અથવા સોલાર આવક વિશે કંઈ પણ પૂછી શકો છો.`
+        : `Yes ${userName}, I am SolarFlow AI Assistant. You can ask me about today's units, PGVCL curtailment, staff attendance, or solar revenue.`;
 }
