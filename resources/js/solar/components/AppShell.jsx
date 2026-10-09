@@ -1,10 +1,12 @@
 import React, {useEffect, useState} from 'react';
-import {Activity, BarChart3, Boxes, Building2, CalendarCheck2, Camera, ChevronRight, ClipboardPlus, Clock3, CloudSun, Film, Gauge, IndianRupee, LogOut, Menu, Sun, UserCheck, Users, WalletCards, X, Zap} from 'lucide-react';
+import {Activity, BarChart3, Boxes, Building2, CalendarCheck2, Camera, ChevronRight, ClipboardPlus, Clock3, CloudSun, Film, Gauge, Globe, IndianRupee, LogOut, Menu, Phone, Sparkles, Sun, UserCheck, Users, WalletCards, X, Zap} from 'lucide-react';
 import {api, logout} from '../api';
 import MobileAppView from './MobileAppView';
 import NotificationPermissionModal from './NotificationPermissionModal';
 import AppSplashScreen from './AppSplashScreen';
 import MilestoneCelebrationModal from './MilestoneCelebrationModal';
+import VoiceCallModal from './VoiceCallModal';
+import {getLanguage, setLanguage, t} from '../utils/translations';
 
 export default function AppShell({user, page, setPage, companies, companyId, setCompanyId, children}) {
     const [menuOpen, setMenuOpen] = useState(false);
@@ -24,6 +26,16 @@ export default function AppShell({user, page, setPage, companies, companyId, set
             return true;
         }
     });
+    const [showVoiceCall, setShowVoiceCall] = useState(false);
+    const [currentLang, setCurrentLang] = useState(getLanguage());
+
+    useEffect(() => {
+        const handleLangChange = (e) => {
+            setCurrentLang(e.detail);
+        };
+        window.addEventListener('solarflow_language_change', handleLangChange);
+        return () => window.removeEventListener('solarflow_language_change', handleLangChange);
+    }, []);
 
     useEffect(() => {
         const checkMobile = () => {
@@ -300,13 +312,60 @@ export default function AppShell({user, page, setPage, companies, companyId, set
                     <main className="content">
                         <header className="topbar">
                             <button className="mobile-menu" onClick={() => setMenuOpen(true)}><Menu/></button>
-                            {((user.role === 'super_admin' && ['dashboard', 'reports', 'entry', 'activity'].includes(page)) || (!user.company_id && ['dashboard', 'reports', 'entry', 'activity', 'stock'].includes(page)) || (user.role === 'employee' && page === 'entry')) && <label className="company-switch"><span>Company</span><select value={companyId} onChange={event => setCompanyId(event.target.value)}>{page !== 'entry' && <option value="all">All Companies</option>}{companies.map(company => <option value={company.id} key={company.id}>{company.name}</option>)}</select></label>}
+                            <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginLeft: 'auto'}}>
+                                {/* Language Dropdown (Gujarati / English) */}
+                                <div style={{display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '4px 10px', borderRadius: '8px', border: '1px solid #e2e8f0'}}>
+                                    <Globe size={15} style={{color: '#15803d'}}/>
+                                    <select
+                                        value={currentLang}
+                                        onChange={(e) => setLanguage(e.target.value)}
+                                        style={{background: 'transparent', border: 'none', fontSize: '13px', fontWeight: 600, color: '#334155', cursor: 'pointer', outline: 'none'}}
+                                    >
+                                        <option value="gu">ગુજરાતી (Gujarati)</option>
+                                        <option value="en">English</option>
+                                    </select>
+                                </div>
+
+                                {/* AI Voice Call Button */}
+                                <button
+                                    type="button"
+                                    onClick={() => setShowVoiceCall(true)}
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        background: 'linear-gradient(135deg, #15803d, #166534)',
+                                        color: '#ffffff',
+                                        border: 'none',
+                                        borderRadius: '10px',
+                                        padding: '8px 16px',
+                                        fontSize: '13px',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        boxShadow: '0 4px 14px rgba(21, 128, 61, 0.35)',
+                                        transition: 'all 0.2s ease'
+                                    }}
+                                >
+                                    <Phone size={16} className="animate-pulse" />
+                                    <span>{t('callAi')}</span>
+                                    <Sparkles size={14} style={{color: '#fef08a'}}/>
+                                </button>
+
+                                {((user.role === 'super_admin' && ['dashboard', 'reports', 'entry', 'activity'].includes(page)) || (!user.company_id && ['dashboard', 'reports', 'entry', 'activity', 'stock'].includes(page)) || (user.role === 'employee' && page === 'entry')) && <label className="company-switch"><span>Company</span><select value={companyId} onChange={event => setCompanyId(event.target.value)}>{page !== 'entry' && <option value="all">All Companies</option>}{companies.map(company => <option value={company.id} key={company.id}>{company.name}</option>)}</select></label>}
+                            </div>
                         </header>
                         {children({can, activeCompany})}
                     </main>
                     <NotificationPermissionModal />
                 </div>
             )}
+
+            {/* 🎙️ Real-Time AI Voice Call Modal (Mobile & Desktop) */}
+            <VoiceCallModal
+                isOpen={showVoiceCall}
+                onClose={() => setShowVoiceCall(false)}
+                user={user}
+            />
         </>
     );
 }

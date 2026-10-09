@@ -47,11 +47,15 @@ import {
     History,
     Sliders,
     ShieldAlert,
-    Check
+    Check,
+    Phone,
+    Globe
 } from 'lucide-react';
 import {api, logout} from '../api';
 import ISolarCloudVisualizer from './ISolarCloudVisualizer';
 import NotificationPermissionModal from './NotificationPermissionModal';
+import VoiceCallModal from './VoiceCallModal';
+import {getLanguage, setLanguage, t} from '../utils/translations';
 import {getPanchangDetails, getTomorrowBankHolidayAlert, getViRechargeAlert, GUJARATI_WEEKDAYS, GUJARATI_MONTHS} from '../utils/panchang';
 
 export default function MobileAppView({
@@ -113,6 +117,16 @@ export default function MobileAppView({
     const [cleaningFanLoading, setCleaningFanLoading] = useState(false);
     const [islandExpanded, setIslandExpanded] = useState(false);
     const [radialHubOpen, setRadialHubOpen] = useState(false);
+    const [showVoiceCall, setShowVoiceCall] = useState(false);
+    const [currentLang, setCurrentLang] = useState(getLanguage());
+
+    useEffect(() => {
+        const handleLangChange = (e) => {
+            setCurrentLang(e.detail);
+        };
+        window.addEventListener('solarflow_language_change', handleLangChange);
+        return () => window.removeEventListener('solarflow_language_change', handleLangChange);
+    }, []);
 
     // Subtle tactile haptic vibration for mobile buttons
     const triggerHaptic = (pattern = [35]) => {
@@ -754,7 +768,65 @@ export default function MobileAppView({
                     </div>
                 </div>
 
-                <div className="mobile-header-actions">
+                <div className="mobile-header-actions" style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                    {/* Language Switcher Pill */}
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        background: 'rgba(255, 255, 255, 0.85)',
+                        backdropFilter: 'blur(4px)',
+                        padding: '3px 7px',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(226, 232, 240, 0.8)'
+                    }}>
+                        <Globe size={13} style={{color: '#15803d'}}/>
+                        <select
+                            value={currentLang}
+                            onChange={(e) => setLanguage(e.target.value)}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                color: '#1e293b',
+                                outline: 'none',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <option value="gu">ગુજ</option>
+                            <option value="en">EN</option>
+                        </select>
+                    </div>
+
+                    {/* AI Voice Call Button */}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            triggerHaptic([40]);
+                            setShowVoiceCall(true);
+                        }}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            background: 'linear-gradient(135deg, #15803d, #166534)',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '14px',
+                            padding: '6px 10px',
+                            fontSize: '11.5px',
+                            fontWeight: 800,
+                            boxShadow: '0 3px 10px rgba(21, 128, 61, 0.35)',
+                            cursor: 'pointer'
+                        }}
+                        title="AI Voice Call (SolarFlow)"
+                    >
+                        <Phone size={13} className="animate-pulse" />
+                        <span>AI Call</span>
+                        <Sparkles size={11} style={{color: '#fef08a'}}/>
+                    </button>
+
                     <button
                         type="button"
                         className="mobile-icon-btn notif-bell-btn"
@@ -3685,6 +3757,13 @@ export default function MobileAppView({
 
             {/* 🔔 Mandatory Notification Permission Prompt Modal */}
             <NotificationPermissionModal />
+
+            {/* 🎙️ Real-Time AI Voice Call Modal */}
+            <VoiceCallModal
+                isOpen={showVoiceCall}
+                onClose={() => setShowVoiceCall(false)}
+                user={user}
+            />
         </div>
     );
 }

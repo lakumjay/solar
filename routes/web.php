@@ -137,6 +137,11 @@ Route::prefix('api')->group(function () {
         Route::post('expenses/{expense}/reverse', [SharedExpenseController::class, 'reverse']);
         Route::post('expense-settlements', [SharedExpenseController::class, 'settle']);
         Route::get('expenses/{expense}/receipt', [SharedExpenseController::class, 'receipt'])->name('expenses.receipt');
+
+        // AI Voice Agent Calling routes
+        Route::get('voice-agent/config', [\App\Http\Controllers\Api\VoiceAgentController::class, 'config']);
+        Route::post('voice-agent/chat', [\App\Http\Controllers\Api\VoiceAgentController::class, 'chat']);
+        Route::post('voice-agent/execute-tool', [\App\Http\Controllers\Api\VoiceAgentController::class, 'executeTool']);
     });
 });
 
