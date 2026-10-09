@@ -37,39 +37,55 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
     // Preload & Lock Female Voices (Priya / Neha / Indian Female)
     useEffect(() => {
         const initVoices = () => {
-            if (!('speechSynthesis' in window)) return;
-            const voices = window.speechSynthesis.getVoices();
-            if (!voices || voices.length === 0) return;
+            try {
+                if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+                const voices = window.speechSynthesis.getVoices() || [];
+                if (!voices || voices.length === 0) return;
 
-            const lang = getLanguage();
-            const femaleKeywords = ['priya', 'neha', 'kavya', 'swara', 'heera', 'lekha', 'veena', 'zira', 'kalpana', 'geeta', 'shruti', 'female'];
-            const maleKeywords = ['male', 'david', 'ravi', 'prabhat', 'george', 'mark', 'rishi', 'madhav'];
+                const lang = getLanguage();
+                const femaleKeywords = ['priya', 'neha', 'kavya', 'swara', 'heera', 'lekha', 'veena', 'zira', 'kalpana', 'geeta', 'shruti', 'female'];
+                const maleKeywords = ['male', 'david', 'ravi', 'prabhat', 'george', 'mark', 'rishi', 'madhav'];
 
-            // Exclude male voices
-            const femaleCandidates = voices.filter(v => {
-                const name = v.name.toLowerCase();
-                return !maleKeywords.some(m => name.includes(m));
-            });
+                // Exclude male voices
+                const femaleCandidates = voices.filter(v => {
+                    const name = (v?.name || '').toLowerCase();
+                    return !maleKeywords.some(m => name.includes(m));
+                });
 
-            // Find best Indian female voice
-            let selected = null;
-            if (lang === 'gu') {
-                selected = femaleCandidates.find(v => (v.lang.startsWith('gu') || v.lang.startsWith('hi')) && femaleKeywords.some(k => v.name.toLowerCase().includes(k)))
-                    || femaleCandidates.find(v => v.lang.startsWith('gu') || v.lang.startsWith('hi'));
-            } else {
-                selected = femaleCandidates.find(v => v.lang.includes('IN') && femaleKeywords.some(k => v.name.toLowerCase().includes(k)))
-                    || femaleCandidates.find(v => v.lang.startsWith('en') && femaleKeywords.some(k => v.name.toLowerCase().includes(k)));
+                // Find best Indian female voice
+                let selected = null;
+                if (lang === 'gu') {
+                    selected = femaleCandidates.find(v => {
+                        const l = (v?.lang || '').toLowerCase();
+                        const n = (v?.name || '').toLowerCase();
+                        return (l.startsWith('gu') || l.startsWith('hi')) && femaleKeywords.some(k => n.includes(k));
+                    }) || femaleCandidates.find(v => {
+                        const l = (v?.lang || '').toLowerCase();
+                        return l.startsWith('gu') || l.startsWith('hi');
+                    });
+                } else {
+                    selected = femaleCandidates.find(v => {
+                        const l = (v?.lang || '').toLowerCase();
+                        const n = (v?.name || '').toLowerCase();
+                        return l.includes('in') && femaleKeywords.some(k => n.includes(k));
+                    }) || femaleCandidates.find(v => {
+                        const l = (v?.lang || '').toLowerCase();
+                        return l.startsWith('en') && femaleKeywords.some(k => n.includes(k));
+                    });
+                }
+
+                if (!selected) {
+                    selected = femaleCandidates.find(v => (v?.lang || '').toLowerCase().includes('in')) || femaleCandidates[0] || voices[0];
+                }
+
+                femaleVoiceRef.current = selected || null;
+            } catch (err) {
+                console.warn('Voice init handled:', err);
             }
-
-            if (!selected) {
-                selected = femaleCandidates.find(v => v.lang.includes('IN')) || femaleCandidates[0] || voices[0];
-            }
-
-            femaleVoiceRef.current = selected;
         };
 
         initVoices();
-        if ('speechSynthesis' in window) {
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
             window.speechSynthesis.onvoiceschanged = initVoices;
         }
     }, []);

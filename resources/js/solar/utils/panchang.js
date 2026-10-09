@@ -2,6 +2,7 @@
 
 export const GUJARATI_WEEKDAYS = ['સોમ', 'મંગળ', 'બુધ', 'ગુરુ', 'શુક્ર', 'શનિ', 'રવિ'];
 export const GUJARATI_WEEKDAYS_FULL = ['રવિવાર', 'સોમવાર', 'મંગળવાર', 'બુધવાર', 'ગુરુવાર', 'શુક્રવાર', 'શનિવાર'];
+export const ENGLISH_WEEKDAYS_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export const GUJARATI_MONTHS = [
     'જાન્યુઆરી', 'ફેબ્રુઆરી', 'માર્ચ', 'એપ્રિલ', 'મે', 'જૂન',
@@ -145,6 +146,7 @@ export function getPanchangDetails(dateObj) {
     return {
         dateStr: yyyyMmDd,
         dayNameGu: GUJARATI_WEEKDAYS_FULL[dayOfWeek],
+        dayNameEn: ENGLISH_WEEKDAYS_FULL[dayOfWeek],
         monthNameGu: GUJARATI_MONTHS[month],
         dayOfMonth: dateNum,
         year: year,

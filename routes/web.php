@@ -30,6 +30,10 @@ Route::get('/', function () {
     return view('welcome');
 })->name('login');
 
+Route::get('/login', function () {
+    return redirect('/');
+});
+
 Route::prefix('api')->group(function () {
     Route::get('isolarcloud/callback', [ISolarCloudController::class, 'callback']);
     Route::post('login', [AuthController::class, 'login']);

@@ -3762,11 +3762,13 @@ export default function MobileAppView({
             <NotificationPermissionModal />
 
             {/* 🎙️ Real-Time AI Voice Call Modal */}
-            <VoiceCallModal
-                isOpen={showVoiceCall}
-                onClose={() => setShowVoiceCall(false)}
-                user={user}
-            />
+            {showVoiceCall && (
+                <VoiceCallModal
+                    isOpen={showVoiceCall}
+                    onClose={() => setShowVoiceCall(false)}
+                    user={user}
+                />
+            )}
         </div>
     );
 }

@@ -192,7 +192,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         };
     }, [user?.id]);
 
-    const can = permission => user.role === 'super_admin' || user.permissions.includes(permission);
+    const can = permission => user?.role === 'super_admin' || (Array.isArray(user?.permissions) && user.permissions.includes(permission));
     const activeCompany = companies.find(company => String(company.id) === String(companyId));
     const navigation = [
         ['dashboard', `⚡ ${t('liveSolar')}`, Zap],
@@ -371,11 +371,13 @@ export default function AppShell({user, page, setPage, companies, companyId, set
             )}
 
             {/* 🎙️ Real-Time AI Voice Call Modal (Mobile & Desktop) */}
-            <VoiceCallModal
-                isOpen={showVoiceCall}
-                onClose={() => setShowVoiceCall(false)}
-                user={user}
-            />
+            {showVoiceCall && (
+                <VoiceCallModal
+                    isOpen={showVoiceCall}
+                    onClose={() => setShowVoiceCall(false)}
+                    user={user}
+                />
+            )}
         </>
     );
 }

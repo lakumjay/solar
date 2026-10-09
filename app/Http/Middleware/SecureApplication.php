@@ -26,7 +26,7 @@ class SecureApplication
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('Referrer-Policy', 'same-origin');
         $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
-        $response->headers->set('Permissions-Policy', 'camera=(self), geolocation=(self), microphone=()');
+        $response->headers->set('Permissions-Policy', 'camera=(self), geolocation=(self), microphone=(self)');
         if ($request->secure()) {
             $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
         }

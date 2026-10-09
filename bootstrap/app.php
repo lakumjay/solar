@@ -16,6 +16,7 @@ $application = Application::configure(basePath: dirname(__DIR__))
             $middleware->trustProxies(at: $trustedProxies === '*' ? '*' : array_map('trim', explode(',', $trustedProxies)));
         }
         $middleware->appendToGroup('web', SecureApplication::class);
+        $middleware->redirectGuestsTo(fn () => '/');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
