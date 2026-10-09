@@ -757,49 +757,50 @@ export default function MobileAppView({
     return (
         <div className={`mobile-app-container ${currentSky.themeClass}`}>
             {/* 1. TOP APP HEADER */}
-            <header className="mobile-app-header">
-                <div className="mobile-brand-wrapper" onClick={() => setPage('dashboard')}>
-                    <div className="mobile-logo-icon">
-                        <Sun size={20} className="sun-glow-icon spin-slow"/>
+            <header className="mobile-app-header" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', padding: '10px 12px'}}>
+                <div className="mobile-brand-wrapper" onClick={() => setPage('dashboard')} style={{display: 'flex', alignItems: 'center', gap: '7px', flexShrink: 0}}>
+                    <div className="mobile-logo-icon" style={{width: '32px', height: '32px'}}>
+                        <Sun size={18} className="sun-glow-icon spin-slow"/>
                     </div>
                     <div className="mobile-logo-text">
-                        <h2>Solar<span className="brand-flow">Flow</span></h2>
-                        <p>Live Energy Monitor</p>
+                        <h2 style={{fontSize: '15px', lineHeight: 1}}>Solar<span className="brand-flow" style={{color: '#4ade80'}}>Flow</span></h2>
+                        <p style={{fontSize: '9px', margin: '1px 0 0'}}>Live Monitor</p>
                     </div>
                 </div>
 
-                <div className="mobile-header-actions" style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                    {/* Language Switcher Pill */}
+                <div className="mobile-header-actions" style={{display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0}}>
+                    {/* Compact Language Toggle Pill */}
                     <div style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '4px',
-                        background: 'rgba(255, 255, 255, 0.85)',
-                        backdropFilter: 'blur(4px)',
-                        padding: '3px 7px',
-                        borderRadius: '12px',
-                        border: '1px solid rgba(226, 232, 240, 0.8)'
+                        gap: '2px',
+                        background: 'rgba(255, 255, 255, 0.15)',
+                        backdropFilter: 'blur(6px)',
+                        padding: '3px 6px',
+                        borderRadius: '20px',
+                        border: '1px solid rgba(255, 255, 255, 0.25)'
                     }}>
-                        <Globe size={13} style={{color: '#15803d'}}/>
+                        <Globe size={11} style={{color: '#86efac'}}/>
                         <select
                             value={currentLang}
                             onChange={(e) => setLanguage(e.target.value)}
                             style={{
                                 background: 'transparent',
                                 border: 'none',
-                                fontSize: '11px',
-                                fontWeight: 700,
-                                color: '#1e293b',
+                                fontSize: '10.5px',
+                                fontWeight: 800,
+                                color: '#ffffff',
                                 outline: 'none',
-                                cursor: 'pointer'
+                                cursor: 'pointer',
+                                padding: 0
                             }}
                         >
-                            <option value="gu">ગુજ</option>
-                            <option value="en">EN</option>
+                            <option value="gu" style={{color: '#0f172a'}}>ગુજ</option>
+                            <option value="en" style={{color: '#0f172a'}}>EN</option>
                         </select>
                     </div>
 
-                    {/* AI Voice Call Button */}
+                    {/* AI Voice Call Button with Pulsing Glow */}
                     <button
                         type="button"
                         onClick={() => {
@@ -809,22 +810,22 @@ export default function MobileAppView({
                         style={{
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '5px',
-                            background: 'linear-gradient(135deg, #15803d, #166534)',
+                            gap: '4px',
+                            background: 'linear-gradient(135deg, #16a34a, #15803d)',
                             color: '#ffffff',
-                            border: 'none',
-                            borderRadius: '14px',
-                            padding: '6px 10px',
-                            fontSize: '11.5px',
+                            border: '1px solid rgba(255, 255, 255, 0.3)',
+                            borderRadius: '20px',
+                            padding: '4px 8px',
+                            fontSize: '10.5px',
                             fontWeight: 800,
-                            boxShadow: '0 3px 10px rgba(21, 128, 61, 0.35)',
+                            boxShadow: '0 2px 8px rgba(22, 163, 74, 0.4)',
                             cursor: 'pointer'
                         }}
                         title="AI Voice Call (SolarFlow)"
                     >
-                        <Phone size={13} className="animate-pulse" />
+                        <Phone size={11} className="animate-pulse" />
                         <span>AI Call</span>
-                        <Sparkles size={11} style={{color: '#fef08a'}}/>
+                        <Sparkles size={9} style={{color: '#fef08a'}}/>
                     </button>
 
                     <button
@@ -832,15 +833,16 @@ export default function MobileAppView({
                         className="mobile-icon-btn notif-bell-btn"
                         onClick={handleOpenNotifCenter}
                         title="Notification Center & Alerts"
+                        style={{width: '32px', height: '32px'}}
                     >
-                        <Bell size={19}/>
-                        {hasUnreadNotif && <span className="notif-red-dot"/>}
+                        <Bell size={16}/>
+                        {hasUnreadNotif && <span className="notif-red-dot" style={{top: '4px', right: '5px'}}/>}
                     </button>
-                    <div className="mobile-user-avatar" onClick={() => setMoreMenuOpen(true)} style={{overflow: 'hidden', border: activeCompany?.owner_photo_url ? '2px solid #f59e0b' : 'none'}}>
+                    <div className="mobile-user-avatar" onClick={() => setMoreMenuOpen(true)} style={{width: '32px', height: '32px', fontSize: '12px', overflow: 'hidden', border: activeCompany?.owner_photo_url ? '2px solid #f59e0b' : 'none'}}>
                         {activeCompany?.owner_photo_url ? (
                             <img src={activeCompany.owner_photo_url} alt="" style={{width: '100%', height: '100%', objectFit: 'cover'}}/>
                         ) : (
-                            user?.name ? user.name.slice(0, 1).toUpperCase() : <User size={16}/>
+                            user?.name ? user.name.slice(0, 1).toUpperCase() : <User size={14}/>
                         )}
                     </div>
                 </div>

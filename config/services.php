@@ -41,4 +41,8 @@ return [
         'subject' => env('VAPID_SUBJECT', 'mailto:admin@solarflow.in'),
     ],
 
+    'gemini' => [
+        'key' => env('GEMINI_API_KEY', env('GOOGLE_GENAI_API_KEY')),
+    ],
+
 ];
