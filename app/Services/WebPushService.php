@@ -73,6 +73,10 @@ class WebPushService
             'badge' => $payload['badge'] ?? '/icons/icon-192.png',
             'url' => $payload['url'] ?? '/',
             'data' => $payload['data'] ?? ['url' => $payload['url'] ?? '/'],
+            'vibrate' => [300, 150, 300, 150, 400],
+            'sound' => '/sounds/alert.mp3',
+            'requireInteraction' => true,
+            'silent' => false,
             'timestamp' => time() * 1000,
         ]);
 
@@ -89,7 +93,11 @@ class WebPushService
                         'authToken' => $sub->auth_token,
                         'contentEncoding' => $sub->content_encoding ?: 'aesgcm',
                     ]);
-                    $this->webPushInstance->queueNotification($webSubscription, $payloadJson);
+                    $this->webPushInstance->queueNotification($webSubscription, $payloadJson, [
+                        'TTL' => 86400,
+                        'urgency' => 'high',
+                        'topic' => 'alert',
+                    ]);
                 } catch (\Throwable $e) {
                     Log::warning("WebPush queue error sub #{$sub->id}: " . $e->getMessage());
                 }

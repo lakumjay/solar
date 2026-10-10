@@ -320,6 +320,146 @@ class SolarCurtailmentController extends Controller
         return response()->json(['success' => true, 'message' => 'Curtailment record deleted.']);
     }
 
+    /**
+     * 66KV Grid Outage & Power Cut Loss Analytics
+     * Returns company-wise breakdown of lost units (kWh), financial loss (Rs), and incident history
+     */
+    public function lossAnalytics(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $companyFilter = $request->query('company_id');
+        $monthFilter = $request->query('month');
+        $yearFilter = $request->query('year', Carbon::now()->year);
+
+        $companies = Company::query();
+        if ($companyFilter && $companyFilter !== 'all') {
+            $companies->where('id', $companyFilter);
+        } elseif ($user && $user->role === 'company_admin') {
+            $companies->where('id', $user->company_id);
+        }
+        $allCompanies = $companies->get();
+
+        $query = SolarCurtailment::with(['company', 'user'])
+            ->orderBy('started_at', 'desc');
+
+        if ($companyFilter && $companyFilter !== 'all') {
+            $query->where('company_id', $companyFilter);
+        } elseif ($user && $user->role === 'company_admin') {
+            $query->where('company_id', $user->company_id);
+        }
+
+        if ($monthFilter && $monthFilter !== 'all') {
+            $query->whereRaw("DATE_FORMAT(started_at, '%Y-%m') = ?", [$monthFilter]);
+        } elseif ($yearFilter) {
+            $query->whereYear('started_at', $yearFilter);
+        }
+
+        $records = $query->get();
+        $now = Carbon::now();
+        $unitRate = 3.80; // Standard PPA tariff ₹3.80 / unit
+
+        $totalIncidents = $records->count();
+        $totalMinutes = 0;
+        $totalLostKwh = 0.0;
+        $totalLostRs = 0.0;
+        $isCurrentlyTripped = false;
+
+        $incidentsList = [];
+
+        foreach ($records as $r) {
+            $isActive = $r->status === 'active';
+            if ($isActive) $isCurrentlyTripped = true;
+
+            $startedAt = $r->started_at;
+            $endedAt = $r->ended_at ?: $now;
+            $durationMinutes = max(1, (int) round($startedAt->diffInMinutes($endedAt)));
+            $percentage = (int) $r->percentage;
+            $capKw = (float) ($r->company?->total_capacity_kw ?? 500.0);
+
+            $lostKwh = $r->total_lost_kwh > 0 && !$isActive
+                ? (float) $r->total_lost_kwh
+                : round(($capKw * ($percentage / 100.0) * ($durationMinutes / 60.0) * 0.75), 1);
+
+            $lostRs = $r->total_lost_revenue_rs > 0 && !$isActive
+                ? (float) $r->total_lost_revenue_rs
+                : round($lostKwh * $unitRate, 2);
+
+            $totalMinutes += $durationMinutes;
+            $totalLostKwh += $lostKwh;
+            $totalLostRs += $lostRs;
+
+            $incidentsList[] = [
+                'id' => $r->id,
+                'company_id' => $r->company_id,
+                'company_name' => $r->company?->name ?? 'Solar Company',
+                'percentage' => $percentage,
+                'status' => $r->status,
+                'is_active' => $isActive,
+                'started_at' => $r->started_at?->format('d M Y, h:i A'),
+                'ended_at' => $r->ended_at ? $r->ended_at->format('d M Y, h:i A') : 'ચાલુ છે (Active)',
+                'duration_minutes' => $durationMinutes,
+                'duration_human' => $this->formatDuration($durationMinutes),
+                'lost_kwh' => $lostKwh,
+                'lost_revenue_rs' => $lostRs,
+                'notes' => $r->notes ?: '66KV Substation Line Outage',
+            ];
+        }
+
+        // Group by company
+        $companyBreakdown = [];
+        foreach ($allCompanies as $c) {
+            $compRecords = $records->where('company_id', $c->id);
+            $cMinutes = 0;
+            $cKwh = 0.0;
+            $cRs = 0.0;
+
+            foreach ($compRecords as $cr) {
+                $start = $cr->started_at;
+                $end = $cr->ended_at ?: $now;
+                $dur = max(1, (int) round($start->diffInMinutes($end)));
+                $pct = (int) $cr->percentage;
+                $cap = (float) ($c->total_capacity_kw ?: 500.0);
+
+                $kwh = $cr->total_lost_kwh > 0 && $cr->status !== 'active'
+                    ? (float) $cr->total_lost_kwh
+                    : round(($cap * ($pct / 100.0) * ($dur / 60.0) * 0.75), 1);
+
+                $rs = $cr->total_lost_revenue_rs > 0 && $cr->status !== 'active'
+                    ? (float) $cr->total_lost_revenue_rs
+                    : round($kwh * $unitRate, 2);
+
+                $cMinutes += $dur;
+                $cKwh += $kwh;
+                $cRs += $rs;
+            }
+
+            $companyBreakdown[] = [
+                'company_id' => $c->id,
+                'company_name' => $c->name,
+                'capacity_kw' => (float) ($c->total_capacity_kw ?: 500.0),
+                'incidents_count' => $compRecords->count(),
+                'duration_minutes' => $cMinutes,
+                'duration_human' => $this->formatDuration($cMinutes),
+                'lost_kwh' => round($cKwh, 1),
+                'lost_revenue_rs' => round($cRs, 2),
+            ];
+        }
+
+        return response()->json([
+            'summary' => [
+                'total_incidents' => $totalIncidents,
+                'total_duration_minutes' => $totalMinutes,
+                'total_duration_human' => $this->formatDuration($totalMinutes),
+                'total_lost_kwh' => round($totalLostKwh, 1),
+                'total_lost_revenue_rs' => round($totalLostRs, 2),
+                'is_currently_tripped' => $isCurrentlyTripped,
+                'unit_rate' => $unitRate,
+            ],
+            'company_breakdown' => $companyBreakdown,
+            'incidents' => $incidentsList,
+        ]);
+    }
+
     private function formatDuration(int $minutes): string
     {
         if ($minutes < 60) {

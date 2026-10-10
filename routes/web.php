@@ -53,6 +53,7 @@ Route::prefix('api')->group(function () {
         Route::get('isolarcloud/live', [ISolarCloudController::class, 'liveData']);
         Route::post('isolarcloud/sync', [ISolarCloudController::class, 'sync']);
         Route::get('curtailments', [SolarCurtailmentController::class, 'index']);
+        Route::get('curtailments/loss-analytics', [SolarCurtailmentController::class, 'lossAnalytics']);
         Route::post('curtailments', [SolarCurtailmentController::class, 'store']);
         Route::post('curtailments/restore-all', [SolarCurtailmentController::class, 'restoreAll']);
         Route::delete('curtailments/{curtailment}', [SolarCurtailmentController::class, 'destroy']);

@@ -77,13 +77,24 @@ self.addEventListener('push', event => {
     icon: payload.icon || '/icons/icon-192.png',
     badge: payload.badge || '/icons/icon-192.png',
     data: { url: payload.url || '/' },
-    vibrate: [200, 100, 200],
-    tag: 'solarflow-summary',
+    vibrate: payload.vibrate || [300, 150, 300, 150, 400],
+    sound: payload.sound || '/sounds/alert.mp3',
+    requireInteraction: true,
+    silent: false,
+    tag: payload.tag || 'solarflow-alert-' + Date.now(),
     renotify: true
   };
 
   event.waitUntil(
-    self.registration.showNotification(payload.title, options)
+    Promise.all([
+      self.registration.showNotification(payload.title, options),
+      // Also notify any open app windows to play audible chime
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+        clients.forEach(client => {
+          client.postMessage({ type: 'PUSH_NOTIFICATION_RECEIVED', payload: payload });
+        });
+      })
+    ])
   );
 });
 

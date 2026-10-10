@@ -6,9 +6,10 @@ import NotificationPermissionModal from './NotificationPermissionModal';
 import AppSplashScreen from './AppSplashScreen';
 import MilestoneCelebrationModal from './MilestoneCelebrationModal';
 import VoiceCallModal, {unlockVoiceCallAudio} from './VoiceCallModal';
-import {getLanguage, setLanguage, t} from '../utils/translations';
+import {useTranslation} from '../context/LanguageContext';
 
 export default function AppShell({user, page, setPage, companies, companyId, setCompanyId, children}) {
+    const { t, lang: currentLang, toggleLanguage, setLang } = useTranslation();
     const [menuOpen, setMenuOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
     const [liveSolarData, setLiveSolarData] = useState(() => {
@@ -27,15 +28,6 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         }
     });
     const [showVoiceCall, setShowVoiceCall] = useState(false);
-    const [currentLang, setCurrentLang] = useState(getLanguage());
-
-    useEffect(() => {
-        const handleLangChange = (e) => {
-            setCurrentLang(e.detail);
-        };
-        window.addEventListener('solarflow_language_change', handleLangChange);
-        return () => window.removeEventListener('solarflow_language_change', handleLangChange);
-    }, []);
 
     useEffect(() => {
         const checkMobile = () => {
@@ -210,6 +202,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         can('view_attendance_reports') && ['attendance-reports', t('attendanceReports'), BarChart3],
         (user.role === 'super_admin' || user.role === 'company_admin') && ['salaries', t('salaries'), WalletCards],
         ['stock', t('stock'), Boxes],
+        ['curtailment-loss', t('curtailmentLoss', '૬૬KV પાવર કટ & નુકસાન'), Zap],
         user.role === 'employee' && ['my-attendance', t('myAttendance'), Clock3],
         user.role === 'employee' && ['my-salary', t('mySalary'), IndianRupee],
     ].filter(Boolean);
@@ -230,6 +223,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         'attendance-reports': ['Attendance reports', 'Monthly attendance and work summary'],
         salaries: ['Monthly salary', 'Confidential payroll calculation and adjustments'],
         stock: ['Stock management', 'Common inventory and borrowing register'],
+        'curtailment-loss': [t('gridPowerTripTitle', '૬૬KV સબસ્ટેશન પાવર કટ & નુકસાન'), t('gridPowerTripSubtitle', 'બપોરે પાવર બંધ રહેવાથી કઈ કંપનીને કેટલા યુનિટ્સ અને રૂપિયાનું નુકસાન થયું તેનો હિસાબ')],
         'my-attendance': ['My attendance', 'Time in, time out and leave'],
         'my-salary': ['My salary', 'Private salary statements and attendance details'],
     };

@@ -22,9 +22,11 @@ import UsersPage from './pages/UsersPage';
 import ISolarCloudPage from './pages/ISolarCloudPage';
 import GalleryPage from './pages/GalleryPage';
 import ReelsPage from './pages/ReelsPage';
+import CurtailmentLossPage from './pages/CurtailmentLossPage';
 import { ErrorBoundary } from './components/ErrorWireCut';
+import { LanguageProvider } from './context/LanguageContext';
 
-export default function App() {
+function AppContent() {
     const [user, setUser] = useState(undefined);
     const [page, setPage] = useState('dashboard');
     const [companies, setCompanies] = useState([]);
@@ -71,6 +73,22 @@ export default function App() {
     useEffect(() => {
         if (user?.id) window.localStorage.setItem(`solarflow.activePage.${user.id}`, page);
     }, [page, user?.id]);
+
+    // Service Worker push notification audio chime listener
+    useEffect(() => {
+        if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+            const handleSwMessage = (e) => {
+                if (e.data?.type === 'PUSH_NOTIFICATION_RECEIVED') {
+                    try {
+                        const audio = new Audio('/sounds/alert.wav');
+                        audio.play().catch(() => {});
+                    } catch (_) {}
+                }
+            };
+            navigator.serviceWorker.addEventListener('message', handleSwMessage);
+            return () => navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+        }
+    }, []);
 
     // Global keyboard typing sound for app-like feel
     useEffect(() => {
@@ -131,9 +149,18 @@ export default function App() {
                 {page === 'attendance-reports' && <AttendanceReportsPage/>}
                 {page === 'salaries' && <SalaryPage/>}
                 {page === 'stock' && <StockPage can={can} currentUser={user}/>}
+                {page === 'curtailment-loss' && <CurtailmentLossPage companyId={companyId} companies={companies}/>}
                 {page === 'my-attendance' && <MyAttendancePage companyId={companyId}/>}
                 {page === 'my-salary' && <MySalaryPage/>}
             </ErrorBoundary>
         )}
     </AppShell>;
+}
+
+export default function App() {
+    return (
+        <LanguageProvider>
+            <AppContent />
+        </LanguageProvider>
+    );
 }

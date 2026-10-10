@@ -7,8 +7,10 @@ import {
 import { api } from '../api';
 import { Empty } from '../components/Common';
 import ErrorWireCut, { ErrorBoundary } from '../components/ErrorWireCut';
+import { useTranslation } from '../context/LanguageContext';
 
 export default function ActivityLogPage({ companyId }) {
+    const { t, lang } = useTranslation();
     const [activeTab, setActiveTab] = useState('history'); // 'history' | 'sessions'
     
     // History State
@@ -141,8 +143,8 @@ export default function ActivityLogPage({ companyId }) {
             <section className="panel">
                 <div className="panel-head">
                     <div>
-                        <h2>સિસ્ટમ એક્ટિવિટી & સિક્યોરિટી ઑડિટ (Activity & Device Audit)</h2>
-                        <p>કયા સુપર એડમિન કે યુઝરે કયા ફોન/કમ્પ્યુટર અને IP પરથી શું ફેરફાર કર્યો તેની વિગતવાર હિસ્ટ્રી.</p>
+                        <h2>{t('activitySecurityAudit', 'સિસ્ટમ એક્ટિવિટી & સિક્યોરિટી ઑડિટ')}</h2>
+                        <p>{t('activitySecuritySubtitle', 'કયા સુપર એડમિન કે યુઝરે કયા ફોન/કમ્પ્યુટર અને IP પરથી શું ફેરફાર કર્યો તેની વિગતવાર હિસ્ટ્રી.')}</p>
                     </div>
 
                     <button 
@@ -152,7 +154,7 @@ export default function ActivityLogPage({ companyId }) {
                         onClick={() => activeTab === 'history' ? loadLogs(page) : loadSessions()}
                     >
                         <RefreshCw size={14} className={loading || sessionsLoading ? 'spin' : ''} />
-                        <span>રિફ્રેશ (Refresh)</span>
+                        <span>{t('refresh', 'રિફ્રેશ')}</span>
                     </button>
                 </div>
 
@@ -165,7 +167,7 @@ export default function ActivityLogPage({ companyId }) {
                             onClick={() => setActiveTab('history')}
                         >
                             <Activity size={15} />
-                            <span>એક્ટિવિટી હિસ્ટ્રી ({totalRows})</span>
+                            <span>{t('activityHistoryTab', 'એક્ટિવિટી હિસ્ટ્રી')} ({totalRows})</span>
                         </button>
                         <button 
                             type="button" 
@@ -173,7 +175,7 @@ export default function ActivityLogPage({ companyId }) {
                             onClick={() => setActiveTab('sessions')}
                         >
                             <Shield size={15} />
-                            <span>લાઈવ લૉગિન ડિવાઇસ ({sessions.length})</span>
+                            <span>{t('activeDevicesTab', 'લાઈવ લૉગિન ડિવાઇસ')} ({sessions.length})</span>
                         </button>
                     </div>
 
@@ -186,10 +188,10 @@ export default function ActivityLogPage({ companyId }) {
                                 value={selectedUser}
                                 onChange={e => { setSelectedUser(e.target.value); setPage(1); }}
                             >
-                                <option value="all">બધા એડમિન & યુઝર્સ (All Users)</option>
+                                <option value="all">{t('allUsersFilter', 'બધા એડમિન & યુઝર્સ')}</option>
                                 {usersList.map(u => (
                                     <option key={u.id} value={u.id}>
-                                        {u.name} ({u.role === 'super_admin' ? 'Super Admin' : u.role})
+                                        {u.name} ({u.role === 'super_admin' ? t('superAdminBadge', 'Super Admin') : u.role})
                                     </option>
                                 ))}
                             </select>
@@ -200,13 +202,13 @@ export default function ActivityLogPage({ companyId }) {
                                 value={selectedAction}
                                 onChange={e => { setSelectedAction(e.target.value); setPage(1); }}
                             >
-                                <option value="all">તમામ એક્શન્સ (All Actions)</option>
-                                <option value="login">Login (લૉગિન)</option>
-                                <option value="logout">Logout (લૉગઆઉટ)</option>
-                                <option value="create">Create (ઉમેર્યું)</option>
-                                <option value="update">Update (સુધારો કર્યો)</option>
-                                <option value="delete">Delete (ડિલીટ કર્યું)</option>
-                                <option value="settle">Settle (સેટલમેન્ટ)</option>
+                                <option value="all">{t('allActionsFilter', 'તમામ એક્શન્સ')}</option>
+                                <option value="login">Login ({lang === 'en' ? 'Login' : 'લૉગિન'})</option>
+                                <option value="logout">Logout ({lang === 'en' ? 'Logout' : 'લૉગઆઉટ'})</option>
+                                <option value="create">Create ({lang === 'en' ? 'Created' : 'ઉમેર્યું'})</option>
+                                <option value="update">Update ({lang === 'en' ? 'Updated' : 'સુધારો કર્યો'})</option>
+                                <option value="delete">Delete ({lang === 'en' ? 'Deleted' : 'ડિલીટ કર્યું'})</option>
+                                <option value="settle">Settle ({lang === 'en' ? 'Settlement' : 'સેટલમેન્ટ'})</option>
                             </select>
 
                             {/* Search Form */}
@@ -215,7 +217,7 @@ export default function ActivityLogPage({ companyId }) {
                                 <input 
                                     type="text" 
                                     className="activity-search-input" 
-                                    placeholder="IP, ફોન મોડલ, વિગત..." 
+                                    placeholder={lang === 'en' ? 'IP, Phone model, details...' : 'IP, ફોન મોડલ, વિગત...'} 
                                     value={searchTerm}
                                     onChange={e => setSearchTerm(e.target.value)}
                                 />

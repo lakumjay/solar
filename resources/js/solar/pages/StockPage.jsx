@@ -4,8 +4,10 @@ import {api} from '../api';
 import {Empty, Loading, Metric} from '../components/Common';
 import {AddStockModal, BorrowingDetailModal, BorrowStockModal, ReturnStockModal, StockItemDetailModal, StockItemModal, StockPhotoModal} from '../components/StockModals';
 import {number, shortDate} from '../format';
+import {useTranslation} from '../context/LanguageContext';
 
 export default function StockPage({can, currentUser}) {
+    const { t, lang } = useTranslation();
     const [inventory, setInventory] = useState(null);
     const [borrowings, setBorrowings] = useState([]);
     const [people, setPeople] = useState([]);
@@ -90,12 +92,12 @@ export default function StockPage({can, currentUser}) {
         <div className="stock-page">
             {/* Compact Metric Boxes - 4 columns on desktop / compact on mobile */}
             <div className="cards stock-cards compact-stock-grid">
-                <Metric icon={Boxes} title="Stock Items" value={summary.total_items} unit="active items"/>
-                <Metric icon={Package} title="Total Quantity" value={summary.total_quantity} unit="units"/>
-                <Metric icon={PackageCheck} title="Available" value={summary.available_quantity} unit="units"/>
-                <Metric icon={HandCoins} title="Borrowed" value={summary.borrowed_quantity} unit="units" color="amber"/>
-                <Metric icon={IndianRupee} title="Stock Value" value={summary.total_value} unit="INR"/>
-                <Metric icon={TriangleAlert} title="Low Stock" value={summary.low_stock_items} unit="items" color="amber"/>
+                <Metric icon={Boxes} title={t('totalStockItems', 'Stock Items')} value={summary.total_items} unit={lang === 'en' ? 'active items' : 'આઇટમ્સ'}/>
+                <Metric icon={Package} title={lang === 'en' ? 'Total Quantity' : 'કુલ જથ્થો'} value={summary.total_quantity} unit={lang === 'en' ? 'units' : 'નંગ'}/>
+                <Metric icon={PackageCheck} title={t('availableQty', 'Available')} value={summary.available_quantity} unit={lang === 'en' ? 'units' : 'નંગ'}/>
+                <Metric icon={HandCoins} title={t('activeBorrowings', 'Borrowed')} value={summary.borrowed_quantity} unit={lang === 'en' ? 'units' : 'નંગ'} color="amber"/>
+                <Metric icon={IndianRupee} title={lang === 'en' ? 'Stock Value' : 'સ્ટોક વેલ્યુ'} value={summary.total_value} unit="INR"/>
+                <Metric icon={TriangleAlert} title={t('lowStockItems', 'Low Stock')} value={summary.low_stock_items} unit={lang === 'en' ? 'items' : 'આઇટમ્સ'} color="amber"/>
             </div>
 
             {message && <div className="success">{message}</div>}
@@ -105,7 +107,7 @@ export default function StockPage({can, currentUser}) {
             <section className="panel">
                 <div className="stock-toolbar">
                     <label className="search-box">
-                        <span>Search stock or borrower</span>
+                        <span>{lang === 'en' ? 'Search stock or borrower' : 'સામાન અથવા લેનારનું નામ શોધો'}</span>
                         <div>
                             <Search size={16}/>
                             <input
@@ -115,19 +117,19 @@ export default function StockPage({can, currentUser}) {
                                     setItemsPage(1);
                                     setBorrowingsPage(1);
                                 }}
-                                placeholder="Name, borrower or giver"
+                                placeholder={lang === 'en' ? 'Name, borrower or giver' : 'આઇટમ, લેનાર કે આપનારનું નામ...'}
                             />
                         </div>
                     </label>
                     <div className="stock-toolbar-actions">
                         {can('issue_stock') && (
                             <button className="secondary" onClick={() => setGiveStock({})}>
-                                <HandCoins size={16}/> Give stock
+                                <HandCoins size={16}/> {t('giveStockBtn', 'Give stock')}
                             </button>
                         )}
                         {can('manage_stock') && (
                             <button className="primary" onClick={() => setItemForm({new: true})}>
-                                <Plus size={16}/> Add item
+                                <Plus size={16}/> {t('addStockItemBtn', 'Add item')}
                             </button>
                         )}
                     </div>
@@ -138,8 +140,8 @@ export default function StockPage({can, currentUser}) {
             <section className="panel">
                 <div className="panel-head" style={{alignItems: 'center'}}>
                     <div>
-                        <h2>Stock items ({filteredItems.length})</h2>
-                        <p>Common inventory shared across all partner companies.</p>
+                        <h2>{t('stockItemsTab', 'Stock items')} ({filteredItems.length})</h2>
+                        <p>{t('stockInventorySubtitle', 'Common inventory shared across all partner companies.')}</p>
                     </div>
                     <button
                         type="button"
@@ -149,7 +151,7 @@ export default function StockPage({can, currentUser}) {
                         title="Toggle Card or Table View"
                     >
                         {stockViewMode === 'cards' ? <Table size={14}/> : <LayoutGrid size={14}/>}
-                        <span>{stockViewMode === 'cards' ? 'Table View' : 'Card View'}</span>
+                        <span>{stockViewMode === 'cards' ? t('tableView', 'Table View') : t('cardView', 'Card View')}</span>
                     </button>
                 </div>
 

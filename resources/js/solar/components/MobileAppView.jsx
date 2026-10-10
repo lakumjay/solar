@@ -55,7 +55,7 @@ import {api, logout} from '../api';
 import ISolarCloudVisualizer from './ISolarCloudVisualizer';
 import NotificationPermissionModal from './NotificationPermissionModal';
 import VoiceCallModal, { unlockVoiceCallAudio } from './VoiceCallModal';
-import {getLanguage, setLanguage, t} from '../utils/translations';
+import { useTranslation } from '../context/LanguageContext';
 import {getPanchangDetails, getTomorrowBankHolidayAlert, getViRechargeAlert, GUJARATI_WEEKDAYS, GUJARATI_MONTHS} from '../utils/panchang';
 
 export default function MobileAppView({
@@ -118,15 +118,7 @@ export default function MobileAppView({
     const [islandExpanded, setIslandExpanded] = useState(false);
     const [radialHubOpen, setRadialHubOpen] = useState(false);
     const [showVoiceCall, setShowVoiceCall] = useState(false);
-    const [currentLang, setCurrentLang] = useState(getLanguage());
-
-    useEffect(() => {
-        const handleLangChange = (e) => {
-            setCurrentLang(e.detail);
-        };
-        window.addEventListener('solarflow_language_change', handleLangChange);
-        return () => window.removeEventListener('solarflow_language_change', handleLangChange);
-    }, []);
+    const { t, lang: currentLang, setLang } = useTranslation();
 
     // Subtle tactile haptic vibration for mobile buttons
     const triggerHaptic = (pattern = [35]) => {
@@ -775,7 +767,7 @@ export default function MobileAppView({
                         onClick={() => {
                             triggerHaptic([30]);
                             const nextLang = currentLang === 'gu' ? 'en' : 'gu';
-                            setLanguage(nextLang);
+                            setLang(nextLang);
                         }}
                         style={{
                             display: 'inline-flex',
@@ -2968,6 +2960,28 @@ export default function MobileAppView({
                                     </div>
                                 </button>
                             )}
+
+                            {/* 11. 66KV Grid Outage & Loss Analytics */}
+                            <button
+                                type="button"
+                                className="dmenu-card dmenu-card-highlight"
+                                onClick={() => { setPage('curtailment-loss'); setMoreMenuOpen(false); }}
+                            >
+                                <div className="dmenu-card-top">
+                                    <div className="dmenu-bubble" style={{background: '#fef2f2', color: '#dc2626'}}>
+                                        <Zap size={19}/>
+                                    </div>
+                                    <span className="dmenu-badge" style={{background: '#fee2e2', color: '#b91c1c'}}>
+                                        ⚡ 66KV
+                                    </span>
+                                </div>
+                                <div className="dmenu-card-title" style={{color: '#b91c1c'}}>
+                                    {currentLang === 'en' ? '66KV Outage & Loss' : '૬૬KV પાવર કટ & નુકસાન'}
+                                </div>
+                                <div className="dmenu-card-sub">
+                                    {currentLang === 'en' ? 'Company Unit Loss' : 'કંપની વાઇઝ લોસ હિસાબ'}
+                                </div>
+                            </button>
                         </div>
 
                         <div className="drawer-footer-actions">
