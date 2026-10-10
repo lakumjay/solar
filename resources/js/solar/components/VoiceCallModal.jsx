@@ -666,47 +666,55 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
 
             {/* CENTER AREA: SIRI-STYLE VOICE ORB & LIVE CAPTIONS */}
             <div className="flex-1 flex flex-col items-center justify-center px-4 py-1 z-10 relative my-auto min-h-0">
-                {/* Animated Voice Orb (iPhone Siri Style) */}
+                {/* Siri Glowing Voice Sphere (Clean Circular, No Dark Box/Corner Artifacts) */}
                 <div className="relative flex items-center justify-center my-auto">
-                    {/* Concentric Breathing Glow Rings */}
+                    {/* Concentric Breathing Glow Halo */}
                     {callStatus === 'speaking' && (
-                        <>
-                            <div className="absolute w-32 h-32 rounded-full border border-purple-400/40 animate-ping" style={{ animationDuration: '2.5s' }} />
-                            <div className="absolute w-40 h-40 rounded-full bg-gradient-to-r from-purple-500/15 via-emerald-500/15 to-indigo-500/15 blur-xl animate-pulse" />
-                        </>
+                        <div className="absolute -inset-5 rounded-full bg-gradient-to-r from-purple-500/25 via-pink-500/25 to-indigo-500/25 blur-2xl animate-pulse pointer-events-none" />
                     )}
                     {callStatus === 'listening' && (
-                        <>
-                            <div className="absolute w-28 h-28 rounded-full border border-cyan-400/40 animate-pulse" />
-                            <div className="absolute w-36 h-36 rounded-full bg-cyan-500/10 blur-lg animate-pulse" />
-                        </>
-                    )}
-                    {callStatus === 'dialing' && (
-                        <div className="absolute w-28 h-28 rounded-full border border-amber-400/30 animate-spin" style={{ animationDuration: '4s' }} />
+                        <div className="absolute -inset-5 rounded-full bg-gradient-to-r from-cyan-500/25 via-teal-500/25 to-emerald-500/25 blur-2xl animate-pulse pointer-events-none" />
                     )}
 
-                    {/* Central Glowing Orb */}
-                    <div className={`w-20 h-20 sm:w-26 sm:h-26 rounded-full flex items-center justify-center shadow-xl transition-all duration-500 ${
+                    {/* Central Animated Orb (Guaranteed 100% Circular, Zero Black Box Clipping) */}
+                    <div className={`relative w-22 h-22 sm:w-28 sm:h-28 rounded-full p-[2px] transition-all duration-500 overflow-hidden shadow-2xl ${
                         callStatus === 'speaking'
-                            ? 'bg-gradient-to-tr from-purple-600 via-indigo-500 to-pink-500 shadow-purple-500/40 scale-105'
+                            ? 'bg-gradient-to-tr from-purple-500 via-pink-500 to-indigo-500 shadow-purple-500/40 scale-105 animate-pulse'
                             : callStatus === 'listening'
-                            ? 'bg-gradient-to-tr from-cyan-600 via-teal-500 to-emerald-500 shadow-cyan-500/40 scale-102'
-                            : 'bg-gradient-to-tr from-slate-700 via-neutral-800 to-slate-900 shadow-emerald-500/20'
+                            ? 'bg-gradient-to-tr from-cyan-400 via-teal-400 to-emerald-400 shadow-cyan-500/40 scale-105'
+                            : 'bg-gradient-to-tr from-neutral-600 via-neutral-700 to-neutral-800 shadow-white/5'
                     }`}>
-                        <div className="w-16 h-16 sm:w-22 sm:h-22 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center border border-white/20">
-                            <Sparkles className={`w-8 h-8 sm:w-9 sm:h-9 transition-transform duration-300 ${
-                                callStatus === 'speaking' ? 'text-amber-300 scale-110 animate-spin' :
-                                callStatus === 'listening' ? 'text-cyan-300 scale-105' : 'text-neutral-400'
-                            }`} style={{ animationDuration: '6s' }} />
+                        <div className="w-full h-full rounded-full bg-[#0d0f15] flex items-center justify-center overflow-hidden relative">
+                            {/* Inner Color Fill */}
+                            <div className={`absolute inset-0 opacity-40 transition-opacity duration-500 ${
+                                callStatus === 'speaking'
+                                    ? 'bg-gradient-to-br from-purple-500 via-pink-500 to-indigo-600'
+                                    : callStatus === 'listening'
+                                    ? 'bg-gradient-to-br from-cyan-500 via-teal-500 to-emerald-600'
+                                    : 'bg-transparent'
+                            }`} />
+
+                            <Sparkles className={`relative z-10 w-9 h-9 sm:w-10 sm:h-10 transition-all duration-300 ${
+                                callStatus === 'speaking'
+                                    ? 'text-amber-300 drop-shadow-[0_0_12px_rgba(252,211,77,0.8)] scale-110 animate-spin'
+                                    : callStatus === 'listening'
+                                    ? 'text-cyan-300 drop-shadow-[0_0_12px_rgba(103,232,249,0.8)] scale-105'
+                                    : 'text-neutral-500'
+                            }`} style={{ animationDuration: '8s' }} />
                         </div>
                     </div>
                 </div>
 
-                {/* Real-Time Live Speech Subtitle Card (iOS Glassmorphism) */}
-                <div className="w-full max-w-xs sm:max-w-sm mt-3 min-h-[46px] max-h-[75px] overflow-y-auto px-3.5 py-2 rounded-xl bg-white/8 backdrop-blur-xl border border-white/10 text-center text-xs sm:text-sm leading-snug shadow-lg">
-                    {currentAiSpeech ? (
+                {/* Real-Time Live Speech Subtitle & Status Display Card */}
+                <div className="w-full max-w-xs sm:max-w-sm mt-3 min-h-[50px] max-h-[85px] overflow-y-auto px-4 py-2.5 rounded-2xl bg-white/[0.08] border border-white/10 text-center text-xs sm:text-sm leading-snug shadow-xl">
+                    {errorMessage ? (
+                        <p className="text-red-300 font-medium animate-fadeIn">
+                            <span className="font-semibold text-red-400">Notice: </span>
+                            {errorMessage}
+                        </p>
+                    ) : currentAiSpeech ? (
                         <p className="text-purple-200 font-normal animate-fadeIn">
-                            <span className="font-semibold text-purple-300">SolarFlow: </span>
+                            <span className="font-semibold text-purple-300">SolarFlow (Aoede): </span>
                             "{currentAiSpeech}"
                         </p>
                     ) : currentUserSpeech ? (
@@ -718,6 +726,12 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
                         <p className="text-neutral-400 italic flex items-center justify-center h-full">
                             {callStatus === 'dialing' 
                                 ? t('callStatusDialing') 
+                                : callStatus === 'speaking'
+                                ? 'AI speaking...'
+                                : callStatus === 'listening'
+                                ? (currentCallLang === 'hi' 
+                                    ? 'सुन रही हूँ... (गुजराती, हिन्दी या English में बोलें)' 
+                                    : (currentCallLang === 'en' ? 'Listening... (Speak in English, Gujarati, or Hindi)' : 'સાંભળું છું... (ગુજરાતી, હિન્દી કે English માં બોલો)'))
                                 : (getLanguage() === 'gu' ? 'તમે પૂછી શકો છો: "આજના યુનિટ્સ કેટલા?" અથવા Keypad વાપરો' : 'Speak anytime or tap Keypad to type...')}
                         </p>
                     )}

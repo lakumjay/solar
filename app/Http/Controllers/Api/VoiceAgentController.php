@@ -87,7 +87,7 @@ class VoiceAgentController extends Controller
         try {
             // Cap query length for clean natural audio synthesis
             $cleanText = mb_substr($text, 0, 320);
-            $url = "https://translate.google.com/translate_tts?ie=UTF-8&q=" . urlencode($cleanText) . "&tl={$tl}&client=tw-ob";
+            $url = "https://translate.google.com/translate_tts?ie=UTF-8&q=" . urlencode($cleanText) . "&tl={$tl}&client=dict-chrome-ex";
             $res = Http::withHeaders([
                 'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
                 'Referer' => 'https://translate.google.com/',
