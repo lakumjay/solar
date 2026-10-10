@@ -110,17 +110,24 @@ export default function AttendancePage({canCorrect, canRecord}) {
         const locInterval = setInterval(loadLiveLocations, 30000); // 30s auto-refresh
         return () => clearInterval(locInterval);
     }, [date, employeeId]);
-    const filtered = useMemo(() => rows.filter(row => `${row.employee.user.name} ${row.employee.employee_code}`.toLowerCase().includes(search.toLowerCase())), [rows, search]);
+
+    const filtered = useMemo(() => (rows || []).filter(row => {
+        const empName = row.employee?.user?.name || row.employee?.name || '';
+        const empCode = row.employee?.employee_code || '';
+        return `${empName} ${empCode}`.toLowerCase().includes((search || '').toLowerCase());
+    }), [rows, search]);
+
     const openCorrection = row => setCorrection({
         id: row.id,
-        employee: row.employee.user.name,
+        employee: row.employee?.user?.name || row.employee?.name || 'Employee',
         attendance_date: row.attendance_date,
-        clock_out_at: localDateTime(row.clock_out_at, row.attendance_date, row.employee.shift_end?.slice(0, 5) || '18:00'),
+        clock_out_at: localDateTime(row.clock_out_at, row.attendance_date, row.employee?.shift_end?.slice(0, 5) || '18:00'),
         work_done: row.work_done || '',
         learned: row.learned || '',
         correction_reason: '',
         had_clock_out: Boolean(row.clock_out_at),
     });
+
     const saveCorrection = async event => {
         event.preventDefault();
         setMessage('');
@@ -165,12 +172,23 @@ export default function AttendancePage({canCorrect, canRecord}) {
     };
     const todayDate = localDate();
     const isToday = date === todayDate;
+    const [showLiveMaps, setShowLiveMaps] = useState(true);
+
+    const absentToday = useMemo(() => {
+        if (!isToday || !employees.length) return [];
+        return employees.filter(emp => 
+            emp.active && 
+            !emp.manager_attendance_only && 
+            !(rows || []).some(r => String(r.employee_id) === String(emp.id) || String(r.employee?.id) === String(emp.id))
+        );
+    }, [isToday, employees, rows]);
+
     const totals = {
-        present: rows.filter(row => row.clock_out_at && row.status === 'present').length,
-        working_now: rows.filter(row => !row.clock_out_at && (isToday || row.attendance_date === todayDate)).length,
-        missing_out: rows.filter(row => !row.clock_out_at && !isToday && row.attendance_date !== todayDate).length,
-        late: rows.filter(row => row.is_late).length,
-        corrected: rows.filter(row => row.manual_correction).length,
+        present: (rows || []).filter(row => row.clock_out_at && row.status === 'present').length,
+        working_now: (rows || []).filter(row => !row.clock_out_at && (isToday || row.attendance_date === todayDate)).length,
+        missing_out: (rows || []).filter(row => !row.clock_out_at && !isToday && row.attendance_date !== todayDate).length,
+        late: (rows || []).filter(row => row.is_late).length,
+        corrected: (rows || []).filter(row => row.manual_correction).length,
     };
 
     return <div className="attendance-admin">
@@ -702,7 +720,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
             <div className="panel-head attendance-list-head"><div><h2>Daily attendance</h2><p>Employee and audited manager-entered records.</p></div>{canRecord && <button type="button" className="primary" onClick={openManual}><Plus size={16}/> Add attendance</button>}</div>
 
             {/* 🌴 Leaves and Absences Today Overview */}
-            {isToday && employees.filter(emp => emp.active && !emp.manager_attendance_only && !rows.some(r => String(r.employee_id) === String(emp.id) || String(r.employee?.id) === String(emp.id))).length > 0 && (
+            {isToday && absentToday.length > 0 && (
                 <div style={{
                     margin: '0 0 16px 0',
                     padding: '12px 14px',
@@ -715,12 +733,12 @@ export default function AttendancePage({canCorrect, canRecord}) {
                 }}>
                     <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px'}}>
                         <b style={{fontSize: '12.5px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px'}}>
-                            {currentLang === 'en' ? '🌴 Employees On Leave / Not Present Today' : '🌴 આજે રજા પર / હાજર ન થયેલા કર્મચારીઓ'} ({employees.filter(emp => emp.active && !emp.manager_attendance_only && !rows.some(r => String(r.employee_id) === String(emp.id) || String(r.employee?.id) === String(emp.id))).length})
+                            {currentLang === 'en' ? '🌴 Employees On Leave / Not Present Today' : '🌴 આજે રજા પર / હાજર ન થયેલા કર્મચારીઓ'} ({absentToday.length})
                         </b>
                         <span style={{fontSize: '10.5px', color: '#64748b', fontWeight: 600}}>{currentLang === 'en' ? 'Today Status (11:00 AM)' : 'આજની સ્થિતિ (૧૧:૦૦ AM)'}</span>
                     </div>
                     <div style={{display: 'flex', flexDirection: 'column', gap: '6px'}}>
-                        {employees.filter(emp => emp.active && !emp.manager_attendance_only && !rows.some(r => String(r.employee_id) === String(emp.id) || String(r.employee?.id) === String(emp.id))).map(abs => {
+                        {absentToday.map(abs => {
                             const liveEmp = displayLocations.find(l => String(l.employee_id) === String(abs.id));
                             const leaveInfo = liveEmp?.leave_info || (abs.today_leave ? {
                                 has_leave: true,
@@ -775,33 +793,41 @@ export default function AttendancePage({canCorrect, canRecord}) {
                 <label><span>Employee</span><select value={employeeId} onChange={event => setEmployeeId(event.target.value)}><option value="">All employees</option>{employees.map(employee => <option key={employee.id} value={employee.id}>{employee.employee_code} · {employee.name}</option>)}</select></label>
                 <label className="search-box"><span>Search</span><div><Search size={16}/><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Name or code"/></div></label>
             </div>
-            {filtered.length ? <div className="table-wrap"><table className="attendance-table">
+            {filtered.length ? <div className="table-wrap attendance-table-wrap"><table className="attendance-table">
                 <thead><tr><th>Employee</th><th>Time In Selfie</th><th>Break Return</th><th>Time In</th><th>Time Out</th><th>Work Hours</th><th>Break Hours</th><th>Status</th><th>Location</th><th>Notes</th>{canCorrect && <th/>}</tr></thead>
-                <tbody>{filtered.map(row => <tr key={row.id}>
-                    <td><b>{row.employee.user.name}</b><small>{row.employee.employee_code}</small>{row.entry_source === 'manager' && <i className="status warning">Manager entered</i>}</td>
-                    <td>{row.selfie_url ? <button type="button" className="photo-preview-button" onClick={() => setSelfiePreview({url: row.selfie_url, employee: row.employee.user.name, date: row.attendance_date})}><img className="selfie-thumb" src={row.selfie_url} alt={`${row.employee.user.name} Time In selfie`}/></button> : <small>Not provided — manager entry</small>}</td>
-                    <td><span className="break-selfies">{row.breaks.filter(item => item.return_selfie_url).map((item, index) => <a key={item.id} href={item.return_selfie_url} target="_blank" rel="noreferrer"><img className="selfie-thumb" src={item.return_selfie_url} alt={`Break return ${index + 1}`}/></a>)}{!row.breaks.some(item => item.return_selfie_url) && '—'}</span></td>
-                    <td>{displayTime(row.clock_in_at)}{row.is_late && <small className="danger-text">Late</small>}</td>
-                    <td>{row.clock_out_at ? displayTime(row.clock_out_at) : (isToday ? <span className="status on" style={{fontSize: '11px', padding: '2px 7px'}}>{currentLang === 'en' ? '🟢 Active Shift' : '🟢 ચાલુ શિફ્ટ'}</span> : <span className="status warning" style={{fontSize: '11px', padding: '2px 7px'}}>{currentLang === 'en' ? '⚠️ Missing Time Out' : '⚠️ Time Out બાકી'}</span>)}</td>
-                    <td>{(() => {
-                        if (row.clock_out_at) {
-                            return (row.work_minutes / 60).toFixed(2);
-                        }
-                        if (isToday && row.clock_in_at) {
-                            const inMs = new Date(row.clock_in_at).getTime();
-                            const diffMins = Math.max(0, Math.floor((Date.now() - inMs) / 60000));
-                            const breakMins = Number(row.break_minutes || 0);
-                            const netMins = Math.max(0, diffMins - breakMins);
-                            return <span style={{color: '#16a34a', fontWeight: 700}} title="Shift in progress">{(netMins / 60).toFixed(2)} <small style={{fontSize: '10px'}}>{currentLang === 'en' ? '(Active)' : '(ચાલુ)'}</small></span>;
-                        }
-                        return (row.work_minutes / 60).toFixed(2);
-                    })()}</td>
-                    <td>{(Number(row.break_minutes) / 60).toFixed(2)}</td>
-                    <td><i className={`status ${row.status === 'present' ? 'on' : (!row.clock_out_at && isToday ? 'on' : 'warning')}`}>{!row.clock_out_at && isToday ? (currentLang === 'en' ? 'Active Shift' : 'ચાલુ શિફ્ટ (Active)') : row.status.replaceAll('_', ' ')}</i></td>
-                    <td>{row.clock_in_latitude !== null && row.clock_in_longitude !== null ? <a className="map-link" href={`https://maps.google.com/?q=${row.clock_in_latitude},${row.clock_in_longitude}`} target="_blank" rel="noreferrer"><MapPin size={14}/> Map</a> : <small>Not provided — manager entry</small>}</td>
-                    <td><span className="note-preview" title={`${row.work_done || ''}\n${row.learned || ''}${row.entry_reason ? `\nReason: ${row.entry_reason}` : ''}`}>{row.work_done || '—'}{row.entry_source === 'manager' && <small>By {row.recorded_by?.name || 'authorized user'} · {row.entry_reason}</small>}</span></td>
-                    {canCorrect && <td><button className="link" onClick={() => openCorrection(row)}><PencilLine size={15}/> Correct</button></td>}
-                </tr>)}</tbody>
+                <tbody>{filtered.map(row => {
+                    const empName = row.employee?.user?.name || row.employee?.name || 'Employee';
+                    const empCode = row.employee?.employee_code || '';
+                    const breaks = row.breaks || [];
+
+                    return (
+                        <tr key={row.id}>
+                            <td><b>{empName}</b><small>{empCode}</small>{row.entry_source === 'manager' && <i className="status warning">Manager entered</i>}</td>
+                            <td>{row.selfie_url ? <button type="button" className="photo-preview-button" onClick={() => setSelfiePreview({url: row.selfie_url, employee: empName, date: row.attendance_date})}><img className="selfie-thumb" src={row.selfie_url} alt={`${empName} Time In selfie`}/></button> : <small>Not provided — manager entry</small>}</td>
+                            <td><span className="break-selfies">{breaks.filter(item => item.return_selfie_url).map((item, index) => <a key={item.id} href={item.return_selfie_url} target="_blank" rel="noreferrer"><img className="selfie-thumb" src={item.return_selfie_url} alt={`Break return ${index + 1}`}/></a>)}{!breaks.some(item => item.return_selfie_url) && '—'}</span></td>
+                            <td>{displayTime(row.clock_in_at)}{row.is_late && <small className="danger-text">Late</small>}</td>
+                            <td>{row.clock_out_at ? displayTime(row.clock_out_at) : (isToday ? <span className="status on" style={{fontSize: '11px', padding: '2px 7px'}}>{currentLang === 'en' ? '🟢 Active Shift' : '🟢 ચાલુ શિફ્ટ'}</span> : <span className="status warning" style={{fontSize: '11px', padding: '2px 7px'}}>{currentLang === 'en' ? '⚠️ Missing Time Out' : '⚠️ Time Out બાકી'}</span>)}</td>
+                            <td>{(() => {
+                                if (row.clock_out_at) {
+                                    return (row.work_minutes / 60).toFixed(2);
+                                }
+                                if (isToday && row.clock_in_at) {
+                                    const inMs = new Date(row.clock_in_at).getTime();
+                                    const diffMins = Math.max(0, Math.floor((Date.now() - inMs) / 60000));
+                                    const breakMins = Number(row.break_minutes || 0);
+                                    const netMins = Math.max(0, diffMins - breakMins);
+                                    return <span style={{color: '#16a34a', fontWeight: 700}} title="Shift in progress">{(netMins / 60).toFixed(2)} <small style={{fontSize: '10px'}}>{currentLang === 'en' ? '(Active)' : '(ચાલુ)'}</small></span>;
+                                }
+                                return (row.work_minutes / 60).toFixed(2);
+                            })()}</td>
+                            <td>{(Number(row.break_minutes || 0) / 60).toFixed(2)}</td>
+                            <td><i className={`status ${row.status === 'present' ? 'on' : (!row.clock_out_at && isToday ? 'on' : 'warning')}`}>{!row.clock_out_at && isToday ? (currentLang === 'en' ? 'Active Shift' : 'ચાલુ શિફ્ટ (Active)') : (row.status || '').replaceAll('_', ' ')}</i></td>
+                            <td>{row.clock_in_latitude !== null && row.clock_in_longitude !== null ? <a className="map-link" href={`https://maps.google.com/?q=${row.clock_in_latitude},${row.clock_in_longitude}`} target="_blank" rel="noreferrer"><MapPin size={14}/> Map</a> : <small>Not provided — manager entry</small>}</td>
+                            <td><span className="note-preview" title={`${row.work_done || ''}\n${row.learned || ''}${row.entry_reason ? `\nReason: ${row.entry_reason}` : ''}`}>{row.work_done || '—'}{row.entry_source === 'manager' && <small>By {row.recorded_by?.name || 'authorized user'} · {row.entry_reason}</small>}</span></td>
+                            {canCorrect && <td><button className="link" onClick={() => openCorrection(row)}><PencilLine size={15}/> Correct</button></td>}
+                        </tr>
+                    );
+                })}</tbody>
             </table></div> : <Empty title="No attendance records" detail="No employee timed in for the selected date and filters."/>}
         </section>
         {manual && <div className="modal-backdrop" onClick={() => setManual(null)}>
