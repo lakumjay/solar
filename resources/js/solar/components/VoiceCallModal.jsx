@@ -55,7 +55,11 @@ function selectLockedFemaleVoice(voices, lang) {
         });
         if (guFemale) return guFemale;
 
-        // Hindi female understands Gujarati / Indian numbers and sounds very natural
+        // Any native Gujarati voice (elevated pitch makes it female tone)
+        const anyGu = pool.find(v => (v.lang || '').toLowerCase().startsWith('gu'));
+        if (anyGu) return anyGu;
+
+        // Hindi female understands Indian phonetic accents
         const hiFemale = pool.find(v => {
             const l = (v.lang || '').toLowerCase();
             const n = ((v.name || '') + ' ' + (v.voiceURI || '')).toLowerCase();
@@ -407,8 +411,8 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
             }
 
             // Fixed sweet Indian female pitch & natural rate
-            utterance.pitch = 1.25;
-            utterance.rate = 0.96;
+            utterance.pitch = 1.32;
+            utterance.rate = 0.95;
             utterance.volume = 1.0;
 
             utterance.onstart = () => {
