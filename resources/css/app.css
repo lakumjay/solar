@@ -8705,3 +8705,311 @@ input[type="number"] {
     }
 }
 
+/* 📱 Compact & Small Daily Salary Cards (No horizontal scroll) */
+.salary-daily-cards-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.salary-daily-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px 12px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sd-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.sd-date {
+    font-size: 13px;
+    font-weight: 750;
+    color: #0f172a;
+}
+
+.sd-sub {
+    font-size: 10.5px;
+    color: #64748b;
+    margin-left: 6px;
+}
+
+.sd-times-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(75px, 1fr));
+    gap: 5px;
+}
+
+.sd-chip {
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: 6px;
+    padding: 4px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.sd-chip small {
+    font-size: 9px;
+    color: #64748b;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.sd-chip b {
+    font-size: 11px;
+    font-weight: 750;
+    color: #1e293b;
+}
+
+.sd-chip.danger {
+    background: #fef2f2;
+    border-color: #fee2e2;
+}
+
+.sd-chip.danger small { color: #b91c1c; }
+.sd-chip.danger b { color: #991b1b; }
+
+.sd-tags-row {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-top: 2px;
+}
+
+/* 📊 Reports Generation Period Cards */
+.report-cards-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.report-period-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px 12px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.rp-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.rp-date {
+    font-size: 13px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.rp-sub {
+    font-size: 10.5px;
+    color: #64748b;
+    margin-left: 6px;
+}
+
+.rp-gen-badge {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    padding: 3px 8px;
+    border-radius: 6px;
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.rp-gen-badge small {
+    font-size: 8.5px;
+    color: #92400e;
+    font-weight: 750;
+    text-transform: uppercase;
+}
+
+.rp-gen-badge b {
+    font-size: 12px;
+    font-weight: 850;
+    color: #78350f;
+}
+
+.rp-meters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 5px;
+}
+
+.rp-meter-chip {
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: 6px;
+    padding: 4px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.rp-meter-chip small {
+    font-size: 9px;
+    color: #64748b;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rp-meter-chip b {
+    font-size: 11px;
+    font-weight: 750;
+    color: #1e293b;
+}
+
+/* 💰 Expense Ledger Cards */
+.expense-cards-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.expense-entry-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px 12px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.expense-entry-card.settlement {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+}
+
+.eec-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.eec-title {
+    font-size: 13px;
+    font-weight: 750;
+    color: #0f172a;
+}
+
+.eec-sub {
+    font-size: 11px;
+    color: #64748b;
+    display: block;
+    margin-top: 1px;
+}
+
+.eec-amount {
+    font-size: 13.5px;
+    font-weight: 850;
+    color: #0f172a;
+    flex-shrink: 0;
+}
+
+.eec-amount.green {
+    color: #15803d;
+}
+
+.eec-payers {
+    font-size: 10.5px;
+    color: #0f766e;
+    font-weight: 700;
+    background: #f0fdfa;
+    padding: 3px 6px;
+    border-radius: 5px;
+}
+
+.eec-allocations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 4px;
+}
+
+.eec-alloc-chip {
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: 6px;
+    padding: 4px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    font-size: 10.5px;
+}
+
+.eec-notes {
+    font-size: 11px;
+    color: #64748b;
+    background: #f8fafc;
+    padding: 4px 6px;
+    border-radius: 5px;
+}
+
+.eec-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-top: 6px;
+    border-top: 1px solid #f1f5f9;
+}
+
+/* 📐 Compact / Medium Metric & Stat Cards on Mobile */
+@media (max-width: 600px) {
+    .cards {
+        gap: 8px !important;
+    }
+
+    .metric {
+        padding: 10px 12px !important;
+        border-radius: 10px !important;
+    }
+
+    .metric strong {
+        font-size: 16px !important;
+    }
+
+    .metric-head b,
+    .metric-head span {
+        font-size: 10.5px !important;
+    }
+
+    .salary-breakdown,
+    .salary-attendance-grid {
+        gap: 6px !important;
+    }
+
+    .salary-breakdown > span,
+    .salary-attendance-grid > span {
+        padding: 8px 10px !important;
+        border-radius: 8px !important;
+    }
+
+    .salary-breakdown b,
+    .salary-attendance-grid b {
+        font-size: 12.5px !important;
+    }
+}
+
+

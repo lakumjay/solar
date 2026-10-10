@@ -334,6 +334,8 @@ export default function SalaryPage() {
 }
 
 function SalaryDetails({row, onClose, onCorrect, onWaiveBreak}) {
+    const [dailyViewMode, setDailyViewMode] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 768 ? 'cards' : 'table'));
+    const [selfiePreview, setSelfiePreview] = useState(null);
     const urgentBreaks = (row.days || []).flatMap(day =>
         (day.breaks || [])
             .filter(b => b.break_type === 'urgent_out')
@@ -404,14 +406,34 @@ function SalaryDetails({row, onClose, onCorrect, onWaiveBreak}) {
                                 <div className="ub-card-footer">
                                     <div className="ub-selfie-links">
                                         {item.out_selfie_url && (
-                                            <a href={item.out_selfie_url} target="_blank" rel="noreferrer" className="link" style={{fontSize: '12px'}}>
+                                            <button
+                                                type="button"
+                                                className="link"
+                                                style={{fontSize: '12px', background: 'transparent', border: 0, padding: 0, cursor: 'pointer'}}
+                                                onClick={() => setSelfiePreview({
+                                                    url: item.out_selfie_url,
+                                                    employee: row.employee.name,
+                                                    date: item.date,
+                                                    title: 'Urgent Out Selfie (બહાર સેલ્ફી)'
+                                                })}
+                                            >
                                                 📸 બહાર સેલ્ફી
-                                            </a>
+                                            </button>
                                         )}
                                         {item.return_selfie_url && (
-                                            <a href={item.return_selfie_url} target="_blank" rel="noreferrer" className="link" style={{fontSize: '12px'}}>
+                                            <button
+                                                type="button"
+                                                className="link"
+                                                style={{fontSize: '12px', background: 'transparent', border: 0, padding: 0, cursor: 'pointer'}}
+                                                onClick={() => setSelfiePreview({
+                                                    url: item.return_selfie_url,
+                                                    employee: row.employee.name,
+                                                    date: item.date,
+                                                    title: 'Urgent Out Return Selfie (પરત સેલ્ફી)'
+                                                })}
+                                            >
                                                 📸 પરત સેલ્ફી
-                                            </a>
+                                            </button>
                                         )}
                                         {!item.out_selfie_url && !item.return_selfie_url && <span style={{color: '#94a3b8'}}>સેલ્ફી નથી</span>}
                                     </div>
@@ -464,43 +486,117 @@ function SalaryDetails({row, onClose, onCorrect, onWaiveBreak}) {
                 <div className="info-banner">No manual salary adjustments or extra work recorded for this month.</div>
             )}
 
-            <h3 className="section-title">Daily attendance and leave</h3>
-            <div className="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Status</th>
-                            <th>Urgent Out</th>
-                            <th>Scheduled</th>
-                            <th>Leave deduction</th>
-                            <th>Time In</th>
-                            <th>Time Out</th>
-                            <th>Calendar</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {row.days.map(day => (
-                            <tr key={day.date}>
-                                <td className="strong">{shortDate(day.date)}</td>
-                                <td>{day.status.replaceAll('_', ' ')}</td>
-                                <td>
-                                    {day.urgent_out_count > 0 ? (
-                                        <span style={{background: '#fee2e2', color: '#b91c1c', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 600}}>
-                                            🚨 {day.urgent_out_count} વાર ({rupees(day.urgent_deduction)})
-                                        </span>
-                                    ) : '—'}
-                                </td>
-                                <td>{number(day.scheduled_units)}</td>
-                                <td>{day.leave_units ? `${number(day.leave_units)} unit` : '—'}</td>
-                                <td>{day.clock_in || '—'}</td>
-                                <td>{day.clock_out || '—'}</td>
-                                <td>{day.holiday || (day.weekly_off ? 'Weekly off' : 'Working day')}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', margin: '20px 0 10px', flexWrap: 'wrap'}}>
+                <h3 className="section-title" style={{margin: 0}}>Daily attendance and leave</h3>
+                <button
+                    type="button"
+                    className="secondary view-toggle-btn"
+                    onClick={() => setDailyViewMode(v => v === 'cards' ? 'table' : 'cards')}
+                    style={{fontSize: '11px', padding: '5px 10px'}}
+                    title="Toggle between Card view and Table view"
+                >
+                    {dailyViewMode === 'cards' ? <Table size={14}/> : <LayoutGrid size={14}/>}
+                    <span>{dailyViewMode === 'cards' ? 'Table View' : 'Card View'}</span>
+                </button>
             </div>
+
+            {dailyViewMode === 'cards' ? (
+                <div className="salary-daily-cards-grid">
+                    {row.days.map(day => (
+                        <div key={day.date} className="salary-daily-card">
+                            <div className="sd-card-top">
+                                <div>
+                                    <b className="sd-date">{shortDate(day.date)}</b>
+                                    <small className="sd-sub">{day.holiday || (day.weekly_off ? 'Weekly off' : 'Working day')}</small>
+                                </div>
+                                <span className={`status ${day.status === 'present' ? 'on' : (day.status === 'absent' ? 'off' : 'warning')}`} style={{fontSize: '10.5px', padding: '2px 8px'}}>
+                                    {day.status.replaceAll('_', ' ')}
+                                </span>
+                            </div>
+                            <div className="sd-times-grid">
+                                <div className="sd-chip">
+                                    <small>Time In</small>
+                                    <b>{day.clock_in || '—'}</b>
+                                </div>
+                                <div className="sd-chip">
+                                    <small>Time Out</small>
+                                    <b>{day.clock_out || '—'}</b>
+                                </div>
+                                <div className="sd-chip">
+                                    <small>Scheduled</small>
+                                    <b>{number(day.scheduled_units)} unit</b>
+                                </div>
+                                {day.urgent_out_count > 0 && (
+                                    <div className="sd-chip danger">
+                                        <small>Urgent Out</small>
+                                        <b>{day.urgent_out_count} વાર ({rupees(day.urgent_deduction)})</b>
+                                    </div>
+                                )}
+                                {day.leave_units > 0 && (
+                                    <div className="sd-chip danger">
+                                        <small>Leave Cut</small>
+                                        <b>{number(day.leave_units)} unit</b>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Urgent Out</th>
+                                <th>Scheduled</th>
+                                <th>Leave deduction</th>
+                                <th>Time In</th>
+                                <th>Time Out</th>
+                                <th>Calendar</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {row.days.map(day => (
+                                <tr key={day.date}>
+                                    <td className="strong">{shortDate(day.date)}</td>
+                                    <td>{day.status.replaceAll('_', ' ')}</td>
+                                    <td>
+                                        {day.urgent_out_count > 0 ? (
+                                            <span style={{background: '#fee2e2', color: '#b91c1c', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 600}}>
+                                                🚨 {day.urgent_out_count} વાર ({rupees(day.urgent_deduction)})
+                                            </span>
+                                        ) : '—'}
+                                    </td>
+                                    <td>{number(day.scheduled_units)}</td>
+                                    <td>{day.leave_units ? `${number(day.leave_units)} unit` : '—'}</td>
+                                    <td>{day.clock_in || '—'}</td>
+                                    <td>{day.clock_out || '—'}</td>
+                                    <td>{day.holiday || (day.weekly_off ? 'Weekly off' : 'Working day')}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {selfiePreview && (
+                <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && setSelfiePreview(null)}>
+                    <div className="modal attendance-photo-modal" role="dialog">
+                        <div className="panel-head">
+                            <div>
+                                <h2>{selfiePreview.title || 'Selfie Preview'}</h2>
+                                <p>{selfiePreview.employee} · {selfiePreview.date}</p>
+                            </div>
+                            <button type="button" className="icon-button ghost" onClick={() => setSelfiePreview(null)}>
+                                <X size={18}/>
+                            </button>
+                        </div>
+                        <img className="attendance-photo-preview" src={selfiePreview.url} alt={`${selfiePreview.employee} selfie`}/>
+                    </div>
+                </div>
+            )}
         </section>
     );
 }

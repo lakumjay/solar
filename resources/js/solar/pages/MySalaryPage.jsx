@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {CalendarClock, CircleDollarSign, IndianRupee, PlusCircle, ReceiptIndianRupee, ShieldCheck} from 'lucide-react';
+import {CalendarClock, CircleDollarSign, IndianRupee, LayoutGrid, PlusCircle, ReceiptIndianRupee, ShieldCheck, Table} from 'lucide-react';
 import {api} from '../api';
 import {Empty, Loading, Metric} from '../components/Common';
 import {number, shortDate} from '../format';
@@ -11,6 +11,7 @@ export default function MySalaryPage() {
     const [month, setMonth] = useState(currentMonth());
     const [data, setData] = useState(null);
     const [error, setError] = useState('');
+    const [viewMode, setViewMode] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 768 ? 'cards' : 'table'));
     useEffect(() => {setData(null); api(`my-salary?month=${month}`).then(result => {setData(result); setError('');}).catch(failure => setError(failure.message));}, [month]);
     if (!data && !error) return <Loading/>;
     const row = data?.statement;
@@ -140,40 +141,88 @@ export default function MySalaryPage() {
                     </section>
 
                     <section className="panel">
-                        <div className="panel-head">
+                        <div className="panel-head" style={{alignItems: 'center'}}>
                             <div>
                                 <h2>Daily attendance details</h2>
                                 <p>Attendance, calendar status, and deductible approved leave.</p>
                             </div>
+                            <button
+                                type="button"
+                                className="secondary view-toggle-btn"
+                                onClick={() => setViewMode(v => v === 'cards' ? 'table' : 'cards')}
+                                style={{fontSize: '11px', padding: '5px 10px'}}
+                                title="Toggle between Card view and Table view"
+                            >
+                                {viewMode === 'cards' ? <Table size={14}/> : <LayoutGrid size={14}/>}
+                                <span>{viewMode === 'cards' ? 'Table View' : 'Card View'}</span>
+                            </button>
                         </div>
-                        <div className="table-wrap">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Status</th>
-                                        <th>Scheduled</th>
-                                        <th>Approved leave</th>
-                                        <th>Time In</th>
-                                        <th>Time Out</th>
-                                        <th>Calendar</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {row.days.map(day => (
-                                        <tr key={day.date}>
-                                            <td className="strong">{shortDate(day.date)}</td>
-                                            <td>{day.status.replaceAll('_', ' ')}</td>
-                                            <td>{number(day.scheduled_units)}</td>
-                                            <td>{day.leave_units ? `${number(day.leave_units)} unit` : '—'}</td>
-                                            <td>{day.clock_in || '—'}</td>
-                                            <td>{day.clock_out || '—'}</td>
-                                            <td>{day.holiday || (day.weekly_off ? 'Weekly off' : 'Working day')}</td>
+                        {viewMode === 'cards' ? (
+                            <div className="salary-daily-cards-grid">
+                                {row.days.map(day => (
+                                    <div key={day.date} className="salary-daily-card">
+                                        <div className="sd-card-top">
+                                            <div>
+                                                <b className="sd-date">{shortDate(day.date)}</b>
+                                                <small className="sd-sub">{day.holiday || (day.weekly_off ? 'Weekly off' : 'Working day')}</small>
+                                            </div>
+                                            <span className={`status ${day.status === 'present' ? 'on' : (day.status === 'absent' ? 'off' : 'warning')}`} style={{fontSize: '10.5px', padding: '2px 8px'}}>
+                                                {day.status.replaceAll('_', ' ')}
+                                            </span>
+                                        </div>
+                                        <div className="sd-times-grid">
+                                            <div className="sd-chip">
+                                                <small>Time In</small>
+                                                <b>{day.clock_in || '—'}</b>
+                                            </div>
+                                            <div className="sd-chip">
+                                                <small>Time Out</small>
+                                                <b>{day.clock_out || '—'}</b>
+                                            </div>
+                                            <div className="sd-chip">
+                                                <small>Scheduled</small>
+                                                <b>{number(day.scheduled_units)} unit</b>
+                                            </div>
+                                            {day.leave_units > 0 && (
+                                                <div className="sd-chip danger">
+                                                    <small>Leave Cut</small>
+                                                    <b>{number(day.leave_units)} unit</b>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="table-wrap">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Status</th>
+                                            <th>Scheduled</th>
+                                            <th>Approved leave</th>
+                                            <th>Time In</th>
+                                            <th>Time Out</th>
+                                            <th>Calendar</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody>
+                                        {row.days.map(day => (
+                                            <tr key={day.date}>
+                                                <td className="strong">{shortDate(day.date)}</td>
+                                                <td>{day.status.replaceAll('_', ' ')}</td>
+                                                <td>{number(day.scheduled_units)}</td>
+                                                <td>{day.leave_units ? `${number(day.leave_units)} unit` : '—'}</td>
+                                                <td>{day.clock_in || '—'}</td>
+                                                <td>{day.clock_out || '—'}</td>
+                                                <td>{day.holiday || (day.weekly_off ? 'Weekly off' : 'Working day')}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </section>
                 </>
             )}

@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {ArrowRight, CheckCircle2, Clock, FileSpreadsheet, FileText, HandCoins, History, IndianRupee, Layers, PencilLine, Plus, ReceiptIndianRupee, Scale, Sparkles, Split, X, Zap} from 'lucide-react';
+import {ArrowRight, CheckCircle2, Clock, FileSpreadsheet, FileText, HandCoins, History, IndianRupee, Layers, LayoutGrid, PencilLine, Plus, ReceiptIndianRupee, Scale, Sparkles, Split, Table, X, Zap} from 'lucide-react';
 import {api} from '../api';
 import {Empty, Field, Loading, Metric} from '../components/Common';
 import {monthStart, today} from '../config';
@@ -22,6 +22,7 @@ export default function ExpensesPage({currentUser}) {
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState('ledger'); // 'ledger' or 'settlements'
+    const [ledgerViewMode, setLedgerViewMode] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 768 ? 'cards' : 'table'));
 
     const load = async () => {
         try {
@@ -333,43 +334,69 @@ export default function ExpensesPage({currentUser}) {
             {/* TAB 1: Daily Expense Ledger */}
             {activeTab === 'ledger' && (
                 <section className="panel">
-                    <div className="panel-head">
+                    <div className="panel-head" style={{alignItems: 'center'}}>
                         <div>
                             <h2>Daily expense ledger</h2>
                             <p>Expenses, multi-payer allocations, reversals, and settlement payments from {shortDate(from)} to {shortDate(to)}.</p>
                         </div>
+                        <button
+                            type="button"
+                            className="secondary view-toggle-btn"
+                            onClick={() => setLedgerViewMode(v => v === 'cards' ? 'table' : 'cards')}
+                            style={{fontSize: '11px', padding: '5px 10px'}}
+                            title="Toggle between Card view and Table view"
+                        >
+                            {ledgerViewMode === 'cards' ? <Table size={14}/> : <LayoutGrid size={14}/>}
+                            <span>{ledgerViewMode === 'cards' ? 'Table View' : 'Card View'}</span>
+                        </button>
                     </div>
                     {groupedEntries.length ? (
                         <div className="expense-ledger">
                             {groupedEntries.map(([date, entries]) => (
                                 <div className="expense-day" key={date}>
                                     <h3>{shortDate(date)}</h3>
-                                    <div className="table-wrap">
-                                        <table>
-                                            <thead>
-                                                <tr>
-                                                    <th>Entry & Scope</th>
-                                                    <th>Company split & Payer(s)</th>
-                                                    <th>Amount</th>
-                                                    <th>Status</th>
-                                                    <th/>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {entries.map(entry => (
-                                                    <LedgerRow
-                                                        entry={entry}
-                                                        canManage={data.can_manage}
-                                                        currentLang={currentLang}
-                                                        onEdit={() => setExpenseForm(entry)}
-                                                        onCancel={() => action(entry, 'cancel')}
-                                                        onReverse={() => action(entry, 'reverse')}
-                                                        key={`${entry.type}-${entry.id}`}
-                                                    />
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
+                                    {ledgerViewMode === 'cards' ? (
+                                        <div className="expense-cards-grid">
+                                            {entries.map(entry => (
+                                                <ExpenseCard
+                                                    entry={entry}
+                                                    canManage={data.can_manage}
+                                                    currentLang={currentLang}
+                                                    onEdit={() => setExpenseForm(entry)}
+                                                    onCancel={() => action(entry, 'cancel')}
+                                                    onReverse={() => action(entry, 'reverse')}
+                                                    key={`${entry.type}-${entry.id}`}
+                                                />
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="table-wrap">
+                                            <table>
+                                                <thead>
+                                                    <tr>
+                                                        <th>Entry & Scope</th>
+                                                        <th>Company split & Payer(s)</th>
+                                                        <th>Amount</th>
+                                                        <th>Status</th>
+                                                        <th/>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {entries.map(entry => (
+                                                        <LedgerRow
+                                                            entry={entry}
+                                                            canManage={data.can_manage}
+                                                            currentLang={currentLang}
+                                                            onEdit={() => setExpenseForm(entry)}
+                                                            onCancel={() => action(entry, 'cancel')}
+                                                            onReverse={() => action(entry, 'reverse')}
+                                                            key={`${entry.type}-${entry.id}`}
+                                                        />
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -470,6 +497,99 @@ export default function ExpensesPage({currentUser}) {
                     onSaved={completed}
                 />
             )}
+        </div>
+    );
+}
+
+function ExpenseCard({entry, canManage, onEdit, onCancel, onReverse, currentLang = getLanguage()}) {
+    if (entry.type === 'settlement') {
+        return (
+            <div className="expense-entry-card settlement">
+                <div className="eec-header">
+                    <div>
+                        <b className="eec-title">Settlement payment</b>
+                        <small className="eec-sub">{entry.from_company?.name} ➜ {entry.to_company?.name}</small>
+                    </div>
+                    <div className="eec-amount green">₹{number(entry.amount)}</div>
+                </div>
+                {entry.notes && <div className="eec-notes">{entry.notes}</div>}
+                <div className="eec-footer">
+                    <i className={`status ${entry.status === 'cleared' ? 'on' : 'warning'}`}>
+                        {entry.status === 'cleared' ? 'Full Settlement' : 'Partial Settlement'}
+                    </i>
+                </div>
+            </div>
+        );
+    }
+
+    const scopeBadge = entry.allocation_scope === 'single'
+        ? '1 Company (100% Direct)'
+        : entry.allocation_scope === 'two'
+            ? '2 Companies Split'
+            : 'All Companies (3-Way Master)';
+
+    return (
+        <div className="expense-entry-card">
+            <div className="eec-header">
+                <div>
+                    <b className="eec-title">{entry.description}</b>
+                    <small className="eec-sub">
+                        {entry.purchaser_name} · <span style={{color: '#0284c7', fontWeight: 600}}>{scopeBadge}</span>
+                    </small>
+                </div>
+                <div className="eec-amount">₹{number(entry.amount)}</div>
+            </div>
+
+            {/* Payers & Allocations */}
+            {entry.payers && entry.payers.length > 0 && (
+                <div className="eec-payers">
+                    Paid by: {entry.payers.map(p => `${p.company_name} (₹${number(p.amount_paid)})`).join(', ')}
+                </div>
+            )}
+
+            <div className="eec-allocations-grid">
+                {entry.allocations?.map(row => {
+                    const net = row.net_effect ?? ((row.amount_paid || 0) - row.amount);
+                    const netText = net > 0.001
+                        ? (currentLang === 'en' ? `+₹${number(net)} Rec` : `+₹${number(net)} લેવાના`)
+                        : net < -0.001
+                            ? (currentLang === 'en' ? `-₹${number(Math.abs(net))} Pay` : `-₹${number(Math.abs(net))} દેવાના`)
+                            : (currentLang === 'en' ? 'Settled' : 'સરભર');
+                    const netColor = net > 0.001 ? '#15803d' : net < -0.001 ? '#b91c1c' : '#64748b';
+
+                    return (
+                        <div key={row.company.id} className="eec-alloc-chip">
+                            <span><b>{row.company.name}</b> {number(row.percentage)}%</span>
+                            <small style={{color: netColor, fontWeight: 700}}>₹{number(row.amount)} ({netText})</small>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {entry.notes && <div className="eec-notes">{entry.notes}</div>}
+
+            <div className="eec-footer">
+                <i className={`status ${entry.status === 'active' ? (entry.locked ? 'warning' : 'on') : entry.status === 'cancelled' ? 'danger' : ''}`}>
+                    {entry.type === 'reversal' ? 'reversal' : entry.status}
+                    {entry.locked && entry.status === 'active' ? ' · locked' : ''}
+                </i>
+                <div className="row-actions">
+                    {entry.receipt_url && (
+                        <a className="link" href={entry.receipt_url} target="_blank" rel="noreferrer">
+                            <FileText size={14}/> Receipt
+                        </a>
+                    )}
+                    {canManage && entry.editable && (
+                        <>
+                            <button className="link" onClick={onEdit}><PencilLine size={14}/> Edit</button>
+                            <button className="link danger-text" onClick={onCancel}>Cancel</button>
+                        </>
+                    )}
+                    {canManage && entry.reversible && (
+                        <button className="link danger-text" onClick={onReverse}>Reverse</button>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }
