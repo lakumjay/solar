@@ -678,7 +678,7 @@ export default function MobileAppView({
 
     // Helper to get 16 PV Strings array
     const getPvStrings = (inv, defaultBase = 8.40) => {
-        if (inv?.pv_strings && inv.pv_strings.length === 16) {
+        if (inv?.pv_strings && inv.pv_strings.length > 0) {
             return inv.pv_strings;
         }
         const sampleCurrents = [
@@ -2178,7 +2178,9 @@ export default function MobileAppView({
                                                             <div className="isolar-pv-strings-panel" style={{marginBottom: '10px'}}>
                                                                 <div className="isolar-strings-head">
                                                                     <span className="strings-head-title">PV String Live Currents (A)</span>
-                                                                    <span className="strings-head-points">Point IDs: 70 - 85</span>
+                                                                    <span className="strings-head-points">
+                                                                        {pvStrings.filter(s => Number(s.current_a) > 0.1).length}/{pvStrings.length} Active (Points 70 - {69 + pvStrings.length})
+                                                                    </span>
                                                                 </div>
 
                                                                 <div className="isolar-strings-16-grid">

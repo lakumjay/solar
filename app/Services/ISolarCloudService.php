@@ -356,7 +356,8 @@ class ISolarCloudService
 
         if (! empty($serialNumbers) && $this->getValidToken()) {
             try {
-                $pointIds = array_merge(['1', '3', '14', '24'], array_map('strval', range(70, 85)));
+                // Point IDs 70 to 93 correspond to String 1 through String 24 currents
+                $pointIds = array_merge(['1', '3', '14', '24'], array_map('strval', range(70, 93)));
                 $realtimeData = $this->getDeviceRealTimeData($serialNumbers, $pointIds);
                 $isLive = true;
             } catch (Exception $e) {
@@ -438,10 +439,21 @@ class ISolarCloudService
                     }
                     $deviceName = $dp['device_name'] ?? null;
 
-                    // Parse PV String 1 to 16 currents (point IDs 70 to 85)
+                    // Parse PV String currents dynamically (Point IDs 70 to 93 -> up to 24 strings)
                     $curtPvData = $companyCurtailment ? (array) ($companyCurtailment->pv_strings ?? []) : [];
                     $activeStringCurrents = [];
-                    for ($s = 1; $s <= 16; $s++) {
+                    
+                    // Detect highest available string point in telemetry (at least 16, up to 24)
+                    $maxStrings = 16;
+                    for ($sCheck = 17; $sCheck <= 24; $sCheck++) {
+                        $checkKey = 'p' . (69 + $sCheck);
+                        if (isset($dp[$checkKey])) {
+                            $maxStrings = $sCheck;
+                        }
+                    }
+
+                    $pvStrings = [];
+                    for ($s = 1; $s <= $maxStrings; $s++) {
                         $pKey = 'p' . (69 + $s);
                         $currentA = isset($dp[$pKey]) ? round((float) $dp[$pKey], 2) : 0.0;
                         
@@ -456,13 +468,14 @@ class ISolarCloudService
                             }
                         }
 
+                        $isConnected = $currentA > 0.1;
                         $pvStrings[$s] = [
                             'string_num' => $s,
                             'string_label' => 'PV' . $s,
                             'current_a' => $currentA,
-                            'is_connected' => $currentA > 0.1,
+                            'is_connected' => $isConnected,
                             'is_curtailed' => $isStrCurtailed,
-                            'status' => $isStrCurtailed ? 'curtailed' : 'normal',
+                            'status' => $isStrCurtailed ? 'curtailed' : ($isConnected ? 'normal' : 'offline'),
                         ];
                         if ($currentA > 0.5 && ! $isStrCurtailed) {
                             $activeStringCurrents[] = $currentA;
@@ -491,7 +504,7 @@ class ISolarCloudService
                             $inverterZeroStrings = [];
                             $totalConnectedStrings = count($activeStringCurrents);
 
-                            for ($s = 1; $s <= 16; $s++) {
+                            for ($s = 1; $s <= $maxStrings; $s++) {
                                 if ($pvStrings[$s]['is_curtailed'] ?? false) {
                                     continue; // Intentionally curtailed by PGVCL -> suppress false alarm!
                                 }
@@ -664,6 +677,8 @@ class ISolarCloudService
                     'estimated_temp_c' => $estimatedInvTemp ?? null,
                     'load_pct' => $loadPct ?? null,
                     'pv_strings' => array_values($pvStrings),
+                    'total_strings_count' => count($pvStrings),
+                    'active_strings_count' => count(array_filter($pvStrings, fn($p) => ($p['current_a'] ?? 0) > 0.1)),
                     'cleaning_alerts' => $inverterAlerts,
                 ];
             }
@@ -700,15 +715,21 @@ class ISolarCloudService
         $isNight = ($currentHourFloat > 18.2 || $currentHourFloat < 6.5 || $totalLiveKw <= 0);
 
         // 1. Next 1 hour generation prediction (kWh):
-        $irradianceNext = (float) ($weatherData['solar_irradiance_next'] ?? 700);
-        $irradianceFactor = ($irradianceNow > 50 && !$isNight) ? min(1.3, max(0.2, $irradianceNext / $irradianceNow)) : 0.0;
-        $predictedNextHourKwh = $isNight ? 0.00 : round($totalLiveKw * $irradianceFactor, 2);
+        // Physical astronomical sun elevation model (Sunrise ~06:30, Peak ~12:30, Sunset ~18:15)
+        $currentSunElevation = max(0.01, sin(deg2rad(max(0, min(180, ($currentHourFloat - 6.5) / 11.75 * 180)))));
+        $nextSunElevation = max(0.0, sin(deg2rad(max(0, min(180, ($currentHourFloat + 1.0 - 6.5) / 11.75 * 180)))));
+        $sunElevationRatio = $currentSunElevation > 0 ? ($nextSunElevation / $currentSunElevation) : 0.0;
+        
+        // Next 1-hour expected output factor is the average power over the upcoming 60 minutes
+        // After peak noon, this naturally drops below 1.0 (smooth afternoon decline without unrealistic spikes)
+        $nextHourPowerRatio = max(0.0, min(1.05, (1.0 + $sunElevationRatio) / 2.0));
+        $predictedNextHourKwh = $isNight ? 0.00 : round($totalLiveKw * $nextHourPowerRatio, 2);
 
-        // Company-wise 1-Hour and EOD Predictions
+        // Company-wise 1-Hour Predictions
         $companyPredictions = [];
         foreach ($companiesData as &$cData) {
             $cLiveKw = (float) $cData['total_live_kw'];
-            $cNext1h = $isNight ? 0.00 : round($cLiveKw * $irradianceFactor, 2);
+            $cNext1h = $isNight ? 0.00 : round($cLiveKw * $nextHourPowerRatio, 2);
             $cData['predicted_next_1h_kwh'] = number_format($cNext1h, 2, '.', '');
             $companyPredictions[] = [
                 'company_id' => $cData['company_id'],
@@ -719,40 +740,40 @@ class ISolarCloudService
         }
         unset($cData);
 
-        // 2. Solar Radiation Bell-Curve Model for Accurate End-of-Day (EOD) Total Units
-
+        // 2. Solar Radiation Model for Accurate End-of-Day (EOD) Total Units and Hourly Profile
         $activeKw = max(0, $totalLiveKw);
-        $kwPerIrradiance = ($irradianceNow > 80) ? ($activeKw / $irradianceNow) : (max(1, $totalOnline) * 250.0 / 800.0);
-        $kwPerIrradiance = max(0.5, min(3.8, $kwPerIrradiance));
-
         $remainingHoursProfile = [];
         $totalRemainingPredictedKwh = 0.0;
         $daylightProfile = $weatherData['hourly_daylight_profile'] ?? [];
-        $wFactor = ($weatherData['type'] === 'rain' ? 0.35 : ($weatherData['type'] === 'cloudy' ? 0.65 : 0.95));
 
-        if ($currentHourFloat < 18.5 && $currentHourFloat >= 6.0) {
+        if ($currentHourFloat < 18.25 && $currentHourFloat >= 6.5 && $activeKw > 0) {
             for ($h = $nowHour; $h <= 18; $h++) {
-                $rad = isset($daylightProfile[$h]['radiation_w_m2']) ? (float) $daylightProfile[$h]['radiation_w_m2'] : 0.0;
-                if ($rad <= 10) {
-                    $sunAngleFactor = sin(deg2rad(max(0, min(180, ($h - 6) * 15))));
-                    $rad = max(0, round($sunAngleFactor * 850, 0));
-                }
+                $midHour = $h + 0.5;
+                $hourElevation = max(0.0, sin(deg2rad(max(0, min(180, ($midHour - 6.5) / 11.75 * 180)))));
+                $rad = isset($daylightProfile[$h]['radiation_w_m2']) && (float) $daylightProfile[$h]['radiation_w_m2'] > 10
+                    ? (float) $daylightProfile[$h]['radiation_w_m2']
+                    : round($hourElevation * 850, 0);
 
-                $estHourKw = min(3000.0, $rad * $kwPerIrradiance * $wFactor);
+                // Smooth physical ratio: hour expected power is scaled by solar elevation relative to current hour
+                $ratioToCurrent = $currentSunElevation > 0 ? ($hourElevation / $currentSunElevation) : 0.0;
+                // Cap to prevent unreasonable spikes
+                $ratioToCurrent = min(1.15, max(0.0, $ratioToCurrent));
+                $estHourKw = round($activeKw * $ratioToCurrent, 1);
 
                 if ($h === $nowHour) {
                     $minLeft = max(0, 60 - (int) $now->format('i'));
                     $frac = $minLeft / 60.0;
-                    $thisHourRemainingKwh = round($activeKw * $frac, 1);
+                    $thisHourRemainingKwh = round($estHourKw * $frac, 1);
                     $totalRemainingPredictedKwh += $thisHourRemainingKwh;
                     $remainingHoursProfile[] = [
                         'hour' => Carbon::createFromTime($h, 0)->format('h A'),
-                        'kwh' => $thisHourRemainingKwh,
+                        'kwh' => $estHourKw,
+                        'remaining_kwh' => $thisHourRemainingKwh,
                         'irradiance' => (int) $rad,
                         'status' => 'current',
                     ];
                 } else {
-                    $estKwh = round($estHourKw, 1);
+                    $estKwh = $estHourKw;
                     $totalRemainingPredictedKwh += $estKwh;
                     $remainingHoursProfile[] = [
                         'hour' => Carbon::createFromTime($h, 0)->format('h A'),

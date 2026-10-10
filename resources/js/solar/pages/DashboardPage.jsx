@@ -1505,7 +1505,9 @@ export default function DashboardPage({companyId, currentUser}) {
                                             <div className="pv-strings-container">
                                                 <div className="pv-strings-header">
                                                     <span>PV String Live Currents (A)</span>
-                                                    <span>Point IDs: 70 - 85</span>
+                                                    <span>
+                                                        {inv.pv_strings.filter(p => (p.current_a || 0) > 0.1).length}/{inv.pv_strings.length} Strings Active (Points 70 - {69 + inv.pv_strings.length})
+                                                    </span>
                                                 </div>
                                                 <div className="pv-strings-grid">
                                                     {inv.pv_strings.map(pv => {
