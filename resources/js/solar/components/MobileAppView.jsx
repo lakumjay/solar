@@ -3771,6 +3771,7 @@ export default function MobileAppView({
                     isOpen={showVoiceCall}
                     onClose={() => setShowVoiceCall(false)}
                     user={user}
+                    activeCompany={activeCompany}
                 />
             )}
         </div>

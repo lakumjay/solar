@@ -379,6 +379,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
                     isOpen={showVoiceCall}
                     onClose={() => setShowVoiceCall(false)}
                     user={user}
+                    activeCompany={activeCompany}
                 />
             )}
         </>

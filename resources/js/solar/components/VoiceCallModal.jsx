@@ -26,7 +26,67 @@ export function unlockVoiceCallAudio() {
     } catch (_) {}
 }
 
-export default function VoiceCallModal({ isOpen, onClose, user }) {
+function selectLockedFemaleVoice(voices, lang) {
+    if (!voices || voices.length === 0) return null;
+
+    const maleKeywords = [
+        'male', 'david', 'ravi', 'prabhat', 'george', 'mark', 'rishi', 'madhav',
+        'niranjan', 'ajay', 'anil', 'pawan', 'manish', 'valluvar', '-gum', '-him', '-enm'
+    ];
+    const femaleKeywords = [
+        'priya', 'neha', 'kavya', 'swara', 'heera', 'neerja', 'veena', 'zira',
+        'kalpana', 'geeta', 'shruti', 'lekha', 'female', '-guf', '-hif', '-enf', '-end', '-ene'
+    ];
+
+    // Filter out all confirmed male voices
+    const nonMale = voices.filter(v => {
+        const fullDesc = ((v.name || '') + ' ' + (v.voiceURI || '')).toLowerCase();
+        return !maleKeywords.some(m => fullDesc.includes(m));
+    });
+
+    const pool = nonMale.length > 0 ? nonMale : voices;
+
+    // 1. If Gujarati:
+    if (lang === 'gu') {
+        const guFemale = pool.find(v => {
+            const l = (v.lang || '').toLowerCase();
+            const n = ((v.name || '') + ' ' + (v.voiceURI || '')).toLowerCase();
+            return l.startsWith('gu') && femaleKeywords.some(f => n.includes(f));
+        });
+        if (guFemale) return guFemale;
+
+        // Hindi female understands Gujarati / Indian numbers and sounds very natural
+        const hiFemale = pool.find(v => {
+            const l = (v.lang || '').toLowerCase();
+            const n = ((v.name || '') + ' ' + (v.voiceURI || '')).toLowerCase();
+            return l.startsWith('hi') && femaleKeywords.some(f => n.includes(f));
+        });
+        if (hiFemale) return hiFemale;
+    }
+
+    // 2. Indian Female (Priya, Neha, Veena, Heera, etc.)
+    const indianFemale = pool.find(v => {
+        const l = (v.lang || '').toLowerCase();
+        const n = ((v.name || '') + ' ' + (v.voiceURI || '')).toLowerCase();
+        return (l.includes('in') || l.startsWith('en')) && femaleKeywords.some(f => n.includes(f));
+    });
+    if (indianFemale) return indianFemale;
+
+    // 3. Any Indian non-male voice
+    const anyIndianNonMale = pool.find(v => (v.lang || '').toLowerCase().includes('in'));
+    if (anyIndianNonMale) return anyIndianNonMale;
+
+    // 4. Any female voice
+    const anyFemale = pool.find(v => {
+        const n = ((v.name || '') + ' ' + (v.voiceURI || '')).toLowerCase();
+        return femaleKeywords.some(f => n.includes(f));
+    });
+    if (anyFemale) return anyFemale;
+
+    return pool[0] || voices[0];
+}
+
+export default function VoiceCallModal({ isOpen, onClose, user, activeCompany }) {
     const [callStatus, setCallStatus] = useState('dialing'); // dialing, connected, speaking, listening, ended, error
     const [errorMessage, setErrorMessage] = useState('');
     const [isMuted, setIsMuted] = useState(false);
@@ -42,69 +102,41 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
 
     const tonePlayerRef = useRef(null);
     const pcmPlayerRef = useRef(null);
-    const micStreamRef = useRef(null);
     const durationTimerRef = useRef(null);
     const recognitionRef = useRef(null);
+    const recognitionActiveRef = useRef(false);
     const isMutedRef = useRef(isMuted);
     const isConnectedRef = useRef(false);
-    const femaleVoiceRef = useRef(null);
+    const isAiSpeakingRef = useRef(false);
+    const lockedFemaleVoiceRef = useRef(null);
 
     useEffect(() => {
         isMutedRef.current = isMuted;
+        if (isMuted) {
+            stopListening();
+        } else if (isConnectedRef.current && !isAiSpeakingRef.current) {
+            startListening();
+        }
     }, [isMuted]);
 
-    // Preload & Lock Female Voices (Priya / Neha / Indian Female)
+    // Lock a single, consistent female voice at component mount
     useEffect(() => {
-        const initVoices = () => {
+        const initLockedVoice = () => {
             try {
                 if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
                 const voices = window.speechSynthesis.getVoices() || [];
                 if (!voices || voices.length === 0) return;
-
-                const lang = getLanguage();
-                const femaleKeywords = ['priya', 'neha', 'kavya', 'swara', 'heera', 'lekha', 'veena', 'zira', 'kalpana', 'geeta', 'shruti', 'female'];
-                const maleKeywords = ['male', 'david', 'ravi', 'prabhat', 'george', 'mark', 'rishi', 'madhav'];
-
-                // Exclude male voices
-                const femaleCandidates = voices.filter(v => {
-                    const name = (v?.name || '').toLowerCase();
-                    return !maleKeywords.some(m => name.includes(m));
-                });
-
-                let selected = null;
-                if (lang === 'gu') {
-                    selected = femaleCandidates.find(v => {
-                        const l = (v?.lang || '').toLowerCase();
-                        const n = (v?.name || '').toLowerCase();
-                        return (l.startsWith('gu') || l.startsWith('hi')) && femaleKeywords.some(k => n.includes(k));
-                    }) || femaleCandidates.find(v => {
-                        const l = (v?.lang || '').toLowerCase();
-                        return l.startsWith('gu') || l.startsWith('hi');
-                    });
-                } else {
-                    selected = femaleCandidates.find(v => {
-                        const l = (v?.lang || '').toLowerCase();
-                        const n = (v?.name || '').toLowerCase();
-                        return (l.includes('in') || l.startsWith('en')) && femaleKeywords.some(k => n.includes(k));
-                    }) || femaleCandidates.find(v => {
-                        const l = (v?.lang || '').toLowerCase();
-                        return l.includes('in') || l.startsWith('en');
-                    });
+                if (!lockedFemaleVoiceRef.current) {
+                    lockedFemaleVoiceRef.current = selectLockedFemaleVoice(voices, getLanguage());
                 }
-
-                if (!selected) {
-                    selected = femaleCandidates.find(v => (v?.lang || '').toLowerCase().includes('in')) || femaleCandidates[0] || voices[0];
-                }
-
-                femaleVoiceRef.current = selected || null;
             } catch (err) {
-                console.warn('Voice init handled:', err);
+                console.warn('Voice lock handled:', err);
             }
         };
 
-        initVoices();
+        initLockedVoice();
         if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-            window.speechSynthesis.onvoiceschanged = initVoices;
+            window.speechSynthesis.onvoiceschanged = initLockedVoice;
         }
     }, []);
 
@@ -119,94 +151,30 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
         };
     }, [isOpen]);
 
-    const startCall = async () => {
-        setCallStatus('dialing');
-        setErrorMessage('');
-        setCallDuration(0);
-        setTranscript([]);
-        setCurrentAiSpeech('');
-        setCurrentUserSpeech('');
-        setShowKeypad(false);
-        setShowPrompts(false);
-        setShowInfo(false);
-        setTextInput('');
-        isConnectedRef.current = false;
-
-        // Initialize audio tones
-        tonePlayerRef.current = new CallTonePlayer();
-        try {
-            tonePlayerRef.current.startRinging();
-        } catch (_) {}
-
-        pcmPlayerRef.current = new PcmPlayer(24000);
+    const startListening = () => {
+        if (!isConnectedRef.current || isAiSpeakingRef.current || isMutedRef.current) return;
+        if (!recognitionRef.current) return;
 
         try {
-            // Check API config (non-blocking)
-            try {
-                await api('voice-agent/config');
-            } catch (cfgErr) {
-                console.warn('Voice agent config ping:', cfgErr);
+            if (!recognitionActiveRef.current) {
+                recognitionRef.current.lang = getLanguage() === 'gu' ? 'gu-IN' : 'en-IN';
+                recognitionRef.current.start();
+                recognitionActiveRef.current = true;
+                setCallStatus('listening');
             }
-
-            if ('speechSynthesis' in window) {
-                try {
-                    window.speechSynthesis.resume();
-                } catch (_) {}
-            }
-
-            // Request microphone access
-            let stream = null;
-            try {
-                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                    stream = await navigator.mediaDevices.getUserMedia({
-                        audio: {
-                            channelCount: 1,
-                            sampleRate: 16000,
-                            echoCancellation: true,
-                            noiseSuppression: true,
-                            autoGainControl: true,
-                        }
-                    });
-                    micStreamRef.current = stream;
-                }
-            } catch (micErr) {
-                console.warn('Microphone access unavailable or denied:', micErr);
-            }
-
-            // Stop ringing & play connected chime
-            if (tonePlayerRef.current) {
-                tonePlayerRef.current.playConnectedTone();
-            }
-
-            try {
-                pcmPlayerRef.current.init();
-            } catch (_) {}
-
-            setCallStatus('connected');
-            isConnectedRef.current = true;
-
-            // Start timer
-            durationTimerRef.current = setInterval(() => {
-                setCallDuration(d => d + 1);
-            }, 1000);
-
-            // Setup voice recognition
-            setupVoiceRecognition();
-
-            // Initial AI Greeting in Sweet Female Tone
-            const lang = getLanguage();
-            const welcomeText = lang === 'gu'
-                ? `નમસ્તે ${user?.name || 'સર'}, હું SolarFlow AI આસિસ્ટન્ટ છું. આજે હું તમારી શું મદદ કરી શકું? તમે આજના સોલાર યુનિટ્સ, તારીખવાર જનરેશન, હિસાબ કે કર્મચારીઓ વિશે પૂછી શકો છો.`
-                : `Hello ${user?.name || 'Sir'}, I am SolarFlow AI Assistant. How can I assist you today? You can ask about today's solar units, date-wise generation, revenue, or employee details.`;
-
-            speakAiResponse(welcomeText);
-            setTranscript([{ role: 'ai', text: welcomeText }]);
-
         } catch (err) {
-            console.error('Call connection error:', err);
-            if (tonePlayerRef.current) tonePlayerRef.current.stop();
-            setCallStatus('error');
-            setErrorMessage(err.message || (getLanguage() === 'en' ? 'Could not connect call.' : 'કૉલ કનેક્ટ થઈ શક્યો નથી.'));
+            if (err.name !== 'InvalidStateError') {
+                console.warn('startListening warning:', err);
+            }
+        }
+    };
+
+    const stopListening = () => {
+        if (recognitionRef.current && recognitionActiveRef.current) {
+            try {
+                recognitionActiveRef.current = false;
+                recognitionRef.current.stop();
+            } catch (_) {}
         }
     };
 
@@ -218,13 +186,25 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
         }
 
         try {
+            if (recognitionRef.current) {
+                try { recognitionRef.current.abort(); } catch(_) {}
+                recognitionRef.current = null;
+            }
+
             const recognition = new SpeechRecognition();
             recognition.continuous = true;
             recognition.interimResults = true;
             recognition.lang = getLanguage() === 'gu' ? 'gu-IN' : 'en-IN';
 
+            recognition.onstart = () => {
+                recognitionActiveRef.current = true;
+                if (!isAiSpeakingRef.current) {
+                    setCallStatus('listening');
+                }
+            };
+
             recognition.onresult = (event) => {
-                if (isMutedRef.current) return;
+                if (isMutedRef.current || isAiSpeakingRef.current) return;
 
                 let interimTranscript = '';
                 let finalTranscript = '';
@@ -246,6 +226,7 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
                     const textToSend = finalTranscript.trim();
                     if (textToSend) {
                         setCurrentUserSpeech(textToSend);
+                        stopListening();
                         handleUserSpokenMessage(textToSend);
                     }
                 }
@@ -255,21 +236,104 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
                 if (e.error !== 'no-speech') {
                     console.warn('Speech recognition status:', e.error);
                 }
+                recognitionActiveRef.current = false;
             };
 
             recognition.onend = () => {
-                // Auto restart recognition if still connected
-                if (isConnectedRef.current && recognitionRef.current) {
-                    try {
-                        recognitionRef.current.start();
-                    } catch (_) {}
+                recognitionActiveRef.current = false;
+                // Auto resume listening if call is active and AI is not speaking
+                if (isConnectedRef.current && !isAiSpeakingRef.current && !isMutedRef.current) {
+                    setTimeout(() => {
+                        if (isConnectedRef.current && !isAiSpeakingRef.current && !isMutedRef.current) {
+                            startListening();
+                        }
+                    }, 150);
                 }
             };
 
-            recognition.start();
             recognitionRef.current = recognition;
         } catch (e) {
             console.warn('Speech recognition init failed:', e);
+        }
+    };
+
+    const startCall = async () => {
+        setCallStatus('dialing');
+        setErrorMessage('');
+        setCallDuration(0);
+        setTranscript([]);
+        setCurrentAiSpeech('');
+        setCurrentUserSpeech('');
+        setShowKeypad(false);
+        setShowPrompts(false);
+        setShowInfo(false);
+        setTextInput('');
+        isConnectedRef.current = false;
+        isAiSpeakingRef.current = false;
+
+        // Ensure locked single female voice is selected
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+            const voices = window.speechSynthesis.getVoices() || [];
+            lockedFemaleVoiceRef.current = selectLockedFemaleVoice(voices, getLanguage());
+        }
+
+        // Initialize audio tones
+        tonePlayerRef.current = new CallTonePlayer();
+        try {
+            tonePlayerRef.current.startRinging();
+        } catch (_) {}
+
+        pcmPlayerRef.current = new PcmPlayer(24000);
+
+        try {
+            // Request mic permission check without holding audio track lock
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                try {
+                    const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    tempStream.getTracks().forEach(t => t.stop());
+                } catch (micErr) {
+                    console.warn('Microphone permission check:', micErr);
+                }
+            }
+
+            // Dialing delay for realistic call feel
+            await new Promise(r => setTimeout(r, 1400));
+
+            // Stop ringing & play connected chime
+            if (tonePlayerRef.current) {
+                tonePlayerRef.current.playConnectedTone();
+            }
+
+            try {
+                pcmPlayerRef.current.init();
+            } catch (_) {}
+
+            setCallStatus('connected');
+            isConnectedRef.current = true;
+
+            // Start duration timer
+            durationTimerRef.current = setInterval(() => {
+                setCallDuration(d => d + 1);
+            }, 1000);
+
+            // Initialize speech recognition
+            setupVoiceRecognition();
+
+            // Exact short, simple welcome greeting with company name
+            const lang = getLanguage();
+            const compName = activeCompany?.name || user?.company?.name || 'Nilkanth Solar';
+            const welcomeText = lang === 'gu'
+                ? `નમસ્તે, ${compName} SolarFlow માં આપનું સ્વાગત છે. હું તમારી શું મદદ કરી શકું?`
+                : `Hello, welcome to ${compName} SolarFlow. How can I help you?`;
+
+            setTranscript([{ role: 'ai', text: welcomeText }]);
+            speakAiResponse(welcomeText);
+
+        } catch (err) {
+            console.error('Call connection error:', err);
+            if (tonePlayerRef.current) tonePlayerRef.current.stop();
+            setCallStatus('error');
+            setErrorMessage(err.message || (getLanguage() === 'en' ? 'Could not connect call.' : 'કૉલ કનેક્ટ થઈ શક્યો નથી.'));
         }
     };
 
@@ -305,17 +369,19 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
             console.warn('Backend chat response error, using smart local engine:', err);
         }
 
-        // Smart Local Response fallback - NEVER shows "Could not process request"!
-        const fallbackReply = generateSmartLocalReply(cleanText, getLanguage(), user);
+        // Smart Local Response fallback - answered in the active language
+        const fallbackReply = generateSmartLocalReply(cleanText, getLanguage(), user, activeCompany);
         setTranscript(prev => [...prev, { role: 'ai', text: fallbackReply }]);
         speakAiResponse(fallbackReply);
     };
 
-    // Strictly Fixed Female Voice (Priya / Neha Style) with Bulletproof Web Audio Fallback
+    // Strictly Fixed Female Voice (Priya / Neha Style) with Sweet Pitch
     const speakAiResponse = (text) => {
         if (!text) return;
         setCurrentAiSpeech(text);
         setCallStatus('speaking');
+        isAiSpeakingRef.current = true;
+        stopListening(); // Stop mic while AI speaks so it doesn't hear itself
 
         if (typeof window !== 'undefined' && 'speechSynthesis' in window && isSpeakerOn) {
             try {
@@ -325,87 +391,74 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
 
             const lang = getLanguage();
             const utterance = new SpeechSynthesisUtterance(text);
-            window.__solarflow_current_utterance = utterance; // Prevents browser garbage collection bug!
+            window.__solarflow_current_utterance = utterance; // Prevents garbage collection cut-off
 
-            utterance.pitch = 1.15;
-            utterance.rate = 0.98;
+            // Ensure single locked female voice
+            if (!lockedFemaleVoiceRef.current) {
+                const voices = window.speechSynthesis.getVoices() || [];
+                lockedFemaleVoiceRef.current = selectLockedFemaleVoice(voices, lang);
+            }
+
+            if (lockedFemaleVoiceRef.current) {
+                utterance.voice = lockedFemaleVoiceRef.current;
+                utterance.lang = lockedFemaleVoiceRef.current.lang || (lang === 'en' ? 'en-IN' : 'gu-IN');
+            } else {
+                utterance.lang = lang === 'en' ? 'en-IN' : 'gu-IN';
+            }
+
+            // Fixed sweet Indian female pitch & natural rate
+            utterance.pitch = 1.25;
+            utterance.rate = 0.96;
             utterance.volume = 1.0;
 
-            const voices = window.speechSynthesis.getVoices() || [];
-            let chosenVoice = null;
-
-            if (lang === 'en') {
-                utterance.lang = 'en-IN';
-                const femaleKeywords = ['priya', 'neha', 'kavya', 'veena', 'zira', 'lekha', 'female', 'india', 'rishi'];
-                chosenVoice = voices.find(v => {
-                    const l = (v.lang || '').toLowerCase();
-                    const n = (v.name || '').toLowerCase();
-                    return (l.includes('in') || l.startsWith('en')) && femaleKeywords.some(k => n.includes(k));
-                }) || voices.find(v => (v.lang || '').toLowerCase().includes('in')) || voices.find(v => (v.lang || '').toLowerCase().startsWith('en'));
-            } else {
-                // Gujarati
-                const guVoice = voices.find(v => (v.lang || '').toLowerCase().startsWith('gu'));
-                if (guVoice) {
-                    chosenVoice = guVoice;
-                    utterance.lang = 'gu-IN';
-                } else {
-                    // If device lacks native Gujarati TTS voice (e.g. iOS Safari), use Indian Hindi or Indian English voice
-                    const hiVoice = voices.find(v => (v.lang || '').toLowerCase().startsWith('hi'));
-                    if (hiVoice) {
-                        chosenVoice = hiVoice;
-                        utterance.lang = 'hi-IN';
-                    } else {
-                        const inVoice = voices.find(v => (v.lang || '').toLowerCase().includes('in'));
-                        chosenVoice = inVoice || voices[0];
-                        utterance.lang = chosenVoice?.lang || 'en-IN';
-                    }
-                }
-            }
-
-            if (chosenVoice) {
-                utterance.voice = chosenVoice;
-            }
+            utterance.onstart = () => {
+                isAiSpeakingRef.current = true;
+                stopListening();
+                setCallStatus('speaking');
+            };
 
             utterance.onend = () => {
-                setCallStatus('connected');
+                isAiSpeakingRef.current = false;
                 setCurrentAiSpeech('');
                 window.__solarflow_current_utterance = null;
+                if (isConnectedRef.current && !isMutedRef.current) {
+                    setCallStatus('listening');
+                    startListening(); // Immediately start listening for user's question!
+                } else {
+                    setCallStatus('connected');
+                }
             };
 
             utterance.onerror = (e) => {
-                console.warn('SpeechSynthesis error, retrying without voice override:', e);
-                if (utterance.voice) {
-                    try {
-                        const fallbackUtterance = new SpeechSynthesisUtterance(text);
-                        window.__solarflow_current_utterance = fallbackUtterance;
-                        fallbackUtterance.lang = lang === 'en' ? 'en-IN' : 'gu-IN';
-                        fallbackUtterance.volume = 1.0;
-                        fallbackUtterance.onend = () => {
-                            setCallStatus('connected');
-                            setCurrentAiSpeech('');
-                            window.__solarflow_current_utterance = null;
-                        };
-                        window.speechSynthesis.speak(fallbackUtterance);
-                        return;
-                    } catch (_) {}
-                }
-                setCallStatus('connected');
+                console.warn('SpeechSynthesis error:', e);
+                isAiSpeakingRef.current = false;
                 setCurrentAiSpeech('');
                 window.__solarflow_current_utterance = null;
+                if (isConnectedRef.current && !isMutedRef.current) {
+                    setCallStatus('listening');
+                    startListening();
+                }
             };
 
             try {
                 window.speechSynthesis.speak(utterance);
             } catch (err) {
                 console.warn('speechSynthesis.speak failed:', err);
-                setCallStatus('connected');
-                setCurrentAiSpeech('');
+                isAiSpeakingRef.current = false;
+                if (isConnectedRef.current && !isMutedRef.current) {
+                    setCallStatus('listening');
+                    startListening();
+                }
             }
         } else {
             setTimeout(() => {
-                setCallStatus('connected');
+                isAiSpeakingRef.current = false;
                 setCurrentAiSpeech('');
-            }, 3000);
+                if (isConnectedRef.current && !isMutedRef.current) {
+                    setCallStatus('listening');
+                    startListening();
+                }
+            }, 1400);
         }
     };
 
@@ -425,11 +478,6 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
 
     const toggleMute = () => {
         setIsMuted(prev => !prev);
-        if (micStreamRef.current) {
-            micStreamRef.current.getAudioTracks().forEach(track => {
-                track.enabled = isMuted;
-            });
-        }
     };
 
     const toggleSpeaker = () => {
@@ -441,6 +489,9 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
 
     const endCall = () => {
         isConnectedRef.current = false;
+        isAiSpeakingRef.current = false;
+        stopListening();
+
         if (tonePlayerRef.current) {
             tonePlayerRef.current.playEndedTone();
             tonePlayerRef.current.stop();
@@ -450,13 +501,9 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
         }
         if (recognitionRef.current) {
             try {
-                recognitionRef.current.stop();
+                recognitionRef.current.abort();
                 recognitionRef.current = null;
             } catch (_) {}
-        }
-        if (micStreamRef.current) {
-            micStreamRef.current.getTracks().forEach(t => t.stop());
-            micStreamRef.current = null;
         }
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
@@ -807,15 +854,23 @@ export default function VoiceCallModal({ isOpen, onClose, user }) {
     );
 }
 
-function generateSmartLocalReply(text, lang, user) {
+function generateSmartLocalReply(text, lang, user, activeCompany) {
     const lower = (text || '').toLowerCase();
     const userName = user?.name || (lang === 'gu' ? 'સર' : 'Sir');
+    const compName = activeCompany?.name || user?.company?.name || 'SolarFlow';
+
+    // 0. Company Name
+    if (lower.includes('કંપની') || lower.includes('company')) {
+        return lang === 'gu'
+            ? `આ ${compName} SolarFlow સિસ્ટમ છે.`
+            : `This is ${compName} SolarFlow system.`;
+    }
 
     // 1. Creator / Jay Sir
     if (lower.includes('jay') || lower.includes('જય') || lower.includes('કોણે') || lower.includes('who') || lower.includes('creator') || lower.includes('owner')) {
         return lang === 'gu'
-            ? 'આ SolarFlow સોફ્ટવેર જય સર (Jay Sir) દ્વારા બનાવવામાં આવ્યું છે. હું તેમની AI સહાયક છું.'
-            : 'This SolarFlow system is designed and created by Jay Sir. I am SolarFlow, his AI voice assistant.';
+            ? `આ ${compName} SolarFlow સોફ્ટવેર જય સર (Jay Sir) દ્વારા બનાવવામાં આવ્યું છે. હું તેમની AI સહાયક છું.`
+            : `This ${compName} SolarFlow system is designed and created by Jay Sir. I am SolarFlow, his AI voice assistant.`;
     }
 
     // 2. Units / Generation
