@@ -149,7 +149,7 @@ function AppContent() {
                 {page === 'attendance-reports' && <AttendanceReportsPage/>}
                 {page === 'salaries' && <SalaryPage/>}
                 {page === 'stock' && <StockPage can={can} currentUser={user}/>}
-                {page === 'curtailment-loss' && <CurtailmentLossPage companyId={companyId} companies={companies}/>}
+                {page === 'curtailment-loss' && <CurtailmentLossPage companyId={companyId} companies={companies} currentUser={user}/>}
                 {page === 'my-attendance' && <MyAttendancePage companyId={companyId}/>}
                 {page === 'my-salary' && <MySalaryPage/>}
             </ErrorBoundary>

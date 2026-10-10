@@ -49,6 +49,7 @@ import {
     ShieldAlert,
     Check,
     Phone,
+    PhoneCall,
     Globe
 } from 'lucide-react';
 import {api, logout} from '../api';
@@ -2982,6 +2983,46 @@ export default function MobileAppView({
                                     {currentLang === 'en' ? 'Company Unit Loss' : 'કંપની વાઇઝ લોસ હિસાબ'}
                                 </div>
                             </button>
+
+                            {/* 12. Super Admin Special: AI Emergency Voice Call Test */}
+                            {(user?.role === 'super_admin' || user?.name === 'Super Admin' || user?.id === 4) && (
+                                <button
+                                    type="button"
+                                    className="dmenu-card dmenu-card-highlight"
+                                    style={{ border: '1.5px solid rgba(239, 68, 68, 0.4)', background: 'linear-gradient(145deg, #ffffff, #fff5f5)' }}
+                                    onClick={async () => {
+                                        setMoreMenuOpen(false);
+                                        try {
+                                            const res = await api('voice-agent/test-emergency-call', {
+                                                method: 'POST',
+                                                body: JSON.stringify({ plant_name: 'ઓલ સોલાર પ્લાન્ટ્સ (૬૬KV લાઇન)', fault_type: 'grid_66kv_tripping' })
+                                            });
+                                            if (res?.call) {
+                                                window.dispatchEvent(new CustomEvent('solarflow:emergency_call', {
+                                                    detail: { callData: res.call, autoAnswer: false }
+                                                }));
+                                            }
+                                        } catch (e) {
+                                            alert(e?.message || 'કૉલ શરૂ કરવામાં ભૂલ આવી.');
+                                        }
+                                    }}
+                                >
+                                    <div className="dmenu-card-top">
+                                        <div className="dmenu-bubble" style={{background: '#fef2f2', color: '#dc2626'}}>
+                                            <PhoneCall size={19} className="animate-pulse" />
+                                        </div>
+                                        <span className="dmenu-badge" style={{background: '#fee2e2', color: '#b91c1c'}}>
+                                            🧪 Test Call
+                                        </span>
+                                    </div>
+                                    <div className="dmenu-card-title" style={{color: '#b91c1c'}}>
+                                        {currentLang === 'en' ? 'AI Emergency Call Test' : 'AI ઇમરજન્સી કૉલ ટેસ્ટ'}
+                                    </div>
+                                    <div className="dmenu-card-sub">
+                                        {currentLang === 'en' ? 'Super Admin Only' : 'માત્ર સુપર એડમિન માટે'}
+                                    </div>
+                                </button>
+                            )}
                         </div>
 
                         <div className="drawer-footer-actions">

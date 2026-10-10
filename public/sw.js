@@ -1,5 +1,5 @@
 // SolarFlow PWA Service Worker
-const CACHE_NAME = 'solarflow-cache-v52';
+const CACHE_NAME = 'solarflow-cache-v53';
 const ASSETS_TO_CACHE = [
   '/site.webmanifest',
   '/icons/icon-192.png',
@@ -52,7 +52,7 @@ self.addEventListener('fetch', event => {
   );
 });
 
-// Push Notifications Handler
+// Push Notifications Handler (With High-Priority AI Incoming Voice Call Support)
 self.addEventListener('push', event => {
   let payload = {
     title: 'SolarFlow Notification',
@@ -72,26 +72,35 @@ self.addEventListener('push', event => {
     }
   }
 
+  const isEmergencyCall = payload.type === 'EMERGENCY_VOICE_CALL' || payload.data?.type === 'EMERGENCY_VOICE_CALL';
+
   const options = {
     body: payload.body,
     icon: payload.icon || '/icons/icon-192.png',
     badge: payload.badge || '/icons/icon-192.png',
-    data: { url: payload.url || '/' },
-    vibrate: payload.vibrate || [300, 150, 300, 150, 400],
+    data: payload.data || { url: payload.url || '/' },
+    vibrate: isEmergencyCall ? [800, 250, 800, 250, 1000, 300, 1200] : (payload.vibrate || [300, 150, 300, 150, 400]),
     sound: payload.sound || '/sounds/alert.mp3',
     requireInteraction: true,
     silent: false,
-    tag: payload.tag || 'solarflow-alert-' + Date.now(),
-    renotify: true
+    tag: payload.tag || (isEmergencyCall ? 'solarflow-emergency-call' : 'solarflow-alert-' + Date.now()),
+    renotify: true,
+    actions: isEmergencyCall ? [
+      { action: 'accept_call', title: '📞 કૉલ ઉપાડો (Accept)' },
+      { action: 'decline_call', title: '❌ કૉલ કાપો (Decline)' }
+    ] : []
   };
 
   event.waitUntil(
     Promise.all([
       self.registration.showNotification(payload.title, options),
-      // Also notify any open app windows to play audible chime
+      // Broadcast to all open app windows to trigger instant incoming phone call UI
       self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
         clients.forEach(client => {
-          client.postMessage({ type: 'PUSH_NOTIFICATION_RECEIVED', payload: payload });
+          client.postMessage({
+            type: isEmergencyCall ? 'EMERGENCY_VOICE_CALL' : 'PUSH_NOTIFICATION_RECEIVED',
+            payload: payload
+          });
         });
       })
     ])
@@ -100,12 +109,24 @@ self.addEventListener('push', event => {
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const urlToOpen = event.notification.data?.url || '/';
+
+  if (event.action === 'decline_call') {
+    return;
+  }
+
+  const isEmergencyCall = event.action === 'accept_call' || event.notification.data?.type === 'EMERGENCY_VOICE_CALL';
+  const urlToOpen = isEmergencyCall ? '/?incoming_call=1&auto_answer=1' : (event.notification.data?.url || '/');
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
       for (let client of windowClients) {
-        if (client.url === urlToOpen && 'focus' in client) {
+        if ('focus' in client) {
+          if (isEmergencyCall) {
+            client.postMessage({
+              type: 'EMERGENCY_VOICE_CALL_ACCEPT',
+              payload: event.notification.data
+            });
+          }
           return client.focus();
         }
       }

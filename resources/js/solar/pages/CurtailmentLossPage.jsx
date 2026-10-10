@@ -1,20 +1,52 @@
 import React, { useEffect, useState } from 'react';
 import { 
     ZapOff, Zap, AlertTriangle, Clock, TrendingDown, IndianRupee, 
-    RefreshCw, Filter, Building2, Calendar, FileText, CheckCircle2 
+    RefreshCw, Filter, Building2, Calendar, FileText, CheckCircle2,
+    Phone, PhoneCall, Radio
 } from 'lucide-react';
 import { api } from '../api';
 import { Empty } from '../components/Common';
 import ErrorWireCut, { ErrorBoundary } from '../components/ErrorWireCut';
 import { useTranslation } from '../context/LanguageContext';
 
-export default function CurtailmentLossPage({ companyId, companies = [] }) {
+export default function CurtailmentLossPage({ companyId, companies = [], currentUser }) {
     const { t, lang } = useTranslation();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [data, setData] = useState(null);
     const [selectedCompany, setSelectedCompany] = useState(companyId || 'all');
     const [selectedMonth, setSelectedMonth] = useState('all');
+    const [callingTest, setCallingTest] = useState(false);
+
+    const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.name === 'Super Admin' || currentUser?.id === 4;
+
+    const handleTestEmergencyCall = async () => {
+        setCallingTest(true);
+        try {
+            const plantLabel = selectedCompany !== 'all' 
+                ? (companies.find(c => String(c.id) === String(selectedCompany))?.name || 'ઓલ પ્લાન્ટ્સ') 
+                : 'ઓલ સોલાર પ્લાન્ટ્સ (૬૬KV સબસ્ટેશન લાઇન)';
+
+            const res = await api('voice-agent/test-emergency-call', {
+                method: 'POST',
+                body: JSON.stringify({
+                    plant_name: plantLabel,
+                    fault_type: 'grid_66kv_tripping'
+                })
+            });
+
+            // Trigger instant in-app ringing screen for testing
+            if (res?.call) {
+                window.dispatchEvent(new CustomEvent('solarflow:emergency_call', {
+                    detail: { callData: res.call, autoAnswer: false }
+                }));
+            }
+        } catch (e) {
+            alert(e?.message || 'કૉલ શરૂ કરવામાં ભૂલ આવી.');
+        } finally {
+            setCallingTest(false);
+        }
+    };
 
     const loadAnalytics = async () => {
         setLoading(true);
@@ -69,6 +101,72 @@ export default function CurtailmentLossPage({ companyId, companies = [] }) {
                         <span>{t('refresh', 'રિફ્રેશ')}</span>
                     </button>
                 </div>
+
+                {/* 🚨 Super Admin AI Emergency Call Testing Box */}
+                {isSuperAdmin && (
+                    <div style={{
+                        background: 'linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%)',
+                        border: '1px solid rgba(239, 68, 68, 0.4)',
+                        borderRadius: '16px',
+                        padding: '16px 20px',
+                        marginBottom: '20px',
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '14px',
+                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                            <div style={{
+                                width: '46px',
+                                height: '46px',
+                                borderRadius: '12px',
+                                background: 'rgba(239, 68, 68, 0.2)',
+                                border: '1.5px solid rgba(239, 68, 68, 0.5)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#ef4444'
+                            }}>
+                                <Phone size={22} className="animate-pulse" />
+                            </div>
+                            <div>
+                                <h4 style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: 800, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span>⚡ AI ઇમરજન્સી કૉલ ટેસ્ટિંગ</span>
+                                    <span style={{ fontSize: '10px', background: '#dc2626', color: '#fff', padding: '2px 8px', borderRadius: '10px' }}>માત્ર સુપર એડમિન</span>
+                                </h4>
+                                <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8' }}>
+                                    ૬૬KV લાઇન ટ્રીપ થાય ત્યારે AI એજન્ટ સુપર એડમિનને ફોન કરી ગુજરાતીમાં એલર્ટ આપશે. લાઇવ ટેસ્ટ કરવા બટન દબાવો.
+                                </p>
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            disabled={callingTest}
+                            onClick={handleTestEmergencyCall}
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: '12px',
+                                padding: '10px 18px',
+                                fontSize: '13px',
+                                fontWeight: 700,
+                                cursor: callingTest ? 'not-allowed' : 'pointer',
+                                boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            <PhoneCall size={16} className={callingTest ? 'animate-bounce' : ''} />
+                            <span>{callingTest ? 'કૉલિંગ ડિસ્પેચ...' : '📞 AI કૉલ ટેસ્ટ કરો'}</span>
+                        </button>
+                    </div>
+                )}
 
                 {/* Filter Toolbar */}
                 <div className="activity-toolbar" style={{ marginBottom: 16 }}>

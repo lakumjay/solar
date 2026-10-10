@@ -6,6 +6,7 @@ import NotificationPermissionModal from './NotificationPermissionModal';
 import AppSplashScreen from './AppSplashScreen';
 import MilestoneCelebrationModal from './MilestoneCelebrationModal';
 import VoiceCallModal, {unlockVoiceCallAudio} from './VoiceCallModal';
+import EmergencyIncomingCallModal from './EmergencyIncomingCallModal';
 import {useTranslation} from '../context/LanguageContext';
 
 export default function AppShell({user, page, setPage, companies, companyId, setCompanyId, children}) {
@@ -28,6 +29,97 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         }
     });
     const [showVoiceCall, setShowVoiceCall] = useState(false);
+    const [emergencyCall, setEmergencyCall] = useState({
+        isOpen: false,
+        autoAnswer: false,
+        data: null
+    });
+
+    // 1. Check URL parameters on mount (?incoming_call=1 or ?emergency_call=1)
+    useEffect(() => {
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('incoming_call') || urlParams.has('emergency_call')) {
+                const autoAnswer = urlParams.get('auto_answer') === '1';
+                setEmergencyCall({
+                    isOpen: true,
+                    autoAnswer,
+                    data: {
+                        caller_name: '⚡ SolarFlow AI Emergency Dispatch',
+                        caller_number: '+91 1800-SOLAR-AI',
+                        alert_title: '🚨 ૬૬KV લાઇન ટ્રીપ / ઇન્વર્ટર બંધ',
+                        plant_name: 'ઓલ પ્લાન્ટ્સ (All Plants)',
+                        speech_text: 'નમસ્તે સુપર એડમિન! સોલાર પ્લાન્ટ પર ઇમરજન્સી એલર્ટ છે. ૬૬KV સબસ્ટેશન લાઇન ટ્રીપ થઈ ગઈ છે અથવા ઇન્વર્ટર બંધ છે. કુલ ઉત્પાદન ૦ kW થઈ ગયું છે. કૃપા કરીને તાત્કાલિક સાઇટ ટીમ અથવા ઇજનેરનો સંપર્ક કરો અને ગ્રીડ ચેક કરો.'
+                    }
+                });
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        } catch (_) {}
+    }, []);
+
+    // 2. Listen to ServiceWorker push message & custom window events
+    useEffect(() => {
+        const handleSwMessage = (e) => {
+            if (e.data?.type === 'EMERGENCY_VOICE_CALL') {
+                const callData = e.data.payload?.data?.call || e.data.payload?.call || e.data.payload;
+                setEmergencyCall({
+                    isOpen: true,
+                    autoAnswer: false,
+                    data: callData
+                });
+            } else if (e.data?.type === 'EMERGENCY_VOICE_CALL_ACCEPT') {
+                const callData = e.data.payload?.call || e.data.payload;
+                setEmergencyCall({
+                    isOpen: true,
+                    autoAnswer: true,
+                    data: callData
+                });
+            }
+        };
+
+        const handleCustomEmergencyEvent = (e) => {
+            setEmergencyCall({
+                isOpen: true,
+                autoAnswer: !!e.detail?.autoAnswer,
+                data: e.detail?.callData || null
+            });
+        };
+
+        if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', handleSwMessage);
+        }
+        window.addEventListener('solarflow:emergency_call', handleCustomEmergencyEvent);
+
+        return () => {
+            if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+                navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+            }
+            window.removeEventListener('solarflow:emergency_call', handleCustomEmergencyEvent);
+        };
+    }, []);
+
+    // 3. Periodic emergency status check for Super Admin (15s interval)
+    useEffect(() => {
+        if (!user) return;
+        const isSuperAdmin = user.role === 'super_admin' || user.name === 'Super Admin' || user.id === 4;
+        if (!isSuperAdmin) return;
+
+        const checkEmergencyStatus = async () => {
+            try {
+                const res = await api('voice-agent/emergency-status');
+                if (res?.active && res?.call && !emergencyCall.isOpen) {
+                    setEmergencyCall({
+                        isOpen: true,
+                        autoAnswer: false,
+                        data: res.call
+                    });
+                }
+            } catch (_) {}
+        };
+
+        const interval = setInterval(checkEmergencyStatus, 15000);
+        return () => clearInterval(interval);
+    }, [user, emergencyCall.isOpen]);
 
     useEffect(() => {
         const checkMobile = () => {
@@ -375,6 +467,19 @@ export default function AppShell({user, page, setPage, companies, companyId, set
                     user={user}
                     activeCompany={activeCompany}
                     liveSolarData={liveSolarData}
+                />
+            )}
+
+            {/* 🚨 AI Emergency Incoming Call Fullscreen Modal */}
+            {emergencyCall.isOpen && (
+                <EmergencyIncomingCallModal
+                    isOpen={emergencyCall.isOpen}
+                    onClose={() => setEmergencyCall({ isOpen: false, autoAnswer: false, data: null })}
+                    callData={emergencyCall.data}
+                    autoAnswer={emergencyCall.autoAnswer}
+                    onNavigateLossAnalytics={() => {
+                        setPage('curtailment-loss');
+                    }}
                 />
             )}
         </>

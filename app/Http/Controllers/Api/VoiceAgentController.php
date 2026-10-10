@@ -83,6 +83,120 @@ class VoiceAgentController extends Controller
     }
 
     /**
+     * Dispatch AI Emergency Voice Call (For testing: Restricted STRICTLY to Super Admin)
+     */
+    public function testEmergencyCall(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        // STRICT RESTRICTION: Only Super Admin can test and receive calls during testing phase
+        $isSuperAdmin = ($user->role === 'super_admin' || $user->name === 'Super Admin' || $user->id === 4);
+        if (! $isSuperAdmin) {
+            return response()->json([
+                'success' => false,
+                'error' => 'આ સુવિધા હાલ માત્ર સુપર એડમિન માટે ટેસ્ટિંગ હેઠળ છે.'
+            ], 403);
+        }
+
+        $plantName = $request->input('plant_name', 'ઓલ સોલાર પ્લાન્ટ્સ (૬૬KV સબસ્ટેશન લાઇન)');
+        $faultType = $request->input('fault_type', 'grid_66kv_tripping');
+
+        // Natural Gujarati AI Voice Alert script
+        $speechGu = "નમસ્તે સુપર એડમિન! સોલાર પ્લાન્ટ પર ઇમરજન્સી એલર્ટ છે. ૬૬KV સબસ્ટેશન લાઇન ટ્રીપ થઈ ગઈ છે અથવા ઇન્વર્ટર બંધ છે. કુલ ઉત્પાદન ૦ kW થઈ ગયું છે. કૃપા કરીને તાત્કાલિક સાઇટ ટીમ અથવા ઇજનેરનો સંપર્ક કરો અને ગ્રીડ ચેક કરો.";
+
+        $callPayload = [
+            'id' => 'emergency_call_' . time(),
+            'caller_name' => '⚡ SolarFlow AI Emergency Dispatch',
+            'caller_number' => '+91 1800-SOLAR-AI',
+            'alert_title' => '🚨 ૬૬KV લાઇન ટ્રીપ / ઇન્વર્ટર બંધ',
+            'speech_text' => $speechGu,
+            'plant_name' => $plantName,
+            'fault_type' => $faultType,
+            'engineer_phone' => '+919909900066',
+            'target_user_id' => $user->id,
+            'timestamp' => now()->toIso8601String(),
+        ];
+
+        // Store active emergency call in Cache for 5 minutes
+        \Illuminate\Support\Facades\Cache::put('active_emergency_call_super_admin', $callPayload, now()->addMinutes(5));
+
+        // Dispatch High-Priority Web Push to Super Admin's subscriptions
+        $pushResult = ['sent' => 0];
+        try {
+            $webPushService = app(\App\Services\WebPushService::class);
+            $pushResult = $webPushService->sendNotification([
+                'title' => '📞 AI INCOMING CALL: ⚡ SolarFlow Emergency',
+                'body' => '🚨 ૬૬KV લાઇન ટ્રીપ / ઇન્વર્ટર 0 kW! કૉલ ઉપાડવા માટે અહીં ટૅપ કરો.',
+                'icon' => '/icons/icon-192.png',
+                'badge' => '/icons/icon-192.png',
+                'url' => '/?incoming_call=1&auto_answer=0',
+                'data' => [
+                    'type' => 'EMERGENCY_VOICE_CALL',
+                    'url' => '/?incoming_call=1&auto_answer=0',
+                    'call' => $callPayload,
+                ],
+                'vibrate' => [800, 250, 800, 250, 1000, 300, 1200],
+                'sound' => '/sounds/alert.mp3',
+                'requireInteraction' => true,
+                'renotify' => true,
+                'tag' => 'incoming-emergency-call',
+            ], $user->id);
+        } catch (\Throwable $e) {
+            Log::warning('WebPush emergency dispatch error: ' . $e->getMessage());
+        }
+
+        // Activity log
+        try {
+            \App\Services\ActivityLogger::log(
+                'voice_emergency_call_tested',
+                'AI Voice Emergency Call tested by Super Admin',
+                null,
+                ['user' => $user->name, 'plant' => $plantName, 'push_sent' => $pushResult['sent'] ?? 0]
+            );
+        } catch (\Throwable $e) {}
+
+        return response()->json([
+            'success' => true,
+            'message' => 'સુપર એડમિન માટે ઇમરજન્સી AI કૉલ સફળતાપૂર્વક ડિસ્પેચ થયો.',
+            'call' => $callPayload,
+            'push_result' => $pushResult,
+        ]);
+    }
+
+    /**
+     * Check if there is an active emergency incoming call pending for Super Admin
+     */
+    public function emergencyStatus(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['active' => false]);
+        }
+        $isSuperAdmin = ($user->role === 'super_admin' || $user->name === 'Super Admin' || $user->id === 4);
+        if (! $isSuperAdmin) {
+            return response()->json(['active' => false]);
+        }
+
+        $activeCall = \Illuminate\Support\Facades\Cache::get('active_emergency_call_super_admin');
+        return response()->json([
+            'active' => !empty($activeCall),
+            'call' => $activeCall,
+        ]);
+    }
+
+    /**
+     * Dismiss active emergency call state
+     */
+    public function dismissEmergency(Request $request): JsonResponse
+    {
+        \Illuminate\Support\Facades\Cache::forget('active_emergency_call_super_admin');
+        return response()->json(['success' => true]);
+    }
+
+    /**
      * Synthesize natural studio female voice audio (Edge Neural Engine + Fast Disk Cache)
      */
     public function tts(Request $request)
