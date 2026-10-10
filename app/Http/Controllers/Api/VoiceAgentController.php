@@ -37,8 +37,8 @@ class VoiceAgentController extends Controller
             'apiKey' => $apiKey ?: 'solarflow_ready',
             'hasGeminiKey' => !empty($apiKey),
             'model' => 'gemini-2.0-flash',
-            'liveModel' => env('GEMINI_LIVE_MODEL', 'gemini-2.0-flash-exp'),
-            'live_model' => env('GEMINI_LIVE_MODEL', 'gemini-2.0-flash-exp'),
+            'liveModel' => env('GEMINI_LIVE_MODEL', 'gemini-3.1-flash-live-preview'),
+            'live_model' => env('GEMINI_LIVE_MODEL', 'gemini-3.1-flash-live-preview'),
             'voice_name' => 'Aoede',
             'user' => [
                 'id' => $user?->id,
@@ -91,8 +91,14 @@ class VoiceAgentController extends Controller
         $cleanText = mb_substr($cleanText, 0, 450);
 
         $cacheDir = storage_path('app/public/voice_cache');
-        if (!File::exists($cacheDir)) {
-            File::makeDirectory($cacheDir, 0755, true);
+        if (!File::exists($cacheDir) || !is_writable($cacheDir)) {
+            $tempDir = sys_get_temp_dir() . '/solar_voice_cache';
+            if (!File::exists($tempDir)) {
+                @File::makeDirectory($tempDir, 0777, true);
+            }
+            if (is_writable($tempDir)) {
+                $cacheDir = $tempDir;
+            }
         }
 
         $cacheHash = md5($cleanText . '_' . $language);
@@ -145,7 +151,7 @@ class VoiceAgentController extends Controller
                 ])->timeout(5)->get($url);
 
                 if ($res->successful() && strlen($res->body()) > 200) {
-                    file_put_contents($cachedFile, $res->body());
+                    @file_put_contents($cachedFile, $res->body());
                     return response($res->body(), 200, [
                         'Content-Type' => 'audio/mpeg',
                         'Content-Disposition' => 'inline; filename="voice.mp3"',
@@ -244,10 +250,10 @@ class VoiceAgentController extends Controller
 
             $tools = $this->getToolsDeclaration();
 
-            // Use gemini-2.0-flash / gemini-1.5-flash for fast mobile voice response
+            // Use gemini-3.8-flash for fast, ultra-reliable AI response
             $response = Http::timeout(6)->withHeaders([
                 'Content-Type' => 'application/json',
-            ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}", [
+            ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={$apiKey}", [
                 'system_instruction' => [
                     'parts' => [['text' => $systemPrompt]]
                 ],
@@ -273,10 +279,10 @@ class VoiceAgentController extends Controller
                         $fArgs = $part['functionCall']['args'] ?? [];
                         $toolResult = $this->dataService->querySolarData($user, $fName, $fArgs);
 
-                        // Second turn with tool result
-                        $contents[] = ['role' => 'model', 'parts' => [['functionCall' => $part['functionCall']]]];
+                        // Second turn with tool result (preserving thoughtSignature for Gemini 3.8)
+                        $contents[] = $candidates[0]['content'];
                         $contents[] = [
-                            'role' => 'function',
+                            'role' => 'user',
                             'parts' => [[
                                 'functionResponse' => [
                                     'name' => $fName,
@@ -286,7 +292,7 @@ class VoiceAgentController extends Controller
                         ];
 
                         $resFollowup = Http::timeout(6)->withHeaders(['Content-Type' => 'application/json'])
-                            ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}", [
+                            ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={$apiKey}", [
                                 'system_instruction' => ['parts' => [['text' => $systemPrompt]]],
                                 'contents' => $contents,
                             ]);
@@ -299,6 +305,8 @@ class VoiceAgentController extends Controller
                                 'tool_data' => $toolResult,
                                 'language' => $language,
                             ]);
+                        } else {
+                            Log::warning('resFollowup error: ' . $resFollowup->status() . ' - ' . $resFollowup->body());
                         }
                     }
                 }
@@ -692,7 +700,7 @@ CTX;
                         'description' => 'Get shared expense percentages (38.15%, 39.69%, 22.16%) and recent active shared expense entries.',
                         'parameters' => [
                             'type' => 'OBJECT',
-                            'properties' => []
+                            'properties' => (object)[]
                         ]
                     ],
                     [
@@ -742,7 +750,7 @@ CTX;
                         'description' => 'Get stock inventory items, quantities and low stock alerts.',
                         'parameters' => [
                             'type' => 'OBJECT',
-                            'properties' => []
+                            'properties' => (object)[]
                         ]
                     ],
                 ]

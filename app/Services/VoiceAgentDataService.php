@@ -68,7 +68,7 @@ class VoiceAgentDataService
                 return $this->getSharedExpenses($user, $params);
 
             case 'get_live_plant_status':
-                return $this->getLivePlantStatus($targetCompanyId);
+                return $this->getLivePlantStatus($targetCompanyId, $params);
 
             case 'get_employee_attendance':
                 return $this->getEmployeeAttendance($user, $targetCompanyId, $params);
@@ -108,11 +108,10 @@ class VoiceAgentDataService
                 $overview = $params['live_solar_data'] ?? null;
                 if (empty($overview)) {
                     $cacheKey = $companyId ? "dashboard_solar_overview_{$companyId}" : "dashboard_solar_overview_all";
-                    $overview = \Illuminate\Support\Facades\Cache::get($cacheKey);
+                    $overview = \Illuminate\Support\Facades\Cache::get($cacheKey) ?: \Illuminate\Support\Facades\Cache::get('dashboard_solar_overview_all');
                 }
                 if (empty($overview)) {
-                    $solarCloud = app(ISolarCloudService::class);
-                    $overview = $solarCloud->getDashboardSolarOverview($companyId ? (string)$companyId : null);
+                    $overview = $this->getLocalDashboardOverview($companyId);
                 }
 
                 $liveKw = (float)($overview['live_total_power_kw'] ?? $overview['realtime_power_kw'] ?? 0);
@@ -305,11 +304,10 @@ class VoiceAgentDataService
         $overview = $params['live_solar_data'] ?? null;
         if (empty($overview)) {
             $cacheKey = $companyId ? "dashboard_solar_overview_{$companyId}" : "dashboard_solar_overview_all";
-            $overview = \Illuminate\Support\Facades\Cache::get($cacheKey);
+            $overview = \Illuminate\Support\Facades\Cache::get($cacheKey) ?: \Illuminate\Support\Facades\Cache::get('dashboard_solar_overview_all');
         }
         if (empty($overview)) {
-            $solarCloud = app(ISolarCloudService::class);
-            $overview = $solarCloud->getDashboardSolarOverview($companyId ? (string)$companyId : null);
+            $overview = $this->getLocalDashboardOverview($companyId);
         }
 
         $matchedInverter = null;
@@ -482,9 +480,15 @@ class VoiceAgentDataService
         // If today's live revenue requested
         if (!empty($params['is_today'])) {
             try {
-                $solarCloud = app(ISolarCloudService::class);
-                $overview = $solarCloud->getDashboardSolarOverview($companyId ? (string)$companyId : null);
-                $todayUnits = (float)($overview['today_total_kwh'] ?? 0);
+                $overview = $params['live_solar_data'] ?? null;
+                if (empty($overview)) {
+                    $cacheKey = $companyId ? "dashboard_solar_overview_{$companyId}" : "dashboard_solar_overview_all";
+                    $overview = \Illuminate\Support\Facades\Cache::get($cacheKey) ?: \Illuminate\Support\Facades\Cache::get('dashboard_solar_overview_all');
+                }
+                if (empty($overview)) {
+                    $overview = $this->getLocalDashboardOverview($companyId);
+                }
+                $todayUnits = (float)($overview['today_total_kwh'] ?? $overview['today_units_kwh'] ?? 0);
                 $todayRev = round($todayUnits * $ratePerUnit, 2);
                 return [
                     'authorized' => true,
@@ -551,15 +555,21 @@ class VoiceAgentDataService
         ];
     }
 
-    private function getLivePlantStatus(?int $companyId): array
+    private function getLivePlantStatus(?int $companyId, array $params = []): array
     {
         try {
-            $solarCloud = app(ISolarCloudService::class);
-            $overview = $solarCloud->getDashboardSolarOverview($companyId ? (string)$companyId : null);
+            $overview = $params['live_solar_data'] ?? null;
+            if (empty($overview)) {
+                $cacheKey = $companyId ? "dashboard_solar_overview_{$companyId}" : "dashboard_solar_overview_all";
+                $overview = \Illuminate\Support\Facades\Cache::get($cacheKey) ?: \Illuminate\Support\Facades\Cache::get('dashboard_solar_overview_all');
+            }
+            if (empty($overview)) {
+                $overview = $this->getLocalDashboardOverview($companyId);
+            }
 
-            $liveKw = (float)($overview['live_total_power_kw'] ?? 0);
-            $todayKwh = (float)($overview['today_total_kwh'] ?? 0);
-            $curtActive = (bool)($overview['curtailment_active'] ?? false);
+            $liveKw = (float)($overview['live_total_power_kw'] ?? $overview['realtime_power_kw'] ?? 0);
+            $todayKwh = (float)($overview['today_total_kwh'] ?? $overview['today_units_kwh'] ?? 0);
+            $curtActive = (bool)($overview['curtailment_active'] ?? !empty($overview['curtailment_system']['is_any_active']));
 
             $companies = [];
             $totalInverters = 0;
@@ -768,6 +778,64 @@ class VoiceAgentDataService
             'authorized' => true,
             'live_generation' => $live,
             'plant_status' => $plants,
+        ];
+    }
+
+    /**
+     * Internal zero-latency dashboard memory fallback: fetches directly from DB without external iSolarCloud API call
+     */
+    private function getLocalDashboardOverview(?int $companyId = null): array
+    {
+        $compQuery = Company::where('active', true)->with(['inverters' => fn($q) => $q->where('active', true)]);
+        if ($companyId) {
+            $compQuery->where('id', $companyId);
+        }
+        $companies = $compQuery->get();
+
+        $today = Carbon::today()->toDateString();
+        $yesterday = Carbon::yesterday()->toDateString();
+
+        $todayReading = DailyReading::where('reading_date', $today);
+        if ($companyId) $todayReading->where('company_id', $companyId);
+        $todayUnits = (float)($todayReading->sum('generation_kwh') ?: $todayReading->sum('plant_export_unit') ?: 0);
+
+        $yesterdayReading = DailyReading::where('reading_date', $yesterday);
+        if ($companyId) $yesterdayReading->where('company_id', $companyId);
+        $yesterdayUnits = (float)($yesterdayReading->sum('generation_kwh') ?: $yesterdayReading->sum('plant_export_unit') ?: 0);
+
+        $companiesData = [];
+        $totalLiveKw = 0;
+        foreach ($companies as $comp) {
+            $invList = [];
+            foreach ($comp->inverters as $inv) {
+                $latestOutput = DailyInverterOutput::where('inverter_id', $inv->id)
+                    ->latest('id')
+                    ->first();
+                $invTodayKwh = (float)($latestOutput?->today_kwh ?? $latestOutput?->generation ?? 0);
+                $invLiveKw = (float)($latestOutput?->live_kw ?? 0);
+                $totalLiveKw += $invLiveKw;
+
+                $invList[] = [
+                    'id' => $inv->id,
+                    'name' => $inv->name,
+                    'live_kw' => $invLiveKw,
+                    'today_kwh' => $invTodayKwh,
+                    'online' => (bool)$inv->active,
+                ];
+            }
+            $companiesData[] = [
+                'company_id' => $comp->id,
+                'company_name' => $comp->name,
+                'inverters' => $invList,
+            ];
+        }
+
+        return [
+            'live_total_power_kw' => $totalLiveKw,
+            'today_total_kwh' => $todayUnits,
+            'yesterday_total_kwh' => $yesterdayUnits,
+            'curtailment_active' => false,
+            'companies' => $companiesData,
         ];
     }
 }
