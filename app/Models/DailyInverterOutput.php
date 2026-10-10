@@ -9,4 +9,9 @@ class DailyInverterOutput extends Model
     protected $guarded = [];
 
     protected $casts = ['generation' => 'decimal:2'];
+
+    public function dailyReading()
+    {
+        return $this->belongsTo(DailyReading::class);
+    }
 }

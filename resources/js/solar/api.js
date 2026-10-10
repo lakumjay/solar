@@ -1,6 +1,11 @@
 export async function api(path, options = {}) {
     const isFormData = options.body instanceof FormData;
-    const response = await fetch(`/api/${path}`, {
+    let base = '/api/';
+    if (typeof window !== 'undefined' && window.location.pathname.includes('/git/public')) {
+        base = '/git/public/api/';
+    }
+    const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+    const response = await fetch(`${base}${cleanPath}`, {
         credentials: 'same-origin',
         headers: {
             ...(isFormData ? {} : {'Content-Type': 'application/json'}),

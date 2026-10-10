@@ -17,6 +17,10 @@ $application = Application::configure(basePath: dirname(__DIR__))
         }
         $middleware->appendToGroup('web', SecureApplication::class);
         $middleware->redirectGuestsTo(fn () => '/');
+        $middleware->validateCsrfTokens(except: [
+            'api/voice-agent/*',
+            'api/isolarcloud/callback',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

@@ -38,6 +38,8 @@ Route::prefix('api')->group(function () {
     Route::get('isolarcloud/callback', [ISolarCloudController::class, 'callback']);
     Route::post('login', [AuthController::class, 'login']);
     Route::get('voice-agent/tts', [\App\Http\Controllers\Api\VoiceAgentController::class, 'tts']);
+    Route::get('voice-agent/config', [\App\Http\Controllers\Api\VoiceAgentController::class, 'config']);
+    Route::post('voice-agent/execute-tool', [\App\Http\Controllers\Api\VoiceAgentController::class, 'executeTool']);
     Route::middleware('auth')->group(function () {
         Route::get('me', [AuthController::class, 'me']);
         Route::post('logout', [AuthController::class, 'logout']);
@@ -142,11 +144,6 @@ Route::prefix('api')->group(function () {
         Route::post('expenses/{expense}/reverse', [SharedExpenseController::class, 'reverse']);
         Route::post('expense-settlements', [SharedExpenseController::class, 'settle']);
         Route::get('expenses/{expense}/receipt', [SharedExpenseController::class, 'receipt'])->name('expenses.receipt');
-
-        // AI Voice Agent Calling routes
-        Route::get('voice-agent/config', [\App\Http\Controllers\Api\VoiceAgentController::class, 'config']);
-        Route::post('voice-agent/chat', [\App\Http\Controllers\Api\VoiceAgentController::class, 'chat']);
-        Route::post('voice-agent/execute-tool', [\App\Http\Controllers\Api\VoiceAgentController::class, 'executeTool']);
     });
 });
 

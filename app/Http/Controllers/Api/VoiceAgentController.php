@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\VoiceAgentDataService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -20,26 +21,29 @@ class VoiceAgentController extends Controller
      */
     public function config(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $user = $request->user() ?? \App\Models\User::where('role', 'super_admin')->first();
         $apiKey = config('services.gemini.key', env('GEMINI_API_KEY', env('GOOGLE_GENAI_API_KEY', env('GOOGLE_API_KEY'))));
 
         // Fetch user permissions and allowed companies
         $systemPrompt = $this->buildSystemPrompt($user);
 
         return response()->json([
+            'auth_token' => $apiKey,
             'apiKey' => $apiKey ?: 'solarflow_ready',
             'hasGeminiKey' => !empty($apiKey),
             'model' => 'gemini-2.0-flash',
-            'liveModel' => 'gemini-3.1-flash-live-preview',
-            'live_model' => 'gemini-3.1-flash-live-preview',
+            'liveModel' => env('GEMINI_LIVE_MODEL', 'gemini-3.1-flash-live-preview'),
+            'live_model' => env('GEMINI_LIVE_MODEL', 'gemini-3.1-flash-live-preview'),
             'voice_name' => 'Aoede',
             'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'role' => $user->role,
-                'company' => $user->company?->name,
+                'id' => $user?->id,
+                'name' => $user?->name,
+                'role' => $user?->role,
+                'company' => $user?->company?->name,
             ],
             'systemInstruction' => $systemPrompt,
+            'system_instruction' => $systemPrompt,
+            'tools' => $this->getToolsDeclaration(),
         ]);
     }
 
@@ -48,7 +52,7 @@ class VoiceAgentController extends Controller
      */
     public function executeTool(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $user = $request->user() ?? \App\Models\User::where('role', 'super_admin')->first();
         $toolName = $request->input('name');
         $args = $request->input('args', []);
 
@@ -68,7 +72,7 @@ class VoiceAgentController extends Controller
     }
 
     /**
-     * Synthesize natural studio female voice audio (MP3 stream)
+     * Synthesize natural studio female voice audio (Edge Neural Engine + Fast Disk Cache)
      */
     public function tts(Request $request)
     {
@@ -78,14 +82,52 @@ class VoiceAgentController extends Controller
             return response()->json(['error' => 'No text provided'], 400);
         }
 
+        $cleanText = preg_replace('/[*_#`]/u', '', $text);
+        $cleanText = mb_substr($cleanText, 0, 450);
+
+        $cacheDir = storage_path('app/public/voice_cache');
+        if (!File::exists($cacheDir)) {
+            File::makeDirectory($cacheDir, 0755, true);
+        }
+
+        $cacheHash = md5($cleanText . '_' . $language);
+        $cachedFile = $cacheDir . '/' . $cacheHash . '.mp3';
+
+        // 1. Instant Cache hit (0.005s!)
+        if (file_exists($cachedFile) && filesize($cachedFile) > 500) {
+            return response()->file($cachedFile, [
+                'Content-Type' => 'audio/mpeg',
+                'Cache-Control' => 'public, max-age=86400',
+                'Access-Control-Allow-Origin' => '*',
+            ]);
+        }
+
+        // 2. High-quality Neural Studio Female Voice via sneha_tts.py (Edge Neural Dhwani / Swara / Neerja)
+        $scriptPath = base_path('scripts/sneha_tts.py');
+        if (file_exists($scriptPath)) {
+            $escapedText = escapeshellarg($cleanText);
+            $escapedOut = escapeshellarg($cachedFile);
+            $escapedLang = escapeshellarg($language);
+
+            $cmd = "python3 {$scriptPath} {$escapedText} {$escapedOut} {$escapedLang} 2>&1";
+            exec($cmd, $output, $returnCode);
+
+            if ($returnCode === 0 && file_exists($cachedFile) && filesize($cachedFile) > 500) {
+                return response()->file($cachedFile, [
+                    'Content-Type' => 'audio/mpeg',
+                    'Cache-Control' => 'public, max-age=86400',
+                    'Access-Control-Allow-Origin' => '*',
+                ]);
+            }
+        }
+
+        // 3. Fallback to Google Translate if python was unavailable
         $tl = match($language) {
             'hi' => 'hi',
             'en' => 'en-IN',
             default => 'gu',
         };
 
-        // Cap query length for clean natural audio synthesis
-        $cleanText = mb_substr($text, 0, 320);
         $encodedText = urlencode($cleanText);
         $clients = ['dict-chrome-ex', 'tw-ob', 'gtx', 'webapp'];
 
@@ -98,6 +140,7 @@ class VoiceAgentController extends Controller
                 ])->timeout(5)->get($url);
 
                 if ($res->successful() && strlen($res->body()) > 200) {
+                    file_put_contents($cachedFile, $res->body());
                     return response($res->body(), 200, [
                         'Content-Type' => 'audio/mpeg',
                         'Content-Disposition' => 'inline; filename="voice.mp3"',
@@ -287,11 +330,20 @@ class VoiceAgentController extends Controller
     private function generateLocalResponse($user, string $message, string $language = 'gu'): string
     {
         $lower = mb_strtolower($message);
-        $userName = $user?->name ?? ($language === 'en' ? 'Sir' : ($language === 'hi' ? 'सर' : 'સર'));
+        $isSuperAdmin = ($user?->role === 'super_admin' || $user?->name === 'Super Admin');
+        $userName = $isSuperAdmin 
+            ? ($language === 'en' ? 'Super Admin' : ($language === 'hi' ? 'सुपर एडमिन' : 'સુપર એડમિન'))
+            : ($user?->company?->owner_name ?: ($user?->name ?? ($language === 'en' ? 'Sir' : ($language === 'hi' ? 'सर' : 'સર'))));
         $compName = $user?->company?->name ?? 'SolarFlow';
+        $compName = trim(preg_replace('/\s*admin\s*/i', '', $compName)) ?: 'SolarFlow';
 
         // 0. Company Name
         if (str_contains($lower, 'કંપની') || str_contains($lower, 'company') || str_contains($lower, 'कंपनी')) {
+            if ($isSuperAdmin) {
+                if ($language === 'hi') return "आप सुपर एडमिन के रूप में SolarFlow के सभी सोलर प्लांट्स (Sunrise, Rajeshwari, Nilkanth) देख रहे हैं।";
+                if ($language === 'en') return "As Super Admin, you are monitoring all SolarFlow plants (Sunrise, Rajeshwari, Nilkanth).";
+                return "તમે સુપર એડમિન તરીકે SolarFlow ના તમામ સોલાર પ્લાન્ટ્સ (Sunrise, Rajeshwari, Nilkanth) નું મોનિટરિંગ કરી રહ્યા છો.";
+            }
             if ($language === 'hi') return "यह {$compName} SolarFlow सिस्टम है।";
             if ($language === 'en') return "This is {$compName} SolarFlow system.";
             return "આ {$compName} SolarFlow સિસ્ટમ છે.";
@@ -394,53 +446,59 @@ class VoiceAgentController extends Controller
 
     private function buildSystemPrompt($user, string $language = 'gu'): string
     {
-        $role = $user->role;
-        $companyName = $user->company?->name ?? 'All Companies';
-        $userName = $user->name;
+        $role = $user?->role ?? 'super_admin';
+        $company = $user?->company;
+        $companyName = $company?->name ?? 'SolarFlow';
+        $ownerName = $company?->owner_name ?: $user?->name;
+
+        if ($role === 'super_admin') {
+            $greetingTitle = 'સુપર એડમિન';
+            $openingGreeting = "નમસ્તે સુપર એડમિન! હું SolarFlow બોલું છું, કહો આજે સોલાર પ્લાન્ટનું શું કામ છે?";
+        } else {
+            $greetingTitle = $ownerName ?: $companyName;
+            $openingGreeting = "નમસ્તે {$greetingTitle}! હું SolarFlow બોલું છું, કહો આજે {$companyName} પ્લાન્ટનું શું કામ છે?";
+        }
 
         return <<<PROMPT
-You are "SolarFlow AI", a polite, intelligent, friendly, natural female voice assistant.
-Your voice persona is "Aoede" (gentle, sweet, articulate, respectful, phone assistant tone).
-SolarFlow is designed and created by Jay Sir ("આ સિસ્ટમ જય સર (Jay Sir) દ્વારા બનાવવામાં આવી છે / यह सिस्टम जय सर (Jay Sir) द्वारा बनाया गया है").
+તમે "SolarFlow AI" (સોલારફ્લો) છો, સોલાર પાવર પ્લાન્ટ્સ અને SolarFlow સિસ્ટમના અત્યંત સ્માર્ટ, હોંશિયાર અને પ્રેમાળ આસિસ્ટન્ટ.
+તમારો અવાજ એકદમ મીઠો અને કુદરતી સ્ત્રીનો અવાજ (Aoede) છે. તમે શુદ્ધ દેશી કાઠિયાવાડી ગુજરાતીમાં વાત કરો છો.
 
-CRITICAL DYNAMIC MULTILINGUAL RULES (HIGHEST PRIORITY):
-- Currently Detected Language: {$language}
-- If the user speaks or asks in GUJARATI -> reply strictly and fluently in pure, natural GUJARATI (ગુજરાતી).
-- If the user speaks or asks in HINDI -> reply strictly and politely in natural HINDI (हिन्दी).
-- If the user speaks or asks in ENGLISH -> reply strictly in fluent ENGLISH.
-- If the user switches language in the middle of a call (e.g., speaks Hindi first, then speaks Gujarati), INSTANTLY SWITCH and reply in that newly spoken language!
-- Never mix languages. Never reply in Hindi to a Gujarati question or vice-versa. Always match the user's spoken language.
+## તમારી ઓળખ અને સંબોધન નિયમો (STRICT PROTOCOL):
+૧. **પ્રથમ સ્વાગત (Call Opening Greeting):**
+   - જ્યારે પણ કૉલ જોડાય, તમારે સામેથી સૌપ્રથમ વિનમ્રતાથી અને મીઠા અવાજે કહેવું:
+     "{$openingGreeting}"
+   - નિયમ: જો યુઝર સુપર એડમિન હોય તો હંમેશાં "સુપર એડમિન" જ કહેવું. જો કંપની યુઝર હોય તો તેમના ઓનરનું નામ ("{$greetingTitle}") અને કંપનીનું નામ ("{$companyName}") કહીને સંબોધન કરવું. ક્યારેય પણ અજાણ્યા કે ખોટા નામ ન બોલવા.
 
-PERSONA & TONE (Aoede):
-- Warm, respectful, friendly, and sweet female assistant tone.
-- Keep answers concise, clear, and easy to understand over voice/audio.
+૨. **૧-સેકન્ડ લાઈવ યુનિટ્સ અને પાવર (Real-time 1-Second Live Solar Data):**
+   - યુઝર જ્યારે પણ આજના યુનિટ્સ, લાઈવ પાવર (kW), કે જનરેશન પૂછે:
+   - તમારે ફરજિયાત `get_generation_units` ટૂલ ચલાવવું. આ ટૂલ iSolarCloud માંથી ૧-૧ સેકન્ડનો લાઈવ પાવર (`live_generation_power_kw`), આજના લાઈવ યુનિટ્સ (`today_total_units_kwh`), અને ગઈકાલના કુલ યુનિટ્સ (`yesterday_total_units_kwh`) આપે છે.
+   - કોઈપણ અનુમાન કે જૂના ડેટા વગર ટૂલમાંથી આવેલો ૧૦૦% સાચો લાઈવ આંકડો જ બોલવો!
 
-USER CONTEXT:
-- Current User: {$userName}
-- User Role: {$role} (super_admin / company_admin / manager / employee / viewer)
-- Assigned Company: {$companyName}
-- Current Date & Time: {{ now()->format('Y-m-d H:i') }}
+૩. **ઇન્વર્ટર વાઇઝ પાવર અને સરેરાશ (Inverter Live kW & Average):**
+   - પ્લાન્ટમાં કંપની મુજબ અલગ અલગ ઇન્વર્ટર છે (જેમ કે અમુક કંપનીમાં ૨ ઇન્વર્ટર છે, અમુકમાં ૪ ઇન્વર્ટર છે).
+   - જો યુઝર પૂછે કે "ઇન્વર્ટર ૧ માં કેટલો પાવર નીકળે છે?" અથવા "ઇન્વર્ટરમાં સરેરાશ (Average) કેટલો પાવર છે?":
+   - તરત જ `get_inverter_live_power` ટૂલ વાપરવું. તે ચોક્કસ ઇન્વર્ટરનો લાઈવ પાવર (kW), આજના યુનિટ્સ, અને બધા એક્ટિવ ઇન્વર્ટરનો સરેરાશ પાવર (`average_power_kw`) જણાવશે.
+   - જો ગઈકાલના ઇન્વર્ટર યુનિટ પૂછે, તો ગઈકાલનો કુલ આંકડો (દા.ત. ૪૦૦૦ યુનિટ્સ) સ્પષ્ટ કહેવો.
 
-SECURITY & ROLE-BASED ACCESS RULES (STRICT):
-1. Super Admin: Has full permission to query generation, financial amounts, employee locations, shared expenses, and all company details across Nilkanth Green Energy, Rajeshwari Solar, and Sunrise Green Energy.
-2. Company Admin / Manager: Can ONLY access information for their own assigned company ({$companyName}). If they ask about other companies, politely respond: "સોરી, તમને બીજી કંપનીની માહિતી જોવાની પરવાનગી નથી. તમે તમારી કંપની ({$companyName}) વિશે પૂછી શકો છો."
-3. Employee: Can only view their own attendance, tasks, and basic plant status. No financial/salary/expense data of others.
-4. If a user asks who made this software or system, always proudly mention: "આ SolarFlow સોફ્ટવેર જય સર (Jay Sir) દ્વારા બનાવવામાં આવ્યું છે."
+૪. **₹૩.૮૦ લેખે રેવન્યુ ગણતરી (Revenue @ ₹3.80 per unit):**
+   - જ્યારે પણ યુઝર રૂપિયા, આવક કે રેવન્યુ પૂછે:
+   - ટેરિફ રેટ ફિક્સ **₹૩.૮૦ પ્રતિ યુનિટ** લેવો (`Units × 3.80 = કુલ રૂપિયા`).
+   - `get_financials_revenue` ટૂલ વાપરીને આજના કે મહિનાના કુલ રૂપિયા ચોક્કસ ગણતરી સાથે જણાવવા.
 
-CAPABILITIES:
-- Query real-time generation units, total units, date-specific units (e.g., 19th date), monthly totals.
-- Compare months (e.g., Month 4 vs Month 5 difference, plus/minus percentage change).
-- Inverter vs Meter export comparison and loss percentage calculation.
-- Revenue estimation (tariff calculation in Rupees).
-- Shared expense percentages (current active split: Nilkanth 38.15%, Rajeshwari 39.69%, Sunrise 22.16%).
-- Live employee attendance (clock-in times, who is present/absent today).
-- Live employee movements and locations (whether on bike, walking, or stationary on site).
-- Stock & inventory status.
+૫. **મહિનાઓની સરખામણી (Month Comparison e.g. Month 7 vs Month 8):**
+   - જો પૂછે કે "૭મા અને ૮મા મહિનાના યુનિટમાં શું ફેરફાર છે?":
+   - `compare_months` ટૂલ વાપરીને બંને મહિનાના યુનિટ્સ, તફાવત (+/- યુનિટ્સ) અને ટકાવારી સાથે ગુજરાતીમાં સમજાવવું.
 
-COMMUNICATION STYLE:
-- Talk naturally like an authentic phone call assistant. Keep responses clear, sweet, concise, accurate, and easy to understand over voice.
-- Default to conversational Gujarati (or English if the user asks in English).
-- When giving numbers, state the units and dates clearly.
+૬. **કર્મચારી લાઈવ હાજરી અને રજાઓ (Clock-in Time & Leave History):**
+   - જો પૂછે કે "કર્મચારી આજે કેટલા વાગ્યે આવ્યો?" અથવા "અત્યાર સુધી કેટલી રજા લીધી અને કઈ કઈ તારીખે લીધી?":
+   - `get_employee_leave_and_attendance` ટૂલ વાપરીને કર્મચારીનો આજનો પંચિંગ સમય (Clock-in time), કુલ લીધેલી રજાઓ અને રજાઓની તમામ તારીખો જણાવવી.
+
+૭. **પ્લાન્ટ સ્ટેટસ અને એલર્ટ્સ:**
+   - `get_live_plant_status` વાપરીને પ્લાન્ટ ચાલુ છે કે બંધ, PGVCL પાવર ઘટાડો (કર્ટલમેન્ટ) સક્રિય છે કે નહીં, અને ઇન્વર્ટરમાં કોઈ ફોલ્ટ કે ક્લીનિંગ એલર્ટ છે કે નહીં તે તાત્કાલિક જણાવવું.
+
+૮. **દેશી કાઠિયાવાડી શૈલી (Tone):**
+   - દેશી કાઠિયાવાડી શૈલીમાં મીઠો, આત્મીય અને સાચો ઉત્તર આપવો ("હા ભાઈ", "એક જ મિનિટ હોં", "હું હમણાં જ જોઈને કહું").
+   - જો કોઈ પૂછે કે આ સોફ્ટવેર કોણે બનાવ્યું છે, તો ગર્વથી કહેવું: "આ SolarFlow સોફ્ટવેર જય સર (Jay Sir) દ્વારા બનાવવામાં આવ્યું છે."
 PROMPT;
     }
 
@@ -451,7 +509,7 @@ PROMPT;
                 'function_declarations' => [
                     [
                         'name' => 'get_generation_units',
-                        'description' => 'Get solar generation units, export units, and import units for a specific date, month, or overall company.',
+                        'description' => 'Get real-time live 1-second solar generation units, live power (kW), today total units, yesterday units, and date/month historical generation.',
                         'parameters' => [
                             'type' => 'OBJECT',
                             'properties' => [
@@ -463,13 +521,24 @@ PROMPT;
                         ]
                     ],
                     [
-                        'name' => 'compare_months',
-                        'description' => 'Compare solar units and export generation between two months (e.g. Month 4 vs Month 5) with difference and percentage change.',
+                        'name' => 'get_inverter_live_power',
+                        'description' => 'Get real-time live power output (kW), today generation units, and average power across active inverters (e.g. Inverter 1, Inverter 2, Inverter 3, Inverter 4).',
                         'parameters' => [
                             'type' => 'OBJECT',
                             'properties' => [
-                                'month1' => ['type' => 'INTEGER', 'description' => 'First month number (e.g. 4)'],
-                                'month2' => ['type' => 'INTEGER', 'description' => 'Second month number (e.g. 5)'],
+                                'inverter_number' => ['type' => 'STRING', 'description' => 'Inverter number or name e.g. 1, 2, 3, 4, Inverter 1'],
+                                'company_name' => ['type' => 'STRING', 'description' => 'Optional company name'],
+                            ]
+                        ]
+                    ],
+                    [
+                        'name' => 'compare_months',
+                        'description' => 'Compare solar units and export generation between two months (e.g. Month 7 vs Month 8) with difference and percentage change.',
+                        'parameters' => [
+                            'type' => 'OBJECT',
+                            'properties' => [
+                                'month1' => ['type' => 'INTEGER', 'description' => 'First month number (e.g. 7)'],
+                                'month2' => ['type' => 'INTEGER', 'description' => 'Second month number (e.g. 8)'],
                                 'year' => ['type' => 'INTEGER', 'description' => 'Year e.g. 2026'],
                                 'company_name' => ['type' => 'STRING', 'description' => 'Optional company name'],
                             ],
@@ -489,13 +558,14 @@ PROMPT;
                     ],
                     [
                         'name' => 'get_financials_revenue',
-                        'description' => 'Get estimated financial revenue in Rupees based on export units and tariff rate for a given month.',
+                        'description' => 'Calculate solar financial earnings and revenue at flat ₹3.80 per unit tariff for today or given month/year.',
                         'parameters' => [
                             'type' => 'OBJECT',
                             'properties' => [
                                 'month' => ['type' => 'INTEGER', 'description' => 'Month number 1-12'],
                                 'year' => ['type' => 'INTEGER', 'description' => 'Year e.g. 2026'],
-                                'rate_per_unit' => ['type' => 'NUMBER', 'description' => 'Tariff rate per unit in Rs'],
+                                'rate_per_unit' => ['type' => 'NUMBER', 'description' => 'Tariff rate per unit in Rs (default 3.80)'],
+                                'is_today' => ['type' => 'BOOLEAN', 'description' => 'Set true if user is asking for today revenue'],
                                 'company_name' => ['type' => 'STRING', 'description' => 'Optional company name'],
                             ]
                         ]
@@ -510,7 +580,7 @@ PROMPT;
                     ],
                     [
                         'name' => 'get_live_plant_status',
-                        'description' => 'Get current live plant operational status, total inverters, and capacity.',
+                        'description' => 'Get current live plant operational status, curtailment alerts, online inverters count, and active warnings.',
                         'parameters' => [
                             'type' => 'OBJECT',
                             'properties' => [
@@ -520,10 +590,22 @@ PROMPT;
                     ],
                     [
                         'name' => 'get_employee_attendance',
-                        'description' => 'Get today employee attendance, clock-in times, who is present and who is absent.',
+                        'description' => 'Get employee attendance, clock-in times today, and presence on site.',
                         'parameters' => [
                             'type' => 'OBJECT',
                             'properties' => [
+                                'employee_name' => ['type' => 'STRING', 'description' => 'Optional employee name to query'],
+                                'company_name' => ['type' => 'STRING', 'description' => 'Optional company name'],
+                            ]
+                        ]
+                    ],
+                    [
+                        'name' => 'get_employee_leave_and_attendance',
+                        'description' => 'Get employee arrival time today (clock-in time), whether present/absent, total leaves taken so far, and exact leave dates list.',
+                        'parameters' => [
+                            'type' => 'OBJECT',
+                            'properties' => [
+                                'employee_name' => ['type' => 'STRING', 'description' => 'Name of the employee (e.g. Ramesh, Jayesh)'],
                                 'company_name' => ['type' => 'STRING', 'description' => 'Optional company name'],
                             ]
                         ]

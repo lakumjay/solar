@@ -1,1099 +1,845 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
-    Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX, Sparkles, 
-    Grid, MessageSquare, Info, Radio, Send, X, Check, HelpCircle
+    PhoneOff, 
+    Mic, 
+    MicOff, 
+    Volume2, 
+    Sparkles, 
+    AlertCircle,
+    Sun,
+    Radio,
+    Zap,
+    Lock
 } from 'lucide-react';
+import { GoogleGenAI, Modality } from '@google/genai';
+import { PcmPlayer, ToneGenerator, arrayBufferToBase64, base64ToInt16 } from '../lib/audio';
 import { api } from '../api';
-import { PcmPlayer, CallTonePlayer, playCloudAudio, stopCloudAudio } from '../lib/audio';
-import { getLanguage, t } from '../utils/translations';
 
-// Helper to unlock Web Audio, HTML5 Audio & SpeechSynthesis immediately on user click gesture
+// Inline Web Audio Worklet code - In-memory Blob (eliminates all 404 / path routing errors)
+const PCM_WORKLET_CODE = `
+class PcmCaptureProcessor extends AudioWorkletProcessor {
+    constructor() {
+        super();
+        this.buffer = new Float32Array(2048);
+        this.offset = 0;
+    }
+    process(inputs) {
+        const channel = inputs[0] && inputs[0][0];
+        if (!channel) return true;
+        for (let i = 0; i < channel.length; i++) {
+            this.buffer[this.offset++] = channel[i];
+            if (this.offset === this.buffer.length) {
+                const pcm = new Int16Array(this.buffer.length);
+                for (let j = 0; j < this.buffer.length; j++) {
+                    const s = Math.max(-1, Math.min(1, this.buffer[j]));
+                    pcm[j] = s < 0 ? s * 0x8000 : s * 0x7fff;
+                }
+                this.port.postMessage(pcm.buffer, [pcm.buffer]);
+                this.offset = 0;
+            }
+        }
+        return true;
+    }
+}
+registerProcessor('pcm-capture-processor', PcmCaptureProcessor);
+`;
+
+// Helper to unlock Web Audio immediately on user click gesture
 export function unlockVoiceCallAudio() {
     try {
         if (typeof window !== 'undefined') {
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.resume();
-                const silent = new SpeechSynthesisUtterance(' ');
-                silent.volume = 0.01;
-                window.speechSynthesis.speak(silent);
-            }
             const AudioCtx = window.AudioContext || window.webkitAudioContext;
             if (AudioCtx) {
                 const ctx = new AudioCtx();
                 ctx.resume().then(() => ctx.close()).catch(() => {});
             }
-            // Prime HTML5 Audio element on user gesture to bypass mobile autoplay restriction
-            try {
-                const dummyAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
-                dummyAudio.volume = 0.01;
-                dummyAudio.play().then(() => dummyAudio.pause()).catch(() => {});
-            } catch (_) {}
         }
     } catch (_) {}
 }
 
-const LAST_VOICE_LANG_KEY = 'solarflow_last_voice_lang';
-
-// Detect whether user spoken text is Gujarati, Hindi, or English
-function detectSpokenLanguage(text, defaultLang = 'gu') {
-    if (!text) return defaultLang;
-    const str = text.trim();
-    if (!str) return defaultLang;
-
-    // 1. Gujarati Unicode range (\u0A80-\u0AFF)
-    if (/[\u0A80-\u0AFF]/.test(str)) {
-        return 'gu';
-    }
-
-    // 2. Hindi / Devanagari Unicode range (\u0900-\u097F)
-    if (/[\u0900-\u097F]/.test(str)) {
-        return 'hi';
-    }
-
-    const lower = str.toLowerCase();
-
-    // 3. Gujarati Phonetic keywords
-    const guKeywords = [
-        'kem chho', 'su chhe', 'tame', 'aaje', 'units ketla', 'aavya', 'haajari', 
-        'bhai', 'nathi', 'chhe', 'tamari', 'ketla', 'ketli', 'plant ma', 'jay sir'
-    ];
-    if (guKeywords.some(k => lower.includes(k))) return 'gu';
-
-    // 4. Hindi Phonetic keywords
-    const hiKeywords = [
-        'namaste', 'kaise ho', 'kya hai', 'aap', 'aaj', 'kitna', 'kitne', 'kitni', 
-        'nahi', 'main', 'meri', 'madad', 'batao', 'kaun', 'hai kya', 'chal raha'
-    ];
-    if (hiKeywords.some(k => lower.includes(k))) return 'hi';
-
-    // 5. English keywords
-    const enKeywords = [
-        'how', 'what', 'who', 'today', 'units', 'generation', 'attendance', 'revenue', 
-        'hello', 'hi', 'solar', 'status', 'plant'
-    ];
-    if (enKeywords.some(k => lower.includes(k))) return 'en';
-
-    return defaultLang;
-}
-
-function selectLockedFemaleVoice(voices, lang) {
-    if (!voices || voices.length === 0) return null;
-
-    const maleKeywords = [
-        'male', 'david', 'ravi', 'prabhat', 'george', 'mark', 'rishi', 'madhav',
-        'niranjan', 'ajay', 'anil', 'pawan', 'manish', 'valluvar', '-gum', '-him', '-enm',
-        'tarun', 'karan', 'deepak', 'vikram'
-    ];
-    const femaleKeywords = [
-        'aoede', 'priya', 'neha', 'kavya', 'swara', 'heera', 'neerja', 'veena', 'zira',
-        'kalpana', 'geeta', 'shruti', 'lekha', 'anjali', 'pooja', 'aditi', 'sunita',
-        'female', '-guf', '-hif', '-enf', '-end', '-ene', 'woman', 'girl'
-    ];
-
-    // Filter out all confirmed male voices
-    const nonMale = voices.filter(v => {
-        const fullDesc = ((v.name || '') + ' ' + (v.voiceURI || '')).toLowerCase();
-        return !maleKeywords.some(m => fullDesc.includes(m));
-    });
-
-    const pool = nonMale.length > 0 ? nonMale : voices;
-
-    // 1. If Gujarati:
-    if (lang === 'gu') {
-        const guFemale = pool.find(v => {
-            const l = (v.lang || '').toLowerCase();
-            const n = ((v.name || '') + ' ' + (v.voiceURI || '')).toLowerCase();
-            return l.startsWith('gu') && femaleKeywords.some(f => n.includes(f));
-        });
-        if (guFemale) return guFemale;
-
-        // Any native Gujarati voice (elevated pitch makes it female tone)
-        const anyGu = pool.find(v => (v.lang || '').toLowerCase().startsWith('gu'));
-        if (anyGu) return anyGu;
-    }
-
-    // 2. If Hindi:
-    if (lang === 'hi') {
-        const hiFemale = pool.find(v => {
-            const l = (v.lang || '').toLowerCase();
-            const n = ((v.name || '') + ' ' + (v.voiceURI || '')).toLowerCase();
-            return l.startsWith('hi') && femaleKeywords.some(f => n.includes(f));
-        });
-        if (hiFemale) return hiFemale;
-
-        const anyHi = pool.find(v => (v.lang || '').toLowerCase().startsWith('hi'));
-        if (anyHi) return anyHi;
-    }
-
-    // 3. Indian Female (Priya, Neha, Aoede, etc.)
-    const indianFemale = pool.find(v => {
-        const l = (v.lang || '').toLowerCase();
-        const n = ((v.name || '') + ' ' + (v.voiceURI || '')).toLowerCase();
-        return (l.includes('in') || l.startsWith('en')) && femaleKeywords.some(f => n.includes(f));
-    });
-    if (indianFemale) return indianFemale;
-
-    // 4. Any Indian non-male voice
-    const anyIndianNonMale = pool.find(v => (v.lang || '').toLowerCase().includes('in'));
-    if (anyIndianNonMale) return anyIndianNonMale;
-
-    // 5. Any female voice
-    const anyFemale = pool.find(v => {
-        const n = ((v.name || '') + ' ' + (v.voiceURI || '')).toLowerCase();
-        return femaleKeywords.some(f => n.includes(f));
-    });
-    if (anyFemale) return anyFemale;
-
-    return pool[0] || voices[0];
-}
-
 export default function VoiceCallModal({ isOpen, onClose, user, activeCompany }) {
-    const [callStatus, setCallStatus] = useState('dialing'); // dialing, connected, speaking, listening, ended, error
-    const [errorMessage, setErrorMessage] = useState('');
-    const [isMuted, setIsMuted] = useState(false);
-    const [isSpeakerOn, setIsSpeakerOn] = useState(true);
+    if (!isOpen) return null;
+
+    const isSuperAdmin = user?.role === 'super_admin' || user?.role === 'superadmin' || user?.name === 'Super Admin';
+    const displayName = isSuperAdmin
+        ? 'સુપર એડમિન'
+        : (activeCompany?.owner_name || user?.company?.owner_name || activeCompany?.name || user?.name || 'યુઝર');
+
+    const defaultGreeting = isSuperAdmin
+        ? 'નમસ્તે સુપર એડમિન! હું SolarFlow બોલું છું, કહો આજે સોલાર પ્લાન્ટનું શું કામ છે?'
+        : `નમસ્તે ${displayName}! હું SolarFlow બોલું છું, કહો આજે સોલાર પ્લાન્ટનું શું કામ છે?`;
+
+    const [callState, setCallState] = useState('connecting'); // connecting, connected, ended
     const [callDuration, setCallDuration] = useState(0);
-    const [transcript, setTranscript] = useState([]);
-    const [currentAiSpeech, setCurrentAiSpeech] = useState('');
-    const [currentUserSpeech, setCurrentUserSpeech] = useState('');
-    const [showKeypad, setShowKeypad] = useState(false);
-    const [showPrompts, setShowPrompts] = useState(false);
-    const [showInfo, setShowInfo] = useState(false);
-    const [textInput, setTextInput] = useState('');
-    const [currentCallLang, setCurrentCallLang] = useState('gu');
+    const [isMuted, setIsMuted] = useState(false);
+    const [isAiSpeaking, setIsAiSpeaking] = useState(false);
+    const [audioLevel, setAudioLevel] = useState(0);
+    const [micPermissionError, setMicPermissionError] = useState(null);
+    const [connectionError, setConnectionError] = useState(null);
+    
+    // Live User and AI speech transcriptions
+    const [transcriptHistory, setTranscriptHistory] = useState([
+        { sender: 'ai', text: defaultGreeting }
+    ]);
+    const [currentAiText, setCurrentAiText] = useState('');
+    const [lastToolEvent, setLastToolEvent] = useState(null);
 
-    const tonePlayerRef = useRef(null);
-    const pcmPlayerRef = useRef(null);
-    const durationTimerRef = useRef(null);
-    const recognitionRef = useRef(null);
-    const recognitionActiveRef = useRef(false);
-    const silenceTimerRef = useRef(null);
-    const pendingSpeechRef = useRef('');
-    const isMutedRef = useRef(isMuted);
-    const isConnectedRef = useRef(false);
+    // Refs
+    const sessionRef = useRef(null);
+    const playerRef = useRef(null);
+    const toneGenRef = useRef(null);
+    const micCtxRef = useRef(null);
+    const micStreamRef = useRef(null);
+    const workletNodeRef = useRef(null);
+    const micSourceRef = useRef(null);
+    const analyserRef = useRef(null);
+    const animFrameRef = useRef(null);
+    const isMutedRef = useRef(false);
     const isAiSpeakingRef = useRef(false);
-    const currentCallLangRef = useRef('gu');
-    const lockedFemaleVoiceRef = useRef(null);
+    const closingRef = useRef(false);
+    const transcriptEndRef = useRef(null);
+    const wakeLockRef = useRef(null);
+    const heartbeatRef = useRef(null);
+    const hasConnectedRef = useRef(false);
 
+    // Sync states to refs
     useEffect(() => {
         isMutedRef.current = isMuted;
-        if (isMuted) {
-            stopListening();
-        } else if (isConnectedRef.current && !isAiSpeakingRef.current) {
-            startListening();
-        }
     }, [isMuted]);
 
-    // Lock a single, consistent Aoede-style female voice at component mount
     useEffect(() => {
-        const initLockedVoice = () => {
-            try {
-                if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-                const voices = window.speechSynthesis.getVoices() || [];
-                if (!voices || voices.length === 0) return;
-                const lang = currentCallLangRef.current || getLanguage() || 'gu';
-                lockedFemaleVoiceRef.current = selectLockedFemaleVoice(voices, lang);
-            } catch (err) {
-                console.warn('Voice lock handled:', err);
+        isAiSpeakingRef.current = isAiSpeaking;
+    }, [isAiSpeaking]);
+
+    // Screen Wake Lock
+    useEffect(() => {
+        const acquireWakeLock = async () => {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLockRef.current = await navigator.wakeLock.request('screen');
+                } catch(e) {}
             }
         };
+        acquireWakeLock();
 
-        initLockedVoice();
-        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-            window.speechSynthesis.onvoiceschanged = initLockedVoice;
-        }
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && !wakeLockRef.current) {
+                acquireWakeLock();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            if (wakeLockRef.current) {
+                wakeLockRef.current.release().catch(() => {});
+                wakeLockRef.current = null;
+            }
+        };
     }, []);
+
+    // Call Duration Timer
+    useEffect(() => {
+        let timer = null;
+        if (callState === 'connected') {
+            timer = setInterval(() => {
+                setCallDuration(prev => prev + 1);
+            }, 1000);
+        }
+        return () => clearInterval(timer);
+    }, [callState]);
+
+    // Auto-scroll Transcript
+    useEffect(() => {
+        transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [transcriptHistory, currentAiText, lastToolEvent]);
+
+    const handleTranscript = useCallback((sender, text) => {
+        setTranscriptHistory(prev => {
+            const last = prev[prev.length - 1];
+            if (last && last.sender === sender) {
+                return [...prev.slice(0, -1), { ...last, text: last.text + text }];
+            }
+            return [...prev, { sender, text }];
+        });
+    }, []);
+
+    // End call cleanup
+    const endCall = useCallback(async () => {
+        closingRef.current = true;
+        setCallState('ended');
+
+        // Play phone disconnect tone & vibration
+        try {
+            if (toneGenRef.current) {
+                toneGenRef.current.playDisconnectTone();
+            }
+        } catch(e) {}
+
+        // Auto close and return to dashboard after brief disconnect feedback
+        setTimeout(() => {
+            if (onClose) onClose();
+        }, 850);
+
+        if (heartbeatRef.current) {
+            clearInterval(heartbeatRef.current);
+            heartbeatRef.current = null;
+        }
+
+        if (wakeLockRef.current) {
+            wakeLockRef.current.release().catch(() => {});
+            wakeLockRef.current = null;
+        }
+
+        try {
+            sessionRef.current?.close();
+        } catch (e) {}
+        sessionRef.current = null;
+
+        if (workletNodeRef.current) {
+            try {
+                workletNodeRef.current.disconnect();
+            } catch(e) {}
+            workletNodeRef.current = null;
+        }
+
+        if (micSourceRef.current) {
+            try {
+                micSourceRef.current.disconnect();
+            } catch(e) {}
+            micSourceRef.current = null;
+        }
+
+        if (micStreamRef.current) {
+            try {
+                micStreamRef.current.getTracks().forEach(t => {
+                    t.stop();
+                    t.enabled = false;
+                });
+            } catch(e) {}
+            micStreamRef.current = null;
+        }
+
+        if (micCtxRef.current && micCtxRef.current.state !== 'closed') {
+            await micCtxRef.current.close().catch(() => {});
+        }
+        micCtxRef.current = null;
+
+        if (playerRef.current) {
+            playerRef.current.close();
+            playerRef.current = null;
+        }
+
+        if (animFrameRef.current) {
+            cancelAnimationFrame(animFrameRef.current);
+            animFrameRef.current = null;
+        }
+
+        setIsAiSpeaking(false);
+    }, [onClose]);
+
+    // Handle Tool Execution (Solar Generation Units, Curtailment, Attendance, Revenue)
+    const handleToolCall = async (call) => {
+        console.log(`[ToolCall] Gemini invoked tool: ${call.name}`, call.args);
+        
+        let toolLabel = `⚡ Checking ${call.name.replace(/_/g, ' ')}...`;
+        if (call.name === 'get_generation_units') toolLabel = '☀️ Fetching 1-second live solar generation units...';
+        else if (call.name === 'get_inverter_live_power') toolLabel = '⚡ Checking Inverter live power & average kW...';
+        else if (call.name === 'get_live_plant_status') toolLabel = '🏭 Checking plant, inverters & alerts...';
+        else if (call.name === 'get_employee_attendance' || call.name === 'get_employee_leave_and_attendance') toolLabel = '👥 Checking employee clock-in & leave history...';
+        else if (call.name === 'get_financials_revenue') toolLabel = '💰 Calculating solar revenue @ ₹3.80/unit...';
+        else if (call.name === 'compare_months') toolLabel = '📊 Comparing monthly generation...';
+        
+        setLastToolEvent(toolLabel);
+
+        try {
+            const res = await api('voice-agent/execute-tool', {
+                method: 'POST',
+                body: JSON.stringify({
+                    name: call.name,
+                    args: call.args || {}
+                })
+            });
+
+            const resultData = res?.data || res;
+            console.log('[Tool Result]', resultData);
+            setLastToolEvent(`✅ ${call.name.replace(/_/g, ' ')} loaded`);
+
+            if (sessionRef.current) {
+                sessionRef.current.sendToolResponse({
+                    functionResponses: [{
+                        id: call.id,
+                        name: call.name,
+                        response: {
+                            output: {
+                                status: "success",
+                                data: resultData
+                            }
+                        }
+                    }]
+                });
+            }
+        } catch (err) {
+            console.error('[Tool Execution Error]', err);
+            setLastToolEvent(`⚠️ Note: ${err.message || 'Data query note'}`);
+            if (sessionRef.current) {
+                sessionRef.current.sendToolResponse({
+                    functionResponses: [{
+                        id: call.id,
+                        name: call.name,
+                        response: {
+                            output: {
+                                status: "error",
+                                message: err.message || "Failed to fetch solar data."
+                            }
+                        }
+                    }]
+                });
+            }
+        }
+    };
+
+    // Message handler for Gemini Live events
+    const handleLiveMessage = useCallback((msg) => {
+        const sc = msg.serverContent;
+        if (sc) {
+            // User interrupted AI speech
+            if (sc.interrupted) {
+                console.log('[Gemini Live] Interruption detected. Cutting AI playback.');
+                playerRef.current?.interrupt();
+                setIsAiSpeaking(false);
+                setCurrentAiText('');
+            }
+
+            // AI Audio chunks
+            const parts = sc.modelTurn?.parts || [];
+            for (const part of parts) {
+                if (part.inlineData?.data) {
+                    setIsAiSpeaking(true);
+                    playerRef.current?.enqueue(base64ToInt16(part.inlineData.data));
+                }
+                if (part.text) {
+                    setCurrentAiText(prev => prev + part.text);
+                }
+            }
+
+            // User Speech Transcription (Gemini native input transcription)
+            if (sc.inputTranscription?.text) {
+                const userSpeech = sc.inputTranscription.text;
+                handleTranscript('user', userSpeech);
+            }
+
+            // AI Output Speech Transcription
+            if (sc.outputTranscription?.text) {
+                handleTranscript('ai', sc.outputTranscription.text);
+            }
+
+            // Turn complete
+            if (sc.turnComplete) {
+                setCurrentAiText('');
+            }
+        }
+
+        // Handle tool calls
+        if (msg.toolCall?.functionCalls) {
+            for (const call of msg.toolCall.functionCalls) {
+                handleToolCall(call);
+            }
+        }
+    }, [handleTranscript]);
+
+    // Resilient Microphone Capture (Blob Worklet + ScriptProcessor Fallback)
+    const startMic = async () => {
+        setMicPermissionError(null);
+
+        // 1. Browser check
+        if (!navigator?.mediaDevices?.getUserMedia) {
+            const msg = 'Microphone access is not supported on this browser or requires localhost / HTTPS.';
+            setMicPermissionError(msg);
+            throw new Error(msg);
+        }
+
+        // 2. Obtain stream with graceful constraint fallback
+        let stream = null;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    channelCount: 1,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                },
+            });
+        } catch (strictErr) {
+            console.warn('[Mic] Strict constraints failed, falling back to basic { audio: true }:', strictErr);
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            } catch (basicErr) {
+                console.error('[Mic Permission Denied/Error]', basicErr);
+                let msg = 'Microphone permission denied. Please click the lock 🔒 icon next to URL to allow microphone.';
+                if (basicErr.name === 'NotAllowedError' || basicErr.name === 'PermissionDeniedError') {
+                    msg = 'માઇક્રોફોનની પરવાનગી નથી મળી. કૃપા કરીને બ્રાઉઝરના URL પાસે 🔒 (Lock) આઈકોન પર ક્લિક કરી Microphone "Allow" કરો.';
+                } else if (basicErr.name === 'NotFoundError' || basicErr.name === 'DevicesNotFoundError') {
+                    msg = 'તમારા કમ્પ્યુટર અથવા ફોનમાં કોઈ માઇક્રોફોન મળ્યો નથી.';
+                } else if (basicErr.name === 'NotReadableError') {
+                    msg = 'માઇક્રોફોન હાલમાં બીજી એપ્લિકેશન દ્વારા વપરાશમાં છે.';
+                }
+                setMicPermissionError(msg);
+                throw basicErr;
+            }
+        }
+
+        micStreamRef.current = stream;
+
+        // 3. 16kHz Dedicated AudioContext
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const micCtx = new AudioCtx({ sampleRate: 16000 });
+        micCtxRef.current = micCtx;
+
+        if (micCtx.state === 'suspended') {
+            await micCtx.resume().catch(() => {});
+        }
+
+        const source = micCtx.createMediaStreamSource(stream);
+        micSourceRef.current = source;
+
+        // 4. Analyser for visualizer
+        const analyser = micCtx.createAnalyser();
+        analyser.fftSize = 64;
+        source.connect(analyser);
+        analyserRef.current = analyser;
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        const updateVolume = () => {
+            if (!analyserRef.current) return;
+            analyserRef.current.getByteFrequencyData(dataArray);
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+            const avg = sum / dataArray.length;
+            setAudioLevel(Math.min(100, Math.round(avg * 2)));
+            animFrameRef.current = requestAnimationFrame(updateVolume);
+        };
+        updateVolume();
+
+        // 5. Load AudioWorklet via in-memory Blob URL (zero network latency, zero 404s!)
+        let workletLoaded = false;
+        if (micCtx.audioWorklet) {
+            try {
+                const blob = new Blob([PCM_WORKLET_CODE], { type: 'application/javascript' });
+                const blobUrl = URL.createObjectURL(blob);
+                await micCtx.audioWorklet.addModule(blobUrl);
+                URL.revokeObjectURL(blobUrl);
+                workletLoaded = true;
+            } catch (blobErr) {
+                console.warn('[Blob Worklet failed, trying path candidates]:', blobErr);
+                const candidates = ['/git/public/pcm-capture-worklet.js', '/pcm-capture-worklet.js', 'pcm-capture-worklet.js'];
+                for (const p of candidates) {
+                    try {
+                        await micCtx.audioWorklet.addModule(p);
+                        workletLoaded = true;
+                        break;
+                    } catch (_) {}
+                }
+            }
+        }
+
+        // 6. Connect processor node (Worklet Node or ScriptProcessor Node fallback)
+        if (workletLoaded) {
+            const workletNode = new AudioWorkletNode(micCtx, 'pcm-capture-processor');
+            workletNodeRef.current = workletNode;
+
+            workletNode.port.onmessage = (event) => {
+                if (!sessionRef.current || isMutedRef.current || isAiSpeakingRef.current) return;
+                const base64Audio = arrayBufferToBase64(event.data);
+                sessionRef.current.sendRealtimeInput({
+                    audio: {
+                        data: base64Audio,
+                        mimeType: 'audio/pcm;rate=16000'
+                    }
+                });
+            };
+
+            source.connect(workletNode);
+        } else {
+            console.log('[Mic] Initializing ScriptProcessorNode universal fallback');
+            const scriptNode = micCtx.createScriptProcessor(2048, 1, 1);
+            workletNodeRef.current = scriptNode;
+
+            scriptNode.onaudioprocess = (e) => {
+                if (!sessionRef.current || isMutedRef.current || isAiSpeakingRef.current) return;
+                const channelData = e.inputBuffer.getChannelData(0);
+                const pcm16 = new Int16Array(channelData.length);
+                for (let i = 0; i < channelData.length; i++) {
+                    const s = Math.max(-1, Math.min(1, channelData[i]));
+                    pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+                }
+                const base64Audio = arrayBufferToBase64(pcm16.buffer);
+                sessionRef.current.sendRealtimeInput({
+                    audio: {
+                        data: base64Audio,
+                        mimeType: 'audio/pcm;rate=16000'
+                    }
+                });
+            };
+
+            source.connect(scriptNode);
+            scriptNode.connect(micCtx.destination);
+        }
+    };
+
+    const startLiveSession = async () => {
+        closingRef.current = false;
+        hasConnectedRef.current = false;
+        setConnectionError(null);
+        setMicPermissionError(null);
+        setCallState('connecting');
+
+        // Start Realistic Telephone Ringing Sound
+        try {
+            if (!toneGenRef.current) {
+                toneGenRef.current = new ToneGenerator();
+            }
+            toneGenRef.current.startRingTone();
+        } catch(e) {}
+
+        try {
+            // 1. Output Audio Player (24kHz HD PCM)
+            const player = new PcmPlayer(24000);
+            await player.resume();
+            player.onEndedCallback = () => {
+                setIsAiSpeaking(false);
+            };
+            playerRef.current = player;
+
+            // 2. Request and start Microphone
+            await startMic();
+
+            // 3. Fetch Token & Config from backend
+            const cfg = await api('voice-agent/config');
+            const authToken = cfg?.auth_token || cfg?.apiKey;
+            const systemInstruction = cfg?.system_instruction || cfg?.systemInstruction;
+            const voiceName = cfg?.voice_name || 'Aoede';
+            const liveModel = cfg?.live_model || cfg?.liveModel || 'gemini-3.1-flash-live-preview';
+            const tools = cfg?.tools || [];
+
+            if (!authToken || authToken === 'solarflow_ready') {
+                throw new Error('Gemini API key is not configured in .env file.');
+            }
+
+            let targetModel = (liveModel || 'gemini-3.1-flash-live-preview').replace(/^models\//, '');
+            if (!targetModel || targetModel.includes('gemini-3.8-live') || targetModel.includes('gemini-2.0-flash-exp')) {
+                targetModel = 'gemini-3.1-flash-live-preview';
+            }
+
+            // 4. Connect to Gemini Live via official SDK
+            const ai = new GoogleGenAI({
+                apiKey: authToken,
+                httpOptions: { apiVersion: 'v1alpha' }
+            });
+
+            const session = await ai.live.connect({
+                model: targetModel,
+                config: {
+                    responseModalities: [Modality.AUDIO],
+                    systemInstruction: systemInstruction,
+                    speechConfig: {
+                        voiceConfig: {
+                            prebuiltVoiceConfig: {
+                                voiceName: voiceName || 'Aoede'
+                            }
+                        }
+                    },
+                    inputAudioTranscription: {},
+                    outputAudioTranscription: {},
+                    tools: tools.length > 0 ? tools : undefined
+                },
+                callbacks: {
+                    onopen: () => {
+                        console.log('[Gemini Live] Connected successfully.');
+                        try {
+                            if (toneGenRef.current) toneGenRef.current.stopRingTone();
+                        } catch(e) {}
+                        setCallState('connected');
+                    },
+                    onmessage: (msg) => handleLiveMessage(msg),
+                    onerror: (e) => {
+                        console.error('[Gemini Live Error]', e);
+                        setConnectionError(e?.message || 'Connection issue detected.');
+                    },
+                    onclose: (e) => {
+                        console.log('[Gemini Live onclose]', e);
+                        if (!closingRef.current) {
+                            try {
+                                if (toneGenRef.current) toneGenRef.current.stopRingTone();
+                            } catch(err) {}
+                            setConnectionError('Call ended. Tap Reconnect to call again.');
+                            setCallState('ended');
+                        }
+                    }
+                }
+            });
+
+            sessionRef.current = session;
+            hasConnectedRef.current = true;
+
+            // Stop Ring tone
+            try {
+                if (toneGenRef.current) {
+                    toneGenRef.current.stopRingTone();
+                }
+            } catch(e) {}
+
+            setCallState('connected');
+            setTranscriptHistory([{ sender: 'ai', text: defaultGreeting }]);
+        } catch (err) {
+            console.error('Failed to start Live Session:', err);
+            try {
+                if (toneGenRef.current) {
+                    toneGenRef.current.stopRingTone();
+                }
+            } catch(e) {}
+            if (!micPermissionError) {
+                setConnectionError(err.message || 'Failed to start voice session.');
+            }
+            setCallState('ended');
+        }
+    };
 
     useEffect(() => {
         if (isOpen) {
-            startCall();
-        } else {
-            endCall();
+            startLiveSession();
         }
         return () => {
             endCall();
         };
     }, [isOpen]);
 
-    const startListening = () => {
-        if (!isConnectedRef.current || isAiSpeakingRef.current || isMutedRef.current) return;
-        if (!recognitionRef.current) return;
-
-        try {
-            if (!recognitionActiveRef.current) {
-                const lang = currentCallLangRef.current || 'gu';
-                recognitionRef.current.lang = lang === 'gu' ? 'gu-IN' : (lang === 'hi' ? 'hi-IN' : 'en-IN');
-                recognitionRef.current.start();
-                recognitionActiveRef.current = true;
-                setCallStatus('listening');
-            }
-        } catch (err) {
-            if (err.name !== 'InvalidStateError') {
-                console.warn('startListening warning:', err);
-            }
-        }
-    };
-
-    const stopListening = () => {
-        if (recognitionRef.current && recognitionActiveRef.current) {
-            try {
-                recognitionActiveRef.current = false;
-                recognitionRef.current.stop();
-            } catch (_) {}
-        }
-    };
-
-    const commitUserSpeech = (text) => {
-        if (silenceTimerRef.current) {
-            clearTimeout(silenceTimerRef.current);
-            silenceTimerRef.current = null;
-        }
-        const clean = (text || pendingSpeechRef.current || currentUserSpeech || '').trim();
-        if (!clean) return;
-        pendingSpeechRef.current = '';
-        setCurrentUserSpeech('');
-        stopListening();
-        handleUserSpokenMessage(clean);
-    };
-
-    const setupVoiceRecognition = () => {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-            console.warn('SpeechRecognition API not supported on this browser.');
-            return;
-        }
-
-        try {
-            if (recognitionRef.current) {
-                try { recognitionRef.current.abort(); } catch(_) {}
-                recognitionRef.current = null;
-            }
-
-            const recognition = new SpeechRecognition();
-            recognition.continuous = true;
-            recognition.interimResults = true;
-            const lang = currentCallLangRef.current || 'gu';
-            recognition.lang = lang === 'gu' ? 'gu-IN' : (lang === 'hi' ? 'hi-IN' : 'en-IN');
-
-            recognition.onstart = () => {
-                recognitionActiveRef.current = true;
-                if (!isAiSpeakingRef.current) {
-                    setCallStatus('listening');
-                }
-            };
-
-            recognition.onresult = (event) => {
-                if (isMutedRef.current || isAiSpeakingRef.current) return;
-
-                let interimTranscript = '';
-                let finalTranscript = '';
-
-                for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    if (event.results[i].isFinal) {
-                        finalTranscript += event.results[i][0].transcript;
-                    } else {
-                        interimTranscript += event.results[i][0].transcript;
-                    }
-                }
-
-                const spokenText = (finalTranscript || interimTranscript).trim();
-                if (spokenText) {
-                    pendingSpeechRef.current = spokenText;
-                    setCurrentUserSpeech(spokenText);
-                    setCallStatus('listening');
-
-                    // If final result arrived from Web Speech API:
-                    if (finalTranscript.trim()) {
-                        commitUserSpeech(finalTranscript.trim());
-                        return;
-                    }
-
-                    // Reset silence debounce timer: if user stops speaking for 1.2s, auto-commit
-                    if (silenceTimerRef.current) {
-                        clearTimeout(silenceTimerRef.current);
-                    }
-                    silenceTimerRef.current = setTimeout(() => {
-                        if (pendingSpeechRef.current && !isAiSpeakingRef.current && isConnectedRef.current) {
-                            commitUserSpeech(pendingSpeechRef.current);
-                        }
-                    }, 1200);
-                }
-            };
-
-            recognition.onerror = (e) => {
-                if (e.error !== 'no-speech') {
-                    console.warn('Speech recognition status:', e.error);
-                }
-                recognitionActiveRef.current = false;
-            };
-
-            recognition.onend = () => {
-                recognitionActiveRef.current = false;
-                if (silenceTimerRef.current) {
-                    clearTimeout(silenceTimerRef.current);
-                    silenceTimerRef.current = null;
-                }
-                // If user was speaking and speech was pending when recognition ended, immediately commit!
-                if (pendingSpeechRef.current && !isAiSpeakingRef.current && isConnectedRef.current) {
-                    commitUserSpeech(pendingSpeechRef.current);
-                    return;
-                }
-                // Auto resume listening if call is active and AI is not speaking
-                if (isConnectedRef.current && !isAiSpeakingRef.current && !isMutedRef.current) {
-                    setTimeout(() => {
-                        if (isConnectedRef.current && !isAiSpeakingRef.current && !isMutedRef.current) {
-                            startListening();
-                        }
-                    }, 150);
-                }
-            };
-
-            recognitionRef.current = recognition;
-        } catch (e) {
-            console.warn('Speech recognition init failed:', e);
-        }
-    };
-
-    const startCall = async () => {
-        setCallStatus('dialing');
-        setErrorMessage('');
-        setCallDuration(0);
-        setTranscript([]);
-        setCurrentAiSpeech('');
-        setCurrentUserSpeech('');
-        if (silenceTimerRef.current) {
-            clearTimeout(silenceTimerRef.current);
-            silenceTimerRef.current = null;
-        }
-        pendingSpeechRef.current = '';
-        setShowKeypad(false);
-        setShowPrompts(false);
-        setShowInfo(false);
-        setTextInput('');
-        isConnectedRef.current = false;
-        isAiSpeakingRef.current = false;
-
-        // Remember last used language so future calls greet in the user's preferred language
-        const rememberedLang = typeof window !== 'undefined' ? localStorage.getItem(LAST_VOICE_LANG_KEY) : null;
-        const initialLang = rememberedLang || getLanguage() || 'gu';
-        currentCallLangRef.current = initialLang;
-        setCurrentCallLang(initialLang);
-
-        // Ensure Aoede-style sweet female voice is initialized
-        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-            const voices = window.speechSynthesis.getVoices() || [];
-            lockedFemaleVoiceRef.current = selectLockedFemaleVoice(voices, initialLang);
-        }
-
-        // Initialize audio tones
-        tonePlayerRef.current = new CallTonePlayer();
-        try {
-            tonePlayerRef.current.startRinging();
-        } catch (_) {}
-
-        pcmPlayerRef.current = new PcmPlayer(24000);
-
-        try {
-            // Request mic permission check without holding audio track lock
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                try {
-                    const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    tempStream.getTracks().forEach(t => t.stop());
-                } catch (micErr) {
-                    console.warn('Microphone permission check:', micErr);
-                }
-            }
-
-            // Dialing delay for realistic call feel
-            await new Promise(r => setTimeout(r, 1400));
-
-            // Stop ringing & play connected chime
-            if (tonePlayerRef.current) {
-                tonePlayerRef.current.playConnectedTone();
-            }
-
-            try {
-                pcmPlayerRef.current.init();
-            } catch (_) {}
-
-            setCallStatus('connected');
-            isConnectedRef.current = true;
-
-            // Start duration timer
-            durationTimerRef.current = setInterval(() => {
-                setCallDuration(d => d + 1);
-            }, 1000);
-
-            // Initialize speech recognition for the active language
-            setupVoiceRecognition();
-
-            // Short, friendly greeting in the remembered language with company name
-            const compName = activeCompany?.name || user?.company?.name || 'Nilkanth Solar';
-            let welcomeText = '';
-            if (initialLang === 'hi') {
-                welcomeText = `नमस्ते, ${compName} SolarFlow में आपका स्वागत है। मैं आपकी क्या मदद कर सकती हूँ?`;
-            } else if (initialLang === 'en') {
-                welcomeText = `Hello, welcome to ${compName} SolarFlow. How can I help you?`;
-            } else {
-                welcomeText = `નમસ્તે, ${compName} SolarFlow માં આપનું સ્વાગત છે. હું તમારી શું મદદ કરી શકું?`;
-            }
-
-            setTranscript([{ role: 'ai', text: welcomeText }]);
-            speakAiResponse(welcomeText, initialLang);
-
-        } catch (err) {
-            console.error('Call connection error:', err);
-            if (tonePlayerRef.current) tonePlayerRef.current.stop();
-            setCallStatus('error');
-            const fallbackMsg = initialLang === 'hi' 
-                ? 'कॉल कनेक्ट नहीं हो सका।' 
-                : (initialLang === 'en' ? 'Could not connect call.' : 'કૉલ કનેક્ટ થઈ શક્યો નથી.');
-            setErrorMessage(err.message || fallbackMsg);
-        }
-    };
-
-    const handleUserSpokenMessage = async (text) => {
-        const cleanText = text.trim();
-        if (!cleanText) return;
-
-        // Auto-detect language dynamically from spoken input
-        const detectedLang = detectSpokenLanguage(cleanText, currentCallLangRef.current);
-        if (detectedLang !== currentCallLangRef.current) {
-            currentCallLangRef.current = detectedLang;
-            setCurrentCallLang(detectedLang);
-            if (recognitionRef.current) {
-                recognitionRef.current.lang = detectedLang === 'gu' ? 'gu-IN' : (detectedLang === 'hi' ? 'hi-IN' : 'en-IN');
-            }
-        }
-        if (typeof window !== 'undefined') {
-            localStorage.setItem(LAST_VOICE_LANG_KEY, detectedLang);
-        }
-
-        setTranscript(prev => [...prev, { role: 'user', text: cleanText }]);
-        setCurrentUserSpeech('');
-        setCallStatus('speaking');
-
-        try {
-            const currentHistory = transcript.slice(-6);
-
-            const response = await api('voice-agent/chat', {
-                method: 'POST',
-                body: JSON.stringify({
-                    message: cleanText,
-                    history: currentHistory,
-                    language: detectedLang,
-                })
-            });
-
-            if (response && response.reply) {
-                const aiReply = response.reply;
-                const replyLang = response.language || detectedLang;
-                const rawAudio = response.audio || null;
-                setTranscript(prev => [...prev, { role: 'ai', text: aiReply }]);
-                speakAiResponse(aiReply, replyLang, rawAudio);
-                return;
-            } else if (response && response.error) {
-                throw new Error(response.error);
-            }
-        } catch (err) {
-            console.warn('Backend chat response error, using smart local engine:', err);
-        }
-
-        // Smart Local Response fallback - answered in the active language
-        const fallbackReply = generateSmartLocalReply(cleanText, detectedLang, user, activeCompany);
-        setTranscript(prev => [...prev, { role: 'ai', text: fallbackReply }]);
-        speakAiResponse(fallbackReply, detectedLang);
-    };
-
-    // Aoede Female Voice Persona - Plays Natural Studio Cloud Audio with Infallible Sweet SpeechSynthesis Fallback
-    const speakAiResponse = (text, targetLang, rawAudioBase64) => {
-        if (!text) return;
-        const lang = targetLang || currentCallLangRef.current || 'gu';
-        setCurrentAiSpeech(text);
-        setCallStatus('speaking');
-        isAiSpeakingRef.current = true;
-        stopListening(); // Stop mic while AI speaks so it doesn't hear itself
-
-        let playbackEnded = false;
-        const onPlaybackEnd = () => {
-            if (playbackEnded) return;
-            playbackEnded = true;
-            isAiSpeakingRef.current = false;
-            setCurrentAiSpeech('');
-            if (isConnectedRef.current && !isMutedRef.current) {
-                setCallStatus('listening');
-                startListening();
-            } else {
-                setCallStatus('connected');
-            }
-        };
-
-        if (!isSpeakerOn) {
-            setTimeout(onPlaybackEnd, 1200);
-            return;
-        }
-
-        // 1. If raw Gemini PCM base64 audio is provided, play via PcmPlayer (24kHz HD)
-        if (rawAudioBase64 && pcmPlayerRef.current) {
-            try {
-                pcmPlayerRef.current.playPcmChunk(rawAudioBase64, onPlaybackEnd);
-                return;
-            } catch (pcmErr) {
-                console.warn('PcmPlayer chunk error:', pcmErr);
-            }
-        }
-
-        // Natural, gentle female local voice synthesizer
-        const speakViaSpeechSynthesis = () => {
-            if (playbackEnded) return;
-
-            if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-                try {
-                    window.speechSynthesis.cancel();
-                    window.speechSynthesis.resume();
-                } catch (_) {}
-
-                const utterance = new SpeechSynthesisUtterance(text);
-                window.__solarflow_current_utterance = utterance;
-
-                const voices = window.speechSynthesis.getVoices() || [];
-                const chosenVoice = selectLockedFemaleVoice(voices, lang);
-
-                if (chosenVoice) {
-                    utterance.voice = chosenVoice;
-                    utterance.lang = chosenVoice.lang || (lang === 'gu' ? 'gu-IN' : (lang === 'hi' ? 'hi-IN' : 'en-IN'));
-                } else {
-                    utterance.lang = lang === 'gu' ? 'gu-IN' : (lang === 'hi' ? 'hi-IN' : 'en-IN');
-                }
-
-                // NATURAL, SWEET FEMALE TONE (NOT ROBOTIC 1.30 PITCH)
-                utterance.pitch = 1.02; // Pleasant, gentle female tone
-                utterance.rate = 0.98;  // Natural conversational speed
-                utterance.volume = 1.0;
-
-                utterance.onend = onPlaybackEnd;
-                utterance.onerror = (e) => {
-                    console.warn('Speech synthesis error:', e);
-                    onPlaybackEnd();
-                };
-
-                // Watchdog timer: if browser speech synthesis gets stuck, auto recover
-                const maxDurationMs = Math.max(3000, (text.length / 12) * 1000 + 1500);
-                setTimeout(() => {
-                    if (isAiSpeakingRef.current && !playbackEnded) {
-                        onPlaybackEnd();
-                    }
-                }, maxDurationMs + 3000);
-
-                try {
-                    window.speechSynthesis.speak(utterance);
-                } catch (err) {
-                    console.warn('speechSynthesis.speak failed:', err);
-                    onPlaybackEnd();
-                }
-            } else {
-                setTimeout(onPlaybackEnd, 1800);
-            }
-        };
-
-        // 2. Play pure natural Studio Cloud AI Female Voice from /api/voice-agent/tts
-        try {
-            const ttsUrl = `/api/voice-agent/tts?text=${encodeURIComponent(text)}&language=${lang}`;
-            const cloudAudio = playCloudAudio(
-                ttsUrl, 
-                onPlaybackEnd, 
-                (err) => {
-                    console.warn('playCloudAudio failed, instantly falling back to local speech:', err);
-                    speakViaSpeechSynthesis();
-                }
-            );
-
-            if (!cloudAudio) {
-                speakViaSpeechSynthesis();
-            }
-        } catch (cloudErr) {
-            console.warn('playCloudAudio exception, falling back to local speech:', cloudErr);
-            speakViaSpeechSynthesis();
-        }
-    };
-
-    const handleSendText = (e) => {
-        e?.preventDefault();
-        if (!textInput.trim()) return;
-        const msg = textInput.trim();
-        setTextInput('');
-        setShowKeypad(false);
-        handleUserSpokenMessage(msg);
-    };
-
-    const handleAskQuickPrompt = (promptText) => {
-        setShowPrompts(false);
-        handleUserSpokenMessage(promptText);
+    const formatTime = (sec) => {
+        const m = Math.floor(sec / 60).toString().padStart(2, '0');
+        const s = (sec % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
     };
 
     const toggleMute = () => {
-        setIsMuted(prev => !prev);
+        setIsMuted(!isMuted);
     };
 
-    const toggleSpeaker = () => {
-        setIsSpeakerOn(prev => !prev);
-        if (isSpeakerOn) {
-            stopCloudAudio();
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-            }
-        }
-    };
-
-    const endCall = () => {
-        isConnectedRef.current = false;
-        isAiSpeakingRef.current = false;
-        if (silenceTimerRef.current) {
-            clearTimeout(silenceTimerRef.current);
-            silenceTimerRef.current = null;
-        }
-        pendingSpeechRef.current = '';
-        stopListening();
-        stopCloudAudio();
-
-        if (tonePlayerRef.current) {
-            tonePlayerRef.current.playEndedTone();
-            tonePlayerRef.current.stop();
-        }
-        if (pcmPlayerRef.current) {
-            pcmPlayerRef.current.stop();
-        }
-        if (recognitionRef.current) {
-            try {
-                recognitionRef.current.abort();
-                recognitionRef.current = null;
-            } catch (_) {}
-        }
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
-        }
-        if (durationTimerRef.current) {
-            clearInterval(durationTimerRef.current);
-            durationTimerRef.current = null;
-        }
-
-        setCallStatus('ended');
+    const retryCall = () => {
+        endCall();
         setTimeout(() => {
-            onClose();
+            startLiveSession();
         }, 400);
     };
 
-    if (!isOpen) return null;
-
-    const formatTime = (secs) => {
-        const m = Math.floor(secs / 60);
-        const s = secs % 60;
-        return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-    };
-
     return (
-        /* Full Screen iPhone Calling Screen */
-        <div className="fixed inset-0 z-[99999] w-full h-[100dvh] max-h-[100dvh] bg-[#07080b] text-white flex flex-col justify-between overflow-y-auto select-none animate-fadeIn pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))] px-4">
-            {/* Ambient iOS Glow Backdrop */}
-            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-emerald-500/10 rounded-full blur-[90px] pointer-events-none" />
-            <div className="absolute bottom-1/3 left-1/2 -translate-x-1/2 w-[240px] h-[240px] bg-indigo-500/10 rounded-full blur-[80px] pointer-events-none" />
-
-            {/* TOP BAR / CALLER HEADER */}
-            <div className="pt-2 sm:pt-4 pb-2 px-3 text-center z-10 flex flex-col items-center flex-shrink-0">
-                {/* Audio Type Pill */}
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/10 text-neutral-300 text-[11px] font-medium tracking-wide mb-1.5">
-                    <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
-                    <span>solarflow audio • HD</span>
-                </div>
-
-                {/* Caller Name */}
-                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-white drop-shadow-md">
-                    SolarFlow
-                </h1>
-
-                {/* Subtitle / Call Duration */}
-                <div className="mt-1 text-xs sm:text-sm font-normal tracking-wide text-neutral-400">
-                    {callStatus === 'dialing' && (
-                        <span className="text-neutral-300 animate-pulse">
-                            {t('calling')}
-                        </span>
-                    )}
-                    {(callStatus === 'connected' || callStatus === 'speaking' || callStatus === 'listening') && (
-                        <span className="text-neutral-300 font-mono tracking-wider">
-                            {formatTime(callDuration)}
-                        </span>
-                    )}
-                    {callStatus === 'error' && (
-                        <span className="text-red-400">
-                            {errorMessage || t('callFailed')}
-                        </span>
-                    )}
-                    {callStatus === 'ended' && (
-                        <span className="text-neutral-400">
-                            {t('callEnded')}
-                        </span>
-                    )}
-                </div>
-
-                {/* Sweet Tone Female Persona & Creator Tag */}
-                <p className="text-[10px] text-neutral-500 mt-0.5">
-                    {t('assistantTitle')} • {t('createdBy')}
-                </p>
-            </div>
-
-            {/* CENTER AREA: SIRI-STYLE VOICE ORB & LIVE CAPTIONS */}
-            <div className="flex-1 flex flex-col items-center justify-center px-4 py-1 z-10 relative my-auto min-h-0">
-                {/* Siri Glowing Voice Sphere (Clean Circular, No Dark Box/Corner Artifacts) */}
-                <div className="relative flex items-center justify-center my-auto">
-                    {/* Concentric Breathing Glow Halo */}
-                    {callStatus === 'speaking' && (
-                        <div className="absolute -inset-5 rounded-full bg-gradient-to-r from-purple-500/25 via-pink-500/25 to-indigo-500/25 blur-2xl animate-pulse pointer-events-none" />
-                    )}
-                    {callStatus === 'listening' && (
-                        <div className="absolute -inset-5 rounded-full bg-gradient-to-r from-cyan-500/25 via-teal-500/25 to-emerald-500/25 blur-2xl animate-pulse pointer-events-none" />
-                    )}
-
-                    {/* Central Animated Orb (Guaranteed 100% Circular, Zero Black Box Clipping) */}
-                    <div className={`relative w-22 h-22 sm:w-28 sm:h-28 rounded-full p-[2px] transition-all duration-500 overflow-hidden shadow-2xl ${
-                        callStatus === 'speaking'
-                            ? 'bg-gradient-to-tr from-purple-500 via-pink-500 to-indigo-500 shadow-purple-500/40 scale-105 animate-pulse'
-                            : callStatus === 'listening'
-                            ? 'bg-gradient-to-tr from-cyan-400 via-teal-400 to-emerald-400 shadow-cyan-500/40 scale-105'
-                            : 'bg-gradient-to-tr from-neutral-600 via-neutral-700 to-neutral-800 shadow-white/5'
-                    }`}>
-                        <div className="w-full h-full rounded-full bg-[#0d0f15] flex items-center justify-center overflow-hidden relative">
-                            {/* Inner Color Fill */}
-                            <div className={`absolute inset-0 opacity-40 transition-opacity duration-500 ${
-                                callStatus === 'speaking'
-                                    ? 'bg-gradient-to-br from-purple-500 via-pink-500 to-indigo-600'
-                                    : callStatus === 'listening'
-                                    ? 'bg-gradient-to-br from-cyan-500 via-teal-500 to-emerald-600'
-                                    : 'bg-transparent'
-                            }`} />
-
-                            <Sparkles className={`relative z-10 w-9 h-9 sm:w-10 sm:h-10 transition-all duration-300 ${
-                                callStatus === 'speaking'
-                                    ? 'text-amber-300 drop-shadow-[0_0_12px_rgba(252,211,77,0.8)] scale-110 animate-spin'
-                                    : callStatus === 'listening'
-                                    ? 'text-cyan-300 drop-shadow-[0_0_12px_rgba(103,232,249,0.8)] scale-105'
-                                    : 'text-neutral-500'
-                            }`} style={{ animationDuration: '8s' }} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/95 backdrop-blur-2xl animate-fadeIn">
+            {/* iPhone Frame Container */}
+            <div className="relative w-full h-full sm:h-[844px] sm:max-w-[390px] bg-gradient-to-b from-slate-900 via-neutral-950 to-black sm:rounded-[54px] sm:border-[8px] sm:border-neutral-800 shadow-2xl flex flex-col justify-between overflow-hidden text-white font-sans select-none sm:ring-1 sm:ring-neutral-700">
+                
+                {/* Dynamic Island / Top Notch Bar */}
+                <div className="w-full pt-3 pb-2 flex flex-col items-center z-20">
+                    <div className="w-36 h-6 bg-black rounded-full flex items-center justify-between px-3 border border-neutral-800/80 shadow-md">
+                        <div className={`w-2 h-2 rounded-full ${callState === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></div>
+                        <span className="text-[10px] text-neutral-400 font-medium tracking-tight">Gemini Live VAD</span>
+                        <div className="w-2.5 h-2.5 rounded-full border border-neutral-600 flex items-center justify-center">
+                            <div className="w-1 h-1 rounded-full bg-neutral-400"></div>
                         </div>
                     </div>
                 </div>
 
-                {/* Real-Time Live Speech Subtitle & Status Display Card */}
-                <div className="w-full max-w-xs sm:max-w-sm mt-3 min-h-[50px] max-h-[85px] overflow-y-auto px-4 py-2.5 rounded-2xl bg-white/[0.08] border border-white/10 text-center text-xs sm:text-sm leading-snug shadow-xl">
-                    {errorMessage ? (
-                        <p className="text-red-300 font-medium animate-fadeIn">
-                            <span className="font-semibold text-red-400">Notice: </span>
-                            {errorMessage}
-                        </p>
-                    ) : currentAiSpeech ? (
-                        <p className="text-purple-200 font-normal animate-fadeIn">
-                            <span className="font-semibold text-purple-300">SolarFlow (Aoede): </span>
-                            "{currentAiSpeech}"
-                        </p>
-                    ) : currentUserSpeech ? (
-                        <div className="flex flex-col items-center gap-1.5 animate-fadeIn">
-                            <p className="text-cyan-200 font-normal">
-                                <span className="font-semibold text-cyan-300">{user?.name || 'You'}: </span>
-                                "{currentUserSpeech}"
-                            </p>
-                            <button
-                                onClick={() => commitUserSpeech(currentUserSpeech)}
-                                className="px-3 py-1 rounded-full bg-cyan-500/25 hover:bg-cyan-500/40 border border-cyan-400/50 text-[11px] font-medium text-cyan-200 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-sm"
+                {/* Error Banner on Display (if any) */}
+                {(micPermissionError || connectionError) && (
+                    <div className="mx-5 p-3.5 bg-red-950/90 border border-red-500/60 rounded-2xl text-xs text-red-200 flex flex-col space-y-2 z-20 shadow-lg shadow-red-950/50">
+                        <div className="flex items-start space-x-2">
+                            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                            <span className="text-[11px] leading-relaxed flex-1">{micPermissionError || connectionError}</span>
+                        </div>
+                        <div className="flex justify-end pt-1">
+                            <button 
+                                onClick={retryCall} 
+                                className="px-3.5 py-1.5 bg-red-600 hover:bg-red-500 active:scale-95 rounded-xl text-xs font-bold text-white transition cursor-pointer shadow flex items-center space-x-1"
                             >
-                                <Send className="w-3 h-3 text-cyan-300" />
-                                {currentCallLang === 'hi' ? 'तुरंत भेजें' : (currentCallLang === 'en' ? 'Send Now' : 'હમણાં મોકલો')}
+                                <Mic className="w-3.5 h-3.5" />
+                                <span>{micPermissionError ? 'Allow Mic & Retry' : 'Reconnect'}</span>
                             </button>
                         </div>
-                    ) : (
-                        <p className="text-neutral-400 italic flex items-center justify-center h-full">
-                            {callStatus === 'dialing' 
-                                ? t('callStatusDialing') 
-                                : callStatus === 'speaking'
-                                ? 'AI speaking...'
-                                : callStatus === 'listening'
-                                ? (currentCallLang === 'hi' 
-                                    ? 'सुन रही हूँ... (गुजराती, हिन्दी या English में बोलें)' 
-                                    : (currentCallLang === 'en' ? 'Listening... (Speak in English, Gujarati, or Hindi)' : 'સાંભળું છું... (ગુજરાતી, હિન્દી કે English માં બોલો)'))
-                                : (getLanguage() === 'gu' ? 'તમે પૂછી શકો છો: "આજના યુનિટ્સ કેટલા?" અથવા Keypad વાપરો' : 'Speak anytime or tap Keypad to type...')}
-                        </p>
-                    )}
-                </div>
-            </div>
-
-            {/* KEYPAD MODAL / DRAWER (iOS Frosted Glass Style) */}
-            {showKeypad && (
-                <div className="absolute inset-x-0 bottom-0 z-50 bg-[#16171d]/95 backdrop-blur-2xl border-t border-white/15 p-5 rounded-t-3xl shadow-2xl animate-slideUp">
-                    <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-semibold text-neutral-200 flex items-center gap-2">
-                            <MessageSquare className="w-4 h-4 text-emerald-400" />
-                            {t('keypad')}
-                        </span>
-                        <button 
-                            onClick={() => setShowKeypad(false)}
-                            className="p-1 rounded-full bg-white/10 text-neutral-400 hover:text-white"
-                        >
-                            <X className="w-4 h-4" />
-                        </button>
                     </div>
-                    <form onSubmit={handleSendText} className="flex items-center gap-2">
-                        <input
-                            type="text"
-                            value={textInput}
-                            onChange={(e) => setTextInput(e.target.value)}
-                            placeholder={t('typeQuestionPlaceholder')}
-                            autoFocus
-                            className="flex-1 bg-white/10 border border-white/15 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-emerald-400"
+                )}
+
+                {/* Contact Profile Header */}
+                <div className="flex flex-col items-center text-center mt-2 px-4 z-10">
+                    {/* Animated Avatar with Pulsing Waves */}
+                    <div className="relative flex items-center justify-center my-3">
+                        <div 
+                            className={`absolute rounded-full transition-all duration-150 ${
+                                isAiSpeaking 
+                                    ? 'w-40 h-40 bg-gradient-to-tr from-amber-500 via-orange-500 to-yellow-500 opacity-40 blur-xl animate-pulse'
+                                    : callState === 'connected' && !isMuted
+                                    ? 'w-36 h-36 bg-amber-500 opacity-25 blur-lg'
+                                    : 'w-32 h-32 bg-neutral-700 opacity-10'
+                            }`}
+                            style={{
+                                transform: isAiSpeaking ? 'scale(1.2)' : `scale(${1 + (audioLevel / 100) * 0.6})`
+                            }}
                         />
-                        <button
-                            type="submit"
-                            disabled={!textInput.trim()}
-                            className="p-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-xl cursor-pointer"
-                        >
-                            <Send className="w-4 h-4" />
-                        </button>
-                    </form>
-                </div>
-            )}
 
-            {/* QUICK PROMPTS DRAWER */}
-            {showPrompts && (
-                <div className="absolute inset-x-0 bottom-0 z-50 bg-[#16171d]/95 backdrop-blur-2xl border-t border-white/15 p-5 rounded-t-3xl shadow-2xl animate-slideUp">
-                    <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-semibold text-neutral-200 flex items-center gap-2">
-                            <HelpCircle className="w-4 h-4 text-emerald-400" />
-                            {t('quickQuestions')}
-                        </span>
-                        <button 
-                            onClick={() => setShowPrompts(false)}
-                            className="p-1 rounded-full bg-white/10 text-neutral-400 hover:text-white"
-                        >
-                            <X className="w-4 h-4" />
-                        </button>
+                        {/* SolarFlow Brand Sun Logo Circle */}
+                        <div className={`relative w-28 h-28 rounded-full p-1 bg-gradient-to-b from-amber-500/30 to-neutral-900 border-2 ${isAiSpeaking ? 'border-amber-400 shadow-lg shadow-amber-500/40' : 'border-amber-500/40'} shadow-2xl flex items-center justify-center`}>
+                            <div className="w-full h-full rounded-full bg-gradient-to-tr from-amber-950 via-neutral-900 to-yellow-950 flex items-center justify-center overflow-hidden border border-amber-500/20 shadow-inner">
+                                <Sun className={`w-14 h-14 text-amber-400 filter drop-shadow transition-transform duration-700 ${isAiSpeaking ? 'animate-spin-slow scale-110' : ''}`} />
+                            </div>
+                        </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {[
-                            t('qTodayUnits'),
-                            t('qCurtailment'),
-                            t('qAttendance'),
-                            t('qRevenue'),
-                        ].map((prompt, idx) => (
+
+                    {/* Caller Name */}
+                    <h2 className="text-2xl font-semibold tracking-tight text-white mt-1">
+                        SolarFlow AI
+                    </h2>
+                    <p className="text-xs text-neutral-400 mt-0.5">
+                        Solar Assistant • <span className="text-amber-400 font-medium">{displayName}</span>
+                    </p>
+
+                    {/* Call Status / Timer */}
+                    <p className="text-sm font-medium mt-1">
+                        {callState === 'connecting' ? (
+                            <span className="text-amber-400 animate-pulse font-medium">Connecting SolarFlow AI...</span>
+                        ) : callState === 'connected' ? (
+                            <span className="text-neutral-300 font-mono tracking-wider">{formatTime(callDuration)}</span>
+                        ) : (
+                            <span className="text-red-400">Call Ended</span>
+                        )}
+                    </p>
+
+                    {/* Live Speaking Status Pill & Mic Level Meter */}
+                    <div className="mt-2 flex flex-col items-center space-y-1">
+                        <div>
+                            {isAiSpeaking ? (
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                    <Volume2 className="w-3 h-3 mr-1.5 animate-bounce" />
+                                    SolarFlow Speaking (Aoede)...
+                                </span>
+                            ) : !isMuted && callState === 'connected' ? (
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                                    <Mic className="w-3 h-3 mr-1.5 animate-pulse" />
+                                    Listening (Live VAD)...
+                                </span>
+                            ) : isMuted ? (
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-neutral-800 text-neutral-400">
+                                    <MicOff className="w-3 h-3 mr-1.5" />
+                                    Muted
+                                </span>
+                            ) : null}
+                        </div>
+
+                        {/* On-Screen Mic Level Bar */}
+                        {!isMuted && callState === 'connected' && (
+                            <div className="w-24 h-1.5 bg-neutral-800 rounded-full overflow-hidden flex items-center px-0.5">
+                                <div 
+                                    className="h-1 bg-emerald-400 rounded-full transition-all duration-75"
+                                    style={{ width: `${Math.max(5, audioLevel)}%` }}
+                                ></div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Tool Event Notification Bar */}
+                {lastToolEvent && (
+                    <div className="mx-6 px-3 py-2 bg-indigo-950/70 border border-indigo-500/40 rounded-xl text-[11px] text-indigo-200 flex items-center space-x-2 animate-bounce">
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-300 flex-shrink-0" />
+                        <span className="truncate">{lastToolEvent}</span>
+                    </div>
+                )}
+
+                {/* Live Transcript Window */}
+                <div className="mx-6 my-2 p-3.5 bg-neutral-900/80 border border-neutral-800 rounded-2xl flex-1 overflow-y-auto space-y-2 text-xs font-sans shadow-inner max-h-[175px]">
+                    {transcriptHistory.map((item, idx) => (
+                        <div 
+                            key={idx} 
+                            className={`flex space-x-1.5 leading-relaxed ${
+                                item.sender === 'user' ? 'text-emerald-400' : 'text-neutral-300'
+                            }`}
+                        >
+                            <span className="font-semibold text-[11px] uppercase tracking-wider opacity-75 shrink-0">
+                                {item.sender === 'user' ? `${displayName}:` : 'SolarFlow:'}
+                            </span>
+                            <span>{item.text}</span>
+                        </div>
+                    ))}
+                    {currentAiText && (
+                        <div className="text-pink-300 flex items-center space-x-1 animate-pulse">
+                            <span>{currentAiText}</span>
+                        </div>
+                    )}
+                    <div ref={transcriptEndRef} />
+                </div>
+
+                {/* In-Call Controls Grid */}
+                <div className="px-8 pb-8 pt-1 z-10 flex flex-col items-center">
+                    <div className="grid grid-cols-3 gap-x-8 gap-y-4 mb-5 w-full max-w-[280px]">
+                        
+                        {/* 1. Mute Button */}
+                        <div className="flex flex-col items-center">
                             <button
-                                key={idx}
-                                onClick={() => handleAskQuickPrompt(prompt)}
-                                className="text-left p-3 rounded-xl bg-white/8 hover:bg-white/15 border border-white/10 text-xs text-neutral-200 transition-colors"
+                                onClick={toggleMute}
+                                className={`w-16 h-16 rounded-full flex items-center justify-center transition active:scale-95 cursor-pointer ${
+                                    isMuted 
+                                        ? 'bg-white text-black shadow-lg shadow-white/20' 
+                                        : 'bg-neutral-800/90 text-white hover:bg-neutral-700/90'
+                                    }`}
                             >
-                                {prompt}
+                                {isMuted ? <MicOff className="w-7 h-7" /> : <Mic className="w-7 h-7" />}
                             </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* PLANT INFO DRAWER */}
-            {showInfo && (
-                <div className="absolute inset-x-0 bottom-0 z-50 bg-[#16171d]/95 backdrop-blur-2xl border-t border-white/15 p-5 rounded-t-3xl shadow-2xl animate-slideUp">
-                    <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-semibold text-neutral-200 flex items-center gap-2">
-                            <Info className="w-4 h-4 text-cyan-400" />
-                            {t('plantInfo')}
-                        </span>
-                        <button 
-                            onClick={() => setShowInfo(false)}
-                            className="p-1 rounded-full bg-white/10 text-neutral-400 hover:text-white"
-                        >
-                            <X className="w-4 h-4" />
-                        </button>
-                    </div>
-                    <div className="space-y-2 text-xs text-neutral-300">
-                        <div className="flex justify-between p-2 rounded-lg bg-white/5">
-                            <span>User</span>
-                            <span className="font-semibold text-white">{user?.name} ({user?.role})</span>
+                            <span className="text-[11px] font-medium text-neutral-300 mt-1.5">
+                                {isMuted ? 'Unmute' : 'Mute'}
+                            </span>
                         </div>
-                        <div className="flex justify-between p-2 rounded-lg bg-white/5">
-                            <span>Company</span>
-                            <span className="font-semibold text-white">{user?.company?.name || 'All Companies'}</span>
+
+                        {/* 2. Speaker Indicator */}
+                        <div className="flex flex-col items-center">
+                            <div className="w-16 h-16 rounded-full bg-neutral-800/90 text-white flex items-center justify-center">
+                                <Volume2 className="w-7 h-7 text-emerald-400" />
+                            </div>
+                            <span className="text-[11px] font-medium text-neutral-300 mt-1.5">HD Audio</span>
                         </div>
-                        <div className="flex justify-between p-2 rounded-lg bg-white/5">
-                            <span>Voice Engine</span>
-                            <span className="font-semibold text-emerald-400">Aoede (Natural Sweet Female Voice)</span>
+
+                        {/* 3. Status Indicator */}
+                        <div className="flex flex-col items-center">
+                            <div className="w-16 h-16 rounded-full bg-neutral-800/90 text-white flex items-center justify-center">
+                                <Zap className="w-7 h-7 text-amber-300" />
+                            </div>
+                            <span className="text-[11px] font-medium text-neutral-300 mt-1.5">Live VAD</span>
                         </div>
-                    </div>
-                </div>
-            )}
 
-            {/* BOTTOM SECTION: AUTHENTIC iOS 6-BUTTON GRID & RED END CALL BUTTON */}
-            <div className="pt-2 pb-2 px-4 z-10 flex flex-col items-center flex-shrink-0">
-                {/* 6-Button Grid (2 rows of 3 buttons) */}
-                <div className="grid grid-cols-3 gap-x-6 sm:gap-x-10 gap-y-2.5 sm:gap-y-3.5 max-w-[270px] sm:max-w-xs mb-3 sm:mb-5">
-                    {/* 1. Mute */}
-                    <div className="flex flex-col items-center gap-1">
-                        <button
-                            onClick={toggleMute}
-                            className={`w-13 h-13 sm:w-16 sm:h-16 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                                isMuted
-                                    ? 'bg-white text-black shadow-lg scale-105'
-                                    : 'bg-white/12 text-white hover:bg-white/20 active:scale-95'
-                            }`}
-                        >
-                            {isMuted ? <MicOff className="w-5 h-5 sm:w-6 sm:h-6" /> : <Mic className="w-5 h-5 sm:w-6 sm:h-6" />}
-                        </button>
-                        <span className="text-[10px] sm:text-xs text-neutral-300 capitalize">{t('mute')}</span>
                     </div>
 
-                    {/* 2. Keypad */}
-                    <div className="flex flex-col items-center gap-1">
-                        <button
-                            onClick={() => {
-                                setShowKeypad(!showKeypad);
-                                setShowPrompts(false);
-                                setShowInfo(false);
-                            }}
-                            className={`w-13 h-13 sm:w-16 sm:h-16 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                                showKeypad
-                                    ? 'bg-white text-black shadow-lg scale-105'
-                                    : 'bg-white/12 text-white hover:bg-white/20 active:scale-95'
-                            }`}
-                        >
-                            <Grid className="w-5 h-5 sm:w-6 sm:h-6" />
-                        </button>
-                        <span className="text-[10px] sm:text-xs text-neutral-300 capitalize">{t('keypad')}</span>
-                    </div>
-
-                    {/* 3. Speaker / Audio */}
-                    <div className="flex flex-col items-center gap-1">
-                        <button
-                            onClick={toggleSpeaker}
-                            className={`w-13 h-13 sm:w-16 sm:h-16 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                                isSpeakerOn
-                                    ? 'bg-white text-black shadow-lg'
-                                    : 'bg-white/12 text-neutral-400 hover:bg-white/20 active:scale-95'
-                            }`}
-                        >
-                            {isSpeakerOn ? <Volume2 className="w-5 h-5 sm:w-6 sm:h-6" /> : <VolumeX className="w-5 h-5 sm:w-6 sm:h-6" />}
-                        </button>
-                        <span className="text-[10px] sm:text-xs text-neutral-300 capitalize">{t('speaker')}</span>
-                    </div>
-
-                    {/* 4. Quick Prompts */}
-                    <div className="flex flex-col items-center gap-1">
-                        <button
-                            onClick={() => {
-                                setShowPrompts(!showPrompts);
-                                setShowKeypad(false);
-                                setShowInfo(false);
-                            }}
-                            className={`w-13 h-13 sm:w-16 sm:h-16 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                                showPrompts
-                                    ? 'bg-white text-black shadow-lg scale-105'
-                                    : 'bg-white/12 text-white hover:bg-white/20 active:scale-95'
-                            }`}
-                        >
-                            <HelpCircle className="w-5 h-5 sm:w-6 sm:h-6" />
-                        </button>
-                        <span className="text-[10px] sm:text-xs text-neutral-300 capitalize">{t('prompts')}</span>
-                    </div>
-
-                    {/* 5. Audio Wave / Visualizer */}
-                    <div className="flex flex-col items-center gap-1">
-                        <button
-                            onClick={() => {}}
-                            className="w-13 h-13 sm:w-16 sm:h-16 rounded-full bg-white/12 text-white hover:bg-white/20 active:scale-95 flex items-center justify-center transition-all cursor-pointer"
-                        >
-                            <Radio className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-400" />
-                        </button>
-                        <span className="text-[10px] sm:text-xs text-neutral-300 capitalize">{t('visualizer')}</span>
-                    </div>
-
-                    {/* 6. Plant Info */}
-                    <div className="flex flex-col items-center gap-1">
-                        <button
-                            onClick={() => {
-                                setShowInfo(!showInfo);
-                                setShowKeypad(false);
-                                setShowPrompts(false);
-                            }}
-                            className={`w-13 h-13 sm:w-16 sm:h-16 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                                showInfo
-                                    ? 'bg-white text-black shadow-lg scale-105'
-                                    : 'bg-white/12 text-white hover:bg-white/20 active:scale-95'
-                            }`}
-                        >
-                            <Info className="w-5 h-5 sm:w-6 sm:h-6" />
-                        </button>
-                        <span className="text-[10px] sm:text-xs text-neutral-300 capitalize">{t('info')}</span>
+                    {/* Big Red End Call Button */}
+                    <div className="flex justify-center mt-1">
+                        {callState !== 'ended' ? (
+                            <button
+                                onClick={endCall}
+                                className="w-20 h-20 rounded-full bg-red-600 hover:bg-red-500 active:scale-90 text-white flex items-center justify-center shadow-2xl shadow-red-600/50 transition cursor-pointer"
+                                title="End Call"
+                            >
+                                <PhoneOff className="w-9 h-9" />
+                            </button>
+                        ) : (
+                            <button
+                                onClick={onClose}
+                                className="px-8 py-3 rounded-full bg-neutral-800 hover:bg-neutral-700 text-white text-sm font-semibold transition active:scale-95 cursor-pointer border border-neutral-700"
+                            >
+                                Close Call
+                            </button>
+                        )}
                     </div>
                 </div>
 
-                {/* Big Red Circular End Call Button (Classic iOS Hangup - Guaranteed Fully Visible) */}
-                <button
-                    onClick={endCall}
-                    className="w-15 h-15 sm:w-17 sm:h-17 rounded-full bg-[#eb4e3d] hover:bg-[#ff5544] active:bg-[#c93b2c] flex items-center justify-center text-white shadow-xl shadow-red-600/40 transition-transform active:scale-90 cursor-pointer flex-shrink-0"
-                    title={t('callEnd')}
-                >
-                    <PhoneOff className="w-7 h-7 sm:w-8 sm:h-8" />
-                </button>
+                {/* iPhone Bottom Home Bar Indicator */}
+                <div className="w-full flex justify-center pb-2 z-20">
+                    <div className="w-32 h-1 bg-neutral-600/60 rounded-full"></div>
+                </div>
+
             </div>
         </div>
     );
-}
-
-function generateSmartLocalReply(text, lang, user, activeCompany) {
-    const lower = (text || '').toLowerCase();
-    const userName = user?.name || (lang === 'en' ? 'Sir' : (lang === 'hi' ? 'सर' : 'સર'));
-    const compName = activeCompany?.name || user?.company?.name || 'SolarFlow';
-
-    // 0. Company Name
-    if (lower.includes('કંપની') || lower.includes('company') || lower.includes('कंपनी')) {
-        if (lang === 'hi') return `यह ${compName} SolarFlow सिस्टम है।`;
-        if (lang === 'en') return `This is ${compName} SolarFlow system.`;
-        return `આ ${compName} SolarFlow સિસ્ટમ છે.`;
-    }
-
-    // 1. Creator / Jay Sir
-    if (lower.includes('jay') || lower.includes('જય') || lower.includes('जय') || lower.includes('કોણે') || lower.includes('किसने') || lower.includes('who') || lower.includes('creator') || lower.includes('owner')) {
-        if (lang === 'hi') return `यह ${compName} SolarFlow सॉफ्टवेयर जय सर (Jay Sir) द्वारा बनाया गया है। मैं उनकी AI सहायक (Aoede) हूँ।`;
-        if (lang === 'en') return `This ${compName} SolarFlow system is designed and created by Jay Sir. I am SolarFlow, his AI voice assistant.`;
-        return `આ ${compName} SolarFlow સોફ્ટવેર જય સર (Jay Sir) દ્વારા બનાવવામાં આવ્યું છે. હું તેમની AI સહાયક છું.`;
-    }
-
-    // 2. Units / Generation
-    if (lower.includes('unit') || lower.includes('યુનિટ') || lower.includes('यूनિટ') || lower.includes('यूनिट') || lower.includes('generation') || lower.includes('ઉત્પાદન') || lower.includes('उत्पादन') || lower.includes('આજ') || lower.includes('आज')) {
-        if (lang === 'hi') return `नमस्ते ${userName}, आज के सोलर प्लांट का उत्पादन सामान्य रूप से चालू है और सभी इन्वर्टर कनेक्टेड हैं।`;
-        if (lang === 'en') return `Hello ${userName}, today's solar generation is operating normally across all connected inverters.`;
-        return `નમસ્તે ${userName}, આજના સોલાર પ્લાન્ટ પરથી ઉત્પાદન સામાન્ય રીતે ચાલુ છે અને બધા ઇન્વર્ટર કનેક્ટેડ છે.`;
-    }
-
-    // 3. Curtailment / PGVCL
-    if (lower.includes('curtail') || lower.includes('કર્ટલ') || lower.includes('कर्टेल') || lower.includes('pgvcl') || lower.includes('ઘટાડો') || lower.includes('कटौती') || lower.includes('ગ્રીડ') || lower.includes('ग्रिड')) {
-        if (lang === 'hi') return 'फिलहाल प्लांट पर कोई PGVCL पावर कटौती (कर्टेलमेंट) नहीं है। १००% उत्पादन चालू है।';
-        if (lang === 'en') return 'There is currently no PGVCL power curtailment. All solar plants are running at full capacity.';
-        return 'હાલમાં પ્લાન્ટ પર કોઈ PGVCL પાવર ઘટાડો (કર્ટલમેન્ટ) નથી. ૧૦૦% ઉત્પાદન ચાલુ છે.';
-    }
-
-    // 4. Attendance
-    if (lower.includes('હાજર') || lower.includes('हाजिर') || lower.includes('उपस्थित') || lower.includes('attendance') || lower.includes('કર્મચારી') || lower.includes('कर्मचारी') || lower.includes('staff')) {
-        if (lang === 'hi') return 'आज स्टाफ साइट पर उपस्थित है और सोलर प्लांट का नियमित कार्य सुचारू रूप से चल रहा है।';
-        if (lang === 'en') return 'Solar plant staff is present on site and operations are normal.';
-        return 'આજે સ્ટાફ સાઈટ પર હાજર છે અને સોલાર પ્લાન્ટની નિયમિત કામગીરી ચાલુ છે.';
-    }
-
-    // 5. Revenue
-    if (lower.includes('આવક') || lower.includes('आय') || lower.includes('revenue') || lower.includes('રૂપિયા') || lower.includes('रुपये') || lower.includes('rupee') || lower.includes('પૈસા') || lower.includes('पैसे')) {
-        if (lang === 'hi') return 'चालू माह का सोलर राजस्व और उत्पादन लक्ष्य के अनुसार बहुत अच्छा चल रहा है।';
-        if (lang === 'en') return 'Current month solar revenue and generation are progressing on track according to targets.';
-        return 'ચાલુ મહિનાની સોલાર આવક અને ઉત્પાદન લક્ષ્યાંક મુજબ ખૂબ જ સારું છે.';
-    }
-
-    // Default conversational greeting
-    if (lang === 'hi') {
-        return `हाँ ${userName}, मैं SolarFlow AI सहायक (Aoede) हूँ। आप आज के यूनिट्स, PGVCL स्टेटस, स्टाफ उपस्थिति या सोलर आय के बारे में कुछ भी पूछ सकते हैं।`;
-    }
-    if (lang === 'en') {
-        return `Yes ${userName}, I am SolarFlow AI Assistant (Aoede). You can ask me about today's units, PGVCL curtailment, staff attendance, or solar revenue.`;
-    }
-    return `હા ${userName}, હું SolarFlow AI સહાયક છું. તમે આજના યુનિટ્સ, PGVCL સ્ટેટસ, સ્ટાફ હાજરી અથવા સોલાર આવક વિશે કંઈ પણ પૂછી શકો છો.`;
 }
