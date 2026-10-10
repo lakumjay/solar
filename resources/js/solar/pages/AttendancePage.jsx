@@ -930,7 +930,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                                     <button
                                                         type="button"
                                                         className="att-photo-chip"
-                                                        onClick={() => setSelfiePreview({url: row.selfie_url, employee: empName, date: row.attendance_date})}
+                                                        onClick={() => setSelfiePreview({url: row.selfie_url, employee: empName, date: row.attendance_date, title: currentLang === 'en' ? 'Time In Selfie' : 'આવવાનો સમય સેલ્ફી'})}
                                                         title="Time In Selfie"
                                                     >
                                                         <img src={row.selfie_url} alt="In" />
@@ -938,17 +938,21 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                                     </button>
                                                 )}
                                                 {breaks.filter(b => b.return_selfie_url).map((b, idx) => (
-                                                    <a
+                                                    <button
                                                         key={b.id}
-                                                        href={b.return_selfie_url}
-                                                        target="_blank"
-                                                        rel="noreferrer"
+                                                        type="button"
                                                         className="att-photo-chip"
+                                                        onClick={() => setSelfiePreview({
+                                                            url: b.return_selfie_url,
+                                                            employee: empName,
+                                                            date: row.attendance_date,
+                                                            title: `${currentLang === 'en' ? 'Break Return' : 'બ્રેક રિટર્ન'} ${idx + 1}`
+                                                        })}
                                                         title={`Break ${idx + 1}`}
                                                     >
                                                         <img src={b.return_selfie_url} alt="Break" />
                                                         <span>Break {idx + 1}</span>
-                                                    </a>
+                                                    </button>
                                                 ))}
                                                 {row.clock_in_latitude !== null && row.clock_in_longitude !== null && (
                                                     <a
@@ -1003,8 +1007,8 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                         return (
                                             <tr key={row.id}>
                                                 <td><b>{empName}</b><small>{empCode}</small>{row.entry_source === 'manager' && <i className="status warning">Manager entered</i>}</td>
-                                                <td>{row.selfie_url ? <button type="button" className="photo-preview-button" onClick={() => setSelfiePreview({url: row.selfie_url, employee: empName, date: row.attendance_date})}><img className="selfie-thumb" src={row.selfie_url} alt={`${empName} Time In selfie`}/></button> : <small>Not provided — manager entry</small>}</td>
-                                                <td><span className="break-selfies">{breaks.filter(item => item.return_selfie_url).map((item, index) => <a key={item.id} href={item.return_selfie_url} target="_blank" rel="noreferrer"><img className="selfie-thumb" src={item.return_selfie_url} alt={`Break return ${index + 1}`}/></a>)}{!breaks.some(item => item.return_selfie_url) && '—'}</span></td>
+                                                <td>{row.selfie_url ? <button type="button" className="photo-preview-button" onClick={() => setSelfiePreview({url: row.selfie_url, employee: empName, date: row.attendance_date, title: currentLang === 'en' ? 'Time In Selfie' : 'આવવાનો સમય સેલ્ફી'})} title="Time In Selfie"><img className="selfie-thumb" src={row.selfie_url} alt={`${empName} Time In selfie`}/></button> : <small>Not provided — manager entry</small>}</td>
+                                                <td><span className="break-selfies">{breaks.filter(item => item.return_selfie_url).map((item, index) => <button key={item.id} type="button" className="photo-preview-button" onClick={() => setSelfiePreview({url: item.return_selfie_url, employee: empName, date: row.attendance_date, title: `${currentLang === 'en' ? 'Break Return' : 'બ્રેક રિટર્ન'} ${index + 1}`})} title={`Break ${index + 1} Selfie`}><img className="selfie-thumb" src={item.return_selfie_url} alt={`Break return ${index + 1}`}/></button>)}{!breaks.some(item => item.return_selfie_url) && '—'}</span></td>
                                                 <td>{displayTime(row.clock_in_at)}{row.is_late && <small className="danger-text">Late</small>}</td>
                                                 <td>{row.clock_out_at ? displayTime(row.clock_out_at) : (isToday ? <span className="status on" style={{fontSize: '11px', padding: '2px 7px'}}>{currentLang === 'en' ? '🟢 Active Shift' : '🟢 ચાલુ શિફ્ટ'}</span> : <span className="status warning" style={{fontSize: '11px', padding: '2px 7px'}}>{currentLang === 'en' ? '⚠️ Missing Time Out' : '⚠️ Time Out બાકી'}</span>)}</td>
                                                 <td>{(() => {
@@ -1163,7 +1167,22 @@ export default function AttendancePage({canCorrect, canRecord}) {
                 </div>
             </form>
         </div>}
-        {selfiePreview && <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && setSelfiePreview(null)}><div className="modal attendance-photo-modal" role="dialog" aria-modal="true" aria-labelledby="time-in-selfie-title"><div className="panel-head"><div><h2 id="time-in-selfie-title">Time In selfie</h2><p>{selfiePreview.employee} · {selfiePreview.date}</p></div><button type="button" className="icon-button ghost" onClick={() => setSelfiePreview(null)} aria-label="Close photo preview"><X/></button></div><img className="attendance-photo-preview" src={selfiePreview.url} alt={`${selfiePreview.employee} Time In selfie`}/></div></div>}
+        {selfiePreview && (
+            <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && setSelfiePreview(null)}>
+                <div className="modal attendance-photo-modal" role="dialog" aria-modal="true" aria-labelledby="time-in-selfie-title">
+                    <div className="panel-head">
+                        <div>
+                            <h2 id="time-in-selfie-title">{selfiePreview.title || (currentLang === 'en' ? 'Selfie Preview' : 'સેલ્ફી પ્રીવ્યૂ')}</h2>
+                            <p>{selfiePreview.employee} · {selfiePreview.date}</p>
+                        </div>
+                        <button type="button" className="icon-button ghost" onClick={() => setSelfiePreview(null)} aria-label="Close photo preview">
+                            <X size={18}/>
+                        </button>
+                    </div>
+                    <img className="attendance-photo-preview" src={selfiePreview.url} alt={`${selfiePreview.employee} ${selfiePreview.title || 'selfie'}`}/>
+                </div>
+            </div>
+        )}
 
         {/* 🗺️ Live Google Maps Interactive View Modal */}
         {selectedMapEmployee && (

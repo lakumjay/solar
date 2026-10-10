@@ -60,7 +60,7 @@ export default function AttendanceReportsPage() {
                             title="Toggle between Card view and Table view"
                         >
                             {viewMode === 'cards' ? <Table size={15}/> : <LayoutGrid size={15}/>}
-                            <span>{viewMode === 'cards' ? 'Table' : 'Cards'}</span>
+                            <span>{viewMode === 'cards' ? 'Table View' : 'Card View'}</span>
                         </button>
                         <a className="secondary" href={`/api/attendance-report/export/excel?${query}`}>
                             <Download size={15}/> Excel
@@ -81,11 +81,12 @@ export default function AttendanceReportsPage() {
                         <div className="att-report-cards-grid">
                             {report.rows.map(item => {
                                 const totalRecorded = item.summary.present + item.summary.absent + item.summary.half_days + item.summary.short_days + Number(item.summary.leave || 0);
+                                const empName = item.employee?.user?.name || item.employee?.name || 'Staff';
                                 return (
                                     <div key={item.employee.id} className="att-report-card">
                                         <div className="att-card-head">
                                             <div>
-                                                <b className="att-card-name">{item.employee.user.name}</b>
+                                                <b className="att-card-name">{empName}</b>
                                                 <div className="att-card-code">{item.employee.employee_code} · {item.employee.designation || 'Staff'}</div>
                                             </div>
                                             <span className="att-card-pbadge">
@@ -156,12 +157,14 @@ export default function AttendanceReportsPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {report.rows.map(item => (
-                                        <tr key={item.employee.id}>
-                                            <td>
-                                                <b>{item.employee.user.name}</b>
-                                                <small>{item.employee.employee_code}</small>
-                                            </td>
+                                    {report.rows.map(item => {
+                                        const empName = item.employee?.user?.name || item.employee?.name || 'Staff';
+                                        return (
+                                            <tr key={item.employee.id}>
+                                                <td>
+                                                    <b>{empName}</b>
+                                                    <small>{item.employee?.employee_code || ''}</small>
+                                                </td>
                                             <td>{item.summary.present}</td>
                                             <td>{item.summary.half_days}</td>
                                             <td>{item.summary.short_days}</td>
@@ -175,9 +178,9 @@ export default function AttendanceReportsPage() {
                                             <td>{item.summary.manual_corrections}</td>
                                             <td>{(item.summary.work_minutes / 60).toFixed(2)}</td>
                                             <td>{(item.summary.break_minutes / 60).toFixed(2)}</td>
-                                            <td>{(item.summary.overtime_minutes / 60).toFixed(2)}</td>
+                                             <td>{(item.summary.overtime_minutes / 60).toFixed(2)}</td>
                                         </tr>
-                                    ))}
+                                    ); })}
                                 </tbody>
                             </table>
                         </div>
@@ -195,45 +198,96 @@ export default function AttendanceReportsPage() {
                             <p>Work, break, entry source and learning details remain attached to each day.</p>
                         </div>
                     </div>
-                    <div className="table-wrap">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Status</th>
-                                    <th>Time In</th>
-                                    <th>Time Out</th>
-                                    <th>Work Hours</th>
-                                    <th>Break Hours</th>
-                                    <th>Entry Source</th>
-                                    <th>Work done</th>
-                                    <th>Learned</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {report.rows[0].days.map(day => (
-                                    <tr key={day.date}>
-                                        <td className="strong">{day.date}</td>
-                                        <td>{day.status.replaceAll('_', ' ')}</td>
-                                        <td>{day.clock_in || '—'}</td>
-                                        <td>{day.clock_out || '—'}</td>
-                                        <td>{(day.work_minutes / 60).toFixed(2)}</td>
-                                        <td>{(day.break_minutes / 60).toFixed(2)}</td>
-                                        <td>
-                                            {day.entry_source === 'manager' ? (
-                                                <span className="manual-entry-detail">
-                                                    <i className="status warning">Manager entered</i>
-                                                    <small>{day.recorded_by || 'Authorized user'} · {day.entry_reason}</small>
-                                                </span>
-                                            ) : day.entry_source ? 'Employee' : '—'}
-                                        </td>
-                                        <td className="notes-cell">{day.work_done || '—'}</td>
-                                        <td className="notes-cell">{day.learned || '—'}</td>
+                    {viewMode === 'cards' ? (
+                        <div className="att-report-cards-grid">
+                            {report.rows[0].days.map(day => (
+                                <div key={day.date} className="att-report-card">
+                                    <div className="att-card-head">
+                                        <div>
+                                            <b className="att-card-name">{day.date}</b>
+                                            <div className="att-card-code">
+                                                {day.entry_source === 'manager' ? (
+                                                    <span style={{color: '#d97706', fontWeight: 700}}>Manager entered · {day.recorded_by || 'Authorized user'}</span>
+                                                ) : (
+                                                    day.entry_source ? 'Employee entry' : '—'
+                                                )}
+                                            </div>
+                                        </div>
+                                        <span className={`status ${day.status === 'present' ? 'on' : (day.status === 'absent' ? 'off' : 'warning')}`}>
+                                            {day.status.replaceAll('_', ' ')}
+                                        </span>
+                                    </div>
+
+                                    <div className="att-stats-grid">
+                                        <div className="att-stat-box slate">
+                                            <small>Time In</small>
+                                            <b>{day.clock_in || '—'}</b>
+                                        </div>
+                                        <div className="att-stat-box slate">
+                                            <small>Time Out</small>
+                                            <b>{day.clock_out || '—'}</b>
+                                        </div>
+                                        <div className="att-stat-box green">
+                                            <small>Work Hrs</small>
+                                            <b>{(day.work_minutes / 60).toFixed(2)}h</b>
+                                        </div>
+                                        <div className="att-stat-box amber">
+                                            <small>Break Hrs</small>
+                                            <b>{(day.break_minutes / 60).toFixed(2)}h</b>
+                                        </div>
+                                    </div>
+
+                                    {(day.work_done || day.learned || day.entry_reason) && (
+                                        <div style={{fontSize: '11.5px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '4px', background: '#f8fafc', padding: '8px 10px', borderRadius: '8px', border: '1px solid #f1f5f9'}}>
+                                            {day.entry_reason && <div><b>Reason:</b> {day.entry_reason}</div>}
+                                            {day.work_done && <div><b>Work:</b> {day.work_done}</div>}
+                                            {day.learned && <div><b>Learned:</b> {day.learned}</div>}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Status</th>
+                                        <th>Time In</th>
+                                        <th>Time Out</th>
+                                        <th>Work Hours</th>
+                                        <th>Break Hours</th>
+                                        <th>Entry Source</th>
+                                        <th>Work done</th>
+                                        <th>Learned</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody>
+                                    {report.rows[0].days.map(day => (
+                                        <tr key={day.date}>
+                                            <td className="strong">{day.date}</td>
+                                            <td>{day.status.replaceAll('_', ' ')}</td>
+                                            <td>{day.clock_in || '—'}</td>
+                                            <td>{day.clock_out || '—'}</td>
+                                            <td>{(day.work_minutes / 60).toFixed(2)}</td>
+                                            <td>{(day.break_minutes / 60).toFixed(2)}</td>
+                                            <td>
+                                                {day.entry_source === 'manager' ? (
+                                                    <span className="manual-entry-detail">
+                                                        <i className="status warning">Manager entered</i>
+                                                        <small>{day.recorded_by || 'Authorized user'} · {day.entry_reason}</small>
+                                                    </span>
+                                                ) : day.entry_source ? 'Employee' : '—'}
+                                            </td>
+                                            <td className="notes-cell">{day.work_done || '—'}</td>
+                                            <td className="notes-cell">{day.learned || '—'}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </section>
             )}
         </div>

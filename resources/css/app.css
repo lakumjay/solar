@@ -3356,6 +3356,11 @@
     cursor: pointer;
     font-size: 12px;
     font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
 }
 
 /* Company Picker Modal */
