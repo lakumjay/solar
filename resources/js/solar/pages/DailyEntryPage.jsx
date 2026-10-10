@@ -231,22 +231,11 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
 
     return <form className="entry" onSubmit={save}>
         {companies.length > 1 && (user?.role === 'super_admin' || !user?.company_id) && (
-            <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                marginBottom: '12px',
-                padding: '10px 14px',
-                background: '#ffffff',
-                border: '1.5px solid #d1e7dd',
-                borderRadius: '14px',
-                flexWrap: 'wrap',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
-            }}>
-                <span style={{fontSize: '12px', fontWeight: 800, color: '#15803d', display: 'flex', alignItems: 'center', gap: '5px'}}>
+            <div className="entry-company-picker">
+                <span className="entry-company-label">
                     {currentLang === 'en' ? '🏢 Select Company:' : '🏢 કંપની પસંદ કરો (Company):'}
                 </span>
-                <div style={{display: 'flex', gap: '6px', flexWrap: 'wrap'}}>
+                <div className="entry-company-pills">
                     {companies.filter(c => String(c.id) !== 'all').map(comp => {
                         const isSelected = String(comp.id) === String(company?.id);
                         return (
@@ -256,18 +245,7 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
                                 onClick={() => {
                                     setSelectedCompId(String(comp.id));
                                 }}
-                                style={{
-                                    padding: '6px 14px',
-                                    borderRadius: '8px',
-                                    border: isSelected ? '1.5px solid #16a34a' : '1px solid #cbd5e1',
-                                    background: isSelected ? 'linear-gradient(135deg, #16a34a, #15803d)' : '#f8fafc',
-                                    color: isSelected ? '#ffffff' : '#334155',
-                                    fontWeight: isSelected ? 800 : 600,
-                                    fontSize: '12px',
-                                    cursor: 'pointer',
-                                    boxShadow: isSelected ? '0 2px 8px rgba(22, 163, 74, 0.25)' : 'none',
-                                    transition: 'all 0.15s ease'
-                                }}
+                                className={`entry-company-pill ${isSelected ? 'active' : ''}`}
                             >
                                 {isSelected ? '✓ ' : ''}{comp.name}
                             </button>
@@ -277,33 +255,33 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
             </div>
         )}
 
-        <section className="panel entry-date" style={{borderRadius: '16px', background: '#ffffff', border: '1.5px solid #d1e7dd', boxShadow: '0 4px 14px rgba(0, 0, 0, 0.04)'}}>
+        <section className="panel entry-date entry-step-card">
             <div>
-                <p className="step" style={{color: '#15803d', fontWeight: 800}}>STEP 1</p>
-                <h2 style={{color: '#0f291e', fontWeight: 800}}>{currentLang === 'en' ? 'Select Date' : 'તારીખ પસંદ કરો (Entry Date)'}</h2>
-                <p style={{color: '#475569'}}>{currentLang === 'en' ? 'If data exists for this date, it will load automatically for editing.' : 'જો આ તારીખનો ડેટા પહેલેથી હશે, તો તે આપોઆપ એડિટિંગ માટે લોડ થશે.'}</p>
+                <p className="step entry-step-badge">STEP 1</p>
+                <h2 className="entry-step-title">{currentLang === 'en' ? 'Select Date' : 'તારીખ પસંદ કરો (Entry Date)'}</h2>
+                <p className="entry-step-desc">{currentLang === 'en' ? 'If data exists for this date, it will load automatically for editing.' : 'જો આ તારીખનો ડેટા પહેલેથી હશે, તો તે આપોઆપ એડિટિંગ માટે લોડ થશે.'}</p>
             </div>
             <DatePicker label="Entry date" value={date} onChange={setDate} align="right"/>
         </section>
 
         {existing && (
-            <div className="info-banner" style={{background: '#eff6ff', borderColor: '#bfdbfe', color: '#1e40af', borderRadius: '12px', padding: '12px 16px'}}>
+            <div className="info-banner entry-banner entry-banner-info">
                 {currentLang === 'en' ? <>ℹ️ <b>Entry for this date already exists.</b> You can update meter readings or inverter units below.</> : <>ℹ️ <b>આ તારીખની એન્ટ્રી પહેલેથી હાજર છે.</b> તમે નીચેના મીટર રીડિંગ્સ અથવા ઇન્વર્ટર યુનિટ્સ અપડેટ કરીને સેવ કરી શકો છો.</>}
             </div>
         )}
 
         {autoFetched && !existing && (
-            <div className="info-banner" style={{background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534', borderRadius: '12px', padding: '12px 16px'}}>
+            <div className="info-banner entry-banner entry-banner-success">
                 {currentLang === 'en' ? '⚡ Live inverter readings loaded automatically from iSolarCloud!' : '⚡ iSolarCloud માંથી લાઇવ ઇન્વર્ટર રીડિંગ્સ આપોઆપ લોડ થઈ ગયા છે!'}
             </div>
         )}
 
-        <section className="panel" style={{borderRadius: '16px', background: '#ffffff', border: '1.5px solid #d1e7dd', boxShadow: '0 4px 14px rgba(0, 0, 0, 0.04)'}}>
-            <div className="panel-head" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px'}}>
+        <section className="panel entry-step-card">
+            <div className="panel-head entry-step-head">
                 <div>
-                    <p className="step" style={{color: '#15803d', fontWeight: 800}}>STEP 2</p>
-                    <h2 style={{color: '#0f291e', fontWeight: 800}}>{currentLang === 'en' ? 'Inverter Daily Generation' : 'ઇન્વર્ટર દૈનિક ઉત્પાદન (Inverter Generation)'}</h2>
-                    <p style={{color: '#475569'}}>{currentLang === 'en' ? 'Auto-synced or live units (kWh). Total generation: ' : 'ઓટો-સેવ થયેલા અથવા લાઇવ યુનિટ્સ (kWh). કુલ અંદાજિત જનરેશન: '} <b style={{color: '#059669'}}>{totalInverterGeneration} kWh</b></p>
+                    <p className="step entry-step-badge">STEP 2</p>
+                    <h2 className="entry-step-title">{currentLang === 'en' ? 'Inverter Daily Generation' : 'ઇન્વર્ટર દૈનિક ઉત્પાદન (Inverter Generation)'}</h2>
+                    <p className="entry-step-desc">{currentLang === 'en' ? 'Auto-synced or live units (kWh). Total generation: ' : 'ઓટો-સેવ થયેલા અથવા લાઇવ યુનિટ્સ (kWh). કુલ અંદાજિત જનરેશન: '} <b className="entry-generation-highlight">{totalInverterGeneration} kWh</b></p>
                 </div>
                 {isToday ? (
                     <button
@@ -313,45 +291,20 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
                             syncCloudGeneration(date, true);
                         }}
                         disabled={syncingCloud}
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '8px 15px',
-                            borderRadius: '10px',
-                            border: 'none',
-                            background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                            color: '#ffffff',
-                            fontSize: '12px',
-                            fontWeight: 800,
-                            cursor: syncingCloud ? 'not-allowed' : 'pointer',
-                            boxShadow: '0 3px 10px rgba(217, 119, 6, 0.25)',
-                            transition: 'all 0.15s ease'
-                        }}
+                        className="entry-sync-btn"
                         title={currentLang === 'en' ? "Fetch today's live generation from iSolarCloud" : 'આજના દિવસનું લાઈવ ઉત્પાદન iSolarCloud માંથી મેળવો'}
                     >
                         <RefreshCw size={14} className={syncingCloud ? 'spin' : ''}/>
                         <span>{syncingCloud ? (currentLang === 'en' ? 'Syncing...' : 'સિંક થાય છે...') : (currentLang === 'en' ? "⚡ Fetch Today's Live Units" : '⚡ આજના લાઈવ યુનિટ્સ ફેચ કરો')}</span>
                     </button>
                 ) : (
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '6px 12px',
-                        borderRadius: '8px',
-                        background: '#f8fafc',
-                        border: '1.5px solid #cbd5e1',
-                        color: '#475569',
-                        fontSize: '11.5px',
-                        fontWeight: 700
-                    }}>
+                    <div className="entry-past-badge">
                         <span>{currentLang === 'en' ? '🔒 Manual Entry Mode (Past Date)' : '🔒 મેન્યુઅલ એન્ટ્રી મોડ (ભૂતકાળની તારીખ)'}</span>
                     </div>
                 )}
             </div>
 
-            <div className="form-grid">
+            <div className="form-grid entry-inverters-grid">
                 {activeInverters.map(inverter => {
                     const currentVal = outputs[inverter.id] ?? '';
                     const isZeroOrBlank = currentVal === '' || parseFloat(currentVal) === 0;
@@ -390,15 +343,15 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
             </div>
         </section>
 
-        <section className="panel" style={{borderRadius: '16px', background: '#ffffff', border: '1.5px solid #d1e7dd', boxShadow: '0 4px 14px rgba(0, 0, 0, 0.04)'}}>
-            <div className="panel-head">
+        <section className="panel entry-step-card">
+            <div className="panel-head entry-step-head">
                 <div>
-                    <p className="step" style={{color: '#15803d', fontWeight: 800}}>STEP 3</p>
-                    <h2 style={{color: '#0f291e', fontWeight: 800}}>{currentLang === 'en' ? 'Cumulative Meter Readings' : 'કુલ મીટર રીડિંગ્સ (Cumulative meter readings)'}</h2>
-                    <p style={{color: '#475569'}}>{currentLang === 'en' ? 'Enter physical meter reading after 7:00 PM (Calculated with previous readings × multipliers).' : 'સાંજે ૭:૦૦ વાગ્યા પછી ફિઝિકલ મીટર રીડિંગ નાખો (અગાઉના રીડિંગ × મલ્ટીપ્લાયરના આધારે પાવર ગણાશે).'}</p>
+                    <p className="step entry-step-badge">STEP 3</p>
+                    <h2 className="entry-step-title">{currentLang === 'en' ? 'Cumulative Meter Readings' : 'કુલ મીટર રીડિંગ્સ (Cumulative meter readings)'}</h2>
+                    <p className="entry-step-desc">{currentLang === 'en' ? 'Enter physical meter reading after 7:00 PM (Calculated with previous readings × multipliers).' : 'સાંજે ૭:૦૦ વાગ્યા પછી ફિઝિકલ મીટર રીડિંગ નાખો (અગાઉના રીડિંગ × મલ્ટીપ્લાયરના આધારે પાવર ગણાશે).'}</p>
                 </div>
             </div>
-            <div className="form-grid">
+            <div className="form-grid entry-meters-grid">
                 {METERS.map(([key, label]) => {
                     const currentMeterVal = readings[`${key}_reading`] ?? '';
                     const isValidMeter = currentMeterVal !== '' && parseFloat(currentMeterVal) > 0;
@@ -433,25 +386,14 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
         </section>
 
         {message && (
-            <div
-                className={message.type === 'success' ? 'success' : 'error'}
-                style={{
-                    borderRadius: '12px',
-                    padding: '12px 16px',
-                    fontSize: '13px',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                }}
-            >
+            <div className={`entry-status-msg ${message.type === 'success' ? 'success' : 'error'}`}>
                 {message.type === 'success' ? <CheckCircle2 size={18}/> : <AlertCircle size={18}/>}
                 <span>{message.text}</span>
             </div>
         )}
 
-        <div className="form-actions" style={{position: 'sticky', bottom: 0, zIndex: 30}}>
-            <span>{currentLang === 'en' ? 'Meter readings (if available, enter after 7:00 PM)' : 'મીટર રીડિંગ્સ (જો ઉપલબ્ધ હોય તો નાખો, સાંજે ૭:૦૦ પછી)'}</span>
+        <div className="form-actions entry-sticky-actions">
+            <span className="entry-actions-hint">{currentLang === 'en' ? 'Meter readings (if available, enter after 7:00 PM)' : 'મીટર રીડિંગ્સ (જો ઉપલબ્ધ હોય તો નાખો, સાંજે ૭:૦૦ પછી)'}</span>
             <button
                 type="submit"
                 className={`btn-morph-save ${busy ? 'saving' : ''} ${saveSuccess ? 'success' : ''}`}
