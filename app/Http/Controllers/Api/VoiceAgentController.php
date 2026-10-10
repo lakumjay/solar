@@ -629,9 +629,7 @@ CTX;
 
     public function getToolsDeclaration(): array
     {
-        return [
-            [
-                'function_declarations' => [
+        $functions = [
                     [
                         'name' => 'get_generation_units',
                         'description' => 'Get real-time live 1-second solar generation units, live power (kW), today total units, yesterday units, and date/month historical generation.',
@@ -753,7 +751,11 @@ CTX;
                             'properties' => (object)[]
                         ]
                     ],
-                ]
+                ];
+        return [
+            [
+                'functionDeclarations' => $functions,
+                'function_declarations' => $functions,
             ]
         ];
     }

@@ -15,34 +15,8 @@ import { GoogleGenAI, Modality } from '@google/genai';
 import { PcmPlayer, ToneGenerator, arrayBufferToBase64, base64ToInt16 } from '../lib/audio';
 import { api } from '../api';
 
-// Inline Web Audio Worklet code - In-memory Blob (eliminates all 404 / path routing errors)
-const PCM_WORKLET_CODE = `
-class PcmCaptureProcessor extends AudioWorkletProcessor {
-    constructor() {
-        super();
-        this.buffer = new Float32Array(2048);
-        this.offset = 0;
-    }
-    process(inputs) {
-        const channel = inputs[0] && inputs[0][0];
-        if (!channel) return true;
-        for (let i = 0; i < channel.length; i++) {
-            this.buffer[this.offset++] = channel[i];
-            if (this.offset === this.buffer.length) {
-                const pcm = new Int16Array(this.buffer.length);
-                for (let j = 0; j < this.buffer.length; j++) {
-                    const s = Math.max(-1, Math.min(1, this.buffer[j]));
-                    pcm[j] = s < 0 ? s * 0x8000 : s * 0x7fff;
-                }
-                this.port.postMessage(pcm.buffer, [pcm.buffer]);
-                this.offset = 0;
-            }
-        }
-        return true;
-    }
-}
-registerProcessor('pcm-capture-processor', PcmCaptureProcessor);
-`;
+// Persistent audio stream cache across calls so user is asked permission only ONCE
+let globalMicStream = null;
 
 // Helper to unlock Web Audio immediately on user click gesture
 export function unlockVoiceCallAudio() {
@@ -220,6 +194,16 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
             micStreamRef.current = null;
         }
 
+        if (globalMicStream) {
+            try {
+                globalMicStream.getTracks().forEach(t => {
+                    t.stop();
+                    t.enabled = false;
+                });
+            } catch(e) {}
+            globalMicStream = null;
+        }
+
         if (micCtxRef.current && micCtxRef.current.state !== 'closed') {
             await micCtxRef.current.close().catch(() => {});
         }
@@ -355,50 +339,54 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         }
     }, [handleTranscript]);
 
-    // Resilient Microphone Capture (Blob Worklet + ScriptProcessor Fallback)
+    // Dedicated Microphone Capture (Worklet Node with ScriptProcessor fallback)
     const startMic = async () => {
         setMicPermissionError(null);
 
-        // 1. Browser check
+        // 1. Browser mediaDevices check
         if (!navigator?.mediaDevices?.getUserMedia) {
             const msg = 'Microphone access is not supported on this browser or requires localhost / HTTPS.';
             setMicPermissionError(msg);
             throw new Error(msg);
         }
 
-        // 2. Obtain stream with graceful constraint fallback
-        let stream = null;
-        try {
-            stream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    channelCount: 1,
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
-                },
-            });
-        } catch (strictErr) {
-            console.warn('[Mic] Strict constraints failed, falling back to basic { audio: true }:', strictErr);
+        // 2. Reuse global stream or prompt once
+        let stream = globalMicStream;
+        if (!stream || !stream.active) {
             try {
-                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            } catch (basicErr) {
-                console.error('[Mic Permission Denied/Error]', basicErr);
-                let msg = 'Microphone permission denied. Please click the lock 🔒 icon next to URL to allow microphone.';
-                if (basicErr.name === 'NotAllowedError' || basicErr.name === 'PermissionDeniedError') {
-                    msg = 'માઇક્રોફોનની પરવાનગી નથી મળી. કૃપા કરીને બ્રાઉઝરના URL પાસે 🔒 (Lock) આઈકોન પર ક્લિક કરી Microphone "Allow" કરો.';
-                } else if (basicErr.name === 'NotFoundError' || basicErr.name === 'DevicesNotFoundError') {
-                    msg = 'તમારા કમ્પ્યુટર અથવા ફોનમાં કોઈ માઇક્રોફોન મળ્યો નથી.';
-                } else if (basicErr.name === 'NotReadableError') {
-                    msg = 'માઇક્રોફોન હાલમાં બીજી એપ્લિકેશન દ્વારા વપરાશમાં છે.';
+                stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        channelCount: 1,
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                    },
+                });
+                globalMicStream = stream;
+            } catch (strictErr) {
+                console.warn('[Mic] Strict constraints failed, falling back to basic { audio: true }:', strictErr);
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    globalMicStream = stream;
+                } catch (basicErr) {
+                    console.error('[Mic Permission Denied/Error]', basicErr);
+                    let msg = 'Microphone permission denied. Please click the lock 🔒 icon next to URL to allow microphone.';
+                    if (basicErr.name === 'NotAllowedError' || basicErr.name === 'PermissionDeniedError') {
+                        msg = 'માઇક્રોફોનની પરવાનગી નથી મળી. કૃપા કરીને બ્રાઉઝરના URL પાસે 🔒 (Lock) આઈકોન પર ક્લિક કરી Microphone "Allow" કરો.';
+                    } else if (basicErr.name === 'NotFoundError' || basicErr.name === 'DevicesNotFoundError') {
+                        msg = 'તમારા કમ્પ્યુટર અથવા ફોનમાં કોઈ માઇક્રોફોન મળ્યો નથી.';
+                    } else if (basicErr.name === 'NotReadableError') {
+                        msg = 'માઇક્રોફોન હાલમાં બીજી એપ્લિકેશન દ્વારા વપરાશમાં છે.';
+                    }
+                    setMicPermissionError(msg);
+                    throw basicErr;
                 }
-                setMicPermissionError(msg);
-                throw basicErr;
             }
         }
 
         micStreamRef.current = stream;
 
-        // 3. 16kHz Dedicated AudioContext
+        // 3. Dedicated 16kHz AudioContext for mic capture
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         const micCtx = new AudioCtx({ sampleRate: 16000 });
         micCtxRef.current = micCtx;
@@ -428,70 +416,76 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         };
         updateVolume();
 
-        // 5. Load AudioWorklet via in-memory Blob URL (zero network latency, zero 404s!)
+        // 5. Load AudioWorklet module (try root and relative paths)
         let workletLoaded = false;
         if (micCtx.audioWorklet) {
             try {
-                const blob = new Blob([PCM_WORKLET_CODE], { type: 'application/javascript' });
-                const blobUrl = URL.createObjectURL(blob);
-                await micCtx.audioWorklet.addModule(blobUrl);
-                URL.revokeObjectURL(blobUrl);
+                await micCtx.audioWorklet.addModule('/pcm-capture-worklet.js');
                 workletLoaded = true;
-            } catch (blobErr) {
-                console.warn('[Blob Worklet failed, trying path candidates]:', blobErr);
-                const candidates = ['/git/public/pcm-capture-worklet.js', '/pcm-capture-worklet.js', 'pcm-capture-worklet.js'];
-                for (const p of candidates) {
-                    try {
-                        await micCtx.audioWorklet.addModule(p);
-                        workletLoaded = true;
-                        break;
-                    } catch (_) {}
+            } catch (wErr) {
+                console.warn('Fallback loading relative pcm-capture-worklet.js', wErr);
+                try {
+                    await micCtx.audioWorklet.addModule('pcm-capture-worklet.js');
+                    workletLoaded = true;
+                } catch (wErr2) {
+                    console.warn('Could not load worklet module, using ScriptProcessorNode:', wErr2);
                 }
             }
         }
 
         // 6. Connect processor node (Worklet Node or ScriptProcessor Node fallback)
         if (workletLoaded) {
-            const workletNode = new AudioWorkletNode(micCtx, 'pcm-capture-processor');
-            workletNodeRef.current = workletNode;
+            try {
+                const workletNode = new AudioWorkletNode(micCtx, 'pcm-capture-processor');
+                workletNodeRef.current = workletNode;
 
-            workletNode.port.onmessage = (event) => {
-                if (!sessionRef.current || isMutedRef.current) return;
-                const base64Audio = arrayBufferToBase64(event.data);
-                sessionRef.current.sendRealtimeInput({
-                    audio: {
-                        data: base64Audio,
-                        mimeType: 'audio/pcm;rate=16000'
-                    }
-                });
-            };
+                workletNode.port.onmessage = (event) => {
+                    if (!sessionRef.current || isMutedRef.current) return;
+                    // Don't send mic audio if AI is currently speaking to prevent feedback echo
+                    if (isAiSpeakingRef.current) return;
 
-            source.connect(workletNode);
-        } else {
-            console.log('[Mic] Initializing ScriptProcessorNode universal fallback');
-            const scriptNode = micCtx.createScriptProcessor(2048, 1, 1);
-            workletNodeRef.current = scriptNode;
+                    const base64Audio = arrayBufferToBase64(event.data);
+                    sessionRef.current.sendRealtimeInput({
+                        audio: {
+                            data: base64Audio,
+                            mimeType: 'audio/pcm;rate=16000'
+                        }
+                    });
+                };
 
-            scriptNode.onaudioprocess = (e) => {
-                if (!sessionRef.current || isMutedRef.current) return;
-                const channelData = e.inputBuffer.getChannelData(0);
-                const pcm16 = new Int16Array(channelData.length);
-                for (let i = 0; i < channelData.length; i++) {
-                    const s = Math.max(-1, Math.min(1, channelData[i]));
-                    pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-                }
-                const base64Audio = arrayBufferToBase64(pcm16.buffer);
-                sessionRef.current.sendRealtimeInput({
-                    audio: {
-                        data: base64Audio,
-                        mimeType: 'audio/pcm;rate=16000'
-                    }
-                });
-            };
-
-            source.connect(scriptNode);
-            scriptNode.connect(micCtx.destination);
+                source.connect(workletNode);
+                return;
+            } catch (nodeErr) {
+                console.warn('AudioWorkletNode instantiation error, falling back to ScriptProcessorNode:', nodeErr);
+            }
         }
+
+        // Fallback: ScriptProcessorNode
+        const scriptNode = micCtx.createScriptProcessor(2048, 1, 1);
+        workletNodeRef.current = scriptNode;
+
+        scriptNode.onaudioprocess = (e) => {
+            if (!sessionRef.current || isMutedRef.current) return;
+            // Don't send mic audio if AI is currently speaking to prevent feedback echo
+            if (isAiSpeakingRef.current) return;
+
+            const channelData = e.inputBuffer.getChannelData(0);
+            const pcm16 = new Int16Array(channelData.length);
+            for (let i = 0; i < channelData.length; i++) {
+                const s = Math.max(-1, Math.min(1, channelData[i]));
+                pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+            }
+            const base64Audio = arrayBufferToBase64(pcm16.buffer);
+            sessionRef.current.sendRealtimeInput({
+                audio: {
+                    data: base64Audio,
+                    mimeType: 'audio/pcm;rate=16000'
+                }
+            });
+        };
+
+        source.connect(scriptNode);
+        scriptNode.connect(micCtx.destination);
     };
 
     const startLiveSession = async () => {
@@ -518,10 +512,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
             };
             playerRef.current = player;
 
-            // 2. Request and start Microphone
-            await startMic();
-
-            // 3. Fetch Token & Config from backend
+            // 2. Fetch Token & Config from backend
             const currentLiveData = liveSolarData || (() => {
                 try { return JSON.parse(localStorage.getItem('solarflow.cachedLiveSolar') || '{}'); } catch(e) { return {}; }
             })();
@@ -537,7 +528,12 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
             const systemInstruction = cfg?.system_instruction || cfg?.systemInstruction;
             const voiceName = cfg?.voice_name || 'Aoede';
             const liveModel = cfg?.live_model || cfg?.liveModel || 'gemini-3.1-flash-live-preview';
-            const tools = cfg?.tools || [];
+            const rawTools = cfg?.tools || [];
+
+            // Ensure proper camelCase functionDeclarations for @google/genai SDK
+            const formattedTools = rawTools.map(t => ({
+                functionDeclarations: t.functionDeclarations || t.function_declarations || []
+            }));
 
             if (!authToken || authToken === 'solarflow_ready') {
                 throw new Error('Gemini API key is not configured in .env file.');
@@ -548,7 +544,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                 targetModel = 'gemini-3.1-flash-live-preview';
             }
 
-            // 4. Connect to Gemini Live via official SDK
+            // 3. Connect to Gemini Live via official SDK (modelled directly on telegram extenstion)
             const ai = new GoogleGenAI({
                 apiKey: authToken,
                 httpOptions: { apiVersion: 'v1alpha' }
@@ -568,7 +564,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                     },
                     inputAudioTranscription: {},
                     outputAudioTranscription: {},
-                    tools: tools.length > 0 ? tools : undefined
+                    tools: formattedTools.length > 0 ? formattedTools : undefined
                 },
                 callbacks: {
                     onopen: () => {
@@ -577,19 +573,6 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                             if (toneGenRef.current) toneGenRef.current.stopRingTone();
                         } catch(e) {}
                         setCallState('connected');
-                        
-                        // 🎙️ Trigger natural opening greeting in native Aoede voice
-                        try {
-                            session.sendClientContent({
-                                turns: [{
-                                    role: 'user',
-                                    parts: [{ text: 'કૉલ કનેક્ટ થઈ ગયો છે. નમસ્તે કહીને સ્વાગત કરો અને પૂછો કે આજે સોલાર પ્લાન્ટનું શું કામ છે.' }]
-                                }],
-                                turnComplete: true
-                            });
-                        } catch (e) {
-                            console.warn('Greeting trigger notice:', e);
-                        }
                     },
                     onmessage: (msg) => handleLiveMessage(msg),
                     onerror: (e) => {
@@ -611,6 +594,9 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
 
             sessionRef.current = session;
             hasConnectedRef.current = true;
+
+            // 4. Start Microphone capture AFTER session is ready (EXACTLY like telegram extenstion)
+            await startMic();
 
             // Stop Ring tone
             try {
