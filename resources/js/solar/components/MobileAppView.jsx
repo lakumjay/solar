@@ -912,9 +912,28 @@ export default function MobileAppView({
                 <div className="mobile-subpage-wrap">
                     <div className="mobile-subpage-header">
                         <button type="button" className="mobile-back-btn" onClick={() => setPage('dashboard')}>
-                            ← Back to Home
+                            ← {currentLang === 'en' ? 'Back' : 'હોમ'}
                         </button>
-                        <h3 className="mobile-subpage-title">{page.replace('-', ' ').toUpperCase()}</h3>
+                        <h3 className="mobile-subpage-title">
+                            {{
+                                'gallery': currentLang === 'en' ? 'Plant Gallery' : 'પ્લાન્ટ ગેલેરી',
+                                'reels': currentLang === 'en' ? 'Reels Hub' : 'રીલ્સ હબ',
+                                'expenses': currentLang === 'en' ? 'Shared Expenses' : 'સામાયિક ખર્ચ',
+                                'salaries': currentLang === 'en' ? 'Salaries & Payroll' : 'પગાર અને પેરોલ',
+                                'my-salary': currentLang === 'en' ? 'My Salary Slip' : 'મારો પગાર',
+                                'stock': currentLang === 'en' ? 'Stock & Spares' : 'સ્ટોક અને સ્પેર',
+                                'leave-holidays': currentLang === 'en' ? 'Leave & Holidays' : 'રજા અને કેલેન્ડર',
+                                'attendance-reports': currentLang === 'en' ? 'Attendance Reports' : 'હાજરી રિપોર્ટ્સ',
+                                'users': currentLang === 'en' ? 'Users & Access' : 'યુઝર્સ અને રોલ',
+                                'companies': currentLang === 'en' ? 'Companies Config' : 'કંપનીઓ કોન્ફિગ',
+                                'activity': currentLang === 'en' ? 'Activity Log' : 'એક્ટિવિટી લોગ',
+                                'attendance': currentLang === 'en' ? 'Plant Attendance' : 'પ્લાન્ટ હાજરી',
+                                'my-attendance': currentLang === 'en' ? 'My Attendance' : 'મારી હાજરી',
+                                'reports': currentLang === 'en' ? 'Reports & Analytics' : 'રિપોર્ટ્સ',
+                                'entry': currentLang === 'en' ? 'Daily Readings' : 'દૈનિક રીડિંગ',
+                                'isolarcloud': 'iSolarCloud Sync',
+                            }[page] || page.replace('-', ' ').toUpperCase()}
+                        </h3>
                     </div>
                     <div className="mobile-subpage-body">
                         {children}
@@ -2732,110 +2751,221 @@ export default function MobileAppView({
                         </div>
 
                         <div className="drawer-menu-grid">
+                            {/* 1. Plant Gallery */}
                             <button
                                 type="button"
-                                className="dmenu-item"
+                                className="dmenu-card"
                                 onClick={() => { setPage('gallery'); setMoreMenuOpen(false); }}
                             >
-                                <Camera size={18}/>
-                                <span>{currentLang === 'en' ? 'Gallery (Plant Photos)' : 'Gallery (પ્લાન્ટ ફોટા)'}</span>
+                                <div className="dmenu-card-top">
+                                    <div className="dmenu-bubble" style={{background: '#f0fdfa', color: '#0d9488'}}>
+                                        <Camera size={19}/>
+                                    </div>
+                                    <ChevronRight size={14} className="dmenu-chevron"/>
+                                </div>
+                                <div className="dmenu-card-title">
+                                    {currentLang === 'en' ? 'Plant Gallery' : 'પ્લાન્ટ ગેલેરી'}
+                                </div>
+                                <div className="dmenu-card-sub">
+                                    {currentLang === 'en' ? 'Photos & Media' : 'ઇન્સ્પેક્શન ફોટા'}
+                                </div>
                             </button>
 
+                            {/* 2. Reels Hub */}
                             <button
                                 type="button"
-                                className="dmenu-item"
+                                className="dmenu-card dmenu-card-highlight"
                                 onClick={() => { setPage('reels'); setMoreMenuOpen(false); }}
-                                style={{background: '#f0fdf4', border: '1px solid #86efac'}}
                             >
-                                <Film size={18} style={{color: '#16a34a'}}/>
-                                <span style={{color: '#166534', fontWeight: 700}}>🎬 Reels Hub</span>
+                                <div className="dmenu-card-top">
+                                    <div className="dmenu-bubble" style={{background: '#ecfdf5', color: '#059669'}}>
+                                        <Film size={19}/>
+                                    </div>
+                                    <span className="dmenu-badge" style={{background: '#dcfce7', color: '#15803d'}}>
+                                        🎬 NEW
+                                    </span>
+                                </div>
+                                <div className="dmenu-card-title" style={{color: '#15803d'}}>
+                                    {currentLang === 'en' ? 'Reels Hub' : 'રીલ્સ હબ'}
+                                </div>
+                                <div className="dmenu-card-sub">
+                                    {currentLang === 'en' ? 'Short Videos' : 'પ્લાન્ટ વિડીયો ક્લિપ્સ'}
+                                </div>
                             </button>
 
+                            {/* 3. Shared Expenses */}
                             {(isSuperAdmin || user.role === 'company_admin' || can('view_expenses')) && (
                                 <button
                                     type="button"
-                                    className="dmenu-item"
+                                    className="dmenu-card"
                                     onClick={() => { setPage('expenses'); setMoreMenuOpen(false); }}
                                 >
-                                    <IndianRupee size={18}/>
-                                    <span>{currentLang === 'en' ? 'Expenses (Shared Costs)' : 'Expenses (ખર્ચ)'}</span>
+                                    <div className="dmenu-card-top">
+                                        <div className="dmenu-bubble" style={{background: '#f0fdf4', color: '#16a34a'}}>
+                                            <IndianRupee size={19}/>
+                                        </div>
+                                        <ChevronRight size={14} className="dmenu-chevron"/>
+                                    </div>
+                                    <div className="dmenu-card-title">
+                                        {currentLang === 'en' ? 'Shared Expenses' : 'સામાયિક ખર્ચ'}
+                                    </div>
+                                    <div className="dmenu-card-sub">
+                                        {currentLang === 'en' ? 'Cost Allocation' : 'લેતી-દેતી હિસાબ'}
+                                    </div>
                                 </button>
                             )}
 
+                            {/* 4. Salaries & Payroll */}
                             {(isSuperAdmin || user.role === 'company_admin' || user.role === 'employee') && (
                                 <button
                                     type="button"
-                                    className="dmenu-item"
+                                    className="dmenu-card"
                                     onClick={() => { setPage(salaryTargetPage); setMoreMenuOpen(false); }}
                                 >
-                                    <WalletCards size={18}/>
-                                    <span>{currentLang === 'en' ? 'Salaries (Payroll)' : 'Salaries (પગાર)'}</span>
+                                    <div className="dmenu-card-top">
+                                        <div className="dmenu-bubble" style={{background: '#eef2ff', color: '#4f46e5'}}>
+                                            <WalletCards size={19}/>
+                                        </div>
+                                        <ChevronRight size={14} className="dmenu-chevron"/>
+                                    </div>
+                                    <div className="dmenu-card-title">
+                                        {currentLang === 'en' ? 'Salaries & Payroll' : 'પગાર અને પેરોલ'}
+                                    </div>
+                                    <div className="dmenu-card-sub">
+                                        {currentLang === 'en' ? 'Monthly Slips' : 'માસિક પગાર સ્લીપ'}
+                                    </div>
                                 </button>
                             )}
 
+                            {/* 5. Stock & Spares */}
                             {(isSuperAdmin || user.role === 'company_admin' || can('view_stock') || can('manage_stock')) && (
                                 <button
                                     type="button"
-                                    className="dmenu-item"
+                                    className="dmenu-card"
                                     onClick={() => { setPage('stock'); setMoreMenuOpen(false); }}
                                 >
-                                    <Boxes size={18}/>
-                                    <span>Stock & Spares</span>
+                                    <div className="dmenu-card-top">
+                                        <div className="dmenu-bubble" style={{background: '#fff7ed', color: '#ea580c'}}>
+                                            <Boxes size={19}/>
+                                        </div>
+                                        <ChevronRight size={14} className="dmenu-chevron"/>
+                                    </div>
+                                    <div className="dmenu-card-title">
+                                        {currentLang === 'en' ? 'Stock & Spares' : 'સ્ટોક અને સ્પેર'}
+                                    </div>
+                                    <div className="dmenu-card-sub">
+                                        {currentLang === 'en' ? 'Inventory Items' : 'સાધનો અને બોરોઈંગ'}
+                                    </div>
                                 </button>
                             )}
 
+                            {/* 6. Leave & Holidays */}
                             {(isSuperAdmin || user.role === 'company_admin' || can('view_attendance')) && (
                                 <button
                                     type="button"
-                                    className="dmenu-item"
+                                    className="dmenu-card"
                                     onClick={() => { setPage('leave-holidays'); setMoreMenuOpen(false); }}
                                 >
-                                    <Calendar size={18}/>
-                                    <span>Leave & Holidays</span>
+                                    <div className="dmenu-card-top">
+                                        <div className="dmenu-bubble" style={{background: '#f0f9ff', color: '#0284c7'}}>
+                                            <Calendar size={19}/>
+                                        </div>
+                                        <ChevronRight size={14} className="dmenu-chevron"/>
+                                    </div>
+                                    <div className="dmenu-card-title">
+                                        {currentLang === 'en' ? 'Leave & Holidays' : 'રજા અને કેલેન્ડર'}
+                                    </div>
+                                    <div className="dmenu-card-sub">
+                                        {currentLang === 'en' ? 'Approvals & Days' : 'રજા મંજૂરી અને તહેવાર'}
+                                    </div>
                                 </button>
                             )}
 
+                            {/* 7. Attendance Reports */}
                             {(isSuperAdmin || user.role === 'company_admin' || can('view_attendance_reports')) && (
                                 <button
                                     type="button"
-                                    className="dmenu-item"
+                                    className="dmenu-card"
                                     onClick={() => { setPage('attendance-reports'); setMoreMenuOpen(false); }}
                                 >
-                                    <BarChart3 size={18}/>
-                                    <span>Attendance Reports</span>
+                                    <div className="dmenu-card-top">
+                                        <div className="dmenu-bubble" style={{background: '#eff6ff', color: '#2563eb'}}>
+                                            <BarChart3 size={19}/>
+                                        </div>
+                                        <ChevronRight size={14} className="dmenu-chevron"/>
+                                    </div>
+                                    <div className="dmenu-card-title">
+                                        {currentLang === 'en' ? 'Attendance Reports' : 'હાજરી રિપોર્ટ્સ'}
+                                    </div>
+                                    <div className="dmenu-card-sub">
+                                        {currentLang === 'en' ? 'Monthly Analytics' : 'માસિક સારાંશ વિગત'}
+                                    </div>
                                 </button>
                             )}
 
+                            {/* 8. Users & Permissions */}
                             {(isSuperAdmin || can('manage_company_users')) && (
                                 <button
                                     type="button"
-                                    className="dmenu-item"
+                                    className="dmenu-card"
                                     onClick={() => { setPage('users'); setMoreMenuOpen(false); }}
                                 >
-                                    <Users size={18}/>
-                                    <span>Users & Permissions</span>
+                                    <div className="dmenu-card-top">
+                                        <div className="dmenu-bubble" style={{background: '#faf5ff', color: '#9333ea'}}>
+                                            <Users size={19}/>
+                                        </div>
+                                        <ChevronRight size={14} className="dmenu-chevron"/>
+                                    </div>
+                                    <div className="dmenu-card-title">
+                                        {currentLang === 'en' ? 'Users & Access' : 'યુઝર્સ અને રોલ'}
+                                    </div>
+                                    <div className="dmenu-card-sub">
+                                        {currentLang === 'en' ? 'Roles & Permissions' : 'સિસ્ટમ પરવાનગીઓ'}
+                                    </div>
                                 </button>
                             )}
 
+                            {/* 9. Companies Config */}
                             {isSuperAdmin && (
                                 <button
                                     type="button"
-                                    className="dmenu-item"
+                                    className="dmenu-card"
                                     onClick={() => { setPage('companies'); setMoreMenuOpen(false); }}
                                 >
-                                    <Building2 size={18}/>
-                                    <span>Companies Config</span>
+                                    <div className="dmenu-card-top">
+                                        <div className="dmenu-bubble" style={{background: '#fff1f2', color: '#e11d48'}}>
+                                            <Building2 size={19}/>
+                                        </div>
+                                        <ChevronRight size={14} className="dmenu-chevron"/>
+                                    </div>
+                                    <div className="dmenu-card-title">
+                                        {currentLang === 'en' ? 'Companies Config' : 'કંપનીઓ કોન્ફિગ'}
+                                    </div>
+                                    <div className="dmenu-card-sub">
+                                        {currentLang === 'en' ? 'Multi-plant Setup' : 'પ્લાન્ટ અને મલ્ટિપ્લાયર્સ'}
+                                    </div>
                                 </button>
                             )}
 
+                            {/* 10. Activity Log */}
                             {(isSuperAdmin || can('manage_company_users')) && (
                                 <button
                                     type="button"
-                                    className="dmenu-item"
+                                    className="dmenu-card"
                                     onClick={() => { setPage('activity'); setMoreMenuOpen(false); }}
                                 >
-                                    <Activity size={18}/>
-                                    <span>Activity Log</span>
+                                    <div className="dmenu-card-top">
+                                        <div className="dmenu-bubble" style={{background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0'}}>
+                                            <Activity size={19}/>
+                                        </div>
+                                        <ChevronRight size={14} className="dmenu-chevron"/>
+                                    </div>
+                                    <div className="dmenu-card-title">
+                                        {currentLang === 'en' ? 'Activity Log' : 'એક્ટિવિટી લોગ'}
+                                    </div>
+                                    <div className="dmenu-card-sub">
+                                        {currentLang === 'en' ? 'Audit Trail' : 'સિસ્ટમ ફેરફાર ઇતિહાસ'}
+                                    </div>
                                 </button>
                             )}
                         </div>

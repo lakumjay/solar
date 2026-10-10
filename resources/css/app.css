@@ -2687,8 +2687,104 @@
 .drawer-menu-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: 9px;
     margin: 14px 0;
+}
+
+.dmenu-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 11px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.dmenu-card:hover {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+}
+
+.dmenu-card:active {
+    transform: scale(0.97);
+    background: #f1f5f9;
+}
+
+.dmenu-card-highlight {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+}
+
+.dmenu-card-highlight:hover {
+    background: #dcfce7;
+    border-color: #86efac;
+}
+
+.dmenu-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-bottom: 9px;
+}
+
+.dmenu-bubble {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+}
+
+.dmenu-chevron {
+    color: #cbd5e1;
+    flex-shrink: 0;
+    transition: transform 0.15s ease;
+}
+
+.dmenu-card:active .dmenu-chevron {
+    transform: translateX(2px);
+    color: #64748b;
+}
+
+.dmenu-badge {
+    font-size: 9px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 6px;
+    letter-spacing: 0.3px;
+}
+
+.dmenu-card-title {
+    font-size: 12px;
+    font-weight: 750;
+    color: #0f172a;
+    line-height: 1.25;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+}
+
+.dmenu-card-sub {
+    font-size: 10px;
+    font-weight: 500;
+    color: #64748b;
+    line-height: 1.2;
+    margin-top: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
 }
 
 .dmenu-item {
@@ -2721,15 +2817,129 @@
     background: #fef2f2;
     color: #dc2626;
     border: 1px solid #fee2e2;
-    border-radius: 10px;
-    padding: 10px;
-    font-size: 12px;
+    border-radius: 12px;
+    padding: 11px;
+    font-size: 12.5px;
     font-weight: 750;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
     cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.drawer-logout-btn:active {
+    background: #fee2e2;
+    transform: scale(0.98);
+}
+
+/* 📱 Attendance Reports Mobile Cards */
+.att-report-cards-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.att-report-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.att-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.att-card-name {
+    font-size: 13.5px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.att-card-code {
+    font-size: 10.5px;
+    color: #64748b;
+    font-weight: 600;
+    margin-top: 1px;
+}
+
+.att-card-pbadge {
+    font-size: 10.5px;
+    font-weight: 800;
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+    padding: 3px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+}
+
+.att-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+}
+
+.att-stat-box {
+    border-radius: 8px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.att-stat-box small {
+    font-size: 9.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.att-stat-box b {
+    font-size: 14px;
+    font-weight: 850;
+}
+
+.att-stat-box.green { background: #f0fdf4; color: #15803d; }
+.att-stat-box.red { background: #fef2f2; color: #b91c1c; }
+.att-stat-box.amber { background: #fffbeb; color: #b45309; }
+.att-stat-box.blue { background: #eff6ff; color: #1d4ed8; }
+.att-stat-box.slate { background: #f8fafc; color: #334155; }
+.att-stat-box.purple { background: #faf5ff; color: #7e22ce; }
+
+.att-exceptions-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    border-top: 1px dashed #f1f5f9;
+    padding-top: 8px;
+}
+
+.exc-tag {
+    font-size: 10px;
+    font-weight: 750;
+    padding: 2px 7px;
+    border-radius: 5px;
+}
+
+.exc-tag.late { background: #fef3c7; color: #92400e; }
+.exc-tag.early { background: #ffedd5; color: #9a3412; }
+.exc-tag.missing { background: #fee2e2; color: #991b1b; }
+.exc-tag.corrected { background: #e0e7ff; color: #3730a3; }
+
+.view-toggle-btn {
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
 }
 
 /* Company Picker Modal */
@@ -6931,3 +7141,72 @@ input[type="number"] {
         gap: 6px;
     }
 }
+
+/* 📱 Mobile Web App Polish & Responsiveness across Drawer Pages */
+@media (max-width: 850px) {
+    /* 1. Users & Companies Management Layout */
+    .management-layout {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 16px !important;
+    }
+    .management-list {
+        max-height: 380px !important;
+        overflow-y: auto !important;
+        width: 100% !important;
+    }
+
+    /* 2. Leave & Holiday Calendar Layout */
+    .leave-layout {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 16px !important;
+    }
+
+    /* 3. Report Header & Controls */
+    .report-header {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 12px !important;
+    }
+    .report-controls {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 10px !important;
+    }
+    .report-controls label {
+        min-width: 100% !important;
+    }
+    .report-controls input,
+    .report-controls select {
+        width: 100% !important;
+    }
+    .export-actions {
+        display: flex !important;
+        width: 100% !important;
+        gap: 8px !important;
+        flex-wrap: wrap !important;
+    }
+    .export-actions a,
+    .export-actions button {
+        flex: 1 1 auto !important;
+        min-height: 40px !important;
+        justify-content: center !important;
+    }
+
+    /* 4. Subpage Header & Smooth Mobile View */
+    .mobile-subpage-wrap {
+        padding: 10px 12px calc(90px + env(safe-area-inset-bottom, 16px)) !important;
+    }
+    .mobile-subpage-title {
+        font-size: 13.5px !important;
+        font-weight: 800 !important;
+        color: #0f172a !important;
+    }
+    .mobile-back-btn {
+        font-size: 11.5px !important;
+        padding: 6px 12px !important;
+        font-weight: 750 !important;
+    }
+}
+
