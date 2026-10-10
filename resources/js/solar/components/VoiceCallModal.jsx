@@ -4,7 +4,7 @@ import {
     Grid, MessageSquare, Info, Radio, Send, X, Check, HelpCircle
 } from 'lucide-react';
 import { api } from '../api';
-import { PcmPlayer, CallTonePlayer } from '../lib/audio';
+import { PcmPlayer, CallTonePlayer, playCloudAudio, stopCloudAudio } from '../lib/audio';
 import { getLanguage, t } from '../utils/translations';
 
 // Helper to unlock Web Audio & SpeechSynthesis immediately on user click gesture
@@ -444,8 +444,9 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
             if (response && response.reply) {
                 const aiReply = response.reply;
                 const replyLang = response.language || detectedLang;
+                const rawAudio = response.audio || null;
                 setTranscript(prev => [...prev, { role: 'ai', text: aiReply }]);
-                speakAiResponse(aiReply, replyLang);
+                speakAiResponse(aiReply, replyLang, rawAudio);
                 return;
             } else if (response && response.error) {
                 throw new Error(response.error);
@@ -460,8 +461,8 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
         speakAiResponse(fallbackReply, detectedLang);
     };
 
-    // Aoede Female Voice Persona with Sweet Natural Pitch
-    const speakAiResponse = (text, targetLang) => {
+    // Aoede Female Voice Persona - Plays Studio Quality Cloud Audio
+    const speakAiResponse = (text, targetLang, rawAudioBase64) => {
         if (!text) return;
         const lang = targetLang || currentCallLangRef.current || 'gu';
         setCurrentAiSpeech(text);
@@ -469,16 +470,53 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
         isAiSpeakingRef.current = true;
         stopListening(); // Stop mic while AI speaks so it doesn't hear itself
 
-        if (typeof window !== 'undefined' && 'speechSynthesis' in window && isSpeakerOn) {
+        const onPlaybackEnd = () => {
+            isAiSpeakingRef.current = false;
+            setCurrentAiSpeech('');
+            if (isConnectedRef.current && !isMutedRef.current) {
+                setCallStatus('listening');
+                startListening();
+            } else {
+                setCallStatus('connected');
+            }
+        };
+
+        if (!isSpeakerOn) {
+            setTimeout(onPlaybackEnd, 1200);
+            return;
+        }
+
+        // 1. If raw Gemini PCM base64 audio is provided, play via PcmPlayer (24kHz HD)
+        if (rawAudioBase64 && pcmPlayerRef.current) {
+            try {
+                pcmPlayerRef.current.playPcmChunk(rawAudioBase64, onPlaybackEnd);
+                return;
+            } catch (pcmErr) {
+                console.warn('PcmPlayer chunk error:', pcmErr);
+            }
+        }
+
+        // 2. Play pure natural Studio Cloud AI Female Voice from /api/voice-agent/tts
+        try {
+            const ttsUrl = `/api/voice-agent/tts?text=${encodeURIComponent(text)}&language=${lang}`;
+            const cloudAudio = playCloudAudio(ttsUrl, onPlaybackEnd);
+            if (cloudAudio) {
+                return;
+            }
+        } catch (cloudErr) {
+            console.warn('playCloudAudio failed, falling back to local speech:', cloudErr);
+        }
+
+        // 3. Fallback to browser SpeechSynthesis only if offline/network fails
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
             try {
                 window.speechSynthesis.cancel();
                 window.speechSynthesis.resume();
             } catch (_) {}
 
             const utterance = new SpeechSynthesisUtterance(text);
-            window.__solarflow_current_utterance = utterance; // Prevents garbage collection cut-off
+            window.__solarflow_current_utterance = utterance;
 
-            // Pick Aoede-style female voice matching the language
             const voices = window.speechSynthesis.getVoices() || [];
             const chosenVoice = selectLockedFemaleVoice(voices, lang);
 
@@ -489,59 +527,21 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
                 utterance.lang = lang === 'gu' ? 'gu-IN' : (lang === 'hi' ? 'hi-IN' : 'en-IN');
             }
 
-            // Aoede natural female pitch & cadence
             utterance.pitch = 1.30;
             utterance.rate = 0.96;
             utterance.volume = 1.0;
 
-            utterance.onstart = () => {
-                isAiSpeakingRef.current = true;
-                stopListening();
-                setCallStatus('speaking');
-            };
-
-            utterance.onend = () => {
-                isAiSpeakingRef.current = false;
-                setCurrentAiSpeech('');
-                window.__solarflow_current_utterance = null;
-                if (isConnectedRef.current && !isMutedRef.current) {
-                    setCallStatus('listening');
-                    startListening(); // Immediately start listening for user's question!
-                } else {
-                    setCallStatus('connected');
-                }
-            };
-
-            utterance.onerror = (e) => {
-                console.warn('SpeechSynthesis error:', e);
-                isAiSpeakingRef.current = false;
-                setCurrentAiSpeech('');
-                window.__solarflow_current_utterance = null;
-                if (isConnectedRef.current && !isMutedRef.current) {
-                    setCallStatus('listening');
-                    startListening();
-                }
-            };
+            utterance.onend = onPlaybackEnd;
+            utterance.onerror = onPlaybackEnd;
 
             try {
                 window.speechSynthesis.speak(utterance);
             } catch (err) {
                 console.warn('speechSynthesis.speak failed:', err);
-                isAiSpeakingRef.current = false;
-                if (isConnectedRef.current && !isMutedRef.current) {
-                    setCallStatus('listening');
-                    startListening();
-                }
+                onPlaybackEnd();
             }
         } else {
-            setTimeout(() => {
-                isAiSpeakingRef.current = false;
-                setCurrentAiSpeech('');
-                if (isConnectedRef.current && !isMutedRef.current) {
-                    setCallStatus('listening');
-                    startListening();
-                }
-            }, 1400);
+            setTimeout(onPlaybackEnd, 1400);
         }
     };
 
@@ -565,8 +565,11 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
 
     const toggleSpeaker = () => {
         setIsSpeakerOn(prev => !prev);
-        if (isSpeakerOn && 'speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
+        if (isSpeakerOn) {
+            stopCloudAudio();
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
         }
     };
 
@@ -574,6 +577,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
         isConnectedRef.current = false;
         isAiSpeakingRef.current = false;
         stopListening();
+        stopCloudAudio();
 
         if (tonePlayerRef.current) {
             tonePlayerRef.current.playEndedTone();

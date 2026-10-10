@@ -67,6 +67,46 @@ class VoiceAgentController extends Controller
         }
     }
 
+    /**
+     * Synthesize natural studio female voice audio (MP3 stream)
+     */
+    public function tts(Request $request)
+    {
+        $text = trim((string)$request->input('text', ''));
+        $language = $request->input('language', 'gu');
+        if (empty($text)) {
+            return response()->json(['error' => 'No text provided'], 400);
+        }
+
+        $tl = match($language) {
+            'hi' => 'hi',
+            'en' => 'en-IN',
+            default => 'gu',
+        };
+
+        try {
+            // Cap query length for clean natural audio synthesis
+            $cleanText = mb_substr($text, 0, 320);
+            $url = "https://translate.google.com/translate_tts?ie=UTF-8&q=" . urlencode($cleanText) . "&tl={$tl}&client=tw-ob";
+            $res = Http::withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Referer' => 'https://translate.google.com/',
+            ])->timeout(6)->get($url);
+
+            if ($res->successful() && strlen($res->body()) > 200) {
+                return response($res->body(), 200, [
+                    'Content-Type' => 'audio/mpeg',
+                    'Content-Disposition' => 'inline; filename="voice.mp3"',
+                    'Cache-Control' => 'public, max-age=86400',
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('VoiceAgent TTS Proxy Exception: ' . $e->getMessage());
+        }
+
+        return response()->json(['error' => 'TTS synthesis failed'], 500);
+    }
+
     public function detectLanguage(string $text, string $default = 'gu'): string
     {
         if (empty(trim($text))) {

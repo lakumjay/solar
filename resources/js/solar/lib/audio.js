@@ -23,17 +23,30 @@ export class PcmPlayer {
         this.isPlaying = true;
     }
 
-    playPcmChunk(pcmData) {
+    playPcmChunk(pcmData, onEnded) {
         if (!this.isPlaying || !this.audioCtx) return;
 
-        // pcmData can be Uint8Array, Int16Array, or ArrayBuffer
+        // pcmData can be base64 string, Uint8Array, Int16Array, or ArrayBuffer
         let int16Array;
-        if (pcmData instanceof Int16Array) {
+        if (typeof pcmData === 'string') {
+            try {
+                const binaryString = atob(pcmData);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                int16Array = new Int16Array(bytes.buffer, bytes.byteOffset, Math.floor(bytes.byteLength / 2));
+            } catch (e) {
+                console.warn('PCM base64 decode error:', e);
+                return;
+            }
+        } else if (pcmData instanceof Int16Array) {
             int16Array = pcmData;
         } else if (pcmData instanceof ArrayBuffer) {
             int16Array = new Int16Array(pcmData);
         } else if (pcmData instanceof Uint8Array) {
-            int16Array = new Int16Array(pcmData.buffer, pcmData.byteOffset, pcmData.byteLength / 2);
+            int16Array = new Int16Array(pcmData.buffer, pcmData.byteOffset, Math.floor(pcmData.byteLength / 2));
         } else {
             return;
         }
@@ -54,6 +67,14 @@ export class PcmPlayer {
         const startTime = Math.max(now, this.nextPlayTime);
         source.start(startTime);
         this.nextPlayTime = startTime + audioBuffer.duration;
+
+        if (onEnded) {
+            source.onended = () => {
+                if (this.audioCtx && this.audioCtx.currentTime >= this.nextPlayTime - 0.1) {
+                    onEnded();
+                }
+            };
+        }
     }
 
     stop() {
@@ -65,6 +86,62 @@ export class PcmPlayer {
             this.audioCtx = null;
         }
         this.nextPlayTime = 0;
+    }
+}
+
+// Studio Cloud AI Audio Player (Plays Natural High-Quality Audio from Cloud)
+let currentPlayingAudio = null;
+
+export function stopCloudAudio() {
+    if (currentPlayingAudio) {
+        try {
+            currentPlayingAudio.pause();
+            currentPlayingAudio.currentTime = 0;
+        } catch (_) {}
+        currentPlayingAudio = null;
+    }
+}
+
+export function playCloudAudio(sourceUrlOrBase64, onEnded) {
+    stopCloudAudio();
+
+    try {
+        const audio = new Audio();
+        audio.preload = 'auto';
+
+        if (sourceUrlOrBase64.startsWith('http') || sourceUrlOrBase64.startsWith('/') || sourceUrlOrBase64.startsWith('data:')) {
+            audio.src = sourceUrlOrBase64;
+        } else {
+            audio.src = `data:audio/mpeg;base64,${sourceUrlOrBase64}`;
+        }
+
+        currentPlayingAudio = audio;
+
+        audio.onended = () => {
+            currentPlayingAudio = null;
+            if (onEnded) onEnded();
+        };
+
+        audio.onerror = (e) => {
+            console.warn('Cloud audio stream warning:', e);
+            currentPlayingAudio = null;
+            if (onEnded) onEnded();
+        };
+
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(err => {
+                console.warn('Audio play prevented or interrupted:', err);
+                currentPlayingAudio = null;
+                if (onEnded) onEnded();
+            });
+        }
+
+        return audio;
+    } catch (err) {
+        console.warn('playCloudAudio exception:', err);
+        if (onEnded) onEnded();
+        return null;
     }
 }
 

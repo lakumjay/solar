@@ -145,6 +145,7 @@ Route::prefix('api')->group(function () {
         // AI Voice Agent Calling routes
         Route::get('voice-agent/config', [\App\Http\Controllers\Api\VoiceAgentController::class, 'config']);
         Route::post('voice-agent/chat', [\App\Http\Controllers\Api\VoiceAgentController::class, 'chat']);
+        Route::get('voice-agent/tts', [\App\Http\Controllers\Api\VoiceAgentController::class, 'tts']);
         Route::post('voice-agent/execute-tool', [\App\Http\Controllers\Api\VoiceAgentController::class, 'executeTool']);
     });
 });
