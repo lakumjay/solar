@@ -112,83 +112,64 @@ export default function ReportsPage({companyId, companies}) {
         {error && <div className="error">{error}</div>}
         {/* 🌧️ ⚡ Weather & Issue Analysis Report Panel with PDF Export */}
         {(weatherIssueData || weatherIssueLoading) && (
-            <section className="panel weather-issue-panel" style={{border: '1.5px solid #0d9488', background: '#f0fdfa'}}>
-                <div className="panel-head" style={{alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px'}}>
+            <section className="weather-issue-card">
+                <div className="weather-card-top">
                     <div
+                        className="weather-card-title-wrap"
                         onClick={() => setWeatherReportOpen(!weatherReportOpen)}
-                        style={{cursor: 'pointer', flex: 1, minWidth: '260px'}}
                         title={weatherReportOpen ? 'Click to hide details' : 'Click to view daily details'}
                     >
-                        <h2 style={{display: 'flex', alignItems: 'center', gap: '8px', color: '#0f766e', margin: 0, fontSize: '16px'}}>
-                            <CloudRain size={20} style={{color: '#0d9488'}}/>
-                            <span>Weather / Issue Report</span>
-                            <span style={{
-                                fontSize: '11px',
-                                background: weatherReportOpen ? '#0f766e' : '#ccfbf1',
-                                color: weatherReportOpen ? '#ffffff' : '#0f766e',
-                                padding: '2px 8px',
-                                borderRadius: '12px',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                fontWeight: 700,
-                                marginLeft: '8px'
-                            }}>
-                                {weatherReportOpen ? (
-                                    <><span>{currentLang === 'en' ? 'Hide Details' : 'વિગત બંધ કરો'}</span><ChevronUp size={13}/></>
-                                ) : (
-                                    <><span>{currentLang === 'en' ? 'Click to View' : 'વિગત જોવા ક્લિક કરો'}</span><ChevronDown size={13}/></>
-                                )}
-                            </span>
-                        </h2>
-                        <p style={{marginTop: '4px', color: '#134e4a', fontSize: '12px'}}>
-                            {currentLang === 'en'
-                                ? 'Date-wise root cause analysis for low generation (Rain/Clouds 🌧️, PGVCL Curtailment ⚡, Inverter Fault 🔌 or Dust 🧼).'
-                                : 'તારીખવાર ઓછા ઉત્પાદનનું કારણ (વરસાદ/વાદળ 🌧️, PGVCL કર્ટેલમેન્ટ ⚡, ઇન્વર્ટર ફોલ્ટ 🔌 કે ધૂળ 🧼) અને વિગતવાર પૃથક્કરણ.'}
-                        </p>
-                        {weatherIssueData && (
-                            <div style={{display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px'}}>
-                                <span style={{background: '#dcfce7', color: '#166534', padding: '3px 8px', borderRadius: '5px', fontSize: '11px', fontWeight: 700}}>
-                                    🟢 {currentLang === 'en' ? 'Normal: ' : 'સામાન્ય: '}{weatherIssueData.normal_days} {currentLang === 'en' ? 'Days' : 'દિવસ'}
-                                </span>
-                                <span style={{background: '#ffedd5', color: '#9a3412', padding: '3px 8px', borderRadius: '5px', fontSize: '11px', fontWeight: 700}}>
-                                    🔴 {currentLang === 'en' ? 'Low Units: ' : 'ઓછા યુનિટ્સ: '}{weatherIssueData.low_days} {currentLang === 'en' ? 'Days' : 'દિવસ'}
-                                </span>
-                                {weatherIssueData.missing_days > 0 && (
-                                    <span style={{background: '#fef3c7', color: '#92400e', padding: '3px 8px', borderRadius: '5px', fontSize: '11px', fontWeight: 700}}>
-                                        ⏳ {currentLang === 'en' ? 'Pending: ' : 'ચાલુ/બાકી: '}{weatherIssueData.missing_days} {currentLang === 'en' ? 'Days' : 'દિવસ'}
-                                    </span>
-                                )}
-                                <span style={{background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: '5px', fontSize: '11px', fontWeight: 600}}>
-                                    {currentLang === 'en' ? 'Expected: ~' : 'અપેક્ષિત: ~'}{number(weatherIssueData.expected_daily_units)} kWh / {currentLang === 'en' ? 'Day' : 'દિવસ'}
+                        <div className="weather-icon-bubble">
+                            <CloudRain size={20}/>
+                        </div>
+                        <div style={{flex: 1}}>
+                            <div className="weather-title-row">
+                                <h3 className="weather-title">Weather Report</h3>
+                                <span className={`weather-toggle-pill ${weatherReportOpen ? 'open' : ''}`}>
+                                    {weatherReportOpen ? (
+                                        <><ChevronUp size={12}/> {currentLang === 'en' ? 'Close' : 'બંધ કરો'}</>
+                                    ) : (
+                                        <><ChevronDown size={12}/> {currentLang === 'en' ? 'View' : 'જુઓ'}</>
+                                    )}
                                 </span>
                             </div>
-                        )}
+                            <p className="weather-subtitle">
+                                {currentLang === 'en'
+                                    ? 'Date-wise root cause analysis for low generation (Rain 🌧️, Curtailment ⚡, Inverter 🔌, Dust 🧼).'
+                                    : 'તારીખવાર ઓછા ઉત્પાદનનું કારણ (વરસાદ 🌧️, PGVCL કટ ⚡, ઇન્વર્ટર 🔌 કે ધૂળ 🧼) અને વિશ્લેષણ.'}
+                            </p>
+                        </div>
                     </div>
-                    <div className="export-actions" style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
-                        <button
-                            type="button"
-                            className="secondary weather-issue-pdf-btn"
-                            disabled={downloadingPdf}
-                            onClick={handleDownloadPdf}
-                            style={{
-                                background: '#0f766e',
-                                color: '#ffffff',
-                                fontWeight: 700,
-                                border: 'none',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                padding: '8px 14px',
-                                borderRadius: '6px',
-                                cursor: downloadingPdf ? 'wait' : 'pointer'
-                            }}
-                        >
-                            <FileText size={16}/>
-                            {downloadingPdf ? (currentLang === 'en' ? 'Downloading PDF...' : 'PDF ડાઉનલોડ થઈ રહી છે...') : 'Weather / Issue Report (PDF)'}
-                        </button>
-                    </div>
+
+                    <button
+                        type="button"
+                        className="weather-pdf-btn"
+                        disabled={downloadingPdf}
+                        onClick={handleDownloadPdf}
+                    >
+                        <FileText size={14}/>
+                        <span>{downloadingPdf ? (currentLang === 'en' ? 'Downloading...' : 'ડાઉનલોડ...') : 'Weather Report'}</span>
+                    </button>
                 </div>
+
+                {weatherIssueData && (
+                    <div className="weather-badges-grid">
+                        <span className="weather-badge badge-normal">
+                            🟢 {currentLang === 'en' ? 'Normal: ' : 'સામાન્ય: '}<b>{weatherIssueData.normal_days} {currentLang === 'en' ? 'Days' : 'દિવસ'}</b>
+                        </span>
+                        <span className="weather-badge badge-low">
+                            🔴 {currentLang === 'en' ? 'Low: ' : 'ઓછા યુનિટ્સ: '}<b>{weatherIssueData.low_days} {currentLang === 'en' ? 'Days' : 'દિવસ'}</b>
+                        </span>
+                        {weatherIssueData.missing_days > 0 && (
+                            <span className="weather-badge badge-pending">
+                                ⏳ {currentLang === 'en' ? 'Pending: ' : 'ચાલુ/બાકી: '}<b>{weatherIssueData.missing_days} {currentLang === 'en' ? 'Days' : 'દિવસ'}</b>
+                            </span>
+                        )}
+                        <span className="weather-badge badge-expected">
+                            ⚡ {currentLang === 'en' ? 'Expected: ~' : 'અપેક્ષિત: ~'}<b>{number(weatherIssueData.expected_daily_units)} kWh/{currentLang === 'en' ? 'Day' : 'દિવસ'}</b>
+                        </span>
+                    </div>
+                )}
 
                 {weatherIssueLoading && !weatherIssueData && (
                     <div style={{padding: '12px', textAlign: 'center', color: '#0f766e', fontSize: '11.5px', fontWeight: 600}}>
