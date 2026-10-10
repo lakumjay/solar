@@ -352,10 +352,7 @@ export default function MyAttendancePage({companyId}) {
                         }}>
                             <Lock size={16} style={{color: '#d97706', flexShrink: 0}}/>
                             <span>
-                                <b>{currentLang === 'en' ? 'Time-Out is Locked:' : 'ટાઈમ-આઉટ લૉક છે:'}</b> {today.has_approved_half_day
-                                    ? (currentLang === 'en' ? 'Time out will unlock after 01:00 PM as half-day leave is approved.' : 'હાફ-ડે રજા મંજૂર થયેલી હોવાથી ટાઈમ આઉટ બપોરે 01:00 PM પછી અનલૉક થશે.')
-                                    : (currentLang === 'en' ? 'For a full-day shift, Time Out unlocks after 06:00 PM. (After 01:00 PM if half-day leave is approved).' : 'ફૂલ-ડે શિફ્ટ માટે ટાઈમ આઉટ સાંજે 06:00 PM પછી જ અનલૉક થશે. (જો હાફ-ડે રજા મંજૂર હોય તો બપોરે 01:00 PM પછી).')
-                                }
+                                <b>{currentLang === 'en' ? 'Time-Out Notice:' : 'ટાઈમ-આઉટ સૂચના:'}</b> {currentLang === 'en' ? 'Minimum 30 minutes of work is required after Time-In before Time-Out can be submitted.' : 'Time-In કર્યાના ઓછામાં ઓછા ૩૦ મિનિટ પછી Time-Out નું બટન સક્રિય થશે.'}
                             </span>
                         </div>
                     ) : (
@@ -373,26 +370,107 @@ export default function MyAttendancePage({companyId}) {
                         }}>
                             <CheckCircle2 size={16} style={{color: '#16a34a', flexShrink: 0}}/>
                             <span>
-                                <b>{currentLang === 'en' ? 'Time-Out is Unlocked:' : 'ટાઈમ-આઉટ અનલૉક છે:'}</b> {today.has_approved_half_day ? (currentLang === 'en' ? 'Approved Half-Day Shift Complete' : 'હાફ-ડે શિફ્ટ પૂર્ણ') : (currentLang === 'en' ? '06:00 PM Regular Shift Complete' : '06:00 PM શિફ્ટ પૂર્ણ')}. {currentLang === 'en' ? 'You can now fill in work details and Time Out.' : 'તમે હવે કામની વિગતો ભરીને Time Out કરી શકો છો.'}
+                                <b>{currentLang === 'en' ? 'Time-Out Ready:' : 'ટાઈમ-આઉટ કરી શકો છો:'}</b> {currentLang === 'en' ? 'Fill in your daily work summary below and confirm Time-Out.' : 'આજે કરેલા કામની વિગત ભરીને Time Out કરી શકો છો.'}
                             </span>
                         </div>
                     )}
 
                     {activeBreak && <div className="info-banner">Break out before completing your day.</div>}
 
-                    <Field label={currentLang === 'en' ? 'What did you do today?' : 'What did you do today? (આજે શું કામ કર્યું?)'}>
-                        <textarea value={clockOutForm.work_done} onChange={event => setClockOutForm({...clockOutForm, work_done: event.target.value})} rows="4" required/>
-                    </Field>
+                    <div style={{marginBottom: '14px'}}>
+                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px'}}>
+                            <label style={{fontSize: '13px', fontWeight: 700, color: '#334155'}}>
+                                {currentLang === 'en' ? 'What did you do today?' : 'What did you do today? (આજે શું કામ કર્યું?)'}
+                            </label>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                                    if (!SpeechRecognition) return alert('તમારા બ્રાઉઝરમાં વૉઇસ રેકોર્ડિંગ સપોર્ટ નથી.');
+                                    const recog = new SpeechRecognition();
+                                    recog.lang = currentLang === 'gu' ? 'gu-IN' : 'hi-IN';
+                                    recog.onresult = (e) => {
+                                        const transcript = e.results[0][0].transcript;
+                                        setClockOutForm(prev => ({...prev, work_done: (prev.work_done ? prev.work_done + ' ' : '') + transcript}));
+                                    };
+                                    recog.start();
+                                }}
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    background: '#f1f5f9',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '6px',
+                                    padding: '3px 8px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    color: '#0284c7',
+                                    cursor: 'pointer'
+                                }}
+                                title="બોલીને લખવા માટે માઇક દબાવો"
+                            >
+                                🎙️ {currentLang === 'en' ? 'Speak' : 'બોલીને લખો'}
+                            </button>
+                        </div>
+                        <textarea
+                            value={clockOutForm.work_done}
+                            onChange={event => setClockOutForm({...clockOutForm, work_done: event.target.value})}
+                            rows="4"
+                            placeholder={currentLang === 'en' ? 'Describe the work performed today...' : 'આજે પ્લાન્ટ પર કરેલું કામ લખો અથવા માઇકથી બોલો...'}
+                            required
+                        />
+                    </div>
 
-                    <Field label={currentLang === 'en' ? 'What did you learn today?' : 'What did you learn today? (આજે નવું શું શીખ્યા?)'}>
-                        <textarea value={clockOutForm.learned} onChange={event => setClockOutForm({...clockOutForm, learned: event.target.value})} rows="4" required/>
-                    </Field>
+                    <div style={{marginBottom: '14px'}}>
+                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px'}}>
+                            <label style={{fontSize: '13px', fontWeight: 700, color: '#334155'}}>
+                                {currentLang === 'en' ? 'What did you learn today?' : 'What did you learn today? (આજે નવું શું શીખ્યા?)'}
+                            </label>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                                    if (!SpeechRecognition) return alert('તમારા બ્રાઉઝરમાં વૉઇસ રેકોર્ડિંગ સપોર્ટ નથી.');
+                                    const recog = new SpeechRecognition();
+                                    recog.lang = currentLang === 'gu' ? 'gu-IN' : 'hi-IN';
+                                    recog.onresult = (e) => {
+                                        const transcript = e.results[0][0].transcript;
+                                        setClockOutForm(prev => ({...prev, learned: (prev.learned ? prev.learned + ' ' : '') + transcript}));
+                                    };
+                                    recog.start();
+                                }}
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    background: '#f1f5f9',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '6px',
+                                    padding: '3px 8px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    color: '#0284c7',
+                                    cursor: 'pointer'
+                                }}
+                                title="બોલીને લખવા માટે માઇક દબાવો"
+                            >
+                                🎙️ {currentLang === 'en' ? 'Speak' : 'બોલીને લખો'}
+                            </button>
+                        </div>
+                        <textarea
+                            value={clockOutForm.learned}
+                            onChange={event => setClockOutForm({...clockOutForm, learned: event.target.value})}
+                            rows="3"
+                            placeholder={currentLang === 'en' ? 'What new skills or issues did you encounter...' : 'આજે કોઈ નવી ટેકનિક કે બાબત શીખ્યા હોય તે લખો...'}
+                            required
+                        />
+                    </div>
 
                     <div className="form-actions">
                         <span>No photo is taken at final Time Out.</span>
-                        <button className="primary" disabled={busy || Boolean(activeBreak) || !isTimeOutUnlocked} title={!isTimeOutUnlocked ? `Time Out available after ${earliestOutHuman}` : 'Confirm Time Out'}>
-                            {!isTimeOutUnlocked && <Lock size={14}/>}
-                            <MapPin size={16}/> Final Time Out ({earliestOutHuman})
+                        <button className="primary" disabled={busy || Boolean(activeBreak) || !isTimeOutUnlocked} title="Confirm Time Out">
+                            <MapPin size={16}/> Final Time Out
                         </button>
                     </div>
                 </form>

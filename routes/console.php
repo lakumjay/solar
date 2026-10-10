@@ -11,3 +11,4 @@ Artisan::command('inspire', function () {
 Schedule::command('plant-photos:prune --days=10')->dailyAt('02:00');
 Schedule::command('isolarcloud:auto-save-daily')->dailyAt('20:05');
 Schedule::command('isolarcloud:auto-save-daily')->dailyAt('20:30');
+Schedule::command('attendance:auto-close-daily')->dailyAt('23:55');

@@ -95,22 +95,10 @@ class AttendanceService
         $todayDate = $now->toDateString();
         $currentTime = $now->format('H:i:s');
 
-        // Check if employee has an approved half-day leave for today
-        $hasApprovedHalfDay = LeaveRequest::where('employee_id', $employee->id)
-            ->where('status', 'approved')
-            ->whereDate('date_from', '<=', $todayDate)
-            ->whereDate('date_to', '>=', $todayDate)
-            ->whereIn('day_part', ['first_half', 'second_half'])
-            ->exists();
-
-        $earliestTime = $hasApprovedHalfDay ? '13:00:00' : '18:00:00';
-        $humanTime = $hasApprovedHalfDay ? '01:00 PM' : '06:00 PM';
-
-        if ($currentTime < $earliestTime) {
-            $msg = $hasApprovedHalfDay
-                ? "હાફ-ડે ટાઈમ આઉટ ફક્ત બપોરે {$humanTime} પછી જ શક્ય છે."
-                : "ફૂલ-ડે ટાઈમ આઉટ ફક્ત સાંજે {$humanTime} પછી જ શક્ય છે. (જો હાફ-ડે રજા મંજૂર હોય તો બપોરે 01:00 PM પછી ટાઈમ આઉટ કરી શકાય છે).";
-            throw ValidationException::withMessages(['attendance' => $msg]);
+        // Require at least 30 minutes of work before Time Out can be recorded
+        $elapsedMinutes = (int) floor($record->clock_in_at->diffInMinutes($now));
+        if ($elapsedMinutes < 30) {
+            throw ValidationException::withMessages(['attendance' => 'ટાઈમ-ઇન કર્યાના ઓછામાં ઓછા ૩૦ મિનિટ પછી જ ટાઈમ-આઉટ કરી શકાય છે.']);
         }
 
         $record->fill([
@@ -316,6 +304,8 @@ class AttendanceService
         $humanTime = $hasApprovedHalfDay ? '01:00 PM' : '06:00 PM';
         $isTimeReached = ($currentTime >= $earliestTime);
 
+        $hasWorkedMin = $record && $record->clock_in_at ? (int) floor($record->clock_in_at->diffInMinutes(now())) >= 30 : false;
+
         return [
             'date' => $today->toDateString(),
             'employee' => $employee->loadMissing('user:id,name,email'),
@@ -329,8 +319,8 @@ class AttendanceService
             'earliest_clock_out_human' => $humanTime,
             'is_clock_out_time_reached' => $isTimeReached,
             'can_clock_in' => ! $employee->manager_attendance_only && ! $record && ! $context['weeklyOff'] && $context['holiday']?->type !== 'full_day' && $context['leave']?->day_part !== 'full_day',
-            'can_clock_out' => ! $employee->manager_attendance_only && (bool) ($record && ! $record->clock_out_at) && $isTimeReached,
-            'is_clocked_in_waiting' => ! $employee->manager_attendance_only && (bool) ($record && ! $record->clock_out_at) && ! $isTimeReached,
+            'can_clock_out' => ! $employee->manager_attendance_only && (bool) ($record && ! $record->clock_out_at && $hasWorkedMin),
+            'is_clocked_in_waiting' => ! $employee->manager_attendance_only && (bool) ($record && ! $record->clock_out_at && ! $hasWorkedMin),
         ];
     }
 
@@ -344,11 +334,16 @@ class AttendanceService
         $halfEntitlement = $context['holiday'] && $context['holiday']->type !== 'full_day'
             || $context['leave'] && $context['leave']->day_part !== 'full_day';
         $requiredMinutes = $halfEntitlement ? $employee->half_day_minutes : $employee->working_minutes;
+        
+        // Grace period: allow 30 minutes grace on full day (e.g. 450 minutes = 7.5 hours qualifies as present)
+        $presentThreshold = max(240, $requiredMinutes - 30);
+        $halfDayThreshold = max(180, (int) round($employee->half_day_minutes * 0.85));
+
         $shiftEnd = Carbon::parse($record->attendance_date->toDateString().' '.$employee->shift_end);
         $record->work_minutes = $minutes;
         $record->break_minutes = $breakMinutes;
-        $record->status = $minutes >= $requiredMinutes ? 'present' : ($minutes >= $employee->half_day_minutes ? 'half_day' : 'short_day');
-        $record->is_early_out = $record->clock_out_at->lessThan($shiftEnd) && $minutes < $requiredMinutes;
+        $record->status = $minutes >= $presentThreshold ? 'present' : ($minutes >= $halfDayThreshold ? 'half_day' : 'short_day');
+        $record->is_early_out = $record->clock_out_at->lessThan($shiftEnd) && $minutes < $presentThreshold;
         $record->overtime_minutes = max(0, $minutes - $requiredMinutes);
     }
 
