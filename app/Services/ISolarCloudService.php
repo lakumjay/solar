@@ -480,6 +480,9 @@ class ISolarCloudService
                         if ($currentA > 0.5 && ! $isStrCurtailed) {
                             $activeStringCurrents[] = $currentA;
                         }
+                        if ($currentA >= 2.0) {
+                            \Illuminate\Support\Facades\Cache::put("solar_str_wired_{$company->id}_{$inv->id}_{$s}", true, 86400 * 7);
+                        }
                     }
 
                     // Smart Seasonal Soiling / Dew / Fog / Zero Current Notice Engine
@@ -513,7 +516,7 @@ class ISolarCloudService
 
                                 // 1. Zero current check (0.0A on an expected string)
                                 if ($cVal <= 0.2) {
-                                    $inverterZeroStrings[] = 'PV ' . $s;
+                                    $inverterZeroStrings[] = $s;
                                 }
                                 // 2. Severe drop (drop >= 50% compared to healthy average)
                                 elseif ($cVal > 0.5 && $cVal < ($healthyAvg * 0.50)) {
@@ -581,9 +584,20 @@ class ISolarCloudService
                                 $allCleaningAlerts[] = $alertItem;
                             }
 
-                            // Zero Current Fault Alert
-                            if (! empty($inverterZeroStrings) && count($inverterZeroStrings) <= 3 && $canRunSoilingCheck) {
-                                $zeroStrText = implode(', ', $inverterZeroStrings);
+                            // 1. Genuine Zero Current Fault Alert:
+                            // Check if a string that was physically wired/active (> 2.0A peak) suddenly drops to 0.0A
+                            $wiredZeroStrings = [];
+                            foreach ($inverterZeroStrings as $zStrNum) {
+                                $wiredKey = "solar_str_wired_{$company->id}_{$inv->id}_{$zStrNum}";
+                                // A string is confirmed physically wired if it produced > 2.0A in the past 7 days
+                                $isConfirmedWired = \Illuminate\Support\Facades\Cache::get($wiredKey, false);
+                                if ($isConfirmedWired) {
+                                    $wiredZeroStrings[] = 'PV ' . $zStrNum;
+                                }
+                            }
+
+                            if (! empty($wiredZeroStrings) && count($wiredZeroStrings) <= 4 && $canRunSoilingCheck) {
+                                $zeroStrText = implode(', ', $wiredZeroStrings);
                                 $zeroNoticeMessage = "{$company->name} ના {$inv->name} માં {$zeroStrText} માંથી ૦.૦ Amps કરંટ આવે છે. MC4 કનેક્ટર અથવા DC ફ્યુઝ ચેક કરો.";
                                 $zeroAlertItem = [
                                     'type' => 'zero_current',
@@ -604,40 +618,10 @@ class ISolarCloudService
                             }
                         }
 
-                        // 3. Inverter High Heat Load & Overheating Alert
-                        // Solar plant inverters are 250 kW rated (Sungrow SG250HX / similar central string inverters).
+                        // Load calculation for telemetry monitoring (overheat warnings removed as physical temp sensors are absent)
                         $invRatedKw = (float) ($inv->capacity_kw ?: 250.0);
                         $loadPct = $invRatedKw > 0 ? round(($liveKw / $invRatedKw) * 100, 1) : 0;
-                        $tempAmbient = (float) ($weatherData['temperature'] ?? 30.0);
-                        // Normal heatsink temperature rise is ~15-18°C above ambient under full load when cooling fan is clear.
-                        // Overheating alert only triggers if heatsink exceeds 68°C or load > 95% with extreme ambient (> 38°C).
-                        $estimatedInvTemp = round($tempAmbient + (($loadPct / 100.0) * 18.0), 1);
-                        if ($isOnline && ! $isInverterCurtailed && ($estimatedInvTemp >= 68.0 || ($loadPct >= 95.0 && $tempAmbient >= 38.0))) {
-                            $isFireEmergency = ($estimatedInvTemp >= 72.0);
-                            $heatNoticeMessage = $isFireEmergency
-                                ? "🚨 ઇમરજન્સી: {$company->name} ના {$inv->name} માં તાપમાન અતિશય ગંભીર સ્તરે (~{$estimatedInvTemp}°C) પહોંચ્યું છે! અંદર આગ/સ્પાર્કિંગનો મોટો ખતરો છે. સાઈટ પર તાત્કાલિક ઇન્વર્ટર ચેક કરો અથવા પાવર ટ્રીપ કરો."
-                                : "{$company->name} ના {$inv->name} પર ભારે હીટ લોડ (~{$estimatedInvTemp}°C, {$loadPct}% લોડ) છે. કૂલિંગ ફેન જામ કે એર ફિલ્ટર જાળીમાં ધૂળ બ્લોક હોઈ શકે છે. સાઈટ પર ફેન ચેક કરો.";
-                            $heatAlertItem = [
-                                'type' => $isFireEmergency ? 'inverter_fire_risk' : 'inverter_overheat',
-                                'badge' => $isFireEmergency ? '🚨 ઇન્વર્ટર આગ/બ્લાસ્ટ ખતરો' : '🔥 ઇન્વર્ટર હીટ એલર્ટ',
-                                'is_emergency' => $isFireEmergency,
-                                'company_id' => $company->id,
-                                'company_name' => $company->name,
-                                'inverter_id' => $inv->id,
-                                'inverter_name' => $inv->name,
-                                'device_name' => $deviceName ?: $inv->name,
-                                'serial_number' => $inv->serial_number,
-                                'string_label' => "{$estimatedInvTemp}°C / {$loadPct}% લોડ",
-                                'temp_c' => $estimatedInvTemp,
-                                'load_pct' => $loadPct,
-                                'live_kw' => $liveKw,
-                                'title' => $heatNoticeMessage,
-                                'message' => $heatNoticeMessage,
-                                'strings' => [],
-                            ];
-                            $inverterAlerts[] = $heatAlertItem;
-                            $allCleaningAlerts[] = $heatAlertItem;
-                        }
+                        $estimatedInvTemp = null;
                     }
                 } else {
                     $todayKwh = 0.0;
@@ -905,7 +889,9 @@ class ISolarCloudService
         }
 
         // ── 3. Grid Downtime & Revenue Loss Tracker ──
-        $isGridDown = (!$isNight && $currentHourFloat >= 8.0 && $currentHourFloat <= 17.5 && ($totalOnline === 0 || $totalLiveKw <= 0.5) && $irradianceNow >= 120);
+        // Only trigger genuine PGVCL line outage if telemetry connection is actually live ($isLive)
+        // and daytime power is 0 kW under bright daylight (> 120 W/m²). Never trigger on API timeouts.
+        $isGridDown = ($isLive && ! $isNight && $currentHourFloat >= 8.0 && $currentHourFloat <= 17.5 && ($totalOnline === 0 || $totalLiveKw <= 0.5) && $irradianceNow >= 120);
         $downtimeMinutes = 0;
         $downtimeLostKwh = 0.0;
         $downtimeLostRs = 0.0;
@@ -1108,7 +1094,7 @@ class ISolarCloudService
         } catch (\Throwable $e) {
             $lastFanCleanLog = null;
         }
-        $lastCleanedDate = $lastFanCleanLog ? Carbon::parse($lastFanCleanLog->cleaned_at) : Carbon::today()->subDays(10);
+        $lastCleanedDate = $lastFanCleanLog ? Carbon::parse($lastFanCleanLog->cleaned_at) : Carbon::today();
         $daysSinceClean = (int) $lastCleanedDate->diffInDays(Carbon::today());
         $daysRemaining = max(0, 10 - $daysSinceClean);
         $fanCleaningStatus = [

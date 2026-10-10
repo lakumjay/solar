@@ -1707,20 +1707,16 @@ export default function MobileAppView({
                             </div>
                         )}
 
-                        {/* 💨 10-Day Routine Inverter Fan & Filter Dust Cleaning Cycle Card */}
-                        {fanCleaningStatus && (
+                        {/* 💨 10-Day Routine Inverter Fan & Filter Dust Cleaning Cycle Card (Shown only when overdue or approaching) */}
+                        {fanCleaningStatus && (fanCleaningStatus.is_overdue || fanCleaningStatus.is_approaching) && (
                             <div style={{
                                 marginBottom: '10px',
                                 background: fanCleaningStatus.is_overdue
                                     ? '#fef2f2'
-                                    : fanCleaningStatus.is_approaching
-                                        ? '#fffbeb'
-                                        : '#f0fdf4',
+                                    : '#fffbeb',
                                 border: fanCleaningStatus.is_overdue
                                     ? '1.5px solid #ef4444'
-                                    : fanCleaningStatus.is_approaching
-                                        ? '1.5px solid #f59e0b'
-                                        : '1px solid #86efac',
+                                    : '1.5px solid #f59e0b',
                                 borderRadius: '12px',
                                 padding: '12px 14px',
                                 display: 'flex',

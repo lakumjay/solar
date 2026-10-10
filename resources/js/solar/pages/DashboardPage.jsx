@@ -1059,12 +1059,12 @@ export default function DashboardPage({companyId, currentUser}) {
                     </div>
                 )}
 
-                {/* 💨 10-Day Routine Inverter Fan & Filter Dust Cleaning Cycle Card */}
-                {fanCleaningStatus && (
+                {/* 💨 10-Day Routine Inverter Fan & Filter Dust Cleaning Cycle Card (Shown only when overdue or approaching) */}
+                {fanCleaningStatus && (fanCleaningStatus.is_overdue || fanCleaningStatus.is_approaching) && (
                     <div style={{
                         marginBottom: '12px',
-                        background: fanCleaningStatus.is_overdue ? '#fef2f2' : fanCleaningStatus.is_approaching ? '#fffbeb' : '#f0fdf4',
-                        border: fanCleaningStatus.is_overdue ? '1.5px solid #ef4444' : fanCleaningStatus.is_approaching ? '1.5px solid #f59e0b' : '1px solid #86efac',
+                        background: fanCleaningStatus.is_overdue ? '#fef2f2' : '#fffbeb',
+                        border: fanCleaningStatus.is_overdue ? '1.5px solid #ef4444' : '1.5px solid #f59e0b',
                         borderRadius: '12px',
                         padding: '12px 16px',
                         display: 'flex',
@@ -1133,12 +1133,12 @@ export default function DashboardPage({companyId, currentUser}) {
                     </div>
                 )}
 
-                {/* 🔌 PGVCL / DISCOM Grid Outage & Power Loss Tracker Card */}
-                {gridDowntime && (
+                {/* 🔌 PGVCL / DISCOM Grid Outage & Power Loss Tracker Card (Shown only when grid is down) */}
+                {gridDowntime && gridDowntime.is_down && (
                     <div style={{
                         marginBottom: '12px',
-                        background: gridDowntime.is_down ? '#fef2f2' : '#f0fdf4',
-                        border: gridDowntime.is_down ? '1.5px solid #ef4444' : '1px solid #86efac',
+                        background: '#fef2f2',
+                        border: '1.5px solid #ef4444',
                         borderRadius: '12px',
                         padding: '12px 16px',
                         display: 'flex',
