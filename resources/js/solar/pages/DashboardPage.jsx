@@ -431,47 +431,24 @@ export default function DashboardPage({companyId, currentUser}) {
             </div>
 
             {/* ⚡ PGVCL Solar Curtailment Control Box & Master 100% Full Power Toggle */}
-            <section style={{
-                marginBottom: '14px',
-                background: curtailmentSystem.is_any_active ? '#fff7ed' : '#f8fafc',
-                border: curtailmentSystem.is_any_active ? '1.5px solid #f97316' : '1px solid #e2e8f0',
-                borderRadius: '14px',
-                padding: '12px 14px',
-                boxShadow: curtailmentSystem.is_any_active ? '0 4px 14px rgba(249, 115, 22, 0.12)' : '0 1px 3px rgba(0,0,0,0.03)',
-            }}>
-                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px'}}>
-                    <div style={{display: 'flex', alignItems: 'center', gap: '9px', minWidth: '220px'}}>
-                        <div style={{
-                            width: '34px',
-                            height: '34px',
-                            borderRadius: '9px',
-                            background: curtailmentSystem.is_any_active ? '#ffedd5' : '#e0f2fe',
-                            color: curtailmentSystem.is_any_active ? '#ea580c' : '#0284c7',
-                            display: 'grid',
-                            placeItems: 'center',
-                            flexShrink: 0
-                        }}>
+            <section className={`curtailment-banner ${curtailmentSystem.is_any_active ? 'is-active' : ''}`}>
+                <div className="curtailment-header">
+                    <div className="curtailment-header-left">
+                        <div className={`curtailment-icon ${curtailmentSystem.is_any_active ? 'active' : ''}`}>
                             <Power size={18}/>
                         </div>
                         <div>
-                            <div style={{display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap'}}>
-                                <b style={{fontSize: '13px', color: curtailmentSystem.is_any_active ? '#9a3412' : '#0f172a'}}>
+                            <div className="curtailment-title-row">
+                                <b className="curtailment-title">
                                     {curtailmentSystem.is_any_active ? (currentLang === 'en' ? '⚡ PGVCL Curtailment Active' : '⚡ PGVCL પાવર કર્ટલમેન્ટ ચાલુ છે (Curtailment Active)') : (currentLang === 'en' ? '⚡ PGVCL: 100% Full Power Active' : '⚡ PGVCL પાવર: ૧૦૦% ફુલ મોડ ચાલુ છે')}
                                 </b>
                                 {curtailmentSystem.is_any_active && (
-                                    <span style={{
-                                        background: '#ea580c',
-                                        color: '#ffffff',
-                                        fontSize: '10.5px',
-                                        fontWeight: 800,
-                                        padding: '1px 7px',
-                                        borderRadius: '10px'
-                                    }}>
+                                    <span className="curtailment-count-pill">
                                         {curtailmentSystem.active_count} {currentLang === 'en' ? 'Companies Curtailed' : 'કંપની કર્ટલમેન્ટ'}
                                     </span>
                                 )}
                             </div>
-                            <span style={{fontSize: '11px', color: curtailmentSystem.is_any_active ? '#c2410c' : '#64748b', display: 'block'}}>
+                            <span className="curtailment-subtitle">
                                 {curtailmentSystem.is_any_active
                                     ? (currentLang === 'en' ? 'Production reduced per PGVCL order. Dust alerts paused for these strings.' : 'PGVCL ઓર્ડર મુજબ ઉત્પાદન ઘટાડેલું છે. આ સ્ટ્રિંગ્સ માટે ખોટા સફાઈ એલર્ટ આપમેળે બંધ છે.')
                                     : (currentLang === 'en' ? 'All plants producing at full 100% capacity.' : 'બધા પ્લાન્ટ પૂર્ણ ૧૦૦% ક્ષમતાથી ઉત્પાદન આપી રહ્યા છે.')}
@@ -479,25 +456,12 @@ export default function DashboardPage({companyId, currentUser}) {
                         </div>
                     </div>
 
-                    <div style={{display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap'}}>
+                    <div className="curtailment-header-actions">
                         {curtailmentSystem.is_any_active ? (
                             <button
                                 type="button"
                                 onClick={() => handleRestoreAll('all')}
-                                style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '5px',
-                                    background: 'linear-gradient(135deg, #16a34a, #15803d)',
-                                    color: '#ffffff',
-                                    border: 'none',
-                                    padding: '6px 12px',
-                                    borderRadius: '7px',
-                                    fontSize: '11.5px',
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    boxShadow: '0 2px 6px rgba(22, 163, 74, 0.25)'
-                                }}
+                                className="btn-curtail-master-restore"
                             >
                                 <Zap size={13}/>
                                 {currentLang === 'en' ? '⚡ Restore 100% Full Power (Master Restore)' : '⚡ ૧૦૦% ફુલ પાવર શરૂ કરો (Master Restore)'}
@@ -506,19 +470,7 @@ export default function DashboardPage({companyId, currentUser}) {
                             <button
                                 type="button"
                                 onClick={() => openCurtailModal(null, 20)}
-                                style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '5px',
-                                    background: '#f97316',
-                                    color: '#ffffff',
-                                    border: 'none',
-                                    padding: '6px 11px',
-                                    borderRadius: '7px',
-                                    fontSize: '11.5px',
-                                    fontWeight: 700,
-                                    cursor: 'pointer'
-                                }}
+                                className="btn-curtail-set"
                             >
                                 <Sliders size={13}/>
                                 {currentLang === 'en' ? '➕ Set PGVCL Curtailment' : '➕ PGVCL કર્ટલમેન્ટ સેટ કરો'}
@@ -528,19 +480,7 @@ export default function DashboardPage({companyId, currentUser}) {
                         <button
                             type="button"
                             onClick={fetchCurtailmentHistory}
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                background: '#ffffff',
-                                color: '#475569',
-                                border: '1px solid #cbd5e1',
-                                padding: '5px 10px',
-                                borderRadius: '7px',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                cursor: 'pointer'
-                            }}
+                            className="btn-curtail-history"
                         >
                             <History size={12}/>
                             {currentLang === 'en' ? 'History & Loss' : 'ઇતિહાસ & નુકસાન'}
@@ -550,52 +490,23 @@ export default function DashboardPage({companyId, currentUser}) {
 
                 {/* Active Curtailment Cards Grid */}
                 {curtailmentSystem.is_any_active && (
-                    <div style={{display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px'}}>
+                    <div className="active-curtailments-list">
                         {activeCurtailments.map((curt, cIdx) => (
-                            <div key={cIdx} style={{
-                                background: '#ffffff',
-                                border: '1px solid #fed7aa',
-                                borderRadius: '9px',
-                                padding: '10px 12px',
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
-                            }}>
-                                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', marginBottom: '6px'}}>
-                                    <div style={{display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap'}}>
-                                        <span style={{
-                                            background: '#ea580c',
-                                            color: '#fff',
-                                            fontWeight: 800,
-                                            fontSize: '11px',
-                                            padding: '2px 7px',
-                                            borderRadius: '5px'
-                                        }}>
+                            <div key={cIdx} className="active-curtail-card">
+                                <div className="active-curtail-head">
+                                    <div className="active-curtail-meta">
+                                        <span className="active-curtail-pct-pill">
                                             {curt.percentage}% {currentLang === 'en' ? 'Curtailment' : 'કર્ટલમેન્ટ'}
                                         </span>
-                                        <b style={{fontSize: '12.5px', color: '#0f172a'}}>🏢 {curt.company_name}</b>
-                                        <span style={{fontSize: '10.5px', color: '#64748b'}}>({currentLang === 'en' ? 'Active since ' : ''}{curt.started_at_human}{currentLang === 'en' ? '' : ' થી ચાલુ'})</span>
+                                        <b className="active-curtail-name">🏢 {curt.company_name}</b>
+                                        <span className="active-curtail-started">({currentLang === 'en' ? 'Active since ' : ''}{curt.started_at_human}{currentLang === 'en' ? '' : ' થી ચાલુ'})</span>
                                     </div>
 
-                                    <div style={{display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap'}}>
-                                        <span style={{
-                                            background: '#fef2f2',
-                                            color: '#dc2626',
-                                            border: '1px solid #fca5a5',
-                                            padding: '2px 7px',
-                                            borderRadius: '5px',
-                                            fontSize: '11px',
-                                            fontWeight: 800
-                                        }}>
+                                    <div className="active-curtail-losses">
+                                        <span className="active-curtail-loss-chip">
                                             -{curt.lost_kwh} kWh (~₹{curt.lost_revenue_rs} {currentLang === 'en' ? 'Loss' : 'નુકસાન'})
                                         </span>
-                                        <span style={{
-                                            background: '#f8fafc',
-                                            color: '#475569',
-                                            border: '1px solid #e2e8f0',
-                                            padding: '2px 6px',
-                                            borderRadius: '5px',
-                                            fontSize: '10.5px',
-                                            fontWeight: 600
-                                        }}>
+                                        <span className="active-curtail-duration-chip">
                                             ⏱️ {curt.duration_human}
                                         </span>
                                     </div>
@@ -603,23 +514,12 @@ export default function DashboardPage({companyId, currentUser}) {
 
                                 {/* Step History Timeline Trail */}
                                 {curt.step_history && curt.step_history.length > 1 && (
-                                    <div style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '5px',
-                                        flexWrap: 'wrap',
-                                        fontSize: '10.5px',
-                                        color: '#64748b',
-                                        margin: '5px 0',
-                                        padding: '4px 7px',
-                                        background: '#fff7ed',
-                                        borderRadius: '5px'
-                                    }}>
+                                    <div className="curtail-step-trail">
                                         <Clock size={11} style={{color: '#ea580c'}}/>
                                         <b>{currentLang === 'en' ? 'Step Timeline:' : 'સ્ટેપ ટાઇમલાઇન:'}</b>
                                         {curt.step_history.map((st, sIdx) => (
-                                            <span key={sIdx} style={{display: 'inline-flex', alignItems: 'center', gap: '3px'}}>
-                                                <span style={{fontWeight: 700, color: '#c2410c'}}>{st.changed_at_human} ({st.to_percentage}%)</span>
+                                            <span key={sIdx} className="curtail-step-entry">
+                                                <span className="step-val">{st.changed_at_human} ({st.to_percentage}%)</span>
                                                 {sIdx < curt.step_history.length - 1 && <span>➔</span>}
                                             </span>
                                         ))}
@@ -627,31 +527,22 @@ export default function DashboardPage({companyId, currentUser}) {
                                 )}
 
                                 {/* Quick Step Selector Chips + Actions Bar */}
-                                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', marginTop: '6px', paddingTop: '6px', borderTop: '1px dashed #fed7aa'}}>
-                                    <div style={{display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap'}}>
-                                        <span style={{fontSize: '10.5px', fontWeight: 700, color: '#475569'}}>{currentLang === 'en' ? 'Change Step:' : 'સ્ટેપ બદલો:'}</span>
+                                <div className="curtail-step-actions-bar">
+                                    <div className="curtail-quick-steps">
+                                        <span className="change-step-lbl">{currentLang === 'en' ? 'Change Step:' : 'સ્ટેપ બદલો:'}</span>
                                         {[10, 20, 40, 80].map(pct => (
                                             <button
                                                 key={pct}
                                                 type="button"
                                                 onClick={() => handleQuickStepChange(curt.company_id, pct)}
-                                                style={{
-                                                    fontSize: '10.5px',
-                                                    padding: '2px 6px',
-                                                    borderRadius: '4px',
-                                                    border: curt.percentage === pct ? '1.5px solid #ea580c' : '1px solid #cbd5e1',
-                                                    background: curt.percentage === pct ? '#ffedd5' : '#ffffff',
-                                                    color: curt.percentage === pct ? '#c2410c' : '#334155',
-                                                    fontWeight: curt.percentage === pct ? 800 : 500,
-                                                    cursor: 'pointer'
-                                                }}
+                                                className={`btn-step-pct ${curt.percentage === pct ? 'is-active' : ''}`}
                                             >
                                                 {pct}%
                                             </button>
                                         ))}
 
                                         {/* Direct Custom % Input Box */}
-                                        <div style={{display: 'inline-flex', alignItems: 'center', gap: '3px', background: '#f8fafc', padding: '1px 4px', borderRadius: '5px', border: '1px solid #cbd5e1'}}>
+                                        <div className="curtail-custom-input-box">
                                             <input
                                                 type="number"
                                                 min="1"
@@ -667,10 +558,10 @@ export default function DashboardPage({companyId, currentUser}) {
                                                         }
                                                     }
                                                 }}
-                                                style={{width: '52px', padding: '2px 4px', fontSize: '11px', borderRadius: '3px', border: '1px solid #cbd5e1', fontWeight: 700, textAlign: 'center'}}
+                                                className="curtail-pct-input"
                                                 title={currentLang === 'en' ? 'Enter custom percentage (e.g. 22%)' : 'પોતાની કસ્ટમ ટકાવારી લખો (જેમ કે 22%)'}
                                             />
-                                            <span style={{fontSize: '10.5px', fontWeight: 700, color: '#64748b'}}>%</span>
+                                            <span className="pct-symbol">%</span>
                                             <button
                                                 type="button"
                                                 onClick={() => {
@@ -681,16 +572,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                                         alert(currentLang === 'en' ? 'Please enter a percentage between 1 and 100 (e.g. 22).' : 'કૃપા કરી ૧ થી ૧૦૦ વચ્ચે ટકાવારી લખો (દા.ત. 22).');
                                                     }
                                                 }}
-                                                style={{
-                                                    fontSize: '10px',
-                                                    padding: '2px 6px',
-                                                    borderRadius: '3px',
-                                                    border: 'none',
-                                                    background: '#ea580c',
-                                                    color: '#ffffff',
-                                                    fontWeight: 700,
-                                                    cursor: 'pointer'
-                                                }}
+                                                className="btn-apply-custom-pct"
                                             >
                                                 {currentLang === 'en' ? 'Change' : 'બદલો'}
                                             </button>
@@ -699,15 +581,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                         <button
                                             type="button"
                                             onClick={() => openCurtailModal(companies.find(c => c.company_id === curt.company_id), curt.percentage)}
-                                            style={{
-                                                fontSize: '10.5px',
-                                                padding: '2px 6px',
-                                                borderRadius: '4px',
-                                                border: '1px solid #cbd5e1',
-                                                background: '#ffffff',
-                                                color: '#334155',
-                                                cursor: 'pointer'
-                                            }}
+                                            className="btn-curtail-settings"
                                         >
                                             {currentLang === 'en' ? '⚙️ Full Settings' : '⚙️ સંપૂર્ણ સેટિંગ'}
                                         </button>
@@ -716,19 +590,7 @@ export default function DashboardPage({companyId, currentUser}) {
                                     <button
                                         type="button"
                                         onClick={() => handleRestoreAll(curt.company_id)}
-                                        style={{
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: '4px',
-                                            fontSize: '11px',
-                                            fontWeight: 700,
-                                            color: '#16a34a',
-                                            background: '#f0fdf4',
-                                            border: '1px solid #86efac',
-                                            padding: '3px 8px',
-                                            borderRadius: '5px',
-                                            cursor: 'pointer'
-                                        }}
+                                        className="btn-curtail-restore-company"
                                     >
                                         <Check size={11}/>
                                         {currentLang === 'en' ? 'Restore this company (100% ON)' : 'આ કંપની Restore કરો (100% ON)'}
