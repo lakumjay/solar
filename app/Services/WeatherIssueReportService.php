@@ -23,13 +23,16 @@ class WeatherIssueReportService
         $companies = $companiesQuery->get();
         $targetCompany = $companyId ? $companies->first() : null;
 
-        // Calculate expected daily capacity
-        $totalCapacityKw = (float) $companies->sum(fn ($c) => (float) ($c->total_capacity_kw ?? 500.0));
-        if ($totalCapacityKw <= 0) {
-            $totalCapacityKw = 500.0 * max(1, $companies->count());
+        // Fetch all inverters map for target companies
+        $invertersMap = Inverter::whereIn('company_id', $companies->pluck('id'))->get()->keyBy('id');
+        $inverterCount = $invertersMap->count();
+        if ($inverterCount <= 0) {
+            $inverterCount = 10;
         }
-        // Benchmark: ~4.5 kWh per kW capacity on a full sunny day
-        $expectedDailyUnits = round($totalCapacityKw * 4.5, 1);
+
+        // Benchmark: ~1,750 kWh expected generation per inverter on a clear sunny day (~385 kW capacity * 4.55 kWh/kW)
+        $expectedDailyUnits = round($inverterCount * 1750.0, 1);
+        $totalCapacityKw = round($inverterCount * 385.0, 1);
         $lowThreshold = round($expectedDailyUnits * 0.70, 1); // < 70% is considered low
 
         // Fetch daily readings
@@ -56,9 +59,6 @@ class WeatherIssueReportService
         }
         $curtailments = $curtailmentsQuery->get();
 
-        // Fetch all inverters map for labelling
-        $invertersMap = Inverter::whereIn('company_id', $companies->pluck('id'))->get()->keyBy('id');
-
         $period = CarbonPeriod::create($from, $to);
         $rows = [];
         $totalGeneration = 0.0;
@@ -74,6 +74,7 @@ class WeatherIssueReportService
 
             if ($dateDayReadings->isEmpty()) {
                 $missingDaysCount++;
+                $isToday = $date->isToday();
                 $rows[] = [
                     'date' => $dateString,
                     'date_formatted' => $date->format('d M Y'),
@@ -82,10 +83,12 @@ class WeatherIssueReportService
                     'expected_generation' => $expectedDailyUnits,
                     'pct_of_expected' => 0,
                     'status' => 'missing',
-                    'status_label' => 'No Entry',
-                    'badge' => '⚪ એન્ટ્રી બાકી',
-                    'reason' => 'ડેટા દાખલ કરેલ નથી (No Entry)',
-                    'details' => 'આ તારીખની ડેઇલી યુનિટ્સ એન્ટ્રી હજી બાકી છે.',
+                    'status_label' => $isToday ? 'Today (In Progress)' : 'No Entry',
+                    'badge' => $isToday ? '⏳ આજનો દિવસ (ચાલુ)' : '⚪ એન્ટ્રી બાકી',
+                    'reason' => $isToday ? 'આજનો દિવસ હજુ ચાલુ છે (In Progress)' : 'ડેટા દાખલ કરેલ નથી (No Entry)',
+                    'reason_en' => $isToday ? 'Today in progress (Reading pending)' : 'No reading entered',
+                    'details' => $isToday ? 'આજના દિવસની સાંજની રીડિંગ એન્ટ્રી હજુ બાકી છે.' : 'આ તારીખની ડેઇલી યુનિટ્સ એન્ટ્રી હજી બાકી છે.',
+                    'details_en' => $isToday ? 'Evening daily reading entry is pending for today.' : 'No daily reading entered for this date.',
                     'inverters' => [],
                 ];
                 continue;

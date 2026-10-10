@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {BarChart3, CloudRain, FileSpreadsheet, FileText, Sun} from 'lucide-react';
+import {BarChart3, ChevronDown, ChevronUp, CloudRain, FileSpreadsheet, FileText, Sun} from 'lucide-react';
 import {api} from '../api';
 import {METERS, monthStart, today} from '../config';
 import {number, shortDate} from '../format';
@@ -34,6 +34,7 @@ export default function ReportsPage({companyId, companies}) {
     const [error, setError] = useState('');
     const [weatherIssueData, setWeatherIssueData] = useState(null);
     const [weatherIssueLoading, setWeatherIssueLoading] = useState(false);
+    const [weatherReportOpen, setWeatherReportOpen] = useState(false);
     const [reportLoading, setReportLoading] = useState(false);
     const [downloadingPdf, setDownloadingPdf] = useState(false);
     const [filterOnlyIssues, setFilterOnlyIssues] = useState(false);
@@ -113,10 +114,32 @@ export default function ReportsPage({companyId, companies}) {
         {(weatherIssueData || weatherIssueLoading) && (
             <section className="panel weather-issue-panel" style={{border: '1.5px solid #0d9488', background: '#f0fdfa'}}>
                 <div className="panel-head" style={{alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px'}}>
-                    <div>
+                    <div
+                        onClick={() => setWeatherReportOpen(!weatherReportOpen)}
+                        style={{cursor: 'pointer', flex: 1, minWidth: '260px'}}
+                        title={weatherReportOpen ? 'Click to hide details' : 'Click to view daily details'}
+                    >
                         <h2 style={{display: 'flex', alignItems: 'center', gap: '8px', color: '#0f766e', margin: 0, fontSize: '16px'}}>
                             <CloudRain size={20} style={{color: '#0d9488'}}/>
-                            Weather / Issue Report
+                            <span>Weather / Issue Report</span>
+                            <span style={{
+                                fontSize: '11px',
+                                background: weatherReportOpen ? '#0f766e' : '#ccfbf1',
+                                color: weatherReportOpen ? '#ffffff' : '#0f766e',
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                fontWeight: 700,
+                                marginLeft: '8px'
+                            }}>
+                                {weatherReportOpen ? (
+                                    <><span>{currentLang === 'en' ? 'Hide Details' : 'વિગત બંધ કરો'}</span><ChevronUp size={13}/></>
+                                ) : (
+                                    <><span>{currentLang === 'en' ? 'Click to View' : 'વિગત જોવા ક્લિક કરો'}</span><ChevronDown size={13}/></>
+                                )}
+                            </span>
                         </h2>
                         <p style={{marginTop: '4px', color: '#134e4a', fontSize: '12px'}}>
                             {currentLang === 'en'
@@ -131,13 +154,18 @@ export default function ReportsPage({companyId, companies}) {
                                 <span style={{background: '#ffedd5', color: '#9a3412', padding: '3px 8px', borderRadius: '5px', fontSize: '11px', fontWeight: 700}}>
                                     🔴 {currentLang === 'en' ? 'Low Units: ' : 'ઓછા યુનિટ્સ: '}{weatherIssueData.low_days} {currentLang === 'en' ? 'Days' : 'દિવસ'}
                                 </span>
+                                {weatherIssueData.missing_days > 0 && (
+                                    <span style={{background: '#fef3c7', color: '#92400e', padding: '3px 8px', borderRadius: '5px', fontSize: '11px', fontWeight: 700}}>
+                                        ⏳ {currentLang === 'en' ? 'Pending: ' : 'ચાલુ/બાકી: '}{weatherIssueData.missing_days} {currentLang === 'en' ? 'Days' : 'દિવસ'}
+                                    </span>
+                                )}
                                 <span style={{background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: '5px', fontSize: '11px', fontWeight: 600}}>
                                     {currentLang === 'en' ? 'Expected: ~' : 'અપેક્ષિત: ~'}{number(weatherIssueData.expected_daily_units)} kWh / {currentLang === 'en' ? 'Day' : 'દિવસ'}
                                 </span>
                             </div>
                         )}
                     </div>
-                    <div className="export-actions">
+                    <div className="export-actions" style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
                         <button
                             type="button"
                             className="secondary weather-issue-pdf-btn"
@@ -168,8 +196,8 @@ export default function ReportsPage({companyId, companies}) {
                     </div>
                 )}
 
-                {/* Table preview with interactive filter */}
-                {weatherIssueData?.rows?.length > 0 && (
+                {/* Table preview with interactive filter (Only rendered when weatherReportOpen is true) */}
+                {weatherReportOpen && weatherIssueData?.rows?.length > 0 && (
                     <div style={{marginTop: '12px', background: '#ffffff', borderRadius: '8px', padding: '10px', border: '1px solid #ccfbf1'}}>
                         <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '6px'}}>
                             <span style={{fontSize: '12px', fontWeight: 700, color: '#0f766e'}}>
@@ -211,14 +239,14 @@ export default function ReportsPage({companyId, companies}) {
                             </div>
                         </div>
 
-                        <div className="table-wrap" style={{maxHeight: '380px', overflowY: 'auto'}}>
+                        <div className="table-wrap" style={{maxHeight: '420px', overflowY: 'auto'}}>
                             <table>
                                 <thead>
                                     <tr>
                                         <th>{currentLang === 'en' ? 'Date' : 'તારીખ'}</th>
                                         <th>{currentLang === 'en' ? 'Generation (kWh)' : 'ઉત્પાદન (kWh)'}</th>
                                         <th>{currentLang === 'en' ? 'Status' : 'સ્થિતિ'}</th>
-                                        <th>{currentLang === 'en' ? 'Issue / Reason' : 'ઓછા યુનિટનું કારણ (Issue / Reason)'}</th>
+                                        <th>{currentLang === 'en' ? 'Issue / Reason & Inverters' : 'ઓછા યુનિટનું કારણ અને ઇન્વર્ટર વિગત'}</th>
                                         <th>{currentLang === 'en' ? 'Analysis' : 'વિગતવાર વિશ્લેષણ (Analysis)'}</th>
                                     </tr>
                                 </thead>
@@ -239,28 +267,32 @@ export default function ReportsPage({companyId, companies}) {
                                                 </td>
                                                 <td>
                                                     {r.status === 'normal' ? (
-                                                        <span style={{background: '#dcfce7', color: '#166534', padding: '2px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 700}}>
+                                                        <span style={{background: '#dcfce7', color: '#166534', padding: '2px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 700, whiteSpace: 'nowrap'}}>
                                                             🟢 {currentLang === 'en' ? 'Normal' : 'સામાન્ય'}
                                                         </span>
                                                     ) : r.status === 'low' ? (
-                                                        <span style={{background: '#ffedd5', color: '#9a3412', padding: '2px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 700}}>
+                                                        <span style={{background: '#ffedd5', color: '#9a3412', padding: '2px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 700, whiteSpace: 'nowrap'}}>
                                                             🔴 Low Units
                                                         </span>
                                                     ) : (
-                                                        <span style={{background: '#f1f5f9', color: '#475569', padding: '2px 6px', borderRadius: '4px', fontSize: '10.5px'}}>
-                                                            ⚪ No Data
+                                                        <span style={{background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 600, whiteSpace: 'nowrap'}}>
+                                                            {r.badge || '⚪ No Entry'}
                                                         </span>
                                                     )}
                                                 </td>
-                                                <td>
+                                                <td style={{minWidth: '220px'}}>
                                                     <b style={{color: '#1e293b', fontSize: '11.5px', display: 'block'}}>{r.reason}</b>
                                                     {r.inverters?.length > 0 && (
-                                                        <div style={{fontSize: '10px', color: '#64748b', marginTop: '2px'}}>
-                                                            {r.inverters.slice(0, 4).map(inv => `${inv.name}: ${number(inv.generation)}k`).join(' | ')}
+                                                        <div style={{display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '5px'}}>
+                                                            {r.inverters.map(inv => (
+                                                                <span key={inv.name} style={{fontSize: '9.5px', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '1px 5px', borderRadius: '3px', color: '#475569'}}>
+                                                                    {inv.name}: <b>{number(inv.generation)}</b> kWh
+                                                                </span>
+                                                            ))}
                                                         </div>
                                                     )}
                                                 </td>
-                                                <td style={{fontSize: '11px', color: '#475569'}}>
+                                                <td style={{fontSize: '11px', color: '#475569', minWidth: '180px', lineHeight: 1.4}}>
                                                     {r.details}
                                                 </td>
                                             </tr>
