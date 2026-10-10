@@ -15,6 +15,7 @@ export default function SalaryPage() {
     const [rateForm, setRateForm] = useState(null);
     const [adjustmentForm, setAdjustmentForm] = useState(null);
     const [correctionForm, setCorrectionForm] = useState(null);
+    const [waiveForm, setWaiveForm] = useState(null);
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
     const load = async () => {
@@ -23,7 +24,14 @@ export default function SalaryPage() {
     };
     useEffect(() => { load(); }, [month]);
     const selected = data?.rows.find(row => row.employee.id === selectedId);
-    const complete = async text => { setMessage(text); setRateForm(null); setAdjustmentForm(null); setCorrectionForm(null); await load(); };
+    const complete = async text => {
+        setMessage(text);
+        setRateForm(null);
+        setAdjustmentForm(null);
+        setCorrectionForm(null);
+        setWaiveForm(null);
+        await load();
+    };
 
     if (!data && !error) return <Loading/>;
 
@@ -35,18 +43,128 @@ export default function SalaryPage() {
             <div className="cards salary-summary-cards"><Metric icon={IndianRupee} title="Base salary" value={data.totals.base_salary} unit="INR"/><Metric icon={CircleDollarSign} title="Prorated gross" value={data.totals.prorated_gross} unit="INR"/><Metric icon={ReceiptIndianRupee} title="Leave deduction" value={data.totals.leave_deduction} unit="INR" color="amber"/><Metric icon={Plus} title="Extra Work / Additions" value={data.totals.additions} unit="INR" color="emerald"/><Metric icon={IndianRupee} title="Final payable" value={data.totals.final_payable} unit="INR"/></div>
             {data.totals.unconfigured_employees > 0 && <div className="warning-banner"><b>{data.totals.unconfigured_employees} employee salary {data.totals.unconfigured_employees === 1 ? 'is' : 'are'} not configured.</b><span>Set an effective monthly salary before adding adjustments or including the employee in payable totals.</span></div>}
             <section className="panel"><div className="panel-head"><div><h2>Employee salary summary</h2><p>{data.from} to {data.to}</p></div></div><div className="table-wrap"><table className="salary-table"><thead><tr><th>Employee</th><th>Monthly salary</th><th>Work units</th><th>Attendance</th><th>Leave</th><th>Prorated gross</th><th>Leave deduction</th><th>Extra / Adjustments</th><th>Final payable</th><th/></tr></thead><tbody>{data.rows.map(row => <tr key={row.employee.id}><td><b>{row.employee.name}</b><small>{row.employee.employee_code}{!row.employee.active ? ' · Inactive' : ''}</small></td><td>{row.configured ? <><b>{rupees(row.monthly_salary)}</b><small>From {row.rate.effective_month}</small></> : <i className="status warning">Not configured</i>}</td><td>{number(row.eligible_units)} / {number(row.scheduled_units)}</td><td><span className="salary-mini-stats">P {number(row.attendance.present)} · A {number(row.attendance.absent)}<small>Half {row.attendance.half_days} · Short {row.attendance.short_days}</small></span></td><td>{number(row.leave_units)} unit<small>{number(row.attendance.approved_leave)} approved</small></td><td>{rupees(row.prorated_gross)}</td><td className="danger-text">− {rupees(row.leave_deduction)}</td><td><span className="salary-mini-stats positive">+ {rupees(row.additions)}<small className="danger-text">− {rupees(row.deductions)}</small></span></td><td><strong>{rupees(row.final_payable)}</strong></td><td><div className="row-actions"><button className="link" onClick={() => setSelectedId(row.employee.id)}>Details</button><button className="link" onClick={() => setRateForm({employee: row.employee, effective_month: month, monthly_salary: row.configured ? row.monthly_salary : ''})}><PencilLine size={14}/> Salary</button>{row.configured && <button className="link" onClick={() => setAdjustmentForm({employee: row.employee, salary_month: month, type: 'addition', work_date: new Date().toISOString().slice(0, 10), amount: '', reason: '', company_id: '', add_to_shared_expenses: false})}><Plus size={14}/> + Extra / Adjust</button>}</div></td></tr>)}</tbody></table></div></section>
-            {selected && <SalaryDetails row={selected} onClose={() => setSelectedId(null)} onCorrect={adjustment => setCorrectionForm({adjustment, employee: selected.employee, replace: true, correction_reason: '', replacement_type: adjustment.type, replacement_amount: adjustment.amount, replacement_reason: ''})}/>} 
+            {selected && <SalaryDetails
+                row={selected}
+                onClose={() => setSelectedId(null)}
+                onCorrect={adjustment => setCorrectionForm({adjustment, employee: selected.employee, replace: true, correction_reason: '', replacement_type: adjustment.type, replacement_amount: adjustment.amount, replacement_reason: ''})}
+                onWaiveBreak={breakItem => setWaiveForm({breakItem, employee: selected.employee, admin_waived: !!breakItem.admin_waived, deduction_amount: breakItem.deduction_amount, waive_reason: breakItem.waive_reason || ''})}
+            />} 
         </>}
         {rateForm && <RateForm form={rateForm} setForm={setRateForm} onClose={() => setRateForm(null)} onSaved={complete}/>} 
         {adjustmentForm && <AdjustmentForm form={adjustmentForm} setForm={setAdjustmentForm} onClose={() => setAdjustmentForm(null)} onSaved={complete}/>} 
         {correctionForm && <CorrectionForm form={correctionForm} setForm={setCorrectionForm} onClose={() => setCorrectionForm(null)} onSaved={complete}/>} 
+        {waiveForm && <WaiveBreakModal form={waiveForm} setForm={setWaiveForm} onClose={() => setWaiveForm(null)} onSaved={complete}/>}
     </div>;
 }
 
-function SalaryDetails({row, onClose, onCorrect}) {
-    return <section className="panel salary-details"><div className="panel-head"><div><h2>{row.employee.name} · Calculation details</h2><p>Base Prorated (₹{number(row.prorated_gross)}) + Extra Work (+₹{number(row.additions)}) − Leave Deduction (−₹{number(row.leave_deduction)}) = Final Payable (₹{number(row.final_payable)})</p></div><button className="icon-button ghost" onClick={onClose}><X/></button></div><div className="salary-breakdown"><span><small>Monthly base salary</small><b>{rupees(row.monthly_salary)}</b></span><span><small>Daily rate</small><b>{rupees(row.daily_rate)}</b></span><span><small>Extra work / Additions</small><b style={{color: '#059669'}}>+ {rupees(row.additions)}</b></span><span><small>Leave deduction</small><b style={{color: '#b91c1c'}}>− {rupees(row.leave_deduction)}</b></span><span><small>Final payable</small><b style={{fontSize: '1.2rem', color: '#1e293b'}}>{rupees(row.final_payable)}</b></span></div>
+function SalaryDetails({row, onClose, onCorrect, onWaiveBreak}) {
+    const urgentBreaks = (row.days || []).flatMap(day =>
+        (day.breaks || [])
+            .filter(b => b.break_type === 'urgent_out')
+            .map(b => ({...b, date: day.date}))
+    );
+
+    return <section className="panel salary-details">
+        <div className="panel-head">
+            <div>
+                <h2>{row.employee.name} · Calculation details</h2>
+                <p>Base Prorated (₹{number(row.prorated_gross)}) + Extra Work (+₹{number(row.additions)}) − Leave Deduction (−₹{number(row.leave_deduction)}) {row.attendance?.urgent_out_deduction > 0 ? `− Urgent Out (−₹${number(row.attendance.urgent_out_deduction)})` : ''} = Final Payable (₹{number(row.final_payable)})</p>
+            </div>
+            <button className="icon-button ghost" onClick={onClose}><X/></button>
+        </div>
+        <div className="salary-breakdown">
+            <span><small>Monthly base salary</small><b>{rupees(row.monthly_salary)}</b></span>
+            <span><small>Daily rate</small><b>{rupees(row.daily_rate)}</b></span>
+            <span><small>Extra work / Additions</small><b style={{color: '#059669'}}>+ {rupees(row.additions)}</b></span>
+            <span><small>Leave deduction</small><b style={{color: '#b91c1c'}}>− {rupees(row.leave_deduction)}</b></span>
+            {row.attendance?.urgent_out_deduction > 0 && (
+                <span><small>Urgent Out કપાત</small><b style={{color: '#dc2626'}}>− {rupees(row.attendance.urgent_out_deduction)}</b></span>
+            )}
+            <span><small>Final payable</small><b style={{fontSize: '1.2rem', color: '#1e293b'}}>{rupees(row.final_payable)}</b></span>
+        </div>
+
+        {urgentBreaks.length > 0 && (
+            <>
+                <h3 className="section-title" style={{display: 'flex', alignItems: 'center', gap: '8px', color: '#b91c1c'}}>
+                    <span>🚨 Urgent Out (અર્જન્ટ બહાર) રિકોર્ડ અને કપાત ({urgentBreaks.length})</span>
+                </h3>
+                <p style={{fontSize: '13px', color: '#64748b', marginTop: '-8px', marginBottom: '12px'}}>
+                    કર્મચારી પ્લાન્ટ પરથી અર્જન્ટ બહાર ગયેલ સમયની કપાત. જો કારણ વાજબી હોય તો સુપર એડમિન અહીંથી કપાત રકમ બદલી અથવા ₹0 માફ કરી શકે છે.
+                </p>
+                <div className="table-wrap" style={{marginBottom: '24px'}}>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>તારીખ</th>
+                                <th>સમય</th>
+                                <th>ગાળો</th>
+                                <th>બહાર જવાનું કારણ</th>
+                                <th>સેલ્ફી ફોટા</th>
+                                <th>કપાત રકમ</th>
+                                <th>સ્ટેટસ</th>
+                                <th/>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {urgentBreaks.map(item => (
+                                <tr key={item.id}>
+                                    <td className="strong">{shortDate(item.date)}</td>
+                                    <td>{item.started_at || '—'} થી {item.ended_at || 'ચાલુ'}</td>
+                                    <td>{item.duration_minutes ? `${item.duration_minutes} મિનિટ` : '—'}</td>
+                                    <td><span style={{maxWidth: '220px', display: 'inline-block'}}>{item.out_reason || '—'}</span></td>
+                                    <td>
+                                        <div style={{display: 'flex', gap: '8px'}}>
+                                            {item.out_selfie_url ? (
+                                                <a href={item.out_selfie_url} target="_blank" rel="noreferrer" className="link" style={{fontSize: '12px', fontWeight: 600}}>
+                                                    📸 બહાર
+                                                </a>
+                                            ) : null}
+                                            {item.return_selfie_url ? (
+                                                <a href={item.return_selfie_url} target="_blank" rel="noreferrer" className="link" style={{fontSize: '12px', fontWeight: 600}}>
+                                                    📸 પરત
+                                                </a>
+                                            ) : null}
+                                            {!item.out_selfie_url && !item.return_selfie_url && '—'}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {item.admin_waived ? (
+                                            <span style={{textDecoration: 'line-through', color: '#94a3b8', marginRight: '6px'}}>₹{number(item.deduction_amount)}</span>
+                                        ) : (
+                                            <b className="danger-text">− ₹{number(item.deduction_amount)}</b>
+                                        )}
+                                    </td>
+                                    <td>
+                                        {item.admin_waived ? (
+                                            <span style={{background: '#dcfce7', color: '#166534', padding: '3px 8px', borderRadius: '4px', fontSize: '11.5px', fontWeight: 600, display: 'inline-block'}}>
+                                                માફ કરેલ (₹0)
+                                                {item.waive_reason && <small style={{display: 'block', fontWeight: 'normal', color: '#15803d'}}>{item.waive_reason}</small>}
+                                            </span>
+                                        ) : item.ended_at ? (
+                                            <span style={{background: '#fee2e2', color: '#991b1b', padding: '3px 8px', borderRadius: '4px', fontSize: '11.5px', fontWeight: 600}}>
+                                                કપાત લાગુ
+                                            </span>
+                                        ) : (
+                                            <span style={{background: '#fef3c7', color: '#92400e', padding: '3px 8px', borderRadius: '4px', fontSize: '11.5px', fontWeight: 600}}>
+                                                હજુ બહાર છે
+                                            </span>
+                                        )}
+                                    </td>
+                                    <td>
+                                        <button className="link" onClick={() => onWaiveBreak(item)} style={{fontWeight: 600}}>
+                                            ✏️ {item.admin_waived ? 'કપાત બદલો' : 'માફ કરો / બદલો'}
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </>
+        )}
+
         <h3 className="section-title">Extra work & Manual adjustment history</h3>{row.adjustments.length ? <div className="salary-adjustment-list">{row.adjustments.map(item => <div className={item.cancelled ? 'cancelled' : ''} key={item.id}><span className={`salary-adjustment-icon ${item.type}`}>{item.type === 'addition' ? '+' : '−'}</span><span style={{flex: 1}}><div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap'}}><b>{item.type === 'addition' ? 'Extra Work Addition' : 'Deduction'} · {rupees(item.amount)}</b>{item.work_date && <span style={{fontSize: '11.5px', background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '4px', fontWeight: 600}}>Work Date: {shortDate(item.work_date)}</span>}</div><small style={{display: 'block', marginTop: '2px'}}>{item.reason}{item.company && ` · Company: ${item.company.name}`}{item.add_to_shared_expenses && ` · (Shared Expense added)`}{` · By ${item.created_by || 'Super admin'} on ${shortDate(item.created_at)}`}</small>{item.cancelled && <em>Cancelled by {item.cancelled_by || item.canceller || 'Super admin'} · {item.cancellation_reason}</em>}</span>{!item.cancelled && <button className="link" onClick={() => onCorrect(item)}>Correct / cancel</button>}</div>)}</div> : <div className="info-banner">No manual salary adjustments or extra work recorded for this month.</div>}
-        <h3 className="section-title">Daily attendance and leave</h3><div className="table-wrap"><table><thead><tr><th>Date</th><th>Status</th><th>Scheduled</th><th>Leave deduction</th><th>Time In</th><th>Time Out</th><th>Calendar</th></tr></thead><tbody>{row.days.map(day => <tr key={day.date}><td className="strong">{shortDate(day.date)}</td><td>{day.status.replaceAll('_', ' ')}</td><td>{number(day.scheduled_units)}</td><td>{day.leave_units ? `${number(day.leave_units)} unit` : '—'}</td><td>{day.clock_in || '—'}</td><td>{day.clock_out || '—'}</td><td>{day.holiday || (day.weekly_off ? 'Weekly off' : 'Working day')}</td></tr>)}</tbody></table></div></section>;
+        <h3 className="section-title">Daily attendance and leave</h3><div className="table-wrap"><table><thead><tr><th>Date</th><th>Status</th><th>Urgent Out</th><th>Scheduled</th><th>Leave deduction</th><th>Time In</th><th>Time Out</th><th>Calendar</th></tr></thead><tbody>{row.days.map(day => <tr key={day.date}><td className="strong">{shortDate(day.date)}</td><td>{day.status.replaceAll('_', ' ')}</td><td>{day.urgent_out_count > 0 ? <span style={{background: '#fee2e2', color: '#b91c1c', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 600}}>🚨 {day.urgent_out_count} વાર ({rupees(day.urgent_deduction)})</span> : '—'}</td><td>{number(day.scheduled_units)}</td><td>{day.leave_units ? `${number(day.leave_units)} unit` : '—'}</td><td>{day.clock_in || '—'}</td><td>{day.clock_out || '—'}</td><td>{day.holiday || (day.weekly_off ? 'Weekly off' : 'Working day')}</td></tr>)}</tbody></table></div></section>;
 }
 
 function RateForm({form, setForm, onClose, onSaved}) {
@@ -81,4 +199,102 @@ function CorrectionForm({form, setForm, onClose, onSaved}) {
     const [busy, setBusy] = useState(false); const [error, setError] = useState('');
     const save = async event => {event.preventDefault(); setBusy(true); setError(''); const body = {correction_reason: form.correction_reason, ...(form.replace ? {replacement_type: form.replacement_type, replacement_amount: form.replacement_amount, replacement_reason: form.replacement_reason} : {})}; try {await api(`salary-adjustments/${form.adjustment.id}/cancel`, {method: 'POST', body: JSON.stringify(body)}); await onSaved(form.replace ? 'Salary adjustment replaced successfully.' : 'Salary adjustment cancelled successfully.');} catch (failure) {setError(failure.message);} finally {setBusy(false);}};
     return <div className="modal-backdrop"><form className="modal compact-salary-modal" onSubmit={save}><div className="panel-head"><div><h2>Correct salary adjustment</h2><p>The original entry remains visible in the audit history.</p></div><button type="button" className="icon-button ghost" onClick={onClose}><X/></button></div><Field label="Cancellation reason"><textarea rows="3" value={form.correction_reason} onChange={event => setForm({...form, correction_reason: event.target.value})} required/></Field><label className="toggle salary-replace-toggle"><input type="checkbox" checked={form.replace} onChange={event => setForm({...form, replace: event.target.checked})}/><span/> Create a corrected replacement</label>{form.replace && <><div className="form-grid two"><Field label="Replacement type"><select value={form.replacement_type} onChange={event => setForm({...form, replacement_type: event.target.value})}><option value="addition">Addition</option><option value="deduction">Deduction</option></select></Field><Field label="Replacement amount"><input type="number" min="0.01" step="0.01" value={form.replacement_amount} onChange={event => setForm({...form, replacement_amount: event.target.value})} required/></Field></div><Field label="Replacement reason"><textarea rows="3" value={form.replacement_reason} onChange={event => setForm({...form, replacement_reason: event.target.value})} required/></Field></>}{error && <div className="error">{error}</div>}<div className="form-actions"><span>Cancelled entries never affect payable totals.</span><button className="primary" disabled={busy}>{busy ? 'Saving…' : form.replace ? 'Cancel and replace' : 'Cancel adjustment'}</button></div></form></div>;
+}
+
+function WaiveBreakModal({form, setForm, onClose, onSaved}) {
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+    const [mode, setMode] = useState(form.admin_waived ? 'waive' : (form.deduction_amount > 0 ? 'custom' : 'waive'));
+
+    const save = async event => {
+        event.preventDefault();
+        setBusy(true);
+        setError('');
+        const isWaive = mode === 'waive';
+        const payload = {
+            admin_waived: isWaive,
+            deduction_amount: isWaive ? 0 : Number(form.deduction_amount),
+            waive_reason: form.waive_reason || (isWaive ? 'Super Admin waived urgent departure deduction' : 'Super Admin adjusted deduction'),
+        };
+        try {
+            await api(`attendance/breaks/${form.breakItem.id}/waive`, {method: 'POST', body: JSON.stringify(payload)});
+            await onSaved(isWaive ? 'કપાત સંપૂર્ણપણે માફ કરવામાં આવી છે.' : 'કપાત રકમ સફળતાપૂર્વક અપડેટ થઈ ગઈ.');
+        } catch (failure) {
+            setError(failure.message);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return <div className="modal-backdrop"><form className="modal compact-salary-modal" onSubmit={save} style={{maxWidth: '520px'}}>
+        <div className="panel-head">
+            <div>
+                <h2>🚨 Urgent Out કપાત એડિટ / માફ કરો</h2>
+                <p>{form.employee.name} · {shortDate(form.breakItem.date)} ({form.breakItem.started_at} થી {form.breakItem.ended_at || 'ચાલુ'})</p>
+            </div>
+            <button type="button" className="icon-button ghost" onClick={onClose}><X/></button>
+        </div>
+
+        <div style={{background: '#f8fafc', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px'}}>
+            <div><b>બહાર જવાનું કારણ:</b> {form.breakItem.out_reason || 'નથી લખ્યું'}</div>
+            <div style={{marginTop: '4px'}}><b>સમય ગાળો:</b> {form.breakItem.duration_minutes} મિનિટ | <b>મૂળ કપાત રકમ:</b> ₹{number(form.breakItem.deduction_amount)}</div>
+            <div style={{display: 'flex', gap: '16px', marginTop: '10px'}}>
+                {form.breakItem.out_selfie_url && (
+                    <a href={form.breakItem.out_selfie_url} target="_blank" rel="noreferrer" style={{color: '#2563eb', fontWeight: 600}}>
+                        📸 બહાર જતી વખતનો સેલ્ફી જુઓ
+                    </a>
+                )}
+                {form.breakItem.return_selfie_url && (
+                    <a href={form.breakItem.return_selfie_url} target="_blank" rel="noreferrer" style={{color: '#2563eb', fontWeight: 600}}>
+                        📸 પરત આવ્યા વખતનો સેલ્ફી જુઓ
+                    </a>
+                )}
+            </div>
+        </div>
+
+        <Field label="કપાત પ્રકાર">
+            <div style={{display: 'flex', gap: '18px', margin: '6px 0'}}>
+                <label style={{display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px'}}>
+                    <input type="radio" name="waive_mode" checked={mode === 'waive'} onChange={() => { setMode('waive'); setForm({...form, deduction_amount: 0}); }}/>
+                    <span>સંપૂર્ણ માફ કરો (₹0 કપાત)</span>
+                </label>
+                <label style={{display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px'}}>
+                    <input type="radio" name="waive_mode" checked={mode === 'custom'} onChange={() => setMode('custom')}/>
+                    <span>કસ્ટમ રકમ કપાત</span>
+                </label>
+            </div>
+        </Field>
+
+        {mode === 'custom' && (
+            <Field label="કપાત રકમ (₹)">
+                <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.deduction_amount}
+                    onChange={e => setForm({...form, deduction_amount: e.target.value})}
+                    required
+                />
+            </Field>
+        )}
+
+        <Field label="એડમિન રીમાર્ક / માફ કરવાનું કારણ">
+            <textarea
+                rows="2"
+                placeholder="ઉદા. અંગત મહત્વનું કામ હોવાથી કપાત માફ કરેલ..."
+                value={form.waive_reason}
+                onChange={e => setForm({...form, waive_reason: e.target.value})}
+                required
+            />
+        </Field>
+
+        {error && <div className="error">{error}</div>}
+
+        <div className="form-actions">
+            <button type="button" className="secondary" onClick={onClose}>રદ કરો</button>
+            <button className="primary" disabled={busy}>
+                {busy ? 'સેવ થાય છે…' : mode === 'waive' ? 'કપાત માફ કરો (₹0)' : 'કપાત રકમ સેવ કરો'}
+            </button>
+        </div>
+    </form></div>;
 }

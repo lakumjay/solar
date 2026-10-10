@@ -115,7 +115,7 @@ class AttendanceService
         return $record->fresh('breaks');
     }
 
-    public function startBreak(Employee $employee): AttendanceBreak
+    public function startBreak(Employee $employee, array $data = [], ?UploadedFile $selfie = null): AttendanceBreak
     {
         $this->requireSelfClocking($employee);
         $record = AttendanceRecord::where('employee_id', $employee->id)
@@ -124,10 +124,28 @@ class AttendanceService
             throw ValidationException::withMessages(['attendance' => 'Use Time In before starting a break.']);
         }
         if ($record->breaks()->whereNull('ended_at')->exists()) {
-            throw ValidationException::withMessages(['attendance' => 'A break is already active.']);
+            throw ValidationException::withMessages(['attendance' => 'A break or urgent out is already active.']);
         }
 
-        return $record->breaks()->create(['started_at' => now()]);
+        $type = $data['break_type'] ?? 'regular';
+        $reason = $data['out_reason'] ?? null;
+        $outSelfiePath = null;
+        if ($type === 'urgent_out') {
+            if (! $selfie) {
+                throw ValidationException::withMessages(['selfie' => 'અર્જન્ટ બહાર જવા માટે લાઈવ સેલ્ફી જરૂરી છે.']);
+            }
+            if (empty($reason)) {
+                throw ValidationException::withMessages(['out_reason' => 'અર્જન્ટ બહાર જવાનું કારણ લખવું જરૂરી છે.']);
+            }
+            $outSelfiePath = $selfie->store('attendance-break-selfies/'.now()->format('Y/m'));
+        }
+
+        return $record->breaks()->create([
+            'break_type' => $type,
+            'out_reason' => $reason,
+            'out_selfie_path' => $outSelfiePath,
+            'started_at' => now(),
+        ]);
     }
 
     public function endBreak(Employee $employee, UploadedFile $selfie): AttendanceBreak
@@ -141,10 +159,26 @@ class AttendanceService
         }
 
         $selfiePath = $selfie->store('attendance-break-selfies/'.now()->format('Y/m'));
+        $durationMinutes = (int) floor($break->started_at->diffInMinutes(now()));
+
+        // Calculate prorated deduction for urgent_out based on employee's salary rate
+        $deductionAmount = 0.00;
+        if ($break->break_type === 'urgent_out' && $durationMinutes > 0) {
+            $latestRate = $employee->salaryRates()->orderByDesc('effective_month')->first();
+            $monthlySalary = (float) ($latestRate?->monthly_salary ?? 0);
+            if ($monthlySalary > 0) {
+                // Approximate hourly rate = monthlySalary / (26 working days * 8 hours)
+                $perMinuteRate = $monthlySalary / (26 * 8 * 60);
+                $deductionAmount = round($perMinuteRate * $durationMinutes, 2);
+            }
+        }
+
         $break->update([
             'ended_at' => now(),
             'return_selfie_path' => $selfiePath,
-            'duration_minutes' => (int) floor($break->started_at->diffInMinutes(now())),
+            'duration_minutes' => $durationMinutes,
+            'deduction_amount' => $deductionAmount,
+            'is_deducted' => $deductionAmount > 0,
         ]);
         $record->update(['break_minutes' => (int) $record->breaks()->sum('duration_minutes')]);
 

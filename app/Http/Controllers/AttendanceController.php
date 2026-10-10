@@ -47,12 +47,37 @@ class AttendanceController extends Controller
 
     public function startBreak(Request $request)
     {
-        return $this->attendance->startBreak($this->attendance->employeeFor($request->user()));
+        $data = $request->validate([
+            'break_type' => ['nullable', 'string', 'in:regular,urgent_out'],
+            'out_reason' => ['nullable', 'string', 'max:500'],
+        ]);
+        $selfie = $request->file('selfie');
+
+        return $this->attendance->startBreak($this->attendance->employeeFor($request->user()), $data, $selfie);
     }
 
     public function endBreak(EndBreakRequest $request)
     {
         return $this->attendance->endBreak($this->attendance->employeeFor($request->user()), $request->file('selfie'));
+    }
+
+    public function waiveBreak(Request $request, AttendanceBreak $attendanceBreak)
+    {
+        abort_unless($request->user()->role === 'super_admin' || $request->user()->role === 'company_admin', 403);
+        $data = $request->validate([
+            'admin_waived' => ['required', 'boolean'],
+            'waive_reason' => ['nullable', 'string', 'max:500'],
+            'deduction_amount' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $attendanceBreak->update([
+            'admin_waived' => $data['admin_waived'],
+            'waive_reason' => $data['waive_reason'] ?? $attendanceBreak->waive_reason,
+            'deduction_amount' => isset($data['deduction_amount']) ? (float) $data['deduction_amount'] : ($data['admin_waived'] ? 0.00 : $attendanceBreak->deduction_amount),
+            'is_deducted' => ! $data['admin_waived'] && (isset($data['deduction_amount']) ? (float) $data['deduction_amount'] > 0 : $attendanceBreak->is_deducted),
+        ]);
+
+        return response()->json($attendanceBreak->fresh());
     }
 
     public function manual(SaveManualAttendanceRequest $request)
@@ -116,5 +141,15 @@ class AttendanceController extends Controller
         abort_unless($attendanceBreak->return_selfie_path && Storage::exists($attendanceBreak->return_selfie_path), 404);
 
         return Storage::response($attendanceBreak->return_selfie_path);
+    }
+
+    public function breakOutSelfie(Request $request, AttendanceBreak $attendanceBreak)
+    {
+        $attendanceBreak->loadMissing('attendanceRecord');
+        $own = $request->user()->role === 'employee' && $request->user()->employee?->id === $attendanceBreak->attendanceRecord->employee_id;
+        abort_unless($own || $request->user()->hasPermission('view_attendance'), 403);
+        abort_unless($attendanceBreak->out_selfie_path && Storage::exists($attendanceBreak->out_selfie_path), 404);
+
+        return Storage::response($attendanceBreak->out_selfie_path);
     }
 }

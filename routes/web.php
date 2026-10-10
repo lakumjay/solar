@@ -100,8 +100,10 @@ Route::prefix('api')->group(function () {
         Route::post('attendance/clock-out', [AttendanceController::class, 'clockOut']);
         Route::post('attendance/break-in', [AttendanceController::class, 'startBreak']);
         Route::post('attendance/break-out', [AttendanceController::class, 'endBreak']);
+        Route::post('attendance/breaks/{attendanceBreak}/waive', [AttendanceController::class, 'waiveBreak']);
         Route::post('attendance/manual', [AttendanceController::class, 'manual']);
         Route::get('attendance/breaks/{attendanceBreak}/selfie', [AttendanceController::class, 'breakSelfie'])->name('attendance.break-selfie');
+        Route::get('attendance/breaks/{attendanceBreak}/out-selfie', [AttendanceController::class, 'breakOutSelfie'])->name('attendance.break-out-selfie');
         Route::get('attendance', [AttendanceController::class, 'index']);
         Route::post('attendance/{attendanceRecord}/correct', [AttendanceController::class, 'correct']);
         Route::get('attendance/{attendanceRecord}/selfie', [AttendanceController::class, 'selfie'])->name('attendance.selfie');

@@ -7,7 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 class SalaryAdjustment extends Model
 {
     protected $fillable = [
-        'employee_id', 'salary_month', 'type', 'amount', 'reason', 'created_by',
+        'employee_id', 'salary_month', 'work_date', 'type', 'amount', 'reason',
+        'company_id', 'add_to_shared_expenses', 'shared_expense_id', 'created_by',
         'cancelled_at', 'cancelled_by', 'cancellation_reason', 'replaces_adjustment_id',
     ];
 
@@ -15,7 +16,9 @@ class SalaryAdjustment extends Model
     {
         return [
             'salary_month' => 'date:Y-m-d',
+            'work_date' => 'date:Y-m-d',
             'amount' => 'decimal:2',
+            'add_to_shared_expenses' => 'boolean',
             'cancelled_at' => 'datetime',
         ];
     }
@@ -23,6 +26,16 @@ class SalaryAdjustment extends Model
     public function employee()
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    public function company()
+    {
+        return $this->belongsTo(Company::class);
+    }
+
+    public function sharedExpense()
+    {
+        return $this->belongsTo(SharedExpense::class);
     }
 
     public function creator()

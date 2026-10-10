@@ -26,7 +26,7 @@ class SalaryCalculationService
             ->orderBy('employee_code')->get();
 
         $employeeIds = $employees->pluck('id');
-        $adjustments = SalaryAdjustment::with(['creator:id,name', 'canceller:id,name'])
+        $adjustments = SalaryAdjustment::with(['creator:id,name', 'canceller:id,name', 'company:id,name'])
             ->whereIn('employee_id', $employeeIds)
             ->whereDate('salary_month', $start)
             ->orderBy('created_at')->orderBy('id')->get()->groupBy('employee_id');
@@ -140,8 +140,14 @@ class SalaryCalculationService
                 'weekly_off' => $weeklyOff,
                 'clock_in' => $attendanceDay['clock_in'] ?? null,
                 'clock_out' => $attendanceDay['clock_out'] ?? null,
+                'urgent_out_count' => $attendanceDay['urgent_out_count'] ?? 0,
+                'urgent_deduction' => $attendanceDay['urgent_deduction'] ?? 0.0,
+                'breaks' => $attendanceDay['breaks'] ?? [],
             ];
         }
+
+        $summary = $attendance['summary'] ?? [];
+        $urgentBreakDeductionCents = $this->toCents($summary['urgent_out_deduction'] ?? 0);
 
         $grossCents = $rate && $scheduledHalfUnits > 0
             ? (int) round($monthlyCents * $eligibleHalfUnits / $scheduledHalfUnits, 0, PHP_ROUND_HALF_UP)
@@ -151,9 +157,8 @@ class SalaryCalculationService
             : 0;
         $activeAdjustments = $adjustments->whereNull('cancelled_at');
         $additionCents = $activeAdjustments->where('type', 'addition')->sum(fn (SalaryAdjustment $item) => $this->toCents($item->amount));
-        $deductionCents = $activeAdjustments->where('type', 'deduction')->sum(fn (SalaryAdjustment $item) => $this->toCents($item->amount));
+        $deductionCents = $activeAdjustments->where('type', 'deduction')->sum(fn (SalaryAdjustment $item) => $this->toCents($item->amount)) + $urgentBreakDeductionCents;
         $finalCents = max(0, $grossCents - $leaveCents + $additionCents - $deductionCents);
-        $summary = $attendance['summary'] ?? [];
 
         return [
             'employee' => [
@@ -188,12 +193,17 @@ class SalaryCalculationService
                 'approved_leave' => (float) ($summary['leave'] ?? 0),
                 'holidays' => (float) ($summary['holidays'] ?? 0),
                 'weekly_offs' => (int) ($summary['weekly_offs'] ?? 0),
+                'urgent_out_count' => (int) ($summary['urgent_out_count'] ?? 0),
+                'urgent_out_deduction' => (float) ($summary['urgent_out_deduction'] ?? 0),
             ],
             'adjustments' => $adjustments->map(fn (SalaryAdjustment $item) => [
                 'id' => $item->id,
                 'type' => $item->type,
                 'amount' => $this->money($this->toCents($item->amount)),
                 'reason' => $item->reason,
+                'work_date' => $item->work_date?->toDateString(),
+                'company' => $item->company ? ['id' => $item->company->id, 'name' => $item->company->name] : null,
+                'add_to_shared_expenses' => (bool) $item->add_to_shared_expenses,
                 'created_at' => $item->created_at?->toIso8601String(),
                 'created_by' => $item->creator?->name,
                 'cancelled' => (bool) $item->cancelled_at,

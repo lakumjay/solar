@@ -12,6 +12,16 @@ class SaveSalaryAdjustmentRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('company_id') && ($this->company_id === '' || $this->company_id === null)) {
+            $this->merge(['company_id' => null]);
+        }
+        if ($this->has('work_date') && empty($this->work_date)) {
+            $this->merge(['work_date' => null]);
+        }
+    }
+
     public function rules(): array
     {
         return [
@@ -20,6 +30,9 @@ class SaveSalaryAdjustmentRequest extends FormRequest
             'type' => ['required', Rule::in(['addition', 'deduction'])],
             'amount' => ['required', 'numeric', 'min:0.01', 'max:9999999999.99'],
             'reason' => ['required', 'string', 'max:1000'],
+            'work_date' => ['nullable', 'date'],
+            'company_id' => ['nullable', 'integer', 'exists:companies,id'],
+            'add_to_shared_expenses' => ['nullable', 'boolean'],
         ];
     }
 }

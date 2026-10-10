@@ -17,6 +17,8 @@ const location = () => new Promise((resolve, reject) => {
 
 function SelfieModal({mode, onClose, onDone}) {
     const isTimeIn = mode === 'time-in';
+    const isUrgentOut = mode === 'urgent-out';
+    const isBreakOut = mode === 'break-out';
     const videoRef = useRef(null);
     const streamRef = useRef(null);
     const [photo, setPhoto] = useState(null);
@@ -24,6 +26,7 @@ function SelfieModal({mode, onClose, onDone}) {
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
     const [cameraKey, setCameraKey] = useState(0);
+    const [outReason, setOutReason] = useState('');
 
     useEffect(() => {
         let alive = true;
@@ -47,23 +50,44 @@ function SelfieModal({mode, onClose, onDone}) {
 
     const submit = async () => {
         if (!photo) return setError('Capture and confirm your selfie first.');
+        if (isUrgentOut && !outReason.trim()) return setError('અર્જન્ટ બહાર જવાનું કારણ લખવું જરૂરી છે.');
         setBusy(true); setError(isTimeIn ? 'Getting precise location…' : '');
         try {
             const body = new FormData();
-            body.append('selfie', photo, isTimeIn ? 'time-in-selfie.jpg' : 'break-out-selfie.jpg');
+            body.append('selfie', photo, isTimeIn ? 'time-in-selfie.jpg' : isUrgentOut ? 'urgent-out-selfie.jpg' : 'break-out-selfie.jpg');
             if (isTimeIn) {
                 const coordinates = await location();
                 Object.entries(coordinates).forEach(([key, value]) => body.append(key, value));
             }
-            await api(isTimeIn ? 'attendance/clock-in' : 'attendance/break-out', {method: 'POST', body});
+            if (isUrgentOut) {
+                body.append('break_type', 'urgent_out');
+                body.append('out_reason', outReason.trim());
+            }
+            const endpoint = isTimeIn ? 'attendance/clock-in' : isUrgentOut ? 'attendance/break-in' : 'attendance/break-out';
+            await api(endpoint, {method: 'POST', body});
             await onDone();
         } catch (failure) { setError(failure.message); setBusy(false); }
     };
 
-    return <div className="modal-backdrop"><div className="modal camera-modal"><div className="panel-head"><div><h2>{isTimeIn ? 'Time In verification' : 'Break Out verification'}</h2><p>{isTimeIn ? 'Front-camera selfie is required to verify your attendance.' : 'Capture a fresh front-camera selfie before returning to work.'}</p></div><button className="icon-button ghost" onClick={onClose}><X/></button></div>
+    return <div className="modal-backdrop"><div className="modal camera-modal"><div className="panel-head"><div><h2>{isTimeIn ? 'Time In verification' : isUrgentOut ? '🚨 Urgent Out Verification (અર્જન્ટ બહાર)' : 'Break Out verification (પાછા ફર્યા)'}</h2><p>{isTimeIn ? 'Front-camera selfie is required to verify your attendance.' : isUrgentOut ? 'અર્જન્ટ કામ માટે બહાર જતી વખતે લાઈવ સેલ્ફી અને કારણ સબમિટ કરો.' : 'Capture a fresh front-camera selfie before returning to work.'}</p></div><button className="icon-button ghost" onClick={onClose}><X/></button></div>
+        {isUrgentOut && (
+            <div style={{padding: '0 16px 12px'}}>
+                <label style={{display: 'block', fontSize: '12px', fontWeight: 700, color: '#b91c1c', marginBottom: '4px'}}>
+                    ⚠️ બહાર જવાનું કારણ (Reason):
+                </label>
+                <input
+                    type="text"
+                    value={outReason}
+                    onChange={e => setOutReason(e.target.value)}
+                    placeholder="દા.ત. દવા લેવા જવાનું છે, બેંક કામ છે, ઘરકામ..."
+                    style={{width: '100%', padding: '8px 10px', fontSize: '13px', borderRadius: '6px', border: '1.5px solid #f87171'}}
+                    required
+                />
+            </div>
+        )}
         <div className="camera-frame">{preview ? <img src={preview} alt="Captured selfie"/> : <video ref={videoRef} playsInline autoPlay muted/>}<span><Camera size={16}/> Keep your face inside the frame</span></div>
         {error && <div className={error.includes('Getting') ? 'info-banner' : 'error'}>{error}</div>}
-        <div className="camera-actions">{preview ? <button className="secondary" onClick={() => {URL.revokeObjectURL(preview); setPhoto(null); setPreview(''); setCameraKey(value => value + 1);}}><RefreshCw size={16}/> Retake</button> : <button className="secondary" onClick={capture}><Camera size={16}/> Capture Selfie</button>}<button className="primary" disabled={!photo || busy} onClick={submit}>{isTimeIn ? <MapPin size={16}/> : <Camera size={16}/>} {isTimeIn ? 'Confirm & Time In' : 'Confirm & Break Out'}</button></div>
+        <div className="camera-actions">{preview ? <button className="secondary" onClick={() => {URL.revokeObjectURL(preview); setPhoto(null); setPreview(''); setCameraKey(value => value + 1);}}><RefreshCw size={16}/> Retake</button> : <button className="secondary" onClick={capture}><Camera size={16}/> Capture Selfie</button>}<button className="primary" disabled={!photo || busy || (isUrgentOut && !outReason.trim())} onClick={submit}>{isTimeIn ? <MapPin size={16}/> : isUrgentOut ? '🚨 Confirm Urgent Out' : <Camera size={16}/>} {isTimeIn ? 'Confirm & Time In' : isUrgentOut ? '' : 'Confirm & Return'}</button></div>
     </div></div>;
 }
 
@@ -74,6 +98,7 @@ export default function MyAttendancePage({companyId}) {
     const [photoTasks, setPhotoTasks] = useState(null);
     const [timeInOpen, setTimeInOpen] = useState(false);
     const [breakOutOpen, setBreakOutOpen] = useState(false);
+    const [urgentOutOpen, setUrgentOutOpen] = useState(false);
     const [cameraModalOpen, setCameraModalOpen] = useState(false);
     const [selectedTaskForPhoto, setSelectedTaskForPhoto] = useState(null);
     const [clockOutForm, setClockOutForm] = useState({work_done: '', learned: ''});
@@ -311,17 +336,74 @@ export default function MyAttendancePage({companyId}) {
                 </section>
             )}
 
-            {/* Break Card */}
+            {/* Break & Urgent Out Card */}
             {!today.manager_attendance_only && today.record && !today.record.clock_out_at && (
-                <section className={`panel break-card ${activeBreak ? 'active' : ''}`}>
-                    <div className="clock-icon"><Coffee/></div>
-                    <div>
-                        <h2>{activeBreak ? 'Break in progress' : 'Need a break?'}</h2>
-                        <p>{activeBreak ? `Started at ${formatTime(activeBreak.started_at)}. A fresh selfie is required when you break out.` : `${(breakMinutes / 60).toFixed(2)} break hours recorded today. You can take multiple breaks.`}</p>
+                <section className={`panel break-card ${activeBreak ? 'active' : ''}`} style={{
+                    borderColor: activeBreak?.break_type === 'urgent_out' ? '#f87171' : undefined,
+                    background: activeBreak?.break_type === 'urgent_out' ? '#fff5f5' : undefined,
+                }}>
+                    <div className="clock-icon" style={{
+                        background: activeBreak?.break_type === 'urgent_out' ? '#fee2e2' : undefined,
+                        color: activeBreak?.break_type === 'urgent_out' ? '#dc2626' : undefined,
+                    }}>
+                        {activeBreak?.break_type === 'urgent_out' ? <LogOut size={20}/> : <Coffee/>}
                     </div>
-                    <button className={activeBreak ? 'primary' : 'secondary'} disabled={busy} onClick={() => activeBreak ? setBreakOutOpen(true) : startBreak()}>
-                        {activeBreak ? 'Break out' : 'Break in'}
-                    </button>
+                    <div style={{flex: 1}}>
+                        <h2>
+                            {activeBreak
+                                ? (activeBreak.break_type === 'urgent_out' ? '🚨 અર્જન્ટ બહાર ગયેલ છે (Urgent Out)' : 'Break in progress')
+                                : 'Break or Urgent Out? (બ્રેક અથવા અર્જન્ટ બહાર)'}
+                        </h2>
+                        <p>
+                            {activeBreak
+                                ? (activeBreak.break_type === 'urgent_out'
+                                    ? `બહાર જવાનું કારણ: "${activeBreak.out_reason || 'અર્જન્ટ કામ'}" · શરૂ સમય: ${formatTime(activeBreak.started_at)}. પ્લાન્ટ પર પાછા ફરો ત્યારે સેલ્ફી સાથે Return કરો.`
+                                    : `Started at ${formatTime(activeBreak.started_at)}. A fresh selfie is required when you break out.`)
+                                : `${(breakMinutes / 60).toFixed(2)} break hours recorded today. અર્જન્ટ બહાર જવું હોય તો સેલ્ફી અને કારણ સાથે Urgent Out કરો.`
+                            }
+                        </p>
+                    </div>
+                    <div style={{display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap'}}>
+                        {activeBreak ? (
+                            <button
+                                className="primary"
+                                disabled={busy}
+                                onClick={() => setBreakOutOpen(true)}
+                                style={{
+                                    background: activeBreak.break_type === 'urgent_out' ? '#dc2626' : undefined,
+                                    borderColor: activeBreak.break_type === 'urgent_out' ? '#b91c1c' : undefined,
+                                }}
+                            >
+                                <Camera size={15}/> {activeBreak.break_type === 'urgent_out' ? '📸 પાછા ફર્યા (Return & Selfie)' : 'Break out (Return)'}
+                            </button>
+                        ) : (
+                            <>
+                                <button className="secondary" disabled={busy} onClick={() => startBreak()}>
+                                    ☕ Regular Break
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => setUrgentOutOpen(true)}
+                                    style={{
+                                        background: '#dc2626',
+                                        color: '#ffffff',
+                                        border: 'none',
+                                        padding: '9px 14px',
+                                        borderRadius: '8px',
+                                        fontWeight: 700,
+                                        fontSize: '13px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        cursor: 'pointer',
+                                    }}
+                                >
+                                    🚨 Urgent Out (અર્જન્ટ બહાર)
+                                </button>
+                            </>
+                        )}
+                    </div>
                 </section>
             )}
 
@@ -602,6 +684,10 @@ export default function MyAttendancePage({companyId}) {
 
             {breakOutOpen && (
                 <SelfieModal mode="break-out" onClose={() => setBreakOutOpen(false)} onDone={async () => { setBreakOutOpen(false); setMessage('Welcome back. Break completed successfully.'); await load(); }}/>
+            )}
+
+            {urgentOutOpen && (
+                <SelfieModal mode="urgent-out" onClose={() => setUrgentOutOpen(false)} onDone={async () => { setUrgentOutOpen(false); setMessage('Urgent out recorded with selfie and reason.'); await load(); }}/>
             )}
 
             {cameraModalOpen && (
