@@ -22,6 +22,7 @@ import UsersPage from './pages/UsersPage';
 import ISolarCloudPage from './pages/ISolarCloudPage';
 import GalleryPage from './pages/GalleryPage';
 import ReelsPage from './pages/ReelsPage';
+import { ErrorBoundary } from './components/ErrorWireCut';
 
 export default function App() {
     const [user, setUser] = useState(undefined);
@@ -111,26 +112,28 @@ export default function App() {
     if (!user) return <LoginPage onLogin={async current => {const preferredPage = window.localStorage.getItem(`solarflow.activePage.${current.id}`) || 'dashboard'; setUser(current); setPage(preferredPage); await loadCompanies(current, preferredPage);}}/>;
 
     return <AppShell user={user} page={page} setPage={setPage} companies={companies} companyId={companyId} setCompanyId={setCompanyId}>
-        {({can, activeCompany}) => <>
-            {page === 'dashboard' && <DashboardPage companyId={companyId} currentUser={user}/>}
-            {page === 'entry' && <DailyEntryPage company={activeCompany} companies={companies} companyId={companyId} setCompanyId={setCompanyId} user={user} canEdit={can('edit_readings')}/>}
-            {page === 'reports' && <ReportsPage companyId={companyId} companies={companies}/>}
-            {page === 'gallery' && <GalleryPage companyId={companyId} currentUser={user}/>}
-            {page === 'reels' && <ReelsPage companyId={companyId} currentUser={user}/>}
-            {page === 'isolarcloud' && <ISolarCloudPage company={activeCompany} companies={companies} user={user}/>}
-            {page === 'companies' && <CompaniesPage companies={companies} refresh={() => loadCompanies(user)}/>}
-            {page === 'import' && <ExcelImportPage/>}
-            {page === 'users' && <UsersPage companies={companies} currentUser={user}/>}
-            {page === 'activity' && <ActivityLogPage companyId={companyId}/>}
-            {page === 'employees' && <EmployeesPage can={can} currentUser={user}/>}
-            {page === 'expenses' && <ExpensesPage currentUser={user}/>}
-            {page === 'attendance' && <AttendancePage canCorrect={['super_admin', 'company_admin'].includes(user.role)} canRecord={can('record_employee_attendance')}/>}
-            {page === 'leave-holidays' && <LeaveHolidayPage can={can}/>}
-            {page === 'attendance-reports' && <AttendanceReportsPage/>}
-            {page === 'salaries' && <SalaryPage/>}
-            {page === 'stock' && <StockPage can={can} currentUser={user}/>}
-            {page === 'my-attendance' && <MyAttendancePage companyId={companyId}/>}
-            {page === 'my-salary' && <MySalaryPage/>}
-        </>}
+        {({can, activeCompany}) => (
+            <ErrorBoundary>
+                {page === 'dashboard' && <DashboardPage companyId={companyId} currentUser={user}/>}
+                {page === 'entry' && <DailyEntryPage company={activeCompany} companies={companies} companyId={companyId} setCompanyId={setCompanyId} user={user} canEdit={can('edit_readings')}/>}
+                {page === 'reports' && <ReportsPage companyId={companyId} companies={companies}/>}
+                {page === 'gallery' && <GalleryPage companyId={companyId} currentUser={user}/>}
+                {page === 'reels' && <ReelsPage companyId={companyId} currentUser={user}/>}
+                {page === 'isolarcloud' && <ISolarCloudPage company={activeCompany} companies={companies} user={user}/>}
+                {page === 'companies' && <CompaniesPage companies={companies} refresh={() => loadCompanies(user)}/>}
+                {page === 'import' && <ExcelImportPage/>}
+                {page === 'users' && <UsersPage companies={companies} currentUser={user}/>}
+                {page === 'activity' && <ActivityLogPage companyId={companyId}/>}
+                {page === 'employees' && <EmployeesPage can={can} currentUser={user}/>}
+                {page === 'expenses' && <ExpensesPage currentUser={user}/>}
+                {page === 'attendance' && <AttendancePage canCorrect={['super_admin', 'company_admin'].includes(user.role)} canRecord={can('record_employee_attendance')}/>}
+                {page === 'leave-holidays' && <LeaveHolidayPage can={can}/>}
+                {page === 'attendance-reports' && <AttendanceReportsPage/>}
+                {page === 'salaries' && <SalaryPage/>}
+                {page === 'stock' && <StockPage can={can} currentUser={user}/>}
+                {page === 'my-attendance' && <MyAttendancePage companyId={companyId}/>}
+                {page === 'my-salary' && <MySalaryPage/>}
+            </ErrorBoundary>
+        )}
     </AppShell>;
 }

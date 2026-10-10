@@ -8,7 +8,11 @@ class ActivityLog extends Model
 {
     protected $guarded = [];
 
-    protected $casts = ['changes' => 'array'];
+    protected $casts = [
+        'changes' => 'array',
+        'old_values' => 'array',
+        'new_values' => 'array',
+    ];
 
     public function user()
     {

@@ -37,11 +37,11 @@ Route::get('/login', function () {
 Route::prefix('api')->group(function () {
     Route::get('isolarcloud/callback', [ISolarCloudController::class, 'callback']);
     Route::post('login', [AuthController::class, 'login']);
-    Route::match(['get', 'post'], 'voice-agent/tts', [\App\Http\Controllers\Api\VoiceAgentController::class, 'tts']);
-    Route::post('voice-agent/chat', [\App\Http\Controllers\Api\VoiceAgentController::class, 'chat']);
-    Route::match(['get', 'post'], 'voice-agent/config', [\App\Http\Controllers\Api\VoiceAgentController::class, 'config']);
-    Route::post('voice-agent/execute-tool', [\App\Http\Controllers\Api\VoiceAgentController::class, 'executeTool']);
     Route::middleware('auth')->group(function () {
+        Route::match(['get', 'post'], 'voice-agent/tts', [\App\Http\Controllers\Api\VoiceAgentController::class, 'tts']);
+        Route::post('voice-agent/chat', [\App\Http\Controllers\Api\VoiceAgentController::class, 'chat']);
+        Route::match(['get', 'post'], 'voice-agent/config', [\App\Http\Controllers\Api\VoiceAgentController::class, 'config']);
+        Route::post('voice-agent/execute-tool', [\App\Http\Controllers\Api\VoiceAgentController::class, 'executeTool']);
         Route::get('me', [AuthController::class, 'me']);
         Route::post('logout', [AuthController::class, 'logout']);
         Route::get('dashboard/live-solar', [ISolarCloudController::class, 'liveDashboard']);
@@ -91,6 +91,8 @@ Route::prefix('api')->group(function () {
         Route::get('report/export/weather-issue-pdf', [ReportController::class, 'weatherIssuePdf']);
         Route::post('import/excel', [ImportController::class, 'store']);
         Route::get('activity', [ActivityController::class, 'index']);
+        Route::get('activity/active-sessions', [ActivityController::class, 'activeSessions']);
+        Route::post('activity/revoke-session', [ActivityController::class, 'revokeSession']);
         Route::get('employees', [EmployeeController::class, 'index']);
         Route::post('employees', [EmployeeController::class, 'store']);
         Route::get('employees/{employee}/photo', [EmployeeController::class, 'photo'])->name('employees.photo');

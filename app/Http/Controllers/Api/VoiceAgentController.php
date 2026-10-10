@@ -21,7 +21,10 @@ class VoiceAgentController extends Controller
      */
     public function config(Request $request): JsonResponse
     {
-        $user = $request->user() ?? \App\Models\User::where('role', 'super_admin')->first();
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
         $apiKey = config('services.gemini.key', env('GEMINI_API_KEY', env('GOOGLE_GENAI_API_KEY', env('GOOGLE_API_KEY'))));
 
         $liveSolarData = $request->input('live_solar_data');
@@ -57,7 +60,10 @@ class VoiceAgentController extends Controller
      */
     public function executeTool(Request $request): JsonResponse
     {
-        $user = $request->user() ?? \App\Models\User::where('role', 'super_admin')->first();
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
         $toolName = $request->input('name');
         $args = $request->input('args', []);
 

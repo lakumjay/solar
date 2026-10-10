@@ -10,7 +10,10 @@ use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
-    public function __construct(private readonly SolarAccessService $access) {}
+    public function __construct(
+        private readonly SolarAccessService $access,
+        private readonly \App\Services\ActivityLogger $activity
+    ) {}
 
     public function login(LoginRequest $request)
     {
@@ -24,11 +27,36 @@ class AuthController extends Controller
 
         $request->session()->regenerate();
 
+        $deviceInfo = \App\Services\ActivityLogger::parseUserAgent($request->userAgent());
+        $this->activity->log(
+            $user,
+            $user->company_id,
+            'login',
+            'User',
+            $user->id,
+            "{$user->name} logged in from {$deviceInfo['device']} ({$deviceInfo['platform']})",
+            ['event' => 'login', 'device' => $deviceInfo['device'], 'ip' => $request->ip()]
+        );
+
         return $this->me($request);
     }
 
     public function logout(Request $request)
     {
+        $user = $request->user();
+        if ($user) {
+            $deviceInfo = \App\Services\ActivityLogger::parseUserAgent($request->userAgent());
+            $this->activity->log(
+                $user,
+                $user->company_id,
+                'logout',
+                'User',
+                $user->id,
+                "{$user->name} logged out from {$deviceInfo['device']}",
+                ['event' => 'logout']
+            );
+        }
+
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
