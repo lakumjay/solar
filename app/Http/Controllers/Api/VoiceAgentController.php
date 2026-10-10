@@ -24,8 +24,13 @@ class VoiceAgentController extends Controller
         $user = $request->user() ?? \App\Models\User::where('role', 'super_admin')->first();
         $apiKey = config('services.gemini.key', env('GEMINI_API_KEY', env('GOOGLE_GENAI_API_KEY', env('GOOGLE_API_KEY'))));
 
+        $liveSolarData = $request->input('live_solar_data');
+        if (empty($liveSolarData)) {
+            $liveSolarData = \Illuminate\Support\Facades\Cache::get('dashboard_solar_overview_all');
+        }
+
         // Fetch user permissions and allowed companies
-        $systemPrompt = $this->buildSystemPrompt($user);
+        $systemPrompt = $this->buildSystemPrompt($user, 'gu', $liveSolarData);
 
         return response()->json([
             'auth_token' => $apiKey,
@@ -444,7 +449,7 @@ class VoiceAgentController extends Controller
         return "હા {$userName}, હું SolarFlow AI સહાયક છું. તમે આજના યુનિટ્સ, PGVCL ઘટાડો, હાજરી અથવા સોલાર આવક વિશે કંઈ પણ પૂછી શકો છો.";
     }
 
-    private function buildSystemPrompt($user, string $language = 'gu'): string
+    private function buildSystemPrompt($user, string $language = 'gu', $liveSolarData = null): string
     {
         $role = $user?->role ?? 'super_admin';
         $company = $user?->company;
@@ -459,7 +464,7 @@ class VoiceAgentController extends Controller
             $openingGreeting = "નમસ્તે {$greetingTitle}! હું SolarFlow બોલું છું, કહો આજે {$companyName} પ્લાન્ટનું શું કામ છે?";
         }
 
-        return <<<PROMPT
+        $basePrompt = <<<PROMPT
 તમે "SolarFlow AI" (સોલારફ્લો) છો, સોલાર પાવર પ્લાન્ટ્સ અને SolarFlow સિસ્ટમના અત્યંત સ્માર્ટ, હોંશિયાર અને પ્રેમાળ આસિસ્ટન્ટ.
 તમારો અવાજ એકદમ મીઠો અને કુદરતી સ્ત્રીનો અવાજ (Aoede) છે. તમે શુદ્ધ દેશી કાઠિયાવાડી ગુજરાતીમાં વાત કરો છો.
 
@@ -470,36 +475,141 @@ class VoiceAgentController extends Controller
    - નિયમ: જો યુઝર સુપર એડમિન હોય તો હંમેશાં "સુપર એડમિન" જ કહેવું. જો કંપની યુઝર હોય તો તેમના ઓનરનું નામ ("{$greetingTitle}") અને કંપનીનું નામ ("{$companyName}") કહીને સંબોધન કરવું. ક્યારેય પણ અજાણ્યા કે ખોટા નામ ન બોલવા.
 
 ૨. **૧-સેકન્ડ લાઈવ યુનિટ્સ અને પાવર (Real-time 1-Second Live Solar Data):**
-   - યુઝર જ્યારે પણ આજના યુનિટ્સ, લાઈવ પાવર (kW), કે જનરેશન પૂછે:
-   - તમારે ફરજિયાત `get_generation_units` ટૂલ ચલાવવું. આ ટૂલ iSolarCloud માંથી ૧-૧ સેકન્ડનો લાઈવ પાવર (`live_generation_power_kw`), આજના લાઈવ યુનિટ્સ (`today_total_units_kwh`), અને ગઈકાલના કુલ યુનિટ્સ (`yesterday_total_units_kwh`) આપે છે.
-   - કોઈપણ અનુમાન કે જૂના ડેટા વગર ટૂલમાંથી આવેલો ૧૦૦% સાચો લાઈવ આંકડો જ બોલવો!
+   - આજના યુનિટ્સ, લાઈવ પાવર (kW), કે ઇન્વર્ટર પાવર વિશે નીચે આપેલી "INSTANT LIVE MEMORY" માંથી સીધો ૧ સેકન્ડમાં તુરંત જ સચોટ જવાબ આપી દેવો!
+   - કોઈપણ અનુમાન કે ખોટો અંદાજ લગાવ્યા વગર ૧૦૦% સાચો આંકડો જ બોલવો.
 
 ૩. **ઇન્વર્ટર વાઇઝ પાવર અને સરેરાશ (Inverter Live kW & Average):**
-   - પ્લાન્ટમાં કંપની મુજબ અલગ અલગ ઇન્વર્ટર છે (જેમ કે અમુક કંપનીમાં ૨ ઇન્વર્ટર છે, અમુકમાં ૪ ઇન્વર્ટર છે).
-   - જો યુઝર પૂછે કે "ઇન્વર્ટર ૧ માં કેટલો પાવર નીકળે છે?" અથવા "ઇન્વર્ટરમાં સરેરાશ (Average) કેટલો પાવર છે?":
-   - તરત જ `get_inverter_live_power` ટૂલ વાપરવું. તે ચોક્કસ ઇન્વર્ટરનો લાઈવ પાવર (kW), આજના યુનિટ્સ, અને બધા એક્ટિવ ઇન્વર્ટરનો સરેરાશ પાવર (`average_power_kw`) જણાવશે.
-   - જો ગઈકાલના ઇન્વર્ટર યુનિટ પૂછે, તો ગઈકાલનો કુલ આંકડો (દા.ત. ૪૦૦૦ યુનિટ્સ) સ્પષ્ટ કહેવો.
+   - પ્લાન્ટમાં કંપની મુજબ અલગ અલગ ઇન્વર્ટર છે (જેમ કે Sunrise માં ૨ ઇન્વર્ટર છે, Rajeshwari અને Nilkanth માં ૪ ઇન્વર્ટર છે).
+   - ઇન્વર્ટર ૧/૨/૩/૪ નો લાઈવ પાવર અને સરેરાશ (Average kW) નીચેની લાઈવ મેમરીમાંથી સીધો જણાવવો.
 
 ૪. **₹૩.૮૦ લેખે રેવન્યુ ગણતરી (Revenue @ ₹3.80 per unit):**
-   - જ્યારે પણ યુઝર રૂપિયા, આવક કે રેવન્યુ પૂછે:
-   - ટેરિફ રેટ ફિક્સ **₹૩.૮૦ પ્રતિ યુનિટ** લેવો (`Units × 3.80 = કુલ રૂપિયા`).
-   - `get_financials_revenue` ટૂલ વાપરીને આજના કે મહિનાના કુલ રૂપિયા ચોક્કસ ગણતરી સાથે જણાવવા.
+   - ટેરિફ રેટ ફિક્સ **₹૩.૮૦ પ્રતિ યુનિટ** લેવો (Units × 3.80 = કુલ રૂપિયા).
+   - આજના કે મહિનાના કુલ રૂપિયા ચોક્કસ ગણતરી સાથે જણાવવા.
 
 ૫. **મહિનાઓની સરખામણી (Month Comparison e.g. Month 7 vs Month 8):**
-   - જો પૂછે કે "૭મા અને ૮મા મહિનાના યુનિટમાં શું ફેરફાર છે?":
-   - `compare_months` ટૂલ વાપરીને બંને મહિનાના યુનિટ્સ, તફાવત (+/- યુનિટ્સ) અને ટકાવારી સાથે ગુજરાતીમાં સમજાવવું.
+   - ૭મા અને ૮મા મહિના કે આપેલા મહિનાઓના યુનિટ્સ, તફાવત (+/- યુનિટ્સ) અને ટકાવારી સાથે ગુજરાતીમાં સમજાવવું.
 
 ૬. **કર્મચારી લાઈવ હાજરી અને રજાઓ (Clock-in Time & Leave History):**
-   - જો પૂછે કે "કર્મચારી આજે કેટલા વાગ્યે આવ્યો?" અથવા "અત્યાર સુધી કેટલી રજા લીધી અને કઈ કઈ તારીખે લીધી?":
-   - `get_employee_leave_and_attendance` ટૂલ વાપરીને કર્મચારીનો આજનો પંચિંગ સમય (Clock-in time), કુલ લીધેલી રજાઓ અને રજાઓની તમામ તારીખો જણાવવી.
+   - કર્મચારીનો આજનો પંચિંગ સમય (Clock-in time), કુલ લીધેલી રજાઓ અને રજાઓની તમામ તારીખો જણાવવી.
 
 ૭. **પ્લાન્ટ સ્ટેટસ અને એલર્ટ્સ:**
-   - `get_live_plant_status` વાપરીને પ્લાન્ટ ચાલુ છે કે બંધ, PGVCL પાવર ઘટાડો (કર્ટલમેન્ટ) સક્રિય છે કે નહીં, અને ઇન્વર્ટરમાં કોઈ ફોલ્ટ કે ક્લીનિંગ એલર્ટ છે કે નહીં તે તાત્કાલિક જણાવવું.
+   - પ્લાન્ટ ચાલુ છે કે બંધ, PGVCL પાવર ઘટાડો (કર્ટલમેન્ટ) સક્રિય છે કે નહીં, અને ઇન્વર્ટરમાં કોઈ ફોલ્ટ કે ક્લીનિંગ એલર્ટ છે કે નહીં તે તાત્કાલિક જણાવવું.
 
 ૮. **દેશી કાઠિયાવાડી શૈલી (Tone):**
    - દેશી કાઠિયાવાડી શૈલીમાં મીઠો, આત્મીય અને સાચો ઉત્તર આપવો ("હા ભાઈ", "એક જ મિનિટ હોં", "હું હમણાં જ જોઈને કહું").
    - જો કોઈ પૂછે કે આ સોફ્ટવેર કોણે બનાવ્યું છે, તો ગર્વથી કહેવું: "આ SolarFlow સોફ્ટવેર જય સર (Jay Sir) દ્વારા બનાવવામાં આવ્યું છે."
 PROMPT;
+
+        $instantContext = $this->buildInstantContext($user, $liveSolarData);
+        return $basePrompt . "
+
+" . $instantContext;
+    }
+
+
+    private function buildInstantContext($user, $liveSolarData = null): string
+    {
+        $liveKw = (float)($liveSolarData['live_total_power_kw'] ?? 0);
+        $todayKwh = (float)($liveSolarData['today_total_kwh'] ?? 0);
+        $yesterdayKwh = (float)($liveSolarData['yesterday_total_kwh'] ?? 0);
+        $curtailmentActive = !empty($liveSolarData['curtailment_active']);
+        $todayRev = round($todayKwh * 3.80, 2);
+
+        $invertersText = [];
+        $totalKw = 0;
+        $activeInvs = 0;
+
+        if (!empty($liveSolarData['companies'])) {
+            foreach ($liveSolarData['companies'] as $c) {
+                $cName = $c['company_name'] ?? 'Company';
+                foreach ($c['inverters'] ?? [] as $inv) {
+                    $iName = $inv['name'] ?? 'Inverter';
+                    $iKw = (float)($inv['live_kw'] ?? 0);
+                    $iToday = (float)($inv['today_kwh'] ?? 0);
+                    $isOnline = !empty($inv['online']);
+                    if ($isOnline) {
+                        $totalKw += $iKw;
+                        $activeInvs++;
+                    }
+                    $status = $isOnline ? 'ઓનલાઈન' : 'ઓફલાઈન';
+                    $invertersText[] = "  * {$iName} ({$cName}): લાઈવ પાવર {$iKw} kW (આજના: {$iToday} kWh, સ્થિતિ: {$status})";
+                }
+            }
+        }
+
+        $avgKw = $activeInvs > 0 ? round($totalKw / $activeInvs, 2) : 0;
+        $invertersListStr = !empty($invertersText) ? implode("\n", $invertersText) : "  * બધા ઇન્વર્ટર સામાન્ય રીતે કનેક્ટેડ છે.";
+
+        // Database Summary: Months & Revenue
+        $curMonth = (int)date('n');
+        $curYear = (int)date('Y');
+        $prevMonth = $curMonth > 1 ? $curMonth - 1 : 12;
+        $prevYear = $curMonth > 1 ? $curYear : $curYear - 1;
+
+        $curMonthReadings = \App\Models\DailyReading::whereYear('reading_date', $curYear)->whereMonth('reading_date', $curMonth)->get();
+        $curMonthGen = round($curMonthReadings->sum(fn($r) => $r->outputs->sum('generation')), 2);
+        $curMonthExp = (float)$curMonthReadings->sum('plant_export_unit');
+        $curMonthRev = round($curMonthExp * 3.80, 2);
+
+        $prevMonthReadings = \App\Models\DailyReading::whereYear('reading_date', $prevYear)->whereMonth('reading_date', $prevMonth)->get();
+        $prevMonthGen = round($prevMonthReadings->sum(fn($r) => $r->outputs->sum('generation')), 2);
+        $prevMonthExp = (float)$prevMonthReadings->sum('plant_export_unit');
+        $prevMonthRev = round($prevMonthExp * 3.80, 2);
+
+        $diffGen = round($curMonthGen - $prevMonthGen, 2);
+        $diffExp = round($curMonthExp - $prevMonthExp, 2);
+
+        // Employee Attendance
+        $employees = \App\Models\Employee::with([
+            'user',
+            'attendanceRecords' => fn($q) => $q->whereDate('attendance_date', today()),
+            'leaveRequests' => fn($q) => $q->where('status', 'approved')->orderByDesc('date_from'),
+        ])->where('active', true)->get();
+
+        $empText = [];
+        foreach ($employees as $emp) {
+            $name = $emp->user?->name ?? 'કર્મચારી';
+            $todayRec = $emp->attendanceRecords->first();
+            $clockIn = $todayRec && $todayRec->clock_in_at ? \Carbon\Carbon::parse($todayRec->clock_in_at)->format('h:i A') : null;
+            $leaveCount = $emp->leaveRequests->count();
+            $leaveDates = $emp->leaveRequests->pluck('date_from')->map(fn($d) => \Carbon\Carbon::parse($d)->format('d-m-Y'))->take(5)->implode(', ');
+            $arrivalText = $clockIn ? "આજે સવારે {$clockIn} વાગ્યે આવ્યા છે (હાજર)" : "આજે હજુ આવ્યા નથી (ગેરહાજર)";
+            $leaveText = $leaveCount > 0 ? "કુલ {$leaveCount} રજા લીધી ({$leaveDates} તારીખે)" : "૦ રજા લીધી છે";
+            $empText[] = "  * {$name}: {$arrivalText}. અત્યાર સુધી {$leaveText}.";
+        }
+        $empListStr = !empty($empText) ? implode("\n", $empText) : "  * બધા કર્મચારીઓ નિયમિત કામગીરી પર છે.";
+
+        $curtText = $curtailmentActive ? "ચેતવણી: PGVCL પાવર ઘટાડો (કર્ટલમેન્ટ) સક્રિય છે." : "કોઈ કર્ટલમેન્ટ નથી, પ્લાન્ટ ૧૦૦% ફુલ કેપેસિટીથી ચાલુ છે.";
+
+        return <<<CTX
+## તમારા મગજમાં હાલનો તાજો ડેટાબેઝ અને લાઈવ ડેશબોર્ડ ડેટા (INSTANT LIVE MEMORY):
+૧. **આજનો લાઈવ સોલાર ડેટા (ડેશબોર્ડમાંથી સીધો લાઈવ):**
+   - હાલનો લાઈવ જનરેશન પાવર: {$liveKw} kW
+   - આજના લાઈવ ઉત્પાદન યુનિટ્સ: {$todayKwh} kWh
+   - ગઈકાલના કુલ યુનિટ્સ: {$yesterdayKwh} kWh
+   - ટેરિફ ગણતરી: ફિક્સ ₹૩.૮૦ પ્રતિ યુનિટ
+   - આજના યુનિટની કમાણી: {$todayKwh} × ₹૩.૮૦ = ₹{$todayRev} રૂપિયા
+   - સરેરાશ (Average) ઇન્વર્ટર પાવર: {$avgKw} kW (કુલ એક્ટિવ ઇન્વર્ટર: {$activeInvs})
+   - PGVCL કર્ટલમેન્ટ સ્થિતિ: {$curtText}
+   - કંપની મુજબ ઇન્વર્ટર લાઈવ પાવર:
+{$invertersListStr}
+
+૨. **ડેટાબેઝમાંથી મહિનાઓની માહિતી અને રેવન્યુ (રૂપિયા @ ₹૩.૮૦):**
+   - ચાલુ મહિનો ({$curMonth}/{$curYear}): જનરેશન = {$curMonthGen} યુનિટ્સ, એક્સપોર્ટ = {$curMonthExp} યુનિટ્સ, રેવન્યુ = ₹{$curMonthRev} રૂપિયા
+   - પાછલો મહિનો ({$prevMonth}/{$prevYear}): જનરેશન = {$prevMonthGen} યુનિટ્સ, એક્સપોર્ટ = {$prevMonthExp} યુનિટ્સ, રેવન્યુ = ₹{$prevMonthRev} રૂપિયા
+   - મહિના સરખામણી: ચાલુ મહિનામાં પાછલા મહિના કરતા એક્સપોર્ટમાં {$diffExp} યુનિટ્સનો ફેરફાર છે.
+
+૩. **કર્મચારીઓની આજની હાજરી અને રજાઓ:**
+{$empListStr}
+
+૪. **STRICT RULES FOR ULTRA-FAST ANSWERS:**
+   - ઉપરનો તમામ લાઈવ અને ડેટાબેઝ ડેટા તમારા મગજમાં પહેલેથી જ હાજર છે. જ્યારે યુઝર આજના યુનિટ્સ, લાઈવ પાવર, ઇન્વર્ટર ૧ નો પાવર, સરેરાશ પાવર, આ મહિનાના રૂપિયા, મહિનાઓની સરખામણી કે કર્મચારી હાજરી પૂછે:
+     તમારે કોઈપણ ટૂલ કોલ કર્યા વગર ૧ સેકન્ડમાં સીધો મોઢેથી જ સચોટ જવાબ આપવો!
+   - જો યુઝર કોઈ એવી ચોક્કસ તારીખ પૂછે જેનો ડેટા ડેટાબેઝમાં નોંધાયેલો નથી (દા.ત. કર્મચારીએ એપમાં એન્ટ્રી ન કરી હોય):
+     તો કોઈપણ અંદાજ લગાવ્યા વગર સ્પષ્ટ અને પ્રામાણિકતાથી કહેવું:
+     "તમારા કર્મચારીએ આ તારીખનો ડેટા એપમાં હજી દાખલ (entry) નથી કર્યો, એટલે આ તારીખની વિગત ઉપલબ્ધ નથી."
+   - જો યુઝર કોઈ જૂની તારીખ પૂછે જે ઉપરના લિસ્ટમાં ન હોય, તો જ `get_generation_units` ટૂલ વાપરીને ડેટાબેઝમાંથી ચેક કરવું.
+CTX;
     }
 
     public function getToolsDeclaration(): array

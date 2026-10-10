@@ -380,6 +380,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
                     onClose={() => setShowVoiceCall(false)}
                     user={user}
                     activeCompany={activeCompany}
+                    liveSolarData={liveSolarData}
                 />
             )}
         </>

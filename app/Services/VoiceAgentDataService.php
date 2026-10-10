@@ -102,11 +102,18 @@ class VoiceAgentDataService
             }
         }
 
-        // 1. Live Today query: Real-time 1-second iSolarCloud data
+        // 1. Live Today query: Real-time dashboard data (Cached or provided)
         if ($isTodayOrLive) {
             try {
-                $solarCloud = app(ISolarCloudService::class);
-                $overview = $solarCloud->getDashboardSolarOverview($companyId ? (string)$companyId : null);
+                $overview = $params['live_solar_data'] ?? null;
+                if (empty($overview)) {
+                    $cacheKey = $companyId ? "dashboard_solar_overview_{$companyId}" : "dashboard_solar_overview_all";
+                    $overview = \Illuminate\Support\Facades\Cache::get($cacheKey);
+                }
+                if (empty($overview)) {
+                    $solarCloud = app(ISolarCloudService::class);
+                    $overview = $solarCloud->getDashboardSolarOverview($companyId ? (string)$companyId : null);
+                }
 
                 $liveKw = (float)($overview['live_total_power_kw'] ?? 0);
                 $todayKwh = (float)($overview['today_total_kwh'] ?? 0);
@@ -173,6 +180,18 @@ class VoiceAgentDataService
             $query->whereDate('reading_date', $formattedDate);
             $readings = $query->get();
 
+            if ($readings->isEmpty()) {
+                return [
+                    'authorized' => true,
+                    'found' => false,
+                    'query_type' => 'specific_date',
+                    'date' => $formattedDate,
+                    'total_generation_units' => 0,
+                    'message' => "તમારા કર્મચારીએ {$formattedDate} તારીખનો ડેટા એપમાં હજી દાખલ (entry) નથી કર્યો, એટલે આ તારીખની વિગત ઉપલબ્ધ નથી.",
+                    'summary' => "તમારા કર્મચારીએ {$formattedDate} તારીખનો ડેટા એપમાં હજી દાખલ (entry) નથી કર્યો, એટલે આ તારીખની વિગત ઉપલબ્ધ નથી."
+                ];
+            }
+
             $totalGeneration = 0;
             $totalPlantExport = 0;
             $totalPlantImport = 0;
@@ -196,6 +215,7 @@ class VoiceAgentDataService
 
             return [
                 'authorized' => true,
+                'found' => true,
                 'query_type' => 'specific_date',
                 'date' => $formattedDate,
                 'total_generation_units' => round($totalGeneration, 2),
@@ -204,6 +224,7 @@ class VoiceAgentDataService
                 'tariff_rate_rs' => 3.80,
                 'estimated_revenue_rs' => $revenueRs,
                 'breakdown' => $companiesData,
+                'summary' => "{$formattedDate} તારીખે કુલ {$totalGeneration} યુનિટ્સ જનરેશન અને {$totalPlantExport} યુનિટ્સ એક્સપોર્ટ થયા હતા. ₹૩.૮૦ લેખે અંદાજિત આવક ₹{$revenueRs} થાય છે."
             ];
         }
 
@@ -281,8 +302,15 @@ class VoiceAgentDataService
     public function getInverterLivePower(?int $companyId, array $params): array
     {
         $target = $params['inverter_number'] ?? $params['inverter_name'] ?? null;
-        $solarCloud = app(ISolarCloudService::class);
-        $overview = $solarCloud->getDashboardSolarOverview($companyId ? (string)$companyId : null);
+        $overview = $params['live_solar_data'] ?? null;
+        if (empty($overview)) {
+            $cacheKey = $companyId ? "dashboard_solar_overview_{$companyId}" : "dashboard_solar_overview_all";
+            $overview = \Illuminate\Support\Facades\Cache::get($cacheKey);
+        }
+        if (empty($overview)) {
+            $solarCloud = app(ISolarCloudService::class);
+            $overview = $solarCloud->getDashboardSolarOverview($companyId ? (string)$companyId : null);
+        }
 
         $matchedInverter = null;
         $inverters = [];

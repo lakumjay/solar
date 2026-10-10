@@ -57,7 +57,7 @@ export function unlockVoiceCallAudio() {
     } catch (_) {}
 }
 
-export default function VoiceCallModal({ isOpen, onClose, user, activeCompany }) {
+export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, liveSolarData }) {
     if (!isOpen) return null;
 
     const isSuperAdmin = user?.role === 'super_admin' || user?.role === 'superadmin' || user?.name === 'Super Admin';
@@ -515,7 +515,17 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
             await startMic();
 
             // 3. Fetch Token & Config from backend
-            const cfg = await api('voice-agent/config');
+            const currentLiveData = liveSolarData || (() => {
+                try { return JSON.parse(localStorage.getItem('solarflow.cachedLiveSolar') || '{}'); } catch(e) { return {}; }
+            })();
+
+            const cfg = await api('voice-agent/config', {
+                method: 'POST',
+                body: JSON.stringify({
+                    live_solar_data: currentLiveData,
+                    company_id: activeCompany?.id
+                })
+            });
             const authToken = cfg?.auth_token || cfg?.apiKey;
             const systemInstruction = cfg?.system_instruction || cfg?.systemInstruction;
             const voiceName = cfg?.voice_name || 'Aoede';
@@ -591,6 +601,13 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
 
             setCallState('connected');
             setTranscriptHistory([{ sender: 'ai', text: defaultGreeting }]);
+
+            // 🎙️ Instant spoken greeting audio on pickup (Zero wait time)
+            try {
+                const cleanGreeting = defaultGreeting.replace(/[*#_`]/g, '');
+                const greetingAudio = new Audio(`/api/voice-agent/tts?text=${encodeURIComponent(cleanGreeting)}&language=gu`);
+                greetingAudio.play().catch(e => console.log('Greeting autoplay note:', e));
+            } catch(e) {}
         } catch (err) {
             console.error('Failed to start Live Session:', err);
             try {

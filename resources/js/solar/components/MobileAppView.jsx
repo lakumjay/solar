@@ -3772,6 +3772,7 @@ export default function MobileAppView({
                     onClose={() => setShowVoiceCall(false)}
                     user={user}
                     activeCompany={activeCompany}
+                    liveSolarData={liveData}
                 />
             )}
         </div>
