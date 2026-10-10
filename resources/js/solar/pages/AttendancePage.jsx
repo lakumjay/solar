@@ -33,6 +33,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
     const [manual, setManual] = useState(null);
     const [selfiePreview, setSelfiePreview] = useState(null);
     const [message, setMessage] = useState('');
+    const [viewMode, setViewMode] = useState('cards');
 
     // 📍 Real-Time Live Employee Locations
     const [liveLocations, setLiveLocations] = useState([]);
@@ -717,7 +718,37 @@ export default function AttendancePage({canCorrect, canRecord}) {
         </section>
 
         <section className="panel">
-            <div className="panel-head attendance-list-head"><div><h2>Daily attendance</h2><p>Employee and audited manager-entered records.</p></div>{canRecord && <button type="button" className="primary" onClick={openManual}><Plus size={16}/> Add attendance</button>}</div>
+            <div className="panel-head attendance-list-head">
+                <div>
+                    <h2>{currentLang === 'en' ? 'Daily Attendance' : 'દૈનિક હાજરી (Daily Attendance)'}</h2>
+                    <p>{currentLang === 'en' ? 'Employee and audited manager-entered records.' : 'કર્મચારી અને ઓડિટેડ હાજરી રેકોર્ડ્સ.'}</p>
+                </div>
+                <div style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
+                    <div className="attendance-view-toggle">
+                        <button
+                            type="button"
+                            className={viewMode === 'cards' ? 'active' : ''}
+                            onClick={() => setViewMode('cards')}
+                            title="Cards View"
+                        >
+                            🗂️ {currentLang === 'en' ? 'Cards' : 'કાર્ડ્સ'}
+                        </button>
+                        <button
+                            type="button"
+                            className={viewMode === 'table' ? 'active' : ''}
+                            onClick={() => setViewMode('table')}
+                            title="Table View"
+                        >
+                            📑 {currentLang === 'en' ? 'Table' : 'ટેબલ'}
+                        </button>
+                    </div>
+                    {canRecord && (
+                        <button type="button" className="primary" onClick={openManual}>
+                            <Plus size={16}/> {currentLang === 'en' ? 'Add attendance' : 'હાજરી ઉમેરો'}
+                        </button>
+                    )}
+                </div>
+            </div>
 
             {/* 🌴 Leaves and Absences Today Overview */}
             {isToday && absentToday.length > 0 && (
@@ -793,42 +824,218 @@ export default function AttendancePage({canCorrect, canRecord}) {
                 <label><span>Employee</span><select value={employeeId} onChange={event => setEmployeeId(event.target.value)}><option value="">All employees</option>{employees.map(employee => <option key={employee.id} value={employee.id}>{employee.employee_code} · {employee.name}</option>)}</select></label>
                 <label className="search-box"><span>Search</span><div><Search size={16}/><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Name or code"/></div></label>
             </div>
-            {filtered.length ? <div className="table-wrap attendance-table-wrap"><table className="attendance-table">
-                <thead><tr><th>Employee</th><th>Time In Selfie</th><th>Break Return</th><th>Time In</th><th>Time Out</th><th>Work Hours</th><th>Break Hours</th><th>Status</th><th>Location</th><th>Notes</th>{canCorrect && <th/>}</tr></thead>
-                <tbody>{filtered.map(row => {
-                    const empName = row.employee?.user?.name || row.employee?.name || 'Employee';
-                    const empCode = row.employee?.employee_code || '';
-                    const breaks = row.breaks || [];
+            {filtered.length ? (
+                <>
+                    {/* 🗂️ Mobile-Friendly Cards View (No Horizontal Scroll) */}
+                    {viewMode === 'cards' && (
+                        <div className="attendance-cards-view">
+                            {filtered.map(row => {
+                                const empName = row.employee?.user?.name || row.employee?.name || 'Employee';
+                                const empCode = row.employee?.employee_code || '';
+                                const breaks = row.breaks || [];
 
-                    return (
-                        <tr key={row.id}>
-                            <td><b>{empName}</b><small>{empCode}</small>{row.entry_source === 'manager' && <i className="status warning">Manager entered</i>}</td>
-                            <td>{row.selfie_url ? <button type="button" className="photo-preview-button" onClick={() => setSelfiePreview({url: row.selfie_url, employee: empName, date: row.attendance_date})}><img className="selfie-thumb" src={row.selfie_url} alt={`${empName} Time In selfie`}/></button> : <small>Not provided — manager entry</small>}</td>
-                            <td><span className="break-selfies">{breaks.filter(item => item.return_selfie_url).map((item, index) => <a key={item.id} href={item.return_selfie_url} target="_blank" rel="noreferrer"><img className="selfie-thumb" src={item.return_selfie_url} alt={`Break return ${index + 1}`}/></a>)}{!breaks.some(item => item.return_selfie_url) && '—'}</span></td>
-                            <td>{displayTime(row.clock_in_at)}{row.is_late && <small className="danger-text">Late</small>}</td>
-                            <td>{row.clock_out_at ? displayTime(row.clock_out_at) : (isToday ? <span className="status on" style={{fontSize: '11px', padding: '2px 7px'}}>{currentLang === 'en' ? '🟢 Active Shift' : '🟢 ચાલુ શિફ્ટ'}</span> : <span className="status warning" style={{fontSize: '11px', padding: '2px 7px'}}>{currentLang === 'en' ? '⚠️ Missing Time Out' : '⚠️ Time Out બાકી'}</span>)}</td>
-                            <td>{(() => {
-                                if (row.clock_out_at) {
-                                    return (row.work_minutes / 60).toFixed(2);
-                                }
-                                if (isToday && row.clock_in_at) {
-                                    const inMs = new Date(row.clock_in_at).getTime();
-                                    const diffMins = Math.max(0, Math.floor((Date.now() - inMs) / 60000));
-                                    const breakMins = Number(row.break_minutes || 0);
-                                    const netMins = Math.max(0, diffMins - breakMins);
-                                    return <span style={{color: '#16a34a', fontWeight: 700}} title="Shift in progress">{(netMins / 60).toFixed(2)} <small style={{fontSize: '10px'}}>{currentLang === 'en' ? '(Active)' : '(ચાલુ)'}</small></span>;
-                                }
-                                return (row.work_minutes / 60).toFixed(2);
-                            })()}</td>
-                            <td>{(Number(row.break_minutes || 0) / 60).toFixed(2)}</td>
-                            <td><i className={`status ${row.status === 'present' ? 'on' : (!row.clock_out_at && isToday ? 'on' : 'warning')}`}>{!row.clock_out_at && isToday ? (currentLang === 'en' ? 'Active Shift' : 'ચાલુ શિફ્ટ (Active)') : (row.status || '').replaceAll('_', ' ')}</i></td>
-                            <td>{row.clock_in_latitude !== null && row.clock_in_longitude !== null ? <a className="map-link" href={`https://maps.google.com/?q=${row.clock_in_latitude},${row.clock_in_longitude}`} target="_blank" rel="noreferrer"><MapPin size={14}/> Map</a> : <small>Not provided — manager entry</small>}</td>
-                            <td><span className="note-preview" title={`${row.work_done || ''}\n${row.learned || ''}${row.entry_reason ? `\nReason: ${row.entry_reason}` : ''}`}>{row.work_done || '—'}{row.entry_source === 'manager' && <small>By {row.recorded_by?.name || 'authorized user'} · {row.entry_reason}</small>}</span></td>
-                            {canCorrect && <td><button className="link" onClick={() => openCorrection(row)}><PencilLine size={15}/> Correct</button></td>}
-                        </tr>
-                    );
-                })}</tbody>
-            </table></div> : <Empty title="No attendance records" detail="No employee timed in for the selected date and filters."/>}
+                                const workHoursFormatted = (() => {
+                                    if (row.clock_out_at) {
+                                        return (row.work_minutes / 60).toFixed(2);
+                                    }
+                                    if (isToday && row.clock_in_at) {
+                                        const inMs = new Date(row.clock_in_at).getTime();
+                                        const diffMins = Math.max(0, Math.floor((Date.now() - inMs) / 60000));
+                                        const breakMins = Number(row.break_minutes || 0);
+                                        const netMins = Math.max(0, diffMins - breakMins);
+                                        return `${(netMins / 60).toFixed(2)}h (${currentLang === 'en' ? 'Active' : 'ચાલુ'})`;
+                                    }
+                                    return `${(row.work_minutes / 60).toFixed(2)}h`;
+                                })();
+
+                                const isActiveShift = !row.clock_out_at && isToday;
+                                const isMissingOut = !row.clock_out_at && !isToday;
+
+                                return (
+                                    <div key={row.id} className="att-card">
+                                        <div className="att-card-head">
+                                            <div className="att-card-user">
+                                                <div
+                                                    className="att-card-avatar"
+                                                    onClick={() => row.selfie_url && setSelfiePreview({url: row.selfie_url, employee: empName, date: row.attendance_date})}
+                                                    style={{cursor: row.selfie_url ? 'pointer' : 'default'}}
+                                                >
+                                                    {row.selfie_url ? (
+                                                        <img src={row.selfie_url} alt={empName} />
+                                                    ) : (
+                                                        <span>{empName.slice(0, 2).toUpperCase()}</span>
+                                                    )}
+                                                </div>
+                                                <div className="att-card-user-info">
+                                                    <div className="att-card-name-row">
+                                                        <b className="att-card-name">{empName}</b>
+                                                        {empCode && <span className="att-card-code">{empCode}</span>}
+                                                    </div>
+                                                    {row.entry_source === 'manager' && (
+                                                        <span className="status warning att-manager-pill">
+                                                            {currentLang === 'en' ? 'Manager entry' : 'મેનેજર એન્ટ્રી'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="att-card-status-wrap">
+                                                <span className={`status ${row.status === 'present' ? 'on' : (isActiveShift ? 'on' : 'warning')}`}>
+                                                    {isActiveShift
+                                                        ? (currentLang === 'en' ? '🟢 Active' : '🟢 ચાલુ')
+                                                        : isMissingOut
+                                                        ? (currentLang === 'en' ? '⚠️ Missing Out' : '⚠️ Out બાકી')
+                                                        : (row.status || '').replaceAll('_', ' ')}
+                                                </span>
+                                                {canCorrect && (
+                                                    <button
+                                                        type="button"
+                                                        className="att-correct-icon-btn"
+                                                        onClick={() => openCorrection(row)}
+                                                        title={currentLang === 'en' ? 'Correct Attendance' : 'હાજરી સુધારો'}
+                                                    >
+                                                        <PencilLine size={13}/>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="att-card-metrics">
+                                            <div className="att-card-metric">
+                                                <span className="att-metric-lbl">{currentLang === 'en' ? 'In' : 'આવ્યા'}</span>
+                                                <b className="att-metric-val">
+                                                    {displayTime(row.clock_in_at)}
+                                                    {row.is_late && <small className="att-late-badge">Late</small>}
+                                                </b>
+                                            </div>
+                                            <div className="att-card-metric">
+                                                <span className="att-metric-lbl">{currentLang === 'en' ? 'Out' : 'ગયા'}</span>
+                                                <b className="att-metric-val">
+                                                    {row.clock_out_at ? displayTime(row.clock_out_at) : (isActiveShift ? (currentLang === 'en' ? '🟢 On site' : '🟢 હાજર') : '—')}
+                                                </b>
+                                            </div>
+                                            <div className="att-card-metric">
+                                                <span className="att-metric-lbl">{currentLang === 'en' ? 'Work' : 'કામ'}</span>
+                                                <b className="att-metric-val">{workHoursFormatted}</b>
+                                            </div>
+                                            <div className="att-card-metric">
+                                                <span className="att-metric-lbl">{currentLang === 'en' ? 'Break' : 'બ્રેક'}</span>
+                                                <b className="att-metric-val">{(Number(row.break_minutes || 0) / 60).toFixed(2)}h</b>
+                                            </div>
+                                        </div>
+
+                                        <div className="att-card-foot">
+                                            <div className="att-card-assets">
+                                                {row.selfie_url && (
+                                                    <button
+                                                        type="button"
+                                                        className="att-photo-chip"
+                                                        onClick={() => setSelfiePreview({url: row.selfie_url, employee: empName, date: row.attendance_date})}
+                                                        title="Time In Selfie"
+                                                    >
+                                                        <img src={row.selfie_url} alt="In" />
+                                                        <span>Selfie</span>
+                                                    </button>
+                                                )}
+                                                {breaks.filter(b => b.return_selfie_url).map((b, idx) => (
+                                                    <a
+                                                        key={b.id}
+                                                        href={b.return_selfie_url}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="att-photo-chip"
+                                                        title={`Break ${idx + 1}`}
+                                                    >
+                                                        <img src={b.return_selfie_url} alt="Break" />
+                                                        <span>Break {idx + 1}</span>
+                                                    </a>
+                                                ))}
+                                                {row.clock_in_latitude !== null && row.clock_in_longitude !== null && (
+                                                    <a
+                                                        className="att-map-chip"
+                                                        href={`https://maps.google.com/?q=${row.clock_in_latitude},${row.clock_in_longitude}`}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                    >
+                                                        <MapPin size={12}/>
+                                                        <span>Map</span>
+                                                    </a>
+                                                )}
+                                            </div>
+
+                                            {row.work_done && (
+                                                <div className="att-card-note" title={`${row.work_done}\n${row.learned || ''}`}>
+                                                    <span>💬</span> {row.work_done}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* 📑 Desktop Table View */}
+                    {viewMode === 'table' && (
+                        <div className="table-wrap attendance-table-wrap">
+                            <table className="attendance-table">
+                                <thead>
+                                    <tr>
+                                        <th>Employee</th>
+                                        <th>Time In Selfie</th>
+                                        <th>Break Return</th>
+                                        <th>Time In</th>
+                                        <th>Time Out</th>
+                                        <th>Work Hours</th>
+                                        <th>Break Hours</th>
+                                        <th>Status</th>
+                                        <th>Location</th>
+                                        <th>Notes</th>
+                                        {canCorrect && <th/>}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filtered.map(row => {
+                                        const empName = row.employee?.user?.name || row.employee?.name || 'Employee';
+                                        const empCode = row.employee?.employee_code || '';
+                                        const breaks = row.breaks || [];
+
+                                        return (
+                                            <tr key={row.id}>
+                                                <td><b>{empName}</b><small>{empCode}</small>{row.entry_source === 'manager' && <i className="status warning">Manager entered</i>}</td>
+                                                <td>{row.selfie_url ? <button type="button" className="photo-preview-button" onClick={() => setSelfiePreview({url: row.selfie_url, employee: empName, date: row.attendance_date})}><img className="selfie-thumb" src={row.selfie_url} alt={`${empName} Time In selfie`}/></button> : <small>Not provided — manager entry</small>}</td>
+                                                <td><span className="break-selfies">{breaks.filter(item => item.return_selfie_url).map((item, index) => <a key={item.id} href={item.return_selfie_url} target="_blank" rel="noreferrer"><img className="selfie-thumb" src={item.return_selfie_url} alt={`Break return ${index + 1}`}/></a>)}{!breaks.some(item => item.return_selfie_url) && '—'}</span></td>
+                                                <td>{displayTime(row.clock_in_at)}{row.is_late && <small className="danger-text">Late</small>}</td>
+                                                <td>{row.clock_out_at ? displayTime(row.clock_out_at) : (isToday ? <span className="status on" style={{fontSize: '11px', padding: '2px 7px'}}>{currentLang === 'en' ? '🟢 Active Shift' : '🟢 ચાલુ શિફ્ટ'}</span> : <span className="status warning" style={{fontSize: '11px', padding: '2px 7px'}}>{currentLang === 'en' ? '⚠️ Missing Time Out' : '⚠️ Time Out બાકી'}</span>)}</td>
+                                                <td>{(() => {
+                                                    if (row.clock_out_at) {
+                                                        return (row.work_minutes / 60).toFixed(2);
+                                                    }
+                                                    if (isToday && row.clock_in_at) {
+                                                        const inMs = new Date(row.clock_in_at).getTime();
+                                                        const diffMins = Math.max(0, Math.floor((Date.now() - inMs) / 60000));
+                                                        const breakMins = Number(row.break_minutes || 0);
+                                                        const netMins = Math.max(0, diffMins - breakMins);
+                                                        return <span style={{color: '#16a34a', fontWeight: 700}} title="Shift in progress">{(netMins / 60).toFixed(2)} <small style={{fontSize: '10px'}}>{currentLang === 'en' ? '(Active)' : '(ચાલુ)'}</small></span>;
+                                                    }
+                                                    return (row.work_minutes / 60).toFixed(2);
+                                                })()}</td>
+                                                <td>{(Number(row.break_minutes || 0) / 60).toFixed(2)}</td>
+                                                <td><i className={`status ${row.status === 'present' ? 'on' : (!row.clock_out_at && isToday ? 'on' : 'warning')}`}>{!row.clock_out_at && isToday ? (currentLang === 'en' ? 'Active Shift' : 'ચાલુ શિફ્ટ (Active)') : (row.status || '').replaceAll('_', ' ')}</i></td>
+                                                <td>{row.clock_in_latitude !== null && row.clock_in_longitude !== null ? <a className="map-link" href={`https://maps.google.com/?q=${row.clock_in_latitude},${row.clock_in_longitude}`} target="_blank" rel="noreferrer"><MapPin size={14}/> Map</a> : <small>Not provided — manager entry</small>}</td>
+                                                <td><span className="note-preview" title={`${row.work_done || ''}\n${row.learned || ''}${row.entry_reason ? `\nReason: ${row.entry_reason}` : ''}`}>{row.work_done || '—'}{row.entry_source === 'manager' && <small>By {row.recorded_by?.name || 'authorized user'} · {row.entry_reason}</small>}</span></td>
+                                                {canCorrect && <td><button className="link" onClick={() => openCorrection(row)}><PencilLine size={15}/> Correct</button></td>}
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </>
+            ) : (
+                <Empty title="No attendance records" detail="No employee timed in for the selected date and filters."/>
+            )}
         </section>
         {manual && <div className="modal-backdrop" onClick={() => setManual(null)}>
             <form className="modal modal-sheet manual-attendance-modal" onSubmit={saveManual} onClick={e => e.stopPropagation()} style={{maxWidth: '620px'}}>
