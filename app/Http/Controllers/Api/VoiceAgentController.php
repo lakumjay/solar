@@ -37,8 +37,8 @@ class VoiceAgentController extends Controller
             'apiKey' => $apiKey ?: 'solarflow_ready',
             'hasGeminiKey' => !empty($apiKey),
             'model' => 'gemini-2.0-flash',
-            'liveModel' => env('GEMINI_LIVE_MODEL', 'gemini-3.1-flash-live-preview'),
-            'live_model' => env('GEMINI_LIVE_MODEL', 'gemini-3.1-flash-live-preview'),
+            'liveModel' => env('GEMINI_LIVE_MODEL', 'gemini-2.0-flash-exp'),
+            'live_model' => env('GEMINI_LIVE_MODEL', 'gemini-2.0-flash-exp'),
             'voice_name' => 'Aoede',
             'user' => [
                 'id' => $user?->id,
