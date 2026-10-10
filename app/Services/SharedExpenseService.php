@@ -124,18 +124,18 @@ class SharedExpenseService
                 $this->assertConfigured($companies);
                 abort_unless($companies->contains('id', (int) $data['payer_company_id']), 422, 'Paying company must be active.');
 
+                $scope = $data['allocation_scope'] ?? 'all';
                 $expense = SharedExpense::create([
                     ...collect($data)->only(['expense_date', 'payer_company_id', 'purchaser_name', 'description', 'amount', 'notes'])->all(),
+                    'allocation_scope' => $scope,
                     'receipt_path' => $receiptPath,
                     'entry_type' => 'expense',
                     'status' => 'active',
                     'created_by' => $actor->id,
                     'updated_by' => $actor->id,
                 ]);
-                $this->replaceAllocations($expense, (float) $data['amount'], $companies->map(fn (Company $company) => [
-                    'company_id' => $company->id,
-                    'percentage' => (float) $company->expense_percentage,
-                ]));
+                $percentages = $this->resolveExpensePercentages($data, $companies);
+                $this->replaceAllocations($expense, (float) $data['amount'], $percentages, $data['payers'] ?? []);
                 $this->activity->log($actor, $expense->payer_company_id, 'created', 'shared_expense', $expense->id, "Shared expense {$expense->description} created", ['amount' => (float) $expense->amount]);
 
                 return $expense->load(['payerCompany:id,name', 'allocations.company:id,name', 'creator:id,name']);
@@ -159,7 +159,9 @@ class SharedExpenseService
                 $this->assertEditable($expense);
                 abort_unless(Company::whereKey($data['payer_company_id'])->where('active', true)->exists(), 422, 'Paying company must be active.');
 
+                $scope = $data['allocation_scope'] ?? $expense->allocation_scope ?? 'all';
                 $expense->fill(collect($data)->only(['expense_date', 'payer_company_id', 'purchaser_name', 'description', 'amount', 'notes'])->all());
+                $expense->allocation_scope = $scope;
                 if ($newReceiptPath) {
                     $expense->receipt_path = $newReceiptPath;
                 } elseif (! empty($data['remove_receipt'])) {
@@ -167,11 +169,15 @@ class SharedExpenseService
                 }
                 $expense->updated_by = $actor->id;
                 $expense->save();
-                $percentages = $expense->allocations->map(fn (SharedExpenseAllocation $allocation) => [
-                    'company_id' => $allocation->company_id,
-                    'percentage' => (float) $allocation->percentage,
-                ]);
-                $this->replaceAllocations($expense, (float) $expense->amount, $percentages);
+
+                $companies = Company::where('active', true)->orderBy('id')->get();
+                $percentages = ! empty($data['beneficiary_company_ids']) || ! empty($data['allocation_scope'])
+                    ? $this->resolveExpensePercentages($data, $companies)
+                    : $expense->allocations->map(fn (SharedExpenseAllocation $allocation) => [
+                        'company_id' => $allocation->company_id,
+                        'percentage' => (float) $allocation->percentage,
+                    ]);
+                $this->replaceAllocations($expense, (float) $expense->amount, $percentages, $data['payers'] ?? []);
                 $this->activity->log($actor, $expense->payer_company_id, 'updated', 'shared_expense', $expense->id, "Shared expense {$expense->description} updated", ['amount' => (float) $expense->amount]);
 
                 return $expense->fresh()->load(['payerCompany:id,name', 'allocations.company:id,name', 'creator:id,name']);
@@ -268,7 +274,7 @@ class SharedExpenseService
         });
     }
 
-    public function dashboard(User $user, Carbon $from, Carbon $to): array
+    public function dashboard(User $user, Carbon $from, Carbon $to, ?int $selectedCompanyId = null): array
     {
         $allExpenses = SharedExpense::with(['payerCompany:id,name', 'allocations.company:id,name', 'creator:id,name'])
             ->whereDate('expense_date', '<=', today())
@@ -283,14 +289,14 @@ class SharedExpenseService
             ->get();
         $allPairs = collect($this->pairBalances($expenses, $settlements));
         $pairs = $allPairs;
-        $companyId = $user->role === 'super_admin' ? null : (int) $user->company_id;
+        $companyId = $user->role === 'super_admin' ? ($selectedCompanyId ?: null) : (int) $user->company_id;
         if ($companyId) {
             $pairs = $pairs->filter(fn (array $pair) => in_array($companyId, $pair['company_ids'], true))->values();
         }
 
         $settlementStatuses = $this->settlementStatuses($expenses, $settlements);
         $visibleExpenses = $allExpenses->filter(fn (SharedExpense $expense) => $expense->expense_date->betweenIncluded($from, $to))
-            ->filter(fn (SharedExpense $expense) => ! $companyId || $expense->payer_company_id === $companyId || $expense->allocations->contains(fn ($allocation) => $allocation->company_id === $companyId && abs((float) $allocation->share_amount) > 0.0001));
+            ->filter(fn (SharedExpense $expense) => ! $companyId || $expense->payer_company_id === $companyId || $expense->allocations->contains(fn ($allocation) => $allocation->company_id === $companyId && (abs((float) $allocation->share_amount) > 0.0001 || (float) ($allocation->amount_paid ?? 0) > 0.0001)));
         $visibleSettlements = $settlements->filter(fn (ExpenseSettlement $settlement) => $settlement->settled_on->betweenIncluded($from, $to))
             ->filter(fn (ExpenseSettlement $settlement) => ! $companyId || in_array($companyId, [$settlement->from_company_id, $settlement->to_company_id], true));
         $entries = $visibleExpenses->map(fn (SharedExpense $expense) => $this->expensePayload($expense, $user))
@@ -306,6 +312,7 @@ class SharedExpenseService
             'entries' => $entries->all(),
             'from' => $from->toDateString(),
             'to' => $to->toDateString(),
+            'selected_company_id' => $companyId,
             'can_manage' => $user->role === 'super_admin',
         ];
     }
@@ -320,12 +327,89 @@ class SharedExpenseService
             || $expense->allocations()->where('company_id', $user->company_id)->where('share_amount', '!=', 0)->exists());
     }
 
-    private function replaceAllocations(SharedExpense $expense, float $amount, Collection $percentages): void
+    private function replaceAllocations(SharedExpense $expense, float $amount, Collection $percentages, array $payers = []): void
     {
         $expense->allocations()->delete();
-        foreach ($this->allocate($amount, $percentages) as $row) {
-            SharedExpenseAllocation::create(['shared_expense_id' => $expense->id] + $row);
+        $payerMap = collect($payers)->pluck('amount_paid', 'company_id')->all();
+        $allocated = $this->allocate($amount, $percentages);
+
+        foreach ($allocated as $row) {
+            $companyId = (int) $row['company_id'];
+            $amountPaid = 0.0;
+            if (! empty($payerMap)) {
+                $amountPaid = (float) ($payerMap[$companyId] ?? 0);
+            } else {
+                $amountPaid = $companyId === (int) $expense->payer_company_id ? $amount : 0.0;
+            }
+
+            SharedExpenseAllocation::create([
+                'shared_expense_id' => $expense->id,
+                'company_id' => $companyId,
+                'percentage' => $row['percentage'],
+                'share_amount' => $row['share_amount'],
+                'amount_paid' => $amountPaid,
+            ]);
         }
+
+        // If paying company was not among allocated beneficiaries, create record for its payment
+        if (! empty($payerMap)) {
+            foreach ($payerMap as $cid => $paid) {
+                if ((float) $paid > 0 && ! collect($allocated)->contains('company_id', (int) $cid)) {
+                    SharedExpenseAllocation::create([
+                        'shared_expense_id' => $expense->id,
+                        'company_id' => (int) $cid,
+                        'percentage' => 0,
+                        'share_amount' => 0,
+                        'amount_paid' => (float) $paid,
+                    ]);
+                }
+            }
+        } elseif ((int) $expense->payer_company_id && ! collect($allocated)->contains('company_id', (int) $expense->payer_company_id)) {
+            SharedExpenseAllocation::create([
+                'shared_expense_id' => $expense->id,
+                'company_id' => (int) $expense->payer_company_id,
+                'percentage' => 0,
+                'share_amount' => 0,
+                'amount_paid' => $amount,
+            ]);
+        }
+    }
+
+    private function resolveExpensePercentages(array $data, Collection $companies): Collection
+    {
+        $scope = $data['allocation_scope'] ?? 'all';
+        $beneficiaryIds = collect($data['beneficiary_company_ids'] ?? [])->map(fn ($id) => (int) $id)->filter();
+
+        if ($scope === 'single' && $beneficiaryIds->isNotEmpty()) {
+            return collect([[
+                'company_id' => $beneficiaryIds->first(),
+                'percentage' => 100.0,
+            ]]);
+        }
+
+        if ($scope === 'two' && $beneficiaryIds->count() >= 2) {
+            $selected = $companies->whereIn('id', $beneficiaryIds->take(2)->all());
+            $sumMaster = (float) $selected->sum('expense_percentage');
+            if ($sumMaster > 0) {
+                $pct1 = round(((float) $selected->first()->expense_percentage / $sumMaster) * 100, 2);
+                $pct2 = round(100 - $pct1, 2);
+
+                return collect([
+                    ['company_id' => $selected->first()->id, 'percentage' => $pct1],
+                    ['company_id' => $selected->last()->id, 'percentage' => $pct2],
+                ]);
+            }
+
+            return collect([
+                ['company_id' => $selected->first()->id, 'percentage' => 50.0],
+                ['company_id' => $selected->last()->id, 'percentage' => 50.0],
+            ]);
+        }
+
+        return $companies->map(fn (Company $company) => [
+            'company_id' => $company->id,
+            'percentage' => (float) $company->expense_percentage,
+        ]);
     }
 
     private function allocate(float $amount, Collection $percentages): array
@@ -455,6 +539,7 @@ class SharedExpenseService
             'type' => $expense->entry_type,
             'id' => $expense->id,
             'date' => $expense->expense_date->toDateString(),
+            'allocation_scope' => $expense->allocation_scope,
             'payer_company' => $expense->payerCompany,
             'purchaser_name' => $expense->purchaser_name,
             'description' => $expense->description,
@@ -469,8 +554,15 @@ class SharedExpenseService
                 'company' => $allocation->company,
                 'percentage' => (float) $allocation->percentage,
                 'amount' => (float) $allocation->share_amount,
-                'is_payer' => $allocation->company_id === $expense->payer_company_id,
+                'amount_paid' => (float) ($allocation->amount_paid ?? 0),
+                'net_effect' => (float) (($allocation->amount_paid ?? 0) - (float) $allocation->share_amount),
+                'is_payer' => (float) ($allocation->amount_paid ?? 0) > 0 || $allocation->company_id === $expense->payer_company_id,
             ])->values(),
+            'payers' => $expense->allocations->where('amount_paid', '>', 0)->map(fn (SharedExpenseAllocation $allocation) => [
+                'company_id' => $allocation->company_id,
+                'company_name' => $allocation->company?->name,
+                'amount_paid' => (float) $allocation->amount_paid,
+            ])->values()->all(),
             'created_by' => $expense->creator,
         ];
     }

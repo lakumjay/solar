@@ -27,6 +27,12 @@ class SaveSharedExpenseRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:5000'],
             'receipt' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
             'remove_receipt' => ['nullable', 'boolean'],
+            'allocation_scope' => ['nullable', 'string', 'in:all,two,single'],
+            'beneficiary_company_ids' => ['nullable', 'array'],
+            'beneficiary_company_ids.*' => ['integer', Rule::exists('companies', 'id')->where('active', true)],
+            'payers' => ['nullable', 'array'],
+            'payers.*.company_id' => ['required_with:payers', 'integer', Rule::exists('companies', 'id')->where('active', true)],
+            'payers.*.amount_paid' => ['required_with:payers', 'numeric', 'min:0'],
         ];
     }
 }

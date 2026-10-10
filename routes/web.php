@@ -140,6 +140,7 @@ Route::prefix('api')->group(function () {
         Route::get('stock/people', [StockBorrowingController::class, 'people']);
         Route::get('expenses', [SharedExpenseController::class, 'index']);
         Route::get('expenses/export/excel', [SharedExpenseController::class, 'excel']);
+        Route::get('expenses/export/pdf', [SharedExpenseController::class, 'pdf']);
         Route::post('expense-percentages', [SharedExpenseController::class, 'percentages']);
         Route::post('expenses', [SharedExpenseController::class, 'store']);
         Route::post('expenses/{expense}', [SharedExpenseController::class, 'update']);

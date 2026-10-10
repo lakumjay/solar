@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Http\Requests\SaveExpensePercentagesRequest;
 use App\Http\Requests\SaveExpenseSettlementRequest;
 use App\Http\Requests\SaveSharedExpenseRequest;
+use App\Models\Company;
 use App\Models\SharedExpense;
 use App\Services\ExpenseExcelExporter;
 use App\Services\SharedExpenseService;
 use App\Services\SolarAccessService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -36,6 +38,28 @@ class SharedExpenseController extends Controller
             $this->excel->create($report, $user),
             "expenses-{$scope}-{$report['from']}-{$report['to']}.xlsx",
         )->deleteFileAfterSend(true);
+    }
+
+    public function pdf(Request $request)
+    {
+        $report = $this->report($request);
+        $user = $request->user();
+        $selectedCompany = null;
+        if ($request->filled('company_id')) {
+            $selectedCompany = Company::find($request->input('company_id'));
+        } elseif ($user->role !== 'super_admin') {
+            $selectedCompany = $user->company;
+        }
+
+        $scope = $selectedCompany ? str($selectedCompany->name)->slug() : 'all-companies';
+
+        return Pdf::loadView('reports.expenses', [
+            'report' => $report,
+            'user' => $user,
+            'selectedCompany' => $selectedCompany,
+        ])
+            ->setPaper('a4', 'portrait')
+            ->download("expenses-{$scope}-{$report['from']}-{$report['to']}.pdf");
     }
 
     public function percentages(SaveExpensePercentagesRequest $request): array
@@ -87,10 +111,12 @@ class SharedExpenseController extends Controller
         $validated = $request->validate([
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
+            'company_id' => ['nullable', 'integer'],
         ]);
         $from = isset($validated['date_from']) ? Carbon::parse($validated['date_from'])->startOfDay() : now()->startOfMonth();
         $to = isset($validated['date_to']) ? Carbon::parse($validated['date_to'])->endOfDay() : today()->endOfDay();
+        $companyId = ! empty($validated['company_id']) ? (int) $validated['company_id'] : null;
 
-        return $this->expenses->dashboard($request->user(), $from, $to);
+        return $this->expenses->dashboard($request->user(), $from, $to, $companyId);
     }
 }

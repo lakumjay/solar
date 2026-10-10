@@ -16,6 +16,9 @@ export default function ExpensesPage({currentUser}) {
     }, []);
     const [from, setFrom] = useState(monthStart());
     const [to, setTo] = useState(today());
+    const [selectedCompany, setSelectedCompany] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const PAGE_SIZE = 10;
     const [data, setData] = useState(null);
     const [expenseForm, setExpenseForm] = useState(null);
     const [settlement, setSettlement] = useState(null);
@@ -26,14 +29,16 @@ export default function ExpensesPage({currentUser}) {
 
     const load = async () => {
         try {
-            setData(await api(`expenses?date_from=${from}&date_to=${to}`));
+            const compParam = selectedCompany ? `&company_id=${selectedCompany}` : '';
+            setData(await api(`expenses?date_from=${from}&date_to=${to}${compParam}`));
             setError('');
+            setCurrentPage(1);
         } catch (failure) {
             setError(failure.message);
         }
     };
 
-    useEffect(() => { load(); }, []);
+    useEffect(() => { load(); }, [selectedCompany]);
 
     const completed = async success => {
         setExpenseForm(null);
@@ -52,14 +57,43 @@ export default function ExpensesPage({currentUser}) {
         }
     };
 
+    const displayBalances = useMemo(() => {
+        if (!data?.balances) return [];
+        if (!selectedCompany) return data.balances;
+        const cid = Number(selectedCompany);
+        return data.balances.filter(p => p.company_ids?.includes(cid));
+    }, [data?.balances, selectedCompany]);
+
+    const allEntries = useMemo(() => {
+        const list = data?.entries || [];
+        if (!selectedCompany) return list;
+        const cid = Number(selectedCompany);
+        return list.filter(entry => {
+            if (entry.type === 'settlement') {
+                return Number(entry.from_company?.id) === cid || Number(entry.to_company?.id) === cid;
+            }
+            return Number(entry.payer_company?.id) === cid ||
+                (entry.payers || []).some(p => Number(p.company_id) === cid) ||
+                (entry.allocations || []).some(a => Number(a.company?.id) === cid && (Number(a.percentage) > 0 || Number(a.amount) > 0 || Number(a.amount_paid) > 0));
+        });
+    }, [data?.entries, selectedCompany]);
+
+    const totalPages = Math.max(1, Math.ceil(allEntries.length / PAGE_SIZE));
+    const safePage = Math.min(Math.max(1, currentPage), totalPages);
+
+    const paginatedEntries = useMemo(() => {
+        const start = (safePage - 1) * PAGE_SIZE;
+        return allEntries.slice(start, start + PAGE_SIZE);
+    }, [allEntries, safePage]);
+
     const groupedEntries = useMemo(() => {
         return Object.entries(
-            (data?.entries || []).reduce((groups, entry) => ({
+            paginatedEntries.reduce((groups, entry) => ({
                 ...groups,
                 [entry.date]: [...(groups[entry.date] || []), entry],
             }), {})
         );
-    }, [data]);
+    }, [paginatedEntries]);
 
     if (!data && !error) return <Loading/>;
     if (!data) return <Empty title="Could not load expenses" detail={error}/>;
@@ -242,12 +276,41 @@ export default function ExpensesPage({currentUser}) {
                         <span>To</span>
                         <input type="date" max={today()} value={to} onChange={event => setTo(event.target.value)}/>
                     </label>
+                    <label>
+                        <span>{currentLang === 'en' ? 'Company' : 'કંપની'}</span>
+                        <select
+                            value={selectedCompany}
+                            onChange={event => {
+                                setSelectedCompany(event.target.value);
+                                setCurrentPage(1);
+                            }}
+                            style={{
+                                border: '1px solid #cfddd3',
+                                borderRadius: '9px',
+                                padding: '10px 12px',
+                                color: '#17352b',
+                                background: '#fff',
+                                fontWeight: '600',
+                                minWidth: '150px',
+                                fontSize: '13px'
+                            }}
+                        >
+                            <option value="">{currentLang === 'en' ? 'All Companies' : 'બધી કંપનીઓ (All)'}</option>
+                            {(data.settings.companies || []).map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
+                    </label>
                     <button className="secondary" onClick={load}>Apply</button>
                 </div>
                 <div className="expense-toolbar-actions">
-                    <a className="secondary" href={`/api/expenses/export/excel?date_from=${from}&date_to=${to}`}>
+                    <a className="secondary" href={`/api/expenses/export/excel?date_from=${from}&date_to=${to}${selectedCompany ? `&company_id=${selectedCompany}` : ''}`}>
                         <FileSpreadsheet size={16}/>
-                        {currentUser.role === 'super_admin' ? 'Export all expenses' : 'Export my expenses'}
+                        {currentUser.role === 'super_admin' ? (selectedCompany ? 'Export company excel' : 'Export all expenses') : 'Export my expenses'}
+                    </a>
+                    <a className="secondary" href={`/api/expenses/export/pdf?date_from=${from}&date_to=${to}${selectedCompany ? `&company_id=${selectedCompany}` : ''}`} target="_blank" rel="noreferrer">
+                        <FileText size={16}/>
+                        {currentLang === 'en' ? 'PDF Report' : 'પીડીએફ રિપોર્ટ'}
                     </a>
                     {data.can_manage && (
                         <button className="primary" disabled={!data.settings.configured} onClick={() => setExpenseForm({})}>
@@ -265,7 +328,7 @@ export default function ExpensesPage({currentUser}) {
                         <p>Purchases and multi-payer splits are netted automatically. Partial settlements reduce the open balance.</p>
                     </div>
                 </div>
-                {data.balances.length ? (
+                {displayBalances.length ? (
                     <div className="table-wrap">
                         <table>
                             <thead>
@@ -278,7 +341,7 @@ export default function ExpensesPage({currentUser}) {
                                 </tr>
                             </thead>
                             <tbody>
-                                {data.balances.map(pair => (
+                                {displayBalances.map(pair => (
                                     <tr key={pair.key}>
                                         <td className="strong">{pair.first_company.name} ↔ {pair.second_company.name}</td>
                                         <td>
@@ -351,55 +414,94 @@ export default function ExpensesPage({currentUser}) {
                         </button>
                     </div>
                     {groupedEntries.length ? (
-                        <div className="expense-ledger">
-                            {groupedEntries.map(([date, entries]) => (
-                                <div className="expense-day" key={date}>
-                                    <h3>{shortDate(date)}</h3>
-                                    {ledgerViewMode === 'cards' ? (
-                                        <div className="expense-cards-grid">
-                                            {entries.map(entry => (
-                                                <ExpenseCard
-                                                    entry={entry}
-                                                    canManage={data.can_manage}
-                                                    currentLang={currentLang}
-                                                    onEdit={() => setExpenseForm(entry)}
-                                                    onCancel={() => action(entry, 'cancel')}
-                                                    onReverse={() => action(entry, 'reverse')}
-                                                    key={`${entry.type}-${entry.id}`}
-                                                />
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="table-wrap">
-                                            <table>
-                                                <thead>
-                                                    <tr>
-                                                        <th>Entry & Scope</th>
-                                                        <th>Company split & Payer(s)</th>
-                                                        <th>Amount</th>
-                                                        <th>Status</th>
-                                                        <th/>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {entries.map(entry => (
-                                                        <LedgerRow
-                                                            entry={entry}
-                                                            canManage={data.can_manage}
-                                                            currentLang={currentLang}
-                                                            onEdit={() => setExpenseForm(entry)}
-                                                            onCancel={() => action(entry, 'cancel')}
-                                                            onReverse={() => action(entry, 'reverse')}
-                                                            key={`${entry.type}-${entry.id}`}
-                                                        />
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    )}
+                        <>
+                            <div className="expense-ledger">
+                                {groupedEntries.map(([date, entries]) => (
+                                    <div className="expense-day" key={date}>
+                                        <h3>{shortDate(date)}</h3>
+                                        {ledgerViewMode === 'cards' ? (
+                                            <div className="expense-cards-grid">
+                                                {entries.map(entry => (
+                                                    <ExpenseCard
+                                                        entry={entry}
+                                                        canManage={data.can_manage}
+                                                        currentLang={currentLang}
+                                                        onEdit={() => setExpenseForm(entry)}
+                                                        onCancel={() => action(entry, 'cancel')}
+                                                        onReverse={() => action(entry, 'reverse')}
+                                                        key={`${entry.type}-${entry.id}`}
+                                                    />
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="table-wrap">
+                                                <table>
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Entry & Scope</th>
+                                                            <th>Company split & Payer(s)</th>
+                                                            <th>Amount</th>
+                                                            <th>Status</th>
+                                                            <th/>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {entries.map(entry => (
+                                                            <LedgerRow
+                                                                entry={entry}
+                                                                canManage={data.can_manage}
+                                                                currentLang={currentLang}
+                                                                onEdit={() => setExpenseForm(entry)}
+                                                                onCancel={() => action(entry, 'cancel')}
+                                                                onReverse={() => action(entry, 'reverse')}
+                                                                key={`${entry.type}-${entry.id}`}
+                                                            />
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            {totalPages > 1 && (
+                                <div className="expense-pagination-bar">
+                                    <div className="pagination-info">
+                                        {currentLang === 'en'
+                                            ? `Showing ${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, allEntries.length)} of ${allEntries.length} entries`
+                                            : `${allEntries.length} માંથી ${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, allEntries.length)} એન્ટ્રી`}
+                                    </div>
+                                    <div className="pagination-pages">
+                                        <button
+                                            type="button"
+                                            className="pagination-nav-btn"
+                                            disabled={safePage <= 1}
+                                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        >
+                                            ‹ Prev
+                                        </button>
+                                        {Array.from({length: totalPages}, (_, i) => i + 1).map(pageNum => (
+                                            <button
+                                                key={pageNum}
+                                                type="button"
+                                                className={`pagination-tab-btn ${safePage === pageNum ? 'active' : ''}`}
+                                                onClick={() => setCurrentPage(pageNum)}
+                                            >
+                                                {pageNum}
+                                            </button>
+                                        ))}
+                                        <button
+                                            type="button"
+                                            className="pagination-nav-btn"
+                                            disabled={safePage >= totalPages}
+                                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        >
+                                            Next ›
+                                        </button>
+                                    </div>
                                 </div>
-                            ))}
-                        </div>
+                            )}
+                        </>
                     ) : (
                         <Empty title="No expense entries" detail="No expenses or settlements were recorded in this date range."/>
                     )}
@@ -548,7 +650,7 @@ function ExpenseCard({entry, canManage, onEdit, onCancel, onReverse, currentLang
             )}
 
             <div className="eec-allocations-grid">
-                {entry.allocations?.map(row => {
+                {(entry.allocations || []).filter(row => Number(row.percentage) > 0 || Number(row.amount) > 0 || Number(row.amount_paid) > 0).map(row => {
                     const net = row.net_effect ?? ((row.amount_paid || 0) - row.amount);
                     const netText = net > 0.001
                         ? (currentLang === 'en' ? `+₹${number(net)} Rec` : `+₹${number(net)} લેવાના`)
@@ -645,7 +747,7 @@ function LedgerRow({entry, canManage, onEdit, onCancel, onReverse, currentLang =
                         </div>
                     )}
                     {/* Allocations breakdown */}
-                    {entry.allocations?.map(row => {
+                    {(entry.allocations || []).filter(row => Number(row.percentage) > 0 || Number(row.amount) > 0 || Number(row.amount_paid) > 0).map(row => {
                         const net = row.net_effect ?? ((row.amount_paid || 0) - row.amount);
                         const netText = net > 0.001
                             ? (currentLang === 'en' ? `(+₹${number(net)} Receivable)` : `(+₹${number(net)} લેવાના)`)
@@ -801,10 +903,10 @@ function ExpenseForm({entry, settings, onClose, onSaved, currentLang = getLangua
             }));
         }
         if (allocationScope === 'two') {
-            const activeSel = companies.filter(c => selectedBeneficiaries.includes(c.id));
+            const activeSel = companies.filter(c => selectedBeneficiaries.slice(0, 2).includes(c.id));
             const sumMaster = activeSel.reduce((s, c) => s + (Number(c.percentage) || 0), 0);
             return companies.map(c => {
-                if (!selectedBeneficiaries.includes(c.id)) return {id: c.id, name: c.name, percentage: 0, shareAmount: 0};
+                if (!activeSel.some(a => a.id === c.id)) return {id: c.id, name: c.name, percentage: 0, shareAmount: 0};
                 const pct = sumMaster > 0 ? ((Number(c.percentage) || 0) / sumMaster) * 100 : 50;
                 return {id: c.id, name: c.name, percentage: Number(pct.toFixed(2)), shareAmount: Number((parsedAmount * (pct / 100)).toFixed(2))};
             });
@@ -864,7 +966,7 @@ function ExpenseForm({entry, settings, onClose, onSaved, currentLang = getLangua
         if (allocationScope === 'single') {
             payload.append('beneficiary_company_ids[]', singleBeneficiaryId);
         } else if (allocationScope === 'two') {
-            selectedBeneficiaries.forEach(id => payload.append('beneficiary_company_ids[]', String(id)));
+            selectedBeneficiaries.slice(0, 2).forEach(id => payload.append('beneficiary_company_ids[]', String(id)));
         } else {
             companies.forEach(c => payload.append('beneficiary_company_ids[]', String(c.id)));
         }
@@ -989,7 +1091,10 @@ function ExpenseForm({entry, settings, onClose, onSaved, currentLang = getLangua
                                     <span>{currentLang === 'en' ? 'All 3 Companies (Master %)' : 'ત્રણેય કંપનીઓ (All 3 Master %)'}</span>
                                 </label>
                                 <label className={`scope-pill-btn ${allocationScope === 'two' ? 'active' : ''}`}>
-                                    <input type="radio" name="alloc_scope" checked={allocationScope === 'two'} onChange={() => setAllocationScope('two')}/>
+                                    <input type="radio" name="alloc_scope" checked={allocationScope === 'two'} onChange={() => {
+                                        setAllocationScope('two');
+                                        setSelectedBeneficiaries(prev => (prev.length === 2 ? prev : companies.slice(0, 2).map(c => c.id)));
+                                    }}/>
                                     <span>{currentLang === 'en' ? '2 Companies' : '૨ કંપનીઓ (2 Companies)'}</span>
                                 </label>
                                 <label className={`scope-pill-btn ${allocationScope === 'single' ? 'active' : ''}`}>
@@ -1134,7 +1239,7 @@ function ExpenseForm({entry, settings, onClose, onSaved, currentLang = getLangua
                                 <span style={{fontSize: '12px', fontWeight: 700, color: '#64748b'}}>{currentLang === 'en' ? '📊 Company-wise Share:' : '📊 Company-wise હિસ્સો:'}</span>
                             </div>
                             <div className="preview-alloc-cards-list">
-                                {previewAllocations.map(row => {
+                                {previewAllocations.filter(row => row.shareAmount > 0 || (previewPaidMap[row.id] || 0) > 0).map(row => {
                                     const paid = previewPaidMap[row.id] || 0;
                                     const share = row.shareAmount || 0;
                                     const net = Number((paid - share).toFixed(2));
@@ -1185,7 +1290,7 @@ function ExpenseForm({entry, settings, onClose, onSaved, currentLang = getLangua
                         <button
                             type="button"
                             className="primary expense-submit-btn"
-                            disabled={step === 1 && !step1Valid}
+                            disabled={(step === 1 && !step1Valid) || (step === 2 && allocationScope === 'two' && selectedBeneficiaries.length !== 2) || (step === 3 && payerMode === 'multiple' && !isPaidValid)}
                             onClick={() => setStep(s => s + 1)}
                         >
                             Next →
