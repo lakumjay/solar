@@ -41,7 +41,11 @@ class StockService
     public function saveItem(array $data, ?UploadedFile $image, User $actor): array
     {
         $itemId = $data['id'] ?? null;
-        $newImagePath = $image?->store('stock-items');
+        $newImagePath = null;
+        if ($image) {
+            $newImagePath = $image->store('stock-items');
+            $this->compressStoredImage($newImagePath);
+        }
         $oldImagePath = null;
 
         try {
@@ -209,5 +213,49 @@ class StockService
             'is_low_stock' => $item->active && $available <= (float) $item->low_stock_threshold,
             'movements' => $movements,
         ];
+    }
+
+    private function compressStoredImage(string $relativePath): void
+    {
+        $fullPath = Storage::path($relativePath);
+        if (! file_exists($fullPath)) {
+            return;
+        }
+
+        $info = @getimagesize($fullPath);
+        if (! $info) {
+            return;
+        }
+
+        $mime = $info['mime'];
+        $src = match ($mime) {
+            'image/jpeg' => @imagecreatefromjpeg($fullPath),
+            'image/png' => @imagecreatefrompng($fullPath),
+            'image/webp' => @imagecreatefromwebp($fullPath),
+            default => null,
+        };
+
+        if (! $src) {
+            return;
+        }
+
+        $w = imagesx($src);
+        $h = imagesy($src);
+        $maxDim = 850;
+
+        if ($w > $maxDim || $h > $maxDim) {
+            $ratio = min($maxDim / $w, $maxDim / $h);
+            $nw = (int) round($w * $ratio);
+            $nh = (int) round($h * $ratio);
+        } else {
+            $nw = $w;
+            $nh = $h;
+        }
+
+        $dst = imagecreatetruecolor($nw, $nh);
+        imagecopyresampled($dst, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+        imagejpeg($dst, $fullPath, 78);
+        imagedestroy($src);
+        imagedestroy($dst);
     }
 }

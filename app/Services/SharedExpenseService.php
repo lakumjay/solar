@@ -304,6 +304,9 @@ class SharedExpenseService
             ->sortByDesc(fn (array $entry) => $entry['date'].' '.str_pad((string) $entry['id'], 12, '0', STR_PAD_LEFT))
             ->values();
 
+        $minExpenseDate = $allExpenses->where('status', '!=', 'cancelled')->min('expense_date')?->toDateString() ?? '2026-08-01';
+        $maxExpenseDate = $allExpenses->where('status', '!=', 'cancelled')->max('expense_date')?->toDateString() ?? today()->toDateString();
+
         return [
             'settings' => $this->settings(),
             'summary' => $this->summary($pairs, $companyId, $entries),
@@ -312,6 +315,8 @@ class SharedExpenseService
             'entries' => $entries->all(),
             'from' => $from->toDateString(),
             'to' => $to->toDateString(),
+            'min_date' => $minExpenseDate,
+            'max_date' => $maxExpenseDate,
             'selected_company_id' => $companyId,
             'can_manage' => $user->role === 'super_admin',
         ];

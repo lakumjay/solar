@@ -9195,4 +9195,397 @@ input[type="number"] {
     }
 }
 
+/* Modern Calendar Toolbar Styling */
+.expense-toolbar-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+}
+
+.calendar-preset-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.calendar-preset-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    font-weight: 750;
+    color: #475569;
+    margin-right: 4px;
+}
+
+.cal-preset-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.cal-preset-pill:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+}
+
+.cal-preset-pill.active {
+    background: #f0fdf4;
+    border-color: #86efac;
+    color: #166534;
+    font-weight: 700;
+}
+
+.expense-toolbar-main {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.date-input-group {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.custom-date-box {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.date-box-lbl {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.date-field-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.date-field-wrap .date-icon {
+    position: absolute;
+    left: 10px;
+    color: #0f766e;
+    pointer-events: none;
+}
+
+.modern-date-input {
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 9px !important;
+    padding: 8px 10px 8px 30px !important;
+    color: #0f172a !important;
+    background: #ffffff !important;
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    outline: none !important;
+    transition: border-color 0.15s ease !important;
+}
+
+.modern-date-input:focus {
+    border-color: #0f766e !important;
+    box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.15) !important;
+}
+
+.modern-company-select {
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 9px !important;
+    padding: 8px 12px !important;
+    color: #0f172a !important;
+    background: #ffffff !important;
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    min-width: 150px !important;
+    height: 35px !important;
+    cursor: pointer !important;
+}
+
+.apply-filter-btn {
+    height: 35px !important;
+    padding: 0 16px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+}
+
+.export-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    height: 35px !important;
+    padding: 0 12px !important;
+    font-size: 12px !important;
+    text-decoration: none !important;
+}
+
+.pdf-btn {
+    background: #f0fdf4 !important;
+    border-color: #bbf7d0 !important;
+    color: #166534 !important;
+    font-weight: 700 !important;
+}
+
+.add-exp-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    height: 35px !important;
+    padding: 0 14px !important;
+    font-size: 12px !important;
+}
+
+/* Compact Stock Metric Grid (4 columns) */
+.compact-stock-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 9px !important;
+}
+
+.compact-stock-grid .card.metric,
+.compact-stock-grid .metric {
+    padding: 9px 12px !important;
+    border-radius: 11px !important;
+}
+
+.compact-stock-grid .metric strong {
+    font-size: 17px !important;
+}
+
+.compact-stock-grid .metric-head b,
+.compact-stock-grid .metric-head span {
+    font-size: 11px !important;
+}
+
+@media (max-width: 900px) {
+    .compact-stock-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+}
+
+@media (max-width: 600px) {
+    .compact-stock-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 7px !important;
+    }
+    .compact-stock-grid .metric strong {
+        font-size: 14.5px !important;
+    }
+}
+
+/* Stock Items & Borrowings Card View Grid */
+.stock-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.stock-item-card,
+.stock-borrow-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 13px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+    transition: all 0.15s ease;
+}
+
+.stock-item-card:hover,
+.stock-borrow-card:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 3px 8px rgba(15, 23, 42, 0.06);
+}
+
+.sic-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.sic-photo-btn {
+    border: none;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.sic-photo-btn img {
+    width: 52px;
+    height: 52px;
+    border-radius: 10px;
+    object-fit: cover;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+}
+
+.sic-title-wrap {
+    flex: 1;
+    min-width: 0;
+}
+
+.sic-name {
+    display: block;
+    font-size: 13px;
+    font-weight: 750;
+    color: #0f172a;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sic-notes {
+    display: block;
+    font-size: 10.5px;
+    color: #64748b;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sic-price {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #0f766e;
+    margin-top: 3px;
+}
+
+.sic-price small {
+    font-weight: 500;
+    color: #94a3b8;
+    font-size: 10px;
+}
+
+.sic-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: 9px;
+    padding: 8px 10px;
+    text-align: center;
+}
+
+.sic-stat small {
+    display: block;
+    font-size: 9px;
+    text-transform: uppercase;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.sic-stat b {
+    display: block;
+    font-size: 12px;
+    font-weight: 750;
+    color: #0f172a;
+    margin-top: 2px;
+}
+
+.sic-footer,
+.sbc-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid #f1f5f9;
+}
+
+.green-text {
+    color: #166534 !important;
+}
+
+/* Borrow Card Details */
+.sbc-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.sbc-item {
+    display: block;
+    font-size: 13px;
+    font-weight: 750;
+    color: #0f172a;
+}
+
+.sbc-borrower {
+    font-size: 11.5px;
+    color: #334155;
+    margin-top: 2px;
+}
+
+.sbc-borrower small {
+    color: #64748b;
+}
+
+.sbc-stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: 9px;
+    padding: 8px 10px;
+    text-align: center;
+}
+
+.sbc-stat small {
+    display: block;
+    font-size: 9px;
+    text-transform: uppercase;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.sbc-stat b {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 750;
+    color: #0f172a;
+    margin-top: 2px;
+}
+
+.sbc-dates {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 10.5px;
+    color: #64748b;
+}
+
+.sbc-dates b {
+    color: #334155;
+}
+
 

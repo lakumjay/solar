@@ -1,10 +1,11 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {ArrowRight, CheckCircle2, Clock, FileSpreadsheet, FileText, HandCoins, History, IndianRupee, Layers, LayoutGrid, PencilLine, Plus, ReceiptIndianRupee, Scale, Sparkles, Split, Table, X, Zap} from 'lucide-react';
+import {ArrowRight, Calendar, CheckCircle2, Clock, FileSpreadsheet, FileText, HandCoins, History, IndianRupee, Layers, LayoutGrid, PencilLine, Plus, ReceiptIndianRupee, RotateCcw, Scale, Sparkles, Split, Table, X, Zap} from 'lucide-react';
 import {api} from '../api';
 import {Empty, Field, Loading, Metric} from '../components/Common';
 import {monthStart, today} from '../config';
 import {number, indianAmount, shortDate} from '../format';
 import { getLanguage, t } from '../utils/translations';
+import { compressImage } from '../utils/imageCompressor';
 
 export default function ExpensesPage({currentUser}) {
     const [currentLang, setCurrentLang] = useState(getLanguage());
@@ -18,7 +19,7 @@ export default function ExpensesPage({currentUser}) {
     const [to, setTo] = useState(today());
     const [selectedCompany, setSelectedCompany] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const PAGE_SIZE = 10;
+    const PAGE_SIZE = 5;
     const [data, setData] = useState(null);
     const [expenseForm, setExpenseForm] = useState(null);
     const [settlement, setSettlement] = useState(null);
@@ -30,7 +31,11 @@ export default function ExpensesPage({currentUser}) {
     const load = async () => {
         try {
             const compParam = selectedCompany ? `&company_id=${selectedCompany}` : '';
-            setData(await api(`expenses?date_from=${from}&date_to=${to}${compParam}`));
+            const res = await api(`expenses?date_from=${from}&date_to=${to}${compParam}`);
+            setData(res);
+            if (res.min_date && from < res.min_date) {
+                setFrom(res.min_date);
+            }
             setError('');
             setCurrentPage(1);
         } catch (failure) {
@@ -39,6 +44,11 @@ export default function ExpensesPage({currentUser}) {
     };
 
     useEffect(() => { load(); }, [selectedCompany]);
+
+    const setQuickRange = (start, end) => {
+        setFrom(start);
+        setTo(end);
+    };
 
     const completed = async success => {
         setExpenseForm(null);
@@ -265,58 +275,100 @@ export default function ExpensesPage({currentUser}) {
                 </section>
             )}
 
-            {/* Toolbar */}
-            <section className="panel expense-toolbar">
-                <div>
-                    <label>
-                        <span>From</span>
-                        <input type="date" max={today()} value={from} onChange={event => setFrom(event.target.value)}/>
-                    </label>
-                    <label>
-                        <span>To</span>
-                        <input type="date" max={today()} value={to} onChange={event => setTo(event.target.value)}/>
-                    </label>
-                    <label>
-                        <span>{currentLang === 'en' ? 'Company' : 'કંપની'}</span>
-                        <select
-                            value={selectedCompany}
-                            onChange={event => {
-                                setSelectedCompany(event.target.value);
-                                setCurrentPage(1);
-                            }}
-                            style={{
-                                border: '1px solid #cfddd3',
-                                borderRadius: '9px',
-                                padding: '10px 12px',
-                                color: '#17352b',
-                                background: '#fff',
-                                fontWeight: '600',
-                                minWidth: '150px',
-                                fontSize: '13px'
-                            }}
+            {/* Modern Calendar & Filters Toolbar */}
+            <section className="panel expense-toolbar-card">
+                <div className="calendar-preset-bar">
+                    <span className="calendar-preset-label">
+                        <Calendar size={14} style={{color: '#0f766e'}}/>
+                        <span>{currentLang === 'en' ? 'Date Filter' : 'ખર્ચ સમયગાળો'}:</span>
+                    </span>
+                    {data?.min_date && data?.max_date && (
+                        <button
+                            type="button"
+                            className={`cal-preset-pill ${from === data.min_date && to === data.max_date ? 'active' : ''}`}
+                            onClick={() => { setFrom(data.min_date); setTo(data.max_date); }}
                         >
-                            <option value="">{currentLang === 'en' ? 'All Companies' : 'બધી કંપનીઓ (All)'}</option>
-                            {(data.settings.companies || []).map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                        </select>
-                    </label>
-                    <button className="secondary" onClick={load}>Apply</button>
-                </div>
-                <div className="expense-toolbar-actions">
-                    <a className="secondary" href={`/api/expenses/export/excel?date_from=${from}&date_to=${to}${selectedCompany ? `&company_id=${selectedCompany}` : ''}`}>
-                        <FileSpreadsheet size={16}/>
-                        {currentUser.role === 'super_admin' ? (selectedCompany ? 'Export company excel' : 'Export all expenses') : 'Export my expenses'}
-                    </a>
-                    <a className="secondary" href={`/api/expenses/export/pdf?date_from=${from}&date_to=${to}${selectedCompany ? `&company_id=${selectedCompany}` : ''}`} target="_blank" rel="noreferrer">
-                        <FileText size={16}/>
-                        {currentLang === 'en' ? 'PDF Report' : 'પીડીએફ રિપોર્ટ'}
-                    </a>
-                    {data.can_manage && (
-                        <button className="primary" disabled={!data.settings.configured} onClick={() => setExpenseForm({})}>
-                            <Plus size={16}/> Add shared expense
+                            <Sparkles size={12}/> {currentLang === 'en' ? 'Full Expense Period' : 'સંપૂર્ણ ખર્ચ સમય'} ({shortDate(data.min_date)} – {shortDate(data.max_date)})
                         </button>
                     )}
+                    <button
+                        type="button"
+                        className={`cal-preset-pill ${from === monthStart() && to === today() ? 'active' : ''}`}
+                        onClick={() => { setFrom(data?.min_date && monthStart() < data.min_date ? data.min_date : monthStart()); setTo(today()); }}
+                    >
+                        {currentLang === 'en' ? 'This Month' : 'આ મહિને'}
+                    </button>
+                </div>
+
+                <div className="expense-toolbar-main">
+                    <div className="date-input-group">
+                        <div className="custom-date-box">
+                            <span className="date-box-lbl">{currentLang === 'en' ? 'From' : 'ક્યારથી'}</span>
+                            <div className="date-field-wrap">
+                                <Calendar size={14} className="date-icon"/>
+                                <input
+                                    type="date"
+                                    min={data?.min_date || '2026-08-01'}
+                                    max={to || data?.max_date || today()}
+                                    value={from}
+                                    onChange={event => setFrom(event.target.value)}
+                                    className="modern-date-input"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="custom-date-box">
+                            <span className="date-box-lbl">{currentLang === 'en' ? 'To' : 'ક્યાં સુધી'}</span>
+                            <div className="date-field-wrap">
+                                <Calendar size={14} className="date-icon"/>
+                                <input
+                                    type="date"
+                                    min={from || data?.min_date || '2026-08-01'}
+                                    max={data?.max_date || today()}
+                                    value={to}
+                                    onChange={event => setTo(event.target.value)}
+                                    className="modern-date-input"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="custom-date-box company-filter-box">
+                            <span className="date-box-lbl">{currentLang === 'en' ? 'Company' : 'કંપની'}</span>
+                            <select
+                                value={selectedCompany}
+                                onChange={event => {
+                                    setSelectedCompany(event.target.value);
+                                    setCurrentPage(1);
+                                }}
+                                className="modern-company-select"
+                            >
+                                <option value="">{currentLang === 'en' ? 'All Companies' : 'બધી કંપનીઓ (All)'}</option>
+                                {(data.settings.companies || []).map(c => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <button className="primary apply-filter-btn" onClick={load}>
+                            {currentLang === 'en' ? 'Apply' : 'લાગુ કરો'}
+                        </button>
+                    </div>
+
+                    <div className="expense-toolbar-actions">
+                        <a className="secondary export-btn" href={`/api/expenses/export/excel?date_from=${from}&date_to=${to}${selectedCompany ? `&company_id=${selectedCompany}` : ''}`}>
+                            <FileSpreadsheet size={15}/>
+                            <span>Excel</span>
+                        </a>
+                        <a className="secondary export-btn pdf-btn" href={`/api/expenses/export/pdf?date_from=${from}&date_to=${to}${selectedCompany ? `&company_id=${selectedCompany}` : ''}`} target="_blank" rel="noreferrer">
+                            <FileText size={15}/>
+                            <span>{currentLang === 'en' ? 'PDF Report' : 'પીડીએફ'}</span>
+                        </a>
+                        {data.can_manage && (
+                            <button className="primary add-exp-btn" disabled={!data.settings.configured} onClick={() => setExpenseForm({})}>
+                                <Plus size={15}/> <span>Add expense</span>
+                            </button>
+                        )}
+                    </div>
                 </div>
             </section>
 
@@ -1065,7 +1117,15 @@ function ExpenseForm({entry, settings, onClose, onSaved, currentLang = getLangua
                             </Field>
 
                             <Field label={currentLang === 'en' ? 'Receipt Upload' : 'Receipt upload (બિલની રસીદ)'}>
-                                <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={e => setReceipt(e.target.files?.[0] || null)}/>
+                                <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={async e => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                        const compressed = await compressImage(file);
+                                        setReceipt(compressed);
+                                    } else {
+                                        setReceipt(null);
+                                    }
+                                }}/>
                             </Field>
 
                             {entry?.receipt_url && (
