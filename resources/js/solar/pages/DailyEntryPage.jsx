@@ -276,6 +276,23 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
             </div>
         )}
 
+        {message && (
+            <div className={`entry-status-msg ${message.type === 'success' ? 'success' : 'error'}`}>
+                <div style={{display: 'flex', alignItems: 'center', gap: '8px', flex: 1}}>
+                    {message.type === 'success' ? <CheckCircle2 size={18}/> : <AlertCircle size={18}/>}
+                    <span>{message.text}</span>
+                </div>
+                <button
+                    type="button"
+                    onClick={() => setMessage(null)}
+                    className="entry-msg-close"
+                    title="Dismiss"
+                >
+                    ✕
+                </button>
+            </div>
+        )}
+
         <section className="panel entry-step-card">
             <div className="panel-head entry-step-head">
                 <div>
@@ -385,15 +402,15 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
             </div>
         </section>
 
-        {message && (
-            <div className={`entry-status-msg ${message.type === 'success' ? 'success' : 'error'}`}>
-                {message.type === 'success' ? <CheckCircle2 size={18}/> : <AlertCircle size={18}/>}
-                <span>{message.text}</span>
-            </div>
-        )}
-
         <div className="form-actions entry-sticky-actions">
-            <span className="entry-actions-hint">{currentLang === 'en' ? 'Meter readings (if available, enter after 7:00 PM)' : 'મીટર રીડિંગ્સ (જો ઉપલબ્ધ હોય તો નાખો, સાંજે ૭:૦૦ પછી)'}</span>
+            {message ? (
+                <div className={`entry-footer-msg ${message.type === 'success' ? 'success' : 'error'}`}>
+                    {message.type === 'success' ? <CheckCircle2 size={15}/> : <AlertCircle size={15}/>}
+                    <span>{message.text}</span>
+                </div>
+            ) : (
+                <span className="entry-actions-hint">{currentLang === 'en' ? 'Meter readings (if available, enter after 7:00 PM)' : 'મીટર રીડિંગ્સ (જો ઉપલબ્ધ હોય તો નાખો, સાંજે ૭:૦૦ પછી)'}</span>
+            )}
             <button
                 type="submit"
                 className={`btn-morph-save ${busy ? 'saving' : ''} ${saveSuccess ? 'success' : ''}`}
