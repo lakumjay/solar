@@ -101,7 +101,6 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
     const wakeLockRef = useRef(null);
     const heartbeatRef = useRef(null);
     const hasConnectedRef = useRef(false);
-    const preloadedAudioRef = useRef(null);
 
     // Sync states to refs
     useEffect(() => {
@@ -457,7 +456,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
             workletNodeRef.current = workletNode;
 
             workletNode.port.onmessage = (event) => {
-                if (!sessionRef.current || isMutedRef.current || isAiSpeakingRef.current) return;
+                if (!sessionRef.current || isMutedRef.current) return;
                 const base64Audio = arrayBufferToBase64(event.data);
                 sessionRef.current.sendRealtimeInput({
                     audio: {
@@ -474,7 +473,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
             workletNodeRef.current = scriptNode;
 
             scriptNode.onaudioprocess = (e) => {
-                if (!sessionRef.current || isMutedRef.current || isAiSpeakingRef.current) return;
+                if (!sessionRef.current || isMutedRef.current) return;
                 const channelData = e.inputBuffer.getChannelData(0);
                 const pcm16 = new Int16Array(channelData.length);
                 for (let i = 0; i < channelData.length; i++) {
@@ -508,15 +507,6 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                 toneGenRef.current = new ToneGenerator();
             }
             toneGenRef.current.startRingTone();
-        } catch(e) {}
-
-        // 🚀 Preload Welcome Spoken Audio while phone is ringing so it plays instantly (0ms delay) on pickup
-        try {
-            const cleanGreeting = defaultGreeting.replace(/[*#_`]/g, '');
-            const preloadAudio = new Audio(`/api/voice-agent/tts?text=${encodeURIComponent(cleanGreeting)}&language=gu`);
-            preloadAudio.preload = 'auto';
-            preloadAudio.load();
-            preloadedAudioRef.current = preloadAudio;
         } catch(e) {}
 
         try {
@@ -588,12 +578,18 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                         } catch(e) {}
                         setCallState('connected');
                         
-                        // 🎙️ Play preloaded spoken greeting instantly (0ms delay!)
+                        // 🎙️ Trigger natural opening greeting in native Aoede voice
                         try {
-                            if (preloadedAudioRef.current) {
-                                preloadedAudioRef.current.play().catch(e => console.log('Preloaded audio play note:', e));
-                            }
-                        } catch(e) {}
+                            session.sendClientContent({
+                                turns: [{
+                                    role: 'user',
+                                    parts: [{ text: 'કૉલ કનેક્ટ થઈ ગયો છે. નમસ્તે કહીને સ્વાગત કરો અને પૂછો કે આજે સોલાર પ્લાન્ટનું શું કામ છે.' }]
+                                }],
+                                turnComplete: true
+                            });
+                        } catch (e) {
+                            console.warn('Greeting trigger notice:', e);
+                        }
                     },
                     onmessage: (msg) => handleLiveMessage(msg),
                     onerror: (e) => {
@@ -625,13 +621,6 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
 
             setCallState('connected');
             setTranscriptHistory([{ sender: 'ai', text: defaultGreeting }]);
-
-            // Fallback play if not played in onopen
-            try {
-                if (preloadedAudioRef.current && preloadedAudioRef.current.paused) {
-                    preloadedAudioRef.current.play().catch(() => {});
-                }
-            } catch(e) {}
         } catch (err) {
             console.error('Failed to start Live Session:', err);
             try {
