@@ -102,7 +102,7 @@ export function stopCloudAudio() {
     }
 }
 
-export function playCloudAudio(sourceUrlOrBase64, onEnded) {
+export function playCloudAudio(sourceUrlOrBase64, onEnded, onError) {
     stopCloudAudio();
 
     try {
@@ -117,15 +117,24 @@ export function playCloudAudio(sourceUrlOrBase64, onEnded) {
 
         currentPlayingAudio = audio;
 
+        let hasFinished = false;
+
         audio.onended = () => {
             currentPlayingAudio = null;
-            if (onEnded) onEnded();
+            if (!hasFinished) {
+                hasFinished = true;
+                if (onEnded) onEnded();
+            }
         };
 
         audio.onerror = (e) => {
-            console.warn('Cloud audio stream warning:', e);
+            console.warn('Cloud audio stream error:', e);
             currentPlayingAudio = null;
-            if (onEnded) onEnded();
+            if (!hasFinished) {
+                hasFinished = true;
+                if (onError) onError(e);
+                else if (onEnded) onEnded();
+            }
         };
 
         const playPromise = audio.play();
@@ -133,14 +142,20 @@ export function playCloudAudio(sourceUrlOrBase64, onEnded) {
             playPromise.catch(err => {
                 console.warn('Audio play prevented or interrupted:', err);
                 currentPlayingAudio = null;
-                if (onEnded) onEnded();
+                if (!hasFinished) {
+                    hasFinished = true;
+                    if (onError) onError(err);
+                    else if (onEnded) onEnded();
+                }
             });
         }
 
         return audio;
     } catch (err) {
         console.warn('playCloudAudio exception:', err);
-        if (onEnded) onEnded();
+        currentPlayingAudio = null;
+        if (onError) onError(err);
+        else if (onEnded) onEnded();
         return null;
     }
 }

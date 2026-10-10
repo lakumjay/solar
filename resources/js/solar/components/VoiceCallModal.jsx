@@ -7,7 +7,7 @@ import { api } from '../api';
 import { PcmPlayer, CallTonePlayer, playCloudAudio, stopCloudAudio } from '../lib/audio';
 import { getLanguage, t } from '../utils/translations';
 
-// Helper to unlock Web Audio & SpeechSynthesis immediately on user click gesture
+// Helper to unlock Web Audio, HTML5 Audio & SpeechSynthesis immediately on user click gesture
 export function unlockVoiceCallAudio() {
     try {
         if (typeof window !== 'undefined') {
@@ -22,6 +22,12 @@ export function unlockVoiceCallAudio() {
                 const ctx = new AudioCtx();
                 ctx.resume().then(() => ctx.close()).catch(() => {});
             }
+            // Prime HTML5 Audio element on user gesture to bypass mobile autoplay restriction
+            try {
+                const dummyAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
+                dummyAudio.volume = 0.01;
+                dummyAudio.play().then(() => dummyAudio.pause()).catch(() => {});
+            } catch (_) {}
         }
     } catch (_) {}
 }
@@ -161,6 +167,8 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
     const durationTimerRef = useRef(null);
     const recognitionRef = useRef(null);
     const recognitionActiveRef = useRef(false);
+    const silenceTimerRef = useRef(null);
+    const pendingSpeechRef = useRef('');
     const isMutedRef = useRef(isMuted);
     const isConnectedRef = useRef(false);
     const isAiSpeakingRef = useRef(false);
@@ -235,6 +243,19 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
         }
     };
 
+    const commitUserSpeech = (text) => {
+        if (silenceTimerRef.current) {
+            clearTimeout(silenceTimerRef.current);
+            silenceTimerRef.current = null;
+        }
+        const clean = (text || pendingSpeechRef.current || currentUserSpeech || '').trim();
+        if (!clean) return;
+        pendingSpeechRef.current = '';
+        setCurrentUserSpeech('');
+        stopListening();
+        handleUserSpokenMessage(clean);
+    };
+
     const setupVoiceRecognition = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
@@ -275,18 +296,27 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
                     }
                 }
 
-                if (interimTranscript) {
-                    setCurrentUserSpeech(interimTranscript);
+                const spokenText = (finalTranscript || interimTranscript).trim();
+                if (spokenText) {
+                    pendingSpeechRef.current = spokenText;
+                    setCurrentUserSpeech(spokenText);
                     setCallStatus('listening');
-                }
 
-                if (finalTranscript) {
-                    const textToSend = finalTranscript.trim();
-                    if (textToSend) {
-                        setCurrentUserSpeech(textToSend);
-                        stopListening();
-                        handleUserSpokenMessage(textToSend);
+                    // If final result arrived from Web Speech API:
+                    if (finalTranscript.trim()) {
+                        commitUserSpeech(finalTranscript.trim());
+                        return;
                     }
+
+                    // Reset silence debounce timer: if user stops speaking for 1.2s, auto-commit
+                    if (silenceTimerRef.current) {
+                        clearTimeout(silenceTimerRef.current);
+                    }
+                    silenceTimerRef.current = setTimeout(() => {
+                        if (pendingSpeechRef.current && !isAiSpeakingRef.current && isConnectedRef.current) {
+                            commitUserSpeech(pendingSpeechRef.current);
+                        }
+                    }, 1200);
                 }
             };
 
@@ -299,6 +329,15 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
 
             recognition.onend = () => {
                 recognitionActiveRef.current = false;
+                if (silenceTimerRef.current) {
+                    clearTimeout(silenceTimerRef.current);
+                    silenceTimerRef.current = null;
+                }
+                // If user was speaking and speech was pending when recognition ended, immediately commit!
+                if (pendingSpeechRef.current && !isAiSpeakingRef.current && isConnectedRef.current) {
+                    commitUserSpeech(pendingSpeechRef.current);
+                    return;
+                }
                 // Auto resume listening if call is active and AI is not speaking
                 if (isConnectedRef.current && !isAiSpeakingRef.current && !isMutedRef.current) {
                     setTimeout(() => {
@@ -322,6 +361,11 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
         setTranscript([]);
         setCurrentAiSpeech('');
         setCurrentUserSpeech('');
+        if (silenceTimerRef.current) {
+            clearTimeout(silenceTimerRef.current);
+            silenceTimerRef.current = null;
+        }
+        pendingSpeechRef.current = '';
         setShowKeypad(false);
         setShowPrompts(false);
         setShowInfo(false);
@@ -461,7 +505,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
         speakAiResponse(fallbackReply, detectedLang);
     };
 
-    // Aoede Female Voice Persona - Plays Studio Quality Cloud Audio
+    // Aoede Female Voice Persona - Plays Natural Studio Cloud Audio with Infallible Sweet SpeechSynthesis Fallback
     const speakAiResponse = (text, targetLang, rawAudioBase64) => {
         if (!text) return;
         const lang = targetLang || currentCallLangRef.current || 'gu';
@@ -470,7 +514,10 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
         isAiSpeakingRef.current = true;
         stopListening(); // Stop mic while AI speaks so it doesn't hear itself
 
+        let playbackEnded = false;
         const onPlaybackEnd = () => {
+            if (playbackEnded) return;
+            playbackEnded = true;
             isAiSpeakingRef.current = false;
             setCurrentAiSpeech('');
             if (isConnectedRef.current && !isMutedRef.current) {
@@ -496,52 +543,77 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
             }
         }
 
+        // Natural, gentle female local voice synthesizer
+        const speakViaSpeechSynthesis = () => {
+            if (playbackEnded) return;
+
+            if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                try {
+                    window.speechSynthesis.cancel();
+                    window.speechSynthesis.resume();
+                } catch (_) {}
+
+                const utterance = new SpeechSynthesisUtterance(text);
+                window.__solarflow_current_utterance = utterance;
+
+                const voices = window.speechSynthesis.getVoices() || [];
+                const chosenVoice = selectLockedFemaleVoice(voices, lang);
+
+                if (chosenVoice) {
+                    utterance.voice = chosenVoice;
+                    utterance.lang = chosenVoice.lang || (lang === 'gu' ? 'gu-IN' : (lang === 'hi' ? 'hi-IN' : 'en-IN'));
+                } else {
+                    utterance.lang = lang === 'gu' ? 'gu-IN' : (lang === 'hi' ? 'hi-IN' : 'en-IN');
+                }
+
+                // NATURAL, SWEET FEMALE TONE (NOT ROBOTIC 1.30 PITCH)
+                utterance.pitch = 1.02; // Pleasant, gentle female tone
+                utterance.rate = 0.98;  // Natural conversational speed
+                utterance.volume = 1.0;
+
+                utterance.onend = onPlaybackEnd;
+                utterance.onerror = (e) => {
+                    console.warn('Speech synthesis error:', e);
+                    onPlaybackEnd();
+                };
+
+                // Watchdog timer: if browser speech synthesis gets stuck, auto recover
+                const maxDurationMs = Math.max(3000, (text.length / 12) * 1000 + 1500);
+                setTimeout(() => {
+                    if (isAiSpeakingRef.current && !playbackEnded) {
+                        onPlaybackEnd();
+                    }
+                }, maxDurationMs + 3000);
+
+                try {
+                    window.speechSynthesis.speak(utterance);
+                } catch (err) {
+                    console.warn('speechSynthesis.speak failed:', err);
+                    onPlaybackEnd();
+                }
+            } else {
+                setTimeout(onPlaybackEnd, 1800);
+            }
+        };
+
         // 2. Play pure natural Studio Cloud AI Female Voice from /api/voice-agent/tts
         try {
             const ttsUrl = `/api/voice-agent/tts?text=${encodeURIComponent(text)}&language=${lang}`;
-            const cloudAudio = playCloudAudio(ttsUrl, onPlaybackEnd);
-            if (cloudAudio) {
-                return;
+            const cloudAudio = playCloudAudio(
+                ttsUrl, 
+                onPlaybackEnd, 
+                (err) => {
+                    console.warn('playCloudAudio failed, instantly falling back to local speech:', err);
+                    speakViaSpeechSynthesis();
+                }
+            );
+
+            if (!cloudAudio) {
+                speakViaSpeechSynthesis();
             }
         } catch (cloudErr) {
-            console.warn('playCloudAudio failed, falling back to local speech:', cloudErr);
-        }
-
-        // 3. Fallback to browser SpeechSynthesis only if offline/network fails
-        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-            try {
-                window.speechSynthesis.cancel();
-                window.speechSynthesis.resume();
-            } catch (_) {}
-
-            const utterance = new SpeechSynthesisUtterance(text);
-            window.__solarflow_current_utterance = utterance;
-
-            const voices = window.speechSynthesis.getVoices() || [];
-            const chosenVoice = selectLockedFemaleVoice(voices, lang);
-
-            if (chosenVoice) {
-                utterance.voice = chosenVoice;
-                utterance.lang = chosenVoice.lang || (lang === 'gu' ? 'gu-IN' : (lang === 'hi' ? 'hi-IN' : 'en-IN'));
-            } else {
-                utterance.lang = lang === 'gu' ? 'gu-IN' : (lang === 'hi' ? 'hi-IN' : 'en-IN');
-            }
-
-            utterance.pitch = 1.30;
-            utterance.rate = 0.96;
-            utterance.volume = 1.0;
-
-            utterance.onend = onPlaybackEnd;
-            utterance.onerror = onPlaybackEnd;
-
-            try {
-                window.speechSynthesis.speak(utterance);
-            } catch (err) {
-                console.warn('speechSynthesis.speak failed:', err);
-                onPlaybackEnd();
-            }
-        } else {
-            setTimeout(onPlaybackEnd, 1400);
+            console.warn('playCloudAudio exception, falling back to local speech:', cloudErr);
+            speakViaSpeechSynthesis();
         }
     };
 
@@ -576,6 +648,11 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
     const endCall = () => {
         isConnectedRef.current = false;
         isAiSpeakingRef.current = false;
+        if (silenceTimerRef.current) {
+            clearTimeout(silenceTimerRef.current);
+            silenceTimerRef.current = null;
+        }
+        pendingSpeechRef.current = '';
         stopListening();
         stopCloudAudio();
 
@@ -718,10 +795,19 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
                             "{currentAiSpeech}"
                         </p>
                     ) : currentUserSpeech ? (
-                        <p className="text-cyan-200 font-normal animate-fadeIn">
-                            <span className="font-semibold text-cyan-300">{user?.name || 'You'}: </span>
-                            "{currentUserSpeech}"
-                        </p>
+                        <div className="flex flex-col items-center gap-1.5 animate-fadeIn">
+                            <p className="text-cyan-200 font-normal">
+                                <span className="font-semibold text-cyan-300">{user?.name || 'You'}: </span>
+                                "{currentUserSpeech}"
+                            </p>
+                            <button
+                                onClick={() => commitUserSpeech(currentUserSpeech)}
+                                className="px-3 py-1 rounded-full bg-cyan-500/25 hover:bg-cyan-500/40 border border-cyan-400/50 text-[11px] font-medium text-cyan-200 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-sm"
+                            >
+                                <Send className="w-3 h-3 text-cyan-300" />
+                                {currentCallLang === 'hi' ? 'तुरंत भेजें' : (currentCallLang === 'en' ? 'Send Now' : 'હમણાં મોકલો')}
+                            </button>
+                        </div>
                     ) : (
                         <p className="text-neutral-400 italic flex items-center justify-center h-full">
                             {callStatus === 'dialing' 

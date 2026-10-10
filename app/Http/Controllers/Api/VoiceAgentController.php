@@ -84,24 +84,29 @@ class VoiceAgentController extends Controller
             default => 'gu',
         };
 
-        try {
-            // Cap query length for clean natural audio synthesis
-            $cleanText = mb_substr($text, 0, 320);
-            $url = "https://translate.google.com/translate_tts?ie=UTF-8&q=" . urlencode($cleanText) . "&tl={$tl}&client=dict-chrome-ex";
-            $res = Http::withHeaders([
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                'Referer' => 'https://translate.google.com/',
-            ])->timeout(6)->get($url);
+        // Cap query length for clean natural audio synthesis
+        $cleanText = mb_substr($text, 0, 320);
+        $encodedText = urlencode($cleanText);
+        $clients = ['dict-chrome-ex', 'tw-ob', 'gtx', 'webapp'];
 
-            if ($res->successful() && strlen($res->body()) > 200) {
-                return response($res->body(), 200, [
-                    'Content-Type' => 'audio/mpeg',
-                    'Content-Disposition' => 'inline; filename="voice.mp3"',
-                    'Cache-Control' => 'public, max-age=86400',
-                ]);
+        foreach ($clients as $client) {
+            try {
+                $url = "https://translate.google.com/translate_tts?ie=UTF-8&q={$encodedText}&tl={$tl}&client={$client}";
+                $res = Http::withHeaders([
+                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    'Referer' => 'https://translate.google.com/',
+                ])->timeout(5)->get($url);
+
+                if ($res->successful() && strlen($res->body()) > 200) {
+                    return response($res->body(), 200, [
+                        'Content-Type' => 'audio/mpeg',
+                        'Content-Disposition' => 'inline; filename="voice.mp3"',
+                        'Cache-Control' => 'public, max-age=86400',
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::warning("VoiceAgent TTS Proxy client={$client} failed: " . $e->getMessage());
             }
-        } catch (\Throwable $e) {
-            Log::warning('VoiceAgent TTS Proxy Exception: ' . $e->getMessage());
         }
 
         return response()->json(['error' => 'TTS synthesis failed'], 500);
