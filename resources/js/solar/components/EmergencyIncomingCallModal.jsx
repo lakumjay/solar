@@ -301,8 +301,25 @@ export default function EmergencyIncomingCallModal({
         return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     };
 
+    // Unlock iOS AudioContext on first touch / tap
+    const unlockAudioOnGesture = () => {
+        try {
+            if (callState === 'incoming') {
+                if (ringAudioRef.current && ringAudioRef.current.paused) {
+                    ringAudioRef.current.play().catch(() => {});
+                }
+                if (ringOscillatorCtxRef.current && ringOscillatorCtxRef.current.state === 'suspended') {
+                    ringOscillatorCtxRef.current.resume().catch(() => {});
+                }
+            }
+        } catch (_) {}
+    };
+
     return (
-        <div style={{
+        <div 
+            onClick={unlockAudioOnGesture}
+            onTouchStart={unlockAudioOnGesture}
+            style={{
             position: 'fixed',
             inset: 0,
             zIndex: 100000,

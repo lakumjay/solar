@@ -98,10 +98,10 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         };
     }, []);
 
-    // 3. Periodic emergency status check for Super Admin (15s interval)
+    // 3. Fast emergency status check for Super Admin (Instant + 3s interval + tab focus)
     useEffect(() => {
         if (!user) return;
-        const isSuperAdmin = user.role === 'super_admin' || user.name === 'Super Admin' || user.id === 4;
+        const isSuperAdmin = user.role === 'super_admin' || user.role === 'superadmin' || user.name === 'Super Admin' || user.id === 4;
         if (!isSuperAdmin) return;
 
         const checkEmergencyStatus = async () => {
@@ -117,8 +117,27 @@ export default function AppShell({user, page, setPage, companies, companyId, set
             } catch (_) {}
         };
 
-        const interval = setInterval(checkEmergencyStatus, 15000);
-        return () => clearInterval(interval);
+        // Check immediately
+        checkEmergencyStatus();
+
+        // High frequency poll during testing (every 3 seconds)
+        const interval = setInterval(checkEmergencyStatus, 3000);
+
+        const handleTabActive = () => {
+            if (document.visibilityState === 'visible') {
+                checkEmergencyStatus();
+            }
+        };
+        document.addEventListener('visibilitychange', handleTabActive);
+        window.addEventListener('focus', handleTabActive);
+        window.addEventListener('pageshow', handleTabActive);
+
+        return () => {
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', handleTabActive);
+            window.removeEventListener('focus', handleTabActive);
+            window.removeEventListener('pageshow', handleTabActive);
+        };
     }, [user, emergencyCall.isOpen]);
 
     useEffect(() => {
@@ -137,6 +156,14 @@ export default function AppShell({user, page, setPage, companies, companyId, set
             const res = await api(`dashboard/live-solar?company_id=${companyId || 'all'}`);
             if (res) {
                 setLiveSolarData(res);
+                // Also check if emergency call is dispatched inside live solar heartbeat
+                if (res.emergency_call && !emergencyCall.isOpen) {
+                    setEmergencyCall({
+                        isOpen: true,
+                        autoAnswer: false,
+                        data: res.emergency_call
+                    });
+                }
                 try {
                     localStorage.setItem('solarflow.cachedLiveSolar', JSON.stringify(res));
                 } catch (e) {}
