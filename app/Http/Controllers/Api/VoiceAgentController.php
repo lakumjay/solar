@@ -29,8 +29,10 @@ class VoiceAgentController extends Controller
         return response()->json([
             'apiKey' => $apiKey ?: 'solarflow_ready',
             'hasGeminiKey' => !empty($apiKey),
-            'model' => 'gemini-2.5-flash',
-            'liveModel' => 'gemini-2.0-flash-exp',
+            'model' => 'gemini-2.0-flash',
+            'liveModel' => 'gemini-3.1-flash-live-preview',
+            'live_model' => 'gemini-3.1-flash-live-preview',
+            'voice_name' => 'Aoede',
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -65,6 +67,51 @@ class VoiceAgentController extends Controller
         }
     }
 
+    public function detectLanguage(string $text, string $default = 'gu'): string
+    {
+        if (empty(trim($text))) {
+            return $default;
+        }
+
+        // Gujarati Unicode range \x{0A80}-\x{0AFF}
+        if (preg_match('/[\x{0A80}-\x{0AFF}]/u', $text)) {
+            return 'gu';
+        }
+
+        // Devanagari (Hindi) Unicode range \x{0900}-\x{097F}
+        if (preg_match('/[\x{0900}-\x{097F}]/u', $text)) {
+            return 'hi';
+        }
+
+        $lower = mb_strtolower($text);
+
+        $guKeywords = [
+            'kem chho', 'su chhe', 'tame', 'aaje', 'units ketla', 'aavya', 'haajari', 
+            'bhai', 'nathi', 'chhe', 'tamari', 'ketla', 'ketli', 'plant ma', 'jay sir'
+        ];
+        foreach ($guKeywords as $k) {
+            if (str_contains($lower, $k)) return 'gu';
+        }
+
+        $hiKeywords = [
+            'namaste', 'kaise ho', 'kya hai', 'aap', 'aaj', 'kitna', 'kitne', 'kitni', 
+            'nahi', 'main', 'meri', 'madad', 'batao', 'kaun', 'hai kya', 'chal raha'
+        ];
+        foreach ($hiKeywords as $k) {
+            if (str_contains($lower, $k)) return 'hi';
+        }
+
+        $enKeywords = [
+            'how', 'what', 'who', 'today', 'units', 'generation', 'attendance', 'revenue', 
+            'hello', 'hi', 'solar', 'status', 'plant'
+        ];
+        foreach ($enKeywords as $k) {
+            if (str_contains($lower, $k)) return 'en';
+        }
+
+        return $default;
+    }
+
     /**
      * Text / Voice Conversation API using Gemini + Unbreakable Local Fallback
      */
@@ -74,14 +121,18 @@ class VoiceAgentController extends Controller
             $user = $request->user();
             $message = trim((string)$request->input('message', ''));
             $history = $request->input('history', []);
-            $language = $request->input('language', 'gu');
+            $reqLang = $request->input('language', 'gu');
+            $language = $this->detectLanguage($message, $reqLang);
 
             $apiKey = config('services.gemini.key', env('GEMINI_API_KEY', env('GOOGLE_GENAI_API_KEY', env('GOOGLE_API_KEY'))));
 
             // If API key is missing or empty, handle with smart internal engine
             if (empty($apiKey)) {
                 $fallbackReply = $this->generateLocalResponse($user, $message, $language);
-                return response()->json(['reply' => $fallbackReply]);
+                return response()->json([
+                    'reply' => $fallbackReply,
+                    'language' => $language,
+                ]);
             }
 
             $systemPrompt = $this->buildSystemPrompt($user, $language);
@@ -100,10 +151,10 @@ class VoiceAgentController extends Controller
 
             $tools = $this->getToolsDeclaration();
 
-            // Use gemini-1.5-flash (standard official model) with 6s timeout for fast mobile response
+            // Use gemini-2.0-flash / gemini-1.5-flash for fast mobile voice response
             $response = Http::timeout(6)->withHeaders([
                 'Content-Type' => 'application/json',
-            ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}", [
+            ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}", [
                 'system_instruction' => [
                     'parts' => [['text' => $systemPrompt]]
                 ],
@@ -115,7 +166,10 @@ class VoiceAgentController extends Controller
                 $resData = $response->json();
                 $candidates = $resData['candidates'] ?? [];
                 if (empty($candidates)) {
-                    return response()->json(['reply' => $this->generateLocalResponse($user, $message, $language)]);
+                    return response()->json([
+                        'reply' => $this->generateLocalResponse($user, $message, $language),
+                        'language' => $language,
+                    ]);
                 }
 
                 $parts = $candidates[0]['content']['parts'] ?? [];
@@ -139,7 +193,7 @@ class VoiceAgentController extends Controller
                         ];
 
                         $resFollowup = Http::timeout(6)->withHeaders(['Content-Type' => 'application/json'])
-                            ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}", [
+                            ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}", [
                                 'system_instruction' => ['parts' => [['text' => $systemPrompt]]],
                                 'contents' => $contents,
                             ]);
@@ -147,23 +201,38 @@ class VoiceAgentController extends Controller
                         if ($resFollowup->successful()) {
                             $followupJson = $resFollowup->json();
                             $replyText = $followupJson['candidates'][0]['content']['parts'][0]['text'] ?? 'માહિતી મળી ગઈ છે.';
-                            return response()->json(['reply' => $replyText, 'tool_data' => $toolResult]);
+                            return response()->json([
+                                'reply' => $replyText,
+                                'tool_data' => $toolResult,
+                                'language' => $language,
+                            ]);
                         }
                     }
                 }
 
                 $replyText = $parts[0]['text'] ?? $this->generateLocalResponse($user, $message, $language);
-                return response()->json(['reply' => $replyText]);
+                return response()->json([
+                    'reply' => $replyText,
+                    'language' => $language,
+                ]);
             }
 
             // If Gemini returned an error, seamlessly fallback to local response
             $fallbackReply = $this->generateLocalResponse($user, $message, $language);
-            return response()->json(['reply' => $fallbackReply]);
+            return response()->json([
+                'reply' => $fallbackReply,
+                'language' => $language,
+            ]);
 
         } catch (\Throwable $e) {
             Log::warning('VoiceAgent Chat Exception caught, using local fallback: ' . $e->getMessage());
-            $fallbackReply = $this->generateLocalResponse($request->user(), $request->input('message', ''), $request->input('language', 'gu'));
-            return response()->json(['reply' => $fallbackReply]);
+            $message = trim((string)$request->input('message', ''));
+            $language = $this->detectLanguage($message, $request->input('language', 'gu'));
+            $fallbackReply = $this->generateLocalResponse($request->user(), $message, $language);
+            return response()->json([
+                'reply' => $fallbackReply,
+                'language' => $language,
+            ]);
         }
     }
 
@@ -173,97 +242,109 @@ class VoiceAgentController extends Controller
     private function generateLocalResponse($user, string $message, string $language = 'gu'): string
     {
         $lower = mb_strtolower($message);
-        $userName = $user?->name ?? ($language === 'en' ? 'Sir' : 'સર');
+        $userName = $user?->name ?? ($language === 'en' ? 'Sir' : ($language === 'hi' ? 'सर' : 'સર'));
+        $compName = $user?->company?->name ?? 'SolarFlow';
+
+        // 0. Company Name
+        if (str_contains($lower, 'કંપની') || str_contains($lower, 'company') || str_contains($lower, 'कंपनी')) {
+            if ($language === 'hi') return "यह {$compName} SolarFlow सिस्टम है।";
+            if ($language === 'en') return "This is {$compName} SolarFlow system.";
+            return "આ {$compName} SolarFlow સિસ્ટમ છે.";
+        }
 
         // 1. Creator / System question
-        if (str_contains($lower, 'jay sir') || str_contains($lower, 'કોણે બનાવ') || str_contains($lower, 'who made') || str_contains($lower, 'creator') || str_contains($lower, 'owner')) {
-            return $language === 'en'
-                ? 'This SolarFlow system is designed and created by Jay Sir. I am SolarFlow, his AI voice assistant.'
-                : 'આ SolarFlow સોફ્ટવેર જય સર (Jay Sir) દ્વારા બનાવવામાં આવ્યું છે. હું તેમની AI સહાયક છું.';
+        if (str_contains($lower, 'jay sir') || str_contains($lower, 'જય સર') || str_contains($lower, 'जय सर') || str_contains($lower, 'કોણે બનાવ') || str_contains($lower, 'किसने बना') || str_contains($lower, 'who made') || str_contains($lower, 'creator') || str_contains($lower, 'owner')) {
+            if ($language === 'hi') return "यह {$compName} SolarFlow सॉफ्टवेयर जय सर (Jay Sir) द्वारा बनाया गया है। मैं उनकी AI सहायक (Aoede) हूँ।";
+            if ($language === 'en') return "This {$compName} SolarFlow system is designed and created by Jay Sir. I am SolarFlow, his AI voice assistant.";
+            return "આ {$compName} SolarFlow સોફ્ટવેર જય સર (Jay Sir) દ્વારા બનાવવામાં આવ્યું છે. હું તેમની AI સહાયક છું.";
         }
 
         // 2. Today's Units / Generation
-        if (str_contains($lower, 'યુનિટ') || str_contains($lower, 'unit') || str_contains($lower, 'generation') || str_contains($lower, 'ઉત્પાદન') || str_contains($lower, 'આજ')) {
+        if (str_contains($lower, 'યુનિટ') || str_contains($lower, 'unit') || str_contains($lower, 'यूनिट') || str_contains($lower, 'generation') || str_contains($lower, 'ઉત્પાદન') || str_contains($lower, 'उत्पादन') || str_contains($lower, 'આજ') || str_contains($lower, 'आज')) {
             try {
                 $data = $this->dataService->querySolarData($user, 'get_generation_units', ['date' => date('Y-m-d')]);
                 $units = $data['total_generation_units'] ?? $data['total_units'] ?? 0;
                 if ($units <= 0) {
                     $yesterdayData = $this->dataService->querySolarData($user, 'get_generation_units', ['date' => date('Y-m-d', strtotime('-1 day'))]);
                     $yUnits = $yesterdayData['total_generation_units'] ?? 0;
-                    return $language === 'en'
-                        ? "Today's generation data is being recorded. Yesterday's total generation was {$yUnits} units (kWh)."
-                        : "આજના યુનિટ્સનું રેકોર્ડિંગ ચાલુ છે. ગઈકાલનું કુલ ઉત્પાદન {$yUnits} kWh હતું.";
+                    if ($language === 'hi') return "आज की जनरेशन रिकॉर्ड हो रही है। कल का कुल उत्पादन {$yUnits} kWh यूनिट्स था।";
+                    if ($language === 'en') return "Today's generation data is being recorded. Yesterday's total generation was {$yUnits} units (kWh).";
+                    return "આજના યુનિટ્સનું રેકોર્ડિંગ ચાલુ છે. ગઈકાલનું કુલ ઉત્પાદન {$yUnits} kWh હતું.";
                 }
-                return $language === 'en'
-                    ? "Today's total generation is {$units} units (kWh)."
-                    : "આજના કુલ સોલાર ઉત્પાદન યુનિટ્સ {$units} kWh છે.";
+                if ($language === 'hi') return "आज का कुल सोलर उत्पादन {$units} kWh यूनिट्स है।";
+                if ($language === 'en') return "Today's total generation is {$units} units (kWh).";
+                return "આજના કુલ સોલાર ઉત્પાદન યુનિટ્સ {$units} kWh છે.";
             } catch (\Throwable $e) {
-                return $language === 'en'
-                    ? "Today's solar generation is running normally across all connected inverters."
-                    : "આજે સોલાર પ્લાન્ટ પરથી સામાન્ય ઉત્પાદન ચાલુ છે અને બધા ઇન્વર્ટર કનેક્ટેડ છે.";
+                if ($language === 'hi') return "आज सोलर प्लांट से सामान्य उत्पादन चालू है और सभी इन्वर्टर कनेक्टेड हैं।";
+                if ($language === 'en') return "Today's solar generation is running normally across all connected inverters.";
+                return "આજે સોલાર પ્લાન્ટ પરથી સામાન્ય ઉત્પાદન ચાલુ છે અને બધા ઇન્વર્ટર કનેક્ટેડ છે.";
             }
         }
 
         // 3. Curtailment / PGVCL
-        if (str_contains($lower, 'curtail') || str_contains($lower, 'કર્ટલ') || str_contains($lower, 'pgvcl') || str_contains($lower, 'ઘટાડો')) {
+        if (str_contains($lower, 'curtail') || str_contains($lower, 'કર્ટલ') || str_contains($lower, 'कर्टेल') || str_contains($lower, 'pgvcl') || str_contains($lower, 'ઘટાડો') || str_contains($lower, 'कटौती')) {
             try {
                 $data = $this->dataService->querySolarData($user, 'get_live_plant_status');
                 $active = $data['curtailment_active'] ?? false;
                 if ($active) {
-                    return $language === 'en'
-                        ? 'PGVCL power curtailment is currently active on the plant.'
-                        : 'હા, હાલમાં PGVCL પાવર ઘટાડો (કર્ટલમેન્ટ) સક્રિય છે.';
+                    if ($language === 'hi') return 'हाँ, फिलहाल PGVCL पावर कटौती (कर्टेलमेंट) सक्रिय है।';
+                    if ($language === 'en') return 'PGVCL power curtailment is currently active on the plant.';
+                    return 'હા, હાલમાં PGVCL પાવર ઘટાડો (કર્ટલમેન્ટ) સક્રિય છે.';
                 }
-                return $language === 'en'
-                    ? 'All plants are running normally at 100% full capacity with no active curtailment.'
-                    : 'બધા પ્લાન્ટ સામાન્ય રીતે ૧૦૦% ફુલ ક્ષમતાથી ચાલુ છે, કોઈ કર્ટલમેન્ટ નથી.';
+                if ($language === 'hi') return 'सभी प्लांट सामान्य रूप से १००% पूरी क्षमता पर चल रहे हैं, कोई कर्टेलमेंट नहीं है।';
+                if ($language === 'en') return 'All plants are running normally at 100% full capacity with no active curtailment.';
+                return 'બધા પ્લાન્ટ સામાન્ય રીતે ૧૦૦% ફુલ ક્ષમતાથી ચાલુ છે, કોઈ કર્ટલમેન્ટ નથી.';
             } catch (\Throwable $e) {
-                return $language === 'en'
-                    ? 'All plants are running normally at full capacity with no active curtailment.'
-                    : 'બધા પ્લાન્ટ સામાન્ય રીતે ૧૦૦% ફુલ ક્ષમતાથી ચાલુ છે, કોઈ કર્ટલમેન્ટ નથી.';
+                if ($language === 'hi') return 'सभी प्लांट सामान्य रूप से १००% पूरी क्षमता पर चल रहे हैं, कोई कर्टेलमेंट नहीं है।';
+                if ($language === 'en') return 'All plants are running normally at full capacity with no active curtailment.';
+                return 'બધા પ્લાન્ટ સામાન્ય રીતે ૧૦૦% ફુલ ક્ષમતાથી ચાલુ છે, કોઈ કર્ટલમેન્ટ નથી.';
             }
         }
 
         // 4. Attendance
-        if (str_contains($lower, 'હાજર') || str_contains($lower, 'attendance') || str_contains($lower, 'કર્મચારી') || str_contains($lower, 'staff')) {
+        if (str_contains($lower, 'હાજર') || str_contains($lower, 'हाजिर') || str_contains($lower, 'उपस्थित') || str_contains($lower, 'attendance') || str_contains($lower, 'કર્મચારી') || str_contains($lower, 'कर्मचारी') || str_contains($lower, 'staff')) {
             try {
                 $data = $this->dataService->querySolarData($user, 'get_employee_attendance');
                 $present = $data['present_count'] ?? 0;
                 $total = $data['total_employees'] ?? 0;
                 if ($total > 0) {
-                    return $language === 'en'
-                        ? "Today, {$present} out of {$total} staff members are present on site."
-                        : "આજે કુલ {$total} માંથી {$present} કર્મચારીઓ સાઈટ પર હાજર છે.";
+                    if ($language === 'hi') return "आज कुल {$total} में से {$present} कर्मचारी साइट पर उपस्थित हैं।";
+                    if ($language === 'en') return "Today, {$present} out of {$total} staff members are present on site.";
+                    return "આજે કુલ {$total} માંથી {$present} કર્મચારીઓ સાઈટ પર હાજર છે.";
                 }
-                return $language === 'en'
-                    ? "Solar plant staff is present on site and monitoring operations."
-                    : "સોલાર પ્લાન્ટ પર કર્મચારીઓ સાઈટ પર હાજર છે.";
+                if ($language === 'hi') return "सोलर प्लांट पर कर्मचारी उपस्थित हैं और कार्य सामान्य है।";
+                if ($language === 'en') return "Solar plant staff is present on site and monitoring operations.";
+                return "સોલાર પ્લાન્ટ પર કર્મચારીઓ સાઈટ પર હાજર છે.";
             } catch (\Throwable $e) {
-                return $language === 'en'
-                    ? "Solar plant staff is present on site and operations are normal."
-                    : "સોલાર પ્લાન્ટ પર કર્મચારીઓ સાઈટ પર હાજર છે.";
+                if ($language === 'hi') return "सोलर प्लांट पर कर्मचारी साइट पर उपस्थित हैं।";
+                if ($language === 'en') return "Solar plant staff is present on site and operations are normal.";
+                return "સોલાર પ્લાન્ટ પર કર્મચારીઓ સાઈટ પર હાજર છે.";
             }
         }
 
         // 5. Revenue
-        if (str_contains($lower, 'આવક') || str_contains($lower, 'revenue') || str_contains($lower, 'રૂપિયા') || str_contains($lower, 'rupee') || str_contains($lower, 'પૈસા')) {
+        if (str_contains($lower, 'આવક') || str_contains($lower, 'आय') || str_contains($lower, 'revenue') || str_contains($lower, 'રૂપિયા') || str_contains($lower, 'रुपये') || str_contains($lower, 'rupee') || str_contains($lower, 'પૈસા') || str_contains($lower, 'पैसे')) {
             try {
                 $data = $this->dataService->querySolarData($user, 'get_financials_revenue');
                 $rev = $data['total_revenue_rs'] ?? $data['estimated_revenue'] ?? '૦';
-                return $language === 'en'
-                    ? "The estimated revenue for the current period is ₹{$rev}."
-                    : "ચાલુ સમયગાળાની અંદાજિત સોલાર આવક ₹{$rev} રૂપિયા છે.";
+                if ($language === 'hi') return "वर्तमान अवधि का अनुमानित सोलर राजस्व ₹{$rev} रुपये है।";
+                if ($language === 'en') return "The estimated revenue for the current period is ₹{$rev}.";
+                return "ચાલુ સમયગાળાની અંદાજિત સોલાર આવક ₹{$rev} રૂપિયા છે.";
             } catch (\Throwable $e) {
-                return $language === 'en'
-                    ? "Current month solar revenue and generation are on track."
-                    : "ચાલુ સમયગાળાની સોલાર આવક અને ઉત્પાદન લક્ષ્યાંક મુજબ સારું છે.";
+                if ($language === 'hi') return "चालू अवधि का सोलर राजस्व और उत्पादन लक्ष्य के अनुसार अच्छा है।";
+                if ($language === 'en') return "Current month solar revenue and generation are on track.";
+                return "ચાલુ સમયગાળાની સોલાર આવક અને ઉત્પાદન લક્ષ્યાંક મુજબ સારું છે.";
             }
         }
 
         // General Welcome / Help
-        return $language === 'en'
-            ? "Yes {$userName}, SolarFlow AI is active. You can ask about today’s units, PGVCL curtailment, attendance, or revenue."
-            : "હા {$userName}, હું SolarFlow AI સહાયક છું. તમે આજના યુનિટ્સ, PGVCL ઘટાડો, હાજરી અથવા સોલાર આવક વિશે કંઈ પણ પૂછી શકો છો.";
+        if ($language === 'hi') {
+            return "हाँ {$userName}, मैं SolarFlow AI सहायक (Aoede) हूँ। आप आज के यूनिट्स, PGVCL स्टेटस, उपस्थिति या सोलर आय के बारे में कुछ भी पूछ सकते हैं।";
+        }
+        if ($language === 'en') {
+            return "Yes {$userName}, SolarFlow AI is active. You can ask about today’s units, PGVCL curtailment, attendance, or revenue.";
+        }
+        return "હા {$userName}, હું SolarFlow AI સહાયક છું. તમે આજના યુનિટ્સ, PGVCL ઘટાડો, હાજરી અથવા સોલાર આવક વિશે કંઈ પણ પૂછી શકો છો.";
     }
 
     private function buildSystemPrompt($user, string $language = 'gu'): string
@@ -273,13 +354,21 @@ class VoiceAgentController extends Controller
         $userName = $user->name;
 
         return <<<PROMPT
-You are "SolarFlow AI" (સોલારફ્લો એઆઈ), a polite, intelligent, friendly Indian female voice assistant (like Priya / Neha) for the SolarFlow Management System.
-SolarFlow is designed and created by Jay Sir ("આ સિસ્ટમ જય સર (Jay Sir) દ્વારા બનાવવામાં આવી છે.").
+You are "SolarFlow AI", a polite, intelligent, friendly, natural female voice assistant.
+Your voice persona is "Aoede" (gentle, sweet, articulate, respectful, phone assistant tone).
+SolarFlow is designed and created by Jay Sir ("આ સિસ્ટમ જય સર (Jay Sir) દ્વારા બનાવવામાં આવી છે / यह सिस्टम जय सर (Jay Sir) द्वारा बनाया गया है").
 
-PERSONA & TONE:
-- Female Assistant: Always speak with a warm, respectful, friendly, and articulate female persona (Priya / Neha style).
-- In Gujarati, refer to yourself respectfully as an attentive assistant ("હું તમારી સહાયક છું", "હું તમને જણાવી દઉં").
-- Never sound robotic; sound like a helpful, sweet-toned phone executive assistant.
+CRITICAL DYNAMIC MULTILINGUAL RULES (HIGHEST PRIORITY):
+- Currently Detected Language: {$language}
+- If the user speaks or asks in GUJARATI -> reply strictly and fluently in pure, natural GUJARATI (ગુજરાતી).
+- If the user speaks or asks in HINDI -> reply strictly and politely in natural HINDI (हिन्दी).
+- If the user speaks or asks in ENGLISH -> reply strictly in fluent ENGLISH.
+- If the user switches language in the middle of a call (e.g., speaks Hindi first, then speaks Gujarati), INSTANTLY SWITCH and reply in that newly spoken language!
+- Never mix languages. Never reply in Hindi to a Gujarati question or vice-versa. Always match the user's spoken language.
+
+PERSONA & TONE (Aoede):
+- Warm, respectful, friendly, and sweet female assistant tone.
+- Keep answers concise, clear, and easy to understand over voice/audio.
 
 USER CONTEXT:
 - Current User: {$userName}

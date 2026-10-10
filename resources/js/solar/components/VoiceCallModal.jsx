@@ -26,16 +26,62 @@ export function unlockVoiceCallAudio() {
     } catch (_) {}
 }
 
+const LAST_VOICE_LANG_KEY = 'solarflow_last_voice_lang';
+
+// Detect whether user spoken text is Gujarati, Hindi, or English
+function detectSpokenLanguage(text, defaultLang = 'gu') {
+    if (!text) return defaultLang;
+    const str = text.trim();
+    if (!str) return defaultLang;
+
+    // 1. Gujarati Unicode range (\u0A80-\u0AFF)
+    if (/[\u0A80-\u0AFF]/.test(str)) {
+        return 'gu';
+    }
+
+    // 2. Hindi / Devanagari Unicode range (\u0900-\u097F)
+    if (/[\u0900-\u097F]/.test(str)) {
+        return 'hi';
+    }
+
+    const lower = str.toLowerCase();
+
+    // 3. Gujarati Phonetic keywords
+    const guKeywords = [
+        'kem chho', 'su chhe', 'tame', 'aaje', 'units ketla', 'aavya', 'haajari', 
+        'bhai', 'nathi', 'chhe', 'tamari', 'ketla', 'ketli', 'plant ma', 'jay sir'
+    ];
+    if (guKeywords.some(k => lower.includes(k))) return 'gu';
+
+    // 4. Hindi Phonetic keywords
+    const hiKeywords = [
+        'namaste', 'kaise ho', 'kya hai', 'aap', 'aaj', 'kitna', 'kitne', 'kitni', 
+        'nahi', 'main', 'meri', 'madad', 'batao', 'kaun', 'hai kya', 'chal raha'
+    ];
+    if (hiKeywords.some(k => lower.includes(k))) return 'hi';
+
+    // 5. English keywords
+    const enKeywords = [
+        'how', 'what', 'who', 'today', 'units', 'generation', 'attendance', 'revenue', 
+        'hello', 'hi', 'solar', 'status', 'plant'
+    ];
+    if (enKeywords.some(k => lower.includes(k))) return 'en';
+
+    return defaultLang;
+}
+
 function selectLockedFemaleVoice(voices, lang) {
     if (!voices || voices.length === 0) return null;
 
     const maleKeywords = [
         'male', 'david', 'ravi', 'prabhat', 'george', 'mark', 'rishi', 'madhav',
-        'niranjan', 'ajay', 'anil', 'pawan', 'manish', 'valluvar', '-gum', '-him', '-enm'
+        'niranjan', 'ajay', 'anil', 'pawan', 'manish', 'valluvar', '-gum', '-him', '-enm',
+        'tarun', 'karan', 'deepak', 'vikram'
     ];
     const femaleKeywords = [
-        'priya', 'neha', 'kavya', 'swara', 'heera', 'neerja', 'veena', 'zira',
-        'kalpana', 'geeta', 'shruti', 'lekha', 'female', '-guf', '-hif', '-enf', '-end', '-ene'
+        'aoede', 'priya', 'neha', 'kavya', 'swara', 'heera', 'neerja', 'veena', 'zira',
+        'kalpana', 'geeta', 'shruti', 'lekha', 'anjali', 'pooja', 'aditi', 'sunita',
+        'female', '-guf', '-hif', '-enf', '-end', '-ene', 'woman', 'girl'
     ];
 
     // Filter out all confirmed male voices
@@ -58,17 +104,22 @@ function selectLockedFemaleVoice(voices, lang) {
         // Any native Gujarati voice (elevated pitch makes it female tone)
         const anyGu = pool.find(v => (v.lang || '').toLowerCase().startsWith('gu'));
         if (anyGu) return anyGu;
+    }
 
-        // Hindi female understands Indian phonetic accents
+    // 2. If Hindi:
+    if (lang === 'hi') {
         const hiFemale = pool.find(v => {
             const l = (v.lang || '').toLowerCase();
             const n = ((v.name || '') + ' ' + (v.voiceURI || '')).toLowerCase();
             return l.startsWith('hi') && femaleKeywords.some(f => n.includes(f));
         });
         if (hiFemale) return hiFemale;
+
+        const anyHi = pool.find(v => (v.lang || '').toLowerCase().startsWith('hi'));
+        if (anyHi) return anyHi;
     }
 
-    // 2. Indian Female (Priya, Neha, Veena, Heera, etc.)
+    // 3. Indian Female (Priya, Neha, Aoede, etc.)
     const indianFemale = pool.find(v => {
         const l = (v.lang || '').toLowerCase();
         const n = ((v.name || '') + ' ' + (v.voiceURI || '')).toLowerCase();
@@ -76,11 +127,11 @@ function selectLockedFemaleVoice(voices, lang) {
     });
     if (indianFemale) return indianFemale;
 
-    // 3. Any Indian non-male voice
+    // 4. Any Indian non-male voice
     const anyIndianNonMale = pool.find(v => (v.lang || '').toLowerCase().includes('in'));
     if (anyIndianNonMale) return anyIndianNonMale;
 
-    // 4. Any female voice
+    // 5. Any female voice
     const anyFemale = pool.find(v => {
         const n = ((v.name || '') + ' ' + (v.voiceURI || '')).toLowerCase();
         return femaleKeywords.some(f => n.includes(f));
@@ -103,6 +154,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
     const [showPrompts, setShowPrompts] = useState(false);
     const [showInfo, setShowInfo] = useState(false);
     const [textInput, setTextInput] = useState('');
+    const [currentCallLang, setCurrentCallLang] = useState('gu');
 
     const tonePlayerRef = useRef(null);
     const pcmPlayerRef = useRef(null);
@@ -112,6 +164,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
     const isMutedRef = useRef(isMuted);
     const isConnectedRef = useRef(false);
     const isAiSpeakingRef = useRef(false);
+    const currentCallLangRef = useRef('gu');
     const lockedFemaleVoiceRef = useRef(null);
 
     useEffect(() => {
@@ -123,16 +176,15 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
         }
     }, [isMuted]);
 
-    // Lock a single, consistent female voice at component mount
+    // Lock a single, consistent Aoede-style female voice at component mount
     useEffect(() => {
         const initLockedVoice = () => {
             try {
                 if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
                 const voices = window.speechSynthesis.getVoices() || [];
                 if (!voices || voices.length === 0) return;
-                if (!lockedFemaleVoiceRef.current) {
-                    lockedFemaleVoiceRef.current = selectLockedFemaleVoice(voices, getLanguage());
-                }
+                const lang = currentCallLangRef.current || getLanguage() || 'gu';
+                lockedFemaleVoiceRef.current = selectLockedFemaleVoice(voices, lang);
             } catch (err) {
                 console.warn('Voice lock handled:', err);
             }
@@ -161,7 +213,8 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
 
         try {
             if (!recognitionActiveRef.current) {
-                recognitionRef.current.lang = getLanguage() === 'gu' ? 'gu-IN' : 'en-IN';
+                const lang = currentCallLangRef.current || 'gu';
+                recognitionRef.current.lang = lang === 'gu' ? 'gu-IN' : (lang === 'hi' ? 'hi-IN' : 'en-IN');
                 recognitionRef.current.start();
                 recognitionActiveRef.current = true;
                 setCallStatus('listening');
@@ -198,7 +251,8 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
             const recognition = new SpeechRecognition();
             recognition.continuous = true;
             recognition.interimResults = true;
-            recognition.lang = getLanguage() === 'gu' ? 'gu-IN' : 'en-IN';
+            const lang = currentCallLangRef.current || 'gu';
+            recognition.lang = lang === 'gu' ? 'gu-IN' : (lang === 'hi' ? 'hi-IN' : 'en-IN');
 
             recognition.onstart = () => {
                 recognitionActiveRef.current = true;
@@ -275,10 +329,16 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
         isConnectedRef.current = false;
         isAiSpeakingRef.current = false;
 
-        // Ensure locked single female voice is selected
+        // Remember last used language so future calls greet in the user's preferred language
+        const rememberedLang = typeof window !== 'undefined' ? localStorage.getItem(LAST_VOICE_LANG_KEY) : null;
+        const initialLang = rememberedLang || getLanguage() || 'gu';
+        currentCallLangRef.current = initialLang;
+        setCurrentCallLang(initialLang);
+
+        // Ensure Aoede-style sweet female voice is initialized
         if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
             const voices = window.speechSynthesis.getVoices() || [];
-            lockedFemaleVoiceRef.current = selectLockedFemaleVoice(voices, getLanguage());
+            lockedFemaleVoiceRef.current = selectLockedFemaleVoice(voices, initialLang);
         }
 
         // Initialize audio tones
@@ -320,30 +380,50 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
                 setCallDuration(d => d + 1);
             }, 1000);
 
-            // Initialize speech recognition
+            // Initialize speech recognition for the active language
             setupVoiceRecognition();
 
-            // Exact short, simple welcome greeting with company name
-            const lang = getLanguage();
+            // Short, friendly greeting in the remembered language with company name
             const compName = activeCompany?.name || user?.company?.name || 'Nilkanth Solar';
-            const welcomeText = lang === 'gu'
-                ? `નમસ્તે, ${compName} SolarFlow માં આપનું સ્વાગત છે. હું તમારી શું મદદ કરી શકું?`
-                : `Hello, welcome to ${compName} SolarFlow. How can I help you?`;
+            let welcomeText = '';
+            if (initialLang === 'hi') {
+                welcomeText = `नमस्ते, ${compName} SolarFlow में आपका स्वागत है। मैं आपकी क्या मदद कर सकती हूँ?`;
+            } else if (initialLang === 'en') {
+                welcomeText = `Hello, welcome to ${compName} SolarFlow. How can I help you?`;
+            } else {
+                welcomeText = `નમસ્તે, ${compName} SolarFlow માં આપનું સ્વાગત છે. હું તમારી શું મદદ કરી શકું?`;
+            }
 
             setTranscript([{ role: 'ai', text: welcomeText }]);
-            speakAiResponse(welcomeText);
+            speakAiResponse(welcomeText, initialLang);
 
         } catch (err) {
             console.error('Call connection error:', err);
             if (tonePlayerRef.current) tonePlayerRef.current.stop();
             setCallStatus('error');
-            setErrorMessage(err.message || (getLanguage() === 'en' ? 'Could not connect call.' : 'કૉલ કનેક્ટ થઈ શક્યો નથી.'));
+            const fallbackMsg = initialLang === 'hi' 
+                ? 'कॉल कनेक्ट नहीं हो सका।' 
+                : (initialLang === 'en' ? 'Could not connect call.' : 'કૉલ કનેક્ટ થઈ શક્યો નથી.');
+            setErrorMessage(err.message || fallbackMsg);
         }
     };
 
     const handleUserSpokenMessage = async (text) => {
         const cleanText = text.trim();
         if (!cleanText) return;
+
+        // Auto-detect language dynamically from spoken input
+        const detectedLang = detectSpokenLanguage(cleanText, currentCallLangRef.current);
+        if (detectedLang !== currentCallLangRef.current) {
+            currentCallLangRef.current = detectedLang;
+            setCurrentCallLang(detectedLang);
+            if (recognitionRef.current) {
+                recognitionRef.current.lang = detectedLang === 'gu' ? 'gu-IN' : (detectedLang === 'hi' ? 'hi-IN' : 'en-IN');
+            }
+        }
+        if (typeof window !== 'undefined') {
+            localStorage.setItem(LAST_VOICE_LANG_KEY, detectedLang);
+        }
 
         setTranscript(prev => [...prev, { role: 'user', text: cleanText }]);
         setCurrentUserSpeech('');
@@ -357,14 +437,15 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
                 body: JSON.stringify({
                     message: cleanText,
                     history: currentHistory,
-                    language: getLanguage(),
+                    language: detectedLang,
                 })
             });
 
             if (response && response.reply) {
                 const aiReply = response.reply;
+                const replyLang = response.language || detectedLang;
                 setTranscript(prev => [...prev, { role: 'ai', text: aiReply }]);
-                speakAiResponse(aiReply);
+                speakAiResponse(aiReply, replyLang);
                 return;
             } else if (response && response.error) {
                 throw new Error(response.error);
@@ -374,14 +455,15 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
         }
 
         // Smart Local Response fallback - answered in the active language
-        const fallbackReply = generateSmartLocalReply(cleanText, getLanguage(), user, activeCompany);
+        const fallbackReply = generateSmartLocalReply(cleanText, detectedLang, user, activeCompany);
         setTranscript(prev => [...prev, { role: 'ai', text: fallbackReply }]);
-        speakAiResponse(fallbackReply);
+        speakAiResponse(fallbackReply, detectedLang);
     };
 
-    // Strictly Fixed Female Voice (Priya / Neha Style) with Sweet Pitch
-    const speakAiResponse = (text) => {
+    // Aoede Female Voice Persona with Sweet Natural Pitch
+    const speakAiResponse = (text, targetLang) => {
         if (!text) return;
+        const lang = targetLang || currentCallLangRef.current || 'gu';
         setCurrentAiSpeech(text);
         setCallStatus('speaking');
         isAiSpeakingRef.current = true;
@@ -393,26 +475,23 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
                 window.speechSynthesis.resume();
             } catch (_) {}
 
-            const lang = getLanguage();
             const utterance = new SpeechSynthesisUtterance(text);
             window.__solarflow_current_utterance = utterance; // Prevents garbage collection cut-off
 
-            // Ensure single locked female voice
-            if (!lockedFemaleVoiceRef.current) {
-                const voices = window.speechSynthesis.getVoices() || [];
-                lockedFemaleVoiceRef.current = selectLockedFemaleVoice(voices, lang);
-            }
+            // Pick Aoede-style female voice matching the language
+            const voices = window.speechSynthesis.getVoices() || [];
+            const chosenVoice = selectLockedFemaleVoice(voices, lang);
 
-            if (lockedFemaleVoiceRef.current) {
-                utterance.voice = lockedFemaleVoiceRef.current;
-                utterance.lang = lockedFemaleVoiceRef.current.lang || (lang === 'en' ? 'en-IN' : 'gu-IN');
+            if (chosenVoice) {
+                utterance.voice = chosenVoice;
+                utterance.lang = chosenVoice.lang || (lang === 'gu' ? 'gu-IN' : (lang === 'hi' ? 'hi-IN' : 'en-IN'));
             } else {
-                utterance.lang = lang === 'en' ? 'en-IN' : 'gu-IN';
+                utterance.lang = lang === 'gu' ? 'gu-IN' : (lang === 'hi' ? 'hi-IN' : 'en-IN');
             }
 
-            // Fixed sweet Indian female pitch & natural rate
-            utterance.pitch = 1.32;
-            utterance.rate = 0.95;
+            // Aoede natural female pitch & cadence
+            utterance.pitch = 1.30;
+            utterance.rate = 0.96;
             utterance.volume = 1.0;
 
             utterance.onstart = () => {
@@ -736,7 +815,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
                         </div>
                         <div className="flex justify-between p-2 rounded-lg bg-white/5">
                             <span>Voice Engine</span>
-                            <span className="font-semibold text-emerald-400">Priya / Neha (Indian Female)</span>
+                            <span className="font-semibold text-emerald-400">Aoede (Natural Sweet Female Voice)</span>
                         </div>
                     </div>
                 </div>
@@ -860,53 +939,57 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany })
 
 function generateSmartLocalReply(text, lang, user, activeCompany) {
     const lower = (text || '').toLowerCase();
-    const userName = user?.name || (lang === 'gu' ? 'સર' : 'Sir');
+    const userName = user?.name || (lang === 'en' ? 'Sir' : (lang === 'hi' ? 'सर' : 'સર'));
     const compName = activeCompany?.name || user?.company?.name || 'SolarFlow';
 
     // 0. Company Name
-    if (lower.includes('કંપની') || lower.includes('company')) {
-        return lang === 'gu'
-            ? `આ ${compName} SolarFlow સિસ્ટમ છે.`
-            : `This is ${compName} SolarFlow system.`;
+    if (lower.includes('કંપની') || lower.includes('company') || lower.includes('कंपनी')) {
+        if (lang === 'hi') return `यह ${compName} SolarFlow सिस्टम है।`;
+        if (lang === 'en') return `This is ${compName} SolarFlow system.`;
+        return `આ ${compName} SolarFlow સિસ્ટમ છે.`;
     }
 
     // 1. Creator / Jay Sir
-    if (lower.includes('jay') || lower.includes('જય') || lower.includes('કોણે') || lower.includes('who') || lower.includes('creator') || lower.includes('owner')) {
-        return lang === 'gu'
-            ? `આ ${compName} SolarFlow સોફ્ટવેર જય સર (Jay Sir) દ્વારા બનાવવામાં આવ્યું છે. હું તેમની AI સહાયક છું.`
-            : `This ${compName} SolarFlow system is designed and created by Jay Sir. I am SolarFlow, his AI voice assistant.`;
+    if (lower.includes('jay') || lower.includes('જય') || lower.includes('जय') || lower.includes('કોણે') || lower.includes('किसने') || lower.includes('who') || lower.includes('creator') || lower.includes('owner')) {
+        if (lang === 'hi') return `यह ${compName} SolarFlow सॉफ्टवेयर जय सर (Jay Sir) द्वारा बनाया गया है। मैं उनकी AI सहायक (Aoede) हूँ।`;
+        if (lang === 'en') return `This ${compName} SolarFlow system is designed and created by Jay Sir. I am SolarFlow, his AI voice assistant.`;
+        return `આ ${compName} SolarFlow સોફ્ટવેર જય સર (Jay Sir) દ્વારા બનાવવામાં આવ્યું છે. હું તેમની AI સહાયક છું.`;
     }
 
     // 2. Units / Generation
-    if (lower.includes('unit') || lower.includes('યુનિટ') || lower.includes('generation') || lower.includes('ઉત્પાદન') || lower.includes('આજ')) {
-        return lang === 'gu'
-            ? `નમસ્તે ${userName}, આજના સોલાર પ્લાન્ટ પરથી ઉત્પાદન સામાન્ય રીતે ચાલુ છે અને બધા ઇન્વર્ટર કનેક્ટેડ છે.`
-            : `Hello ${userName}, today's solar generation is operating normally across all connected inverters.`;
+    if (lower.includes('unit') || lower.includes('યુનિટ') || lower.includes('यूनિટ') || lower.includes('यूनिट') || lower.includes('generation') || lower.includes('ઉત્પાદન') || lower.includes('उत्पादन') || lower.includes('આજ') || lower.includes('आज')) {
+        if (lang === 'hi') return `नमस्ते ${userName}, आज के सोलर प्लांट का उत्पादन सामान्य रूप से चालू है और सभी इन्वर्टर कनेक्टेड हैं।`;
+        if (lang === 'en') return `Hello ${userName}, today's solar generation is operating normally across all connected inverters.`;
+        return `નમસ્તે ${userName}, આજના સોલાર પ્લાન્ટ પરથી ઉત્પાદન સામાન્ય રીતે ચાલુ છે અને બધા ઇન્વર્ટર કનેક્ટેડ છે.`;
     }
 
     // 3. Curtailment / PGVCL
-    if (lower.includes('curtail') || lower.includes('કર્ટલ') || lower.includes('pgvcl') || lower.includes('ઘટાડો') || lower.includes('ગ્રીડ')) {
-        return lang === 'gu'
-            ? 'હાલમાં પ્લાન્ટ પર કોઈ PGVCL પાવર ઘટાડો (કર્ટલમેન્ટ) નથી. ૧૦૦% ઉત્પાદન ચાલુ છે.'
-            : 'There is currently no PGVCL power curtailment. All solar plants are running at full capacity.';
+    if (lower.includes('curtail') || lower.includes('કર્ટલ') || lower.includes('कर्टेल') || lower.includes('pgvcl') || lower.includes('ઘટાડો') || lower.includes('कटौती') || lower.includes('ગ્રીડ') || lower.includes('ग्रिड')) {
+        if (lang === 'hi') return 'फिलहाल प्लांट पर कोई PGVCL पावर कटौती (कर्टेलमेंट) नहीं है। १००% उत्पादन चालू है।';
+        if (lang === 'en') return 'There is currently no PGVCL power curtailment. All solar plants are running at full capacity.';
+        return 'હાલમાં પ્લાન્ટ પર કોઈ PGVCL પાવર ઘટાડો (કર્ટલમેન્ટ) નથી. ૧૦૦% ઉત્પાદન ચાલુ છે.';
     }
 
     // 4. Attendance
-    if (lower.includes('હાજર') || lower.includes('attendance') || lower.includes('કર્મચારી') || lower.includes('staff')) {
-        return lang === 'gu'
-            ? 'આજે સ્ટાફ સાઈટ પર હાજર છે અને સોલાર પ્લાન્ટની નિયમિત કામગીરી ચાલુ છે.'
-            : 'Solar plant staff is present on site and operations are normal.';
+    if (lower.includes('હાજર') || lower.includes('हाजिर') || lower.includes('उपस्थित') || lower.includes('attendance') || lower.includes('કર્મચારી') || lower.includes('कर्मचारी') || lower.includes('staff')) {
+        if (lang === 'hi') return 'आज स्टाफ साइट पर उपस्थित है और सोलर प्लांट का नियमित कार्य सुचारू रूप से चल रहा है।';
+        if (lang === 'en') return 'Solar plant staff is present on site and operations are normal.';
+        return 'આજે સ્ટાફ સાઈટ પર હાજર છે અને સોલાર પ્લાન્ટની નિયમિત કામગીરી ચાલુ છે.';
     }
 
     // 5. Revenue
-    if (lower.includes('આવક') || lower.includes('revenue') || lower.includes('રૂપિયા') || lower.includes('પૈસા') || lower.includes('rupee')) {
-        return lang === 'gu'
-            ? 'ચાલુ મહિનાની સોલાર આવક અને ઉત્પાદન લક્ષ્યાંક મુજબ ખૂબ જ સારું છે.'
-            : 'Current month solar revenue and generation are progressing on track according to targets.';
+    if (lower.includes('આવક') || lower.includes('आय') || lower.includes('revenue') || lower.includes('રૂપિયા') || lower.includes('रुपये') || lower.includes('rupee') || lower.includes('પૈસા') || lower.includes('पैसे')) {
+        if (lang === 'hi') return 'चालू माह का सोलर राजस्व और उत्पादन लक्ष्य के अनुसार बहुत अच्छा चल रहा है।';
+        if (lang === 'en') return 'Current month solar revenue and generation are progressing on track according to targets.';
+        return 'ચાલુ મહિનાની સોલાર આવક અને ઉત્પાદન લક્ષ્યાંક મુજબ ખૂબ જ સારું છે.';
     }
 
-    // Default polite conversational greeting
-    return lang === 'gu'
-        ? `હા ${userName}, હું SolarFlow AI સહાયક છું. તમે આજના યુનિટ્સ, PGVCL સ્ટેટસ, સ્ટાફ હાજરી અથવા સોલાર આવક વિશે કંઈ પણ પૂછી શકો છો.`
-        : `Yes ${userName}, I am SolarFlow AI Assistant. You can ask me about today's units, PGVCL curtailment, staff attendance, or solar revenue.`;
+    // Default conversational greeting
+    if (lang === 'hi') {
+        return `हाँ ${userName}, मैं SolarFlow AI सहायक (Aoede) हूँ। आप आज के यूनिट्स, PGVCL स्टेटस, स्टाफ उपस्थिति या सोलर आय के बारे में कुछ भी पूछ सकते हैं।`;
+    }
+    if (lang === 'en') {
+        return `Yes ${userName}, I am SolarFlow AI Assistant (Aoede). You can ask me about today's units, PGVCL curtailment, staff attendance, or solar revenue.`;
+    }
+    return `હા ${userName}, હું SolarFlow AI સહાયક છું. તમે આજના યુનિટ્સ, PGVCL સ્ટેટસ, સ્ટાફ હાજરી અથવા સોલાર આવક વિશે કંઈ પણ પૂછી શકો છો.`;
 }
