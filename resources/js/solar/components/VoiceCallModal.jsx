@@ -101,6 +101,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
     const wakeLockRef = useRef(null);
     const heartbeatRef = useRef(null);
     const hasConnectedRef = useRef(false);
+    const preloadedAudioRef = useRef(null);
 
     // Sync states to refs
     useEffect(() => {
@@ -502,6 +503,15 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
             toneGenRef.current.startRingTone();
         } catch(e) {}
 
+        // 🚀 Preload Welcome Spoken Audio while phone is ringing so it plays instantly (0ms delay) on pickup
+        try {
+            const cleanGreeting = defaultGreeting.replace(/[*#_`]/g, '');
+            const preloadAudio = new Audio(`/api/voice-agent/tts?text=${encodeURIComponent(cleanGreeting)}&language=gu`);
+            preloadAudio.preload = 'auto';
+            preloadAudio.load();
+            preloadedAudioRef.current = preloadAudio;
+        } catch(e) {}
+
         try {
             // 1. Output Audio Player (24kHz HD PCM)
             const player = new PcmPlayer(24000);
@@ -570,6 +580,13 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                             if (toneGenRef.current) toneGenRef.current.stopRingTone();
                         } catch(e) {}
                         setCallState('connected');
+                        
+                        // 🎙️ Play preloaded spoken greeting instantly (0ms delay!)
+                        try {
+                            if (preloadedAudioRef.current) {
+                                preloadedAudioRef.current.play().catch(e => console.log('Preloaded audio play note:', e));
+                            }
+                        } catch(e) {}
                     },
                     onmessage: (msg) => handleLiveMessage(msg),
                     onerror: (e) => {
@@ -602,11 +619,11 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
             setCallState('connected');
             setTranscriptHistory([{ sender: 'ai', text: defaultGreeting }]);
 
-            // 🎙️ Instant spoken greeting audio on pickup (Zero wait time)
+            // Fallback play if not played in onopen
             try {
-                const cleanGreeting = defaultGreeting.replace(/[*#_`]/g, '');
-                const greetingAudio = new Audio(`/api/voice-agent/tts?text=${encodeURIComponent(cleanGreeting)}&language=gu`);
-                greetingAudio.play().catch(e => console.log('Greeting autoplay note:', e));
+                if (preloadedAudioRef.current && preloadedAudioRef.current.paused) {
+                    preloadedAudioRef.current.play().catch(() => {});
+                }
             } catch(e) {}
         } catch (err) {
             console.error('Failed to start Live Session:', err);

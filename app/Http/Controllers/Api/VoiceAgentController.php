@@ -509,10 +509,10 @@ PROMPT;
 
     private function buildInstantContext($user, $liveSolarData = null): string
     {
-        $liveKw = (float)($liveSolarData['live_total_power_kw'] ?? 0);
-        $todayKwh = (float)($liveSolarData['today_total_kwh'] ?? 0);
+        $liveKw = (float)($liveSolarData['live_total_power_kw'] ?? $liveSolarData['realtime_power_kw'] ?? 0);
+        $todayKwh = (float)($liveSolarData['today_total_kwh'] ?? $liveSolarData['today_units_kwh'] ?? 0);
         $yesterdayKwh = (float)($liveSolarData['yesterday_total_kwh'] ?? 0);
-        $curtailmentActive = !empty($liveSolarData['curtailment_active']);
+        $curtailmentActive = !empty($liveSolarData['curtailment_active']) || !empty($liveSolarData['curtailment_system']['is_any_active']);
         $todayRev = round($todayKwh * 3.80, 2);
 
         $invertersText = [];
@@ -535,6 +535,11 @@ PROMPT;
                     $invertersText[] = "  * {$iName} ({$cName}): લાઈવ પાવર {$iKw} kW (આજના: {$iToday} kWh, સ્થિતિ: {$status})";
                 }
             }
+        }
+
+        // If overall liveKw wasn't set at top level but inverters had live power
+        if ($liveKw <= 0 && $totalKw > 0) {
+            $liveKw = round($totalKw, 2);
         }
 
         $avgKw = $activeInvs > 0 ? round($totalKw / $activeInvs, 2) : 0;
@@ -602,9 +607,11 @@ PROMPT;
 ૩. **કર્મચારીઓની આજની હાજરી અને રજાઓ:**
 {$empListStr}
 
-૪. **STRICT RULES FOR ULTRA-FAST ANSWERS:**
+૪. **STRICT RULES FOR ULTRA-FAST ANSWERS & ANTI-HALLUCINATION:**
    - ઉપરનો તમામ લાઈવ અને ડેટાબેઝ ડેટા તમારા મગજમાં પહેલેથી જ હાજર છે. જ્યારે યુઝર આજના યુનિટ્સ, લાઈવ પાવર, ઇન્વર્ટર ૧ નો પાવર, સરેરાશ પાવર, આ મહિનાના રૂપિયા, મહિનાઓની સરખામણી કે કર્મચારી હાજરી પૂછે:
      તમારે કોઈપણ ટૂલ કોલ કર્યા વગર ૧ સેકન્ડમાં સીધો મોઢેથી જ સચોટ જવાબ આપવો!
+   - 🚫 **સખત મનાઈ (Zero Hallucination Rule):** દિવસે (સવારે ૭:૦૦ થી સાંજે ૬:૩૦ વચ્ચે) ક્યારેય એવું ન બોલવું કે "સૂરજ હજુ ઊગ્યો નથી" કે "તડકો નથી". જો કોઈ કારણસર લાઈવ પાવર ૦ kW દેખાય કે ડેટા ન મળે, તો પોતાની જાતે કોઈ પણ મનઘડંત કારણ કે હવામાનનું બહાનું ન કાઢવું! સ્પષ્ટ અને પ્રામાણિકતાથી કહેવું:
+     "હાલ ડેટા લોગર સિન્ક થઈ રહ્યો છે, જેથી લાઈવ ડેટા અપડેટ થવાનો બાકી છે." અથવા "મને આ વિગતનો હાલ ખ્યાલ નથી."
    - જો યુઝર કોઈ એવી ચોક્કસ તારીખ પૂછે જેનો ડેટા ડેટાબેઝમાં નોંધાયેલો નથી (દા.ત. કર્મચારીએ એપમાં એન્ટ્રી ન કરી હોય):
      તો કોઈપણ અંદાજ લગાવ્યા વગર સ્પષ્ટ અને પ્રામાણિકતાથી કહેવું:
      "તમારા કર્મચારીએ આ તારીખનો ડેટા એપમાં હજી દાખલ (entry) નથી કર્યો, એટલે આ તારીખની વિગત ઉપલબ્ધ નથી."

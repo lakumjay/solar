@@ -115,10 +115,10 @@ class VoiceAgentDataService
                     $overview = $solarCloud->getDashboardSolarOverview($companyId ? (string)$companyId : null);
                 }
 
-                $liveKw = (float)($overview['live_total_power_kw'] ?? 0);
-                $todayKwh = (float)($overview['today_total_kwh'] ?? 0);
+                $liveKw = (float)($overview['live_total_power_kw'] ?? $overview['realtime_power_kw'] ?? 0);
+                $todayKwh = (float)($overview['today_total_kwh'] ?? $overview['today_units_kwh'] ?? 0);
                 $yesterdayKwh = (float)($overview['yesterday_total_kwh'] ?? 0);
-                $isCurtailed = (bool)($overview['curtailment_active'] ?? false);
+                $isCurtailed = (bool)($overview['curtailment_active'] ?? !empty($overview['curtailment_system']['is_any_active']));
 
                 $inverterList = [];
                 $totalInvLiveKw = 0;

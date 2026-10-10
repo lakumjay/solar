@@ -237,6 +237,17 @@ class ISolarCloudController extends Controller
         }
 
         $overview = $this->solarCloud->getDashboardSolarOverview($companyId);
+        
+        // Cache for Voice Agent instant zero-latency memory (no redundant iSolarCloud API calls)
+        try {
+            if ($overview) {
+                \Illuminate\Support\Facades\Cache::put('dashboard_solar_overview_all', $overview, 120);
+                if ($companyId) {
+                    \Illuminate\Support\Facades\Cache::put("dashboard_solar_overview_{$companyId}", $overview, 120);
+                }
+            }
+        } catch (\Throwable $e) {}
+
         return response()->json($overview);
     }
 

@@ -130,6 +130,7 @@ export class ToneGenerator {
       osc1.stop(t + 1.85);
       osc2.stop(t + 1.85);
 
+      this.activeGain = gain;
       this.activeOscillators.push(osc1, osc2);
     };
 
@@ -142,10 +143,20 @@ export class ToneGenerator {
       clearInterval(this.ringInterval);
       this.ringInterval = null;
     }
+    if (this.ctx && this.activeGain) {
+      try {
+        this.activeGain.gain.cancelScheduledValues(this.ctx.currentTime);
+        this.activeGain.gain.setValueAtTime(0, this.ctx.currentTime);
+      } catch(e) {}
+    }
     this.activeOscillators.forEach(osc => {
-      try { osc.stop(); } catch(e) {}
+      try { 
+        osc.stop(); 
+        osc.disconnect();
+      } catch(e) {}
     });
     this.activeOscillators = [];
+    this.activeGain = null;
   }
 
   /** Plays classic 3-beep Call End Disconnect tone (480Hz + 620Hz) & haptic vibration */
