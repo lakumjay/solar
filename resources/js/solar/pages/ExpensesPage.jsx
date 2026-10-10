@@ -360,6 +360,7 @@ export default function ExpensesPage({currentUser}) {
                                                     <LedgerRow
                                                         entry={entry}
                                                         canManage={data.can_manage}
+                                                        currentLang={currentLang}
                                                         onEdit={() => setExpenseForm(entry)}
                                                         onCancel={() => action(entry, 'cancel')}
                                                         onReverse={() => action(entry, 'reverse')}
@@ -455,6 +456,7 @@ export default function ExpensesPage({currentUser}) {
                 <ExpenseForm
                     entry={expenseForm.id ? expenseForm : null}
                     settings={data.settings}
+                    currentLang={currentLang}
                     onClose={() => setExpenseForm(null)}
                     onSaved={completed}
                 />
@@ -463,6 +465,7 @@ export default function ExpensesPage({currentUser}) {
             {settlement && (
                 <SettlementForm
                     pair={settlement}
+                    currentLang={currentLang}
                     onClose={() => setSettlement(null)}
                     onSaved={completed}
                 />
@@ -471,7 +474,7 @@ export default function ExpensesPage({currentUser}) {
     );
 }
 
-function LedgerRow({entry, canManage, onEdit, onCancel, onReverse}) {
+function LedgerRow({entry, canManage, onEdit, onCancel, onReverse, currentLang = getLanguage()}) {
     if (entry.type === 'settlement') {
         return (
             <tr>
@@ -569,7 +572,7 @@ function LedgerRow({entry, canManage, onEdit, onCancel, onReverse}) {
     );
 }
 
-function ExpenseForm({entry, settings, onClose, onSaved}) {
+function ExpenseForm({entry, settings, onClose, onSaved, currentLang = getLanguage()}) {
     const companies = settings.companies || [];
 
     // Form fields
@@ -1082,7 +1085,7 @@ function ExpenseForm({entry, settings, onClose, onSaved}) {
     );
 }
 
-function SettlementForm({pair, onClose, onSaved}) {
+function SettlementForm({pair, onClose, onSaved, currentLang = getLanguage()}) {
     const totalOpen = Number(pair.amount) || 0;
     const [settledOn, setSettledOn] = useState(today());
     const [amount, setAmount] = useState(String(totalOpen));
