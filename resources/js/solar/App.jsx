@@ -209,11 +209,15 @@ function AppContent() {
     }, []);
 
     if (user === undefined) return <div className="app-loading"><Sun className="spin"/> Loading SolarFlow…</div>;
-    if (!user) return <LoginPage onLogin={async current => {const preferredPage = window.localStorage.getItem(`solarflow.activePage.${current.id}`) || 'dashboard'; setUser(current); setPage(preferredPage); await loadCompanies(current, preferredPage);}}/>;
+    if (!user) return (
+        <ErrorBoundary>
+            <LoginPage onLogin={async current => {const preferredPage = window.localStorage.getItem(`solarflow.activePage.${current.id}`) || 'dashboard'; setUser(current); setPage(preferredPage); await loadCompanies(current, preferredPage);}}/>
+        </ErrorBoundary>
+    );
 
     return <AppShell user={user} page={page} setPage={setPage} companies={companies} companyId={companyId} setCompanyId={setCompanyId}>
         {({can, activeCompany}) => (
-            <ErrorBoundary>
+            <ErrorBoundary key={page} fullScreen={false}>
                 {page === 'dashboard' && <DashboardPage companyId={companyId} currentUser={user}/>}
                 {page === 'entry' && <DailyEntryPage company={activeCompany} companies={companies} companyId={companyId} setCompanyId={setCompanyId} user={user} canEdit={can('edit_readings')}/>}
                 {page === 'reports' && <ReportsPage companyId={companyId} companies={companies}/>}
@@ -241,9 +245,11 @@ function AppContent() {
 
 export default function App() {
     return (
-        <LanguageProvider>
-            <OfflineScreen />
-            <AppContent />
-        </LanguageProvider>
+        <ErrorBoundary>
+            <LanguageProvider>
+                <OfflineScreen />
+                <AppContent />
+            </LanguageProvider>
+        </ErrorBoundary>
     );
 }
