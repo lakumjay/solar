@@ -345,40 +345,44 @@
 
 ---
 
-## 📋 Section 8: Master Issue Log & Priority Roadmap
+## 📋 Section 8: Master Issue Status Table (Audit Baseline)
 
-| ID | Severity | File | Line | Problem | Recommended Fix |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **01** | **CRITICAL** | `database/migrations/2026_10_01_000001_...` | 28 | Raw MySQL `UPDATE ... JOIN` breaks SQLite `php artisan test` (63 test failures). | Check DB driver before executing raw SQL. |
-| **02** | **CRITICAL** | `phpunit.xml` | 9 | `tests/Unit` folder missing; `artisan test` aborts with exit code 2. | Create `tests/Unit` or remove Unit testsuite from XML. |
-| **03** | **CRITICAL** | `resources/js/solar/pages/ISolarCloudPage.jsx` | 192 | Device table causes horizontal page overflow on 360px/390px phones. | Change wrapper class to `.table-wrap`. |
-| **04** | **CRITICAL** | `resources/js/solar/api.js` | 3-6 | Hardcoded relative `/api/` fails on Capacitor mobile (calls `localhost/api`). | Introduce `VITE_API_URL` environment configuration. |
-| **05** | **CRITICAL** | `app/Http/Controllers/SolarCurtailmentController.php` | 118 | Any authenticated user can modify plant curtailment (missing auth check). | Enforce role check: `super_admin` or `company_admin`. |
-| **06** | **CRITICAL** | Capacitor native shell | N/A | Android hardware back button kills app immediately (no handler). | Install `@capacitor/app` and register back button listener. |
-| **07** | **CRITICAL** | Capacitor remote server | N/A | App shows blank/browser error when device is offline. | Implement Service Worker cache or local shell bundle. |
-| **08** | **HIGH** | `app/Http/Controllers/PlantPhotoController.php` | 48 | `saveTask` lacks permission check; any user can modify tasks. | Add `requireSuperAdmin` check. |
-| **09** | **HIGH** | `app/Http/Controllers/PlantPhotoController.php` | 120 | Upload falls back to `Employee::first()`, misattributing photos. | Allow nullable employee or reject non-employee users. |
-| **10** | **HIGH** | `app/Http/Controllers/EmployeeController.php` | 36-37 | `$employee->user->name` crashes on null user. | Use nullsafe `$employee->user?->name`. |
-| **11** | **HIGH** | `resources/js/solar/pages/CompaniesPage.jsx` | 111 | `saveInverter` called outside try/catch. | Wrap in try/catch block. |
-| **12** | **HIGH** | `resources/js/solar/pages/CompaniesPage.jsx` | 130 | `company.inverters.filter` crashes if inverters is null. | Use `(company.inverters \|\| []).filter`. |
-| **13** | **HIGH** | `resources/js/solar/pages/DailyEntryPage.jsx` | 216 | `company.id` crashes on submit if company is undefined. | Add guard check before submitting. |
-| **14** | **HIGH** | `resources/js/solar/pages/ReelsPage.jsx` | 120 | `video.play()` lacks `.catch()`, triggering unhandled rejection. | Add `.catch(() => {})`. |
-| **15** | **HIGH** | `resources/js/solar/pages/EmployeesPage.jsx` | 30 | `api('employees').then` lacks `.catch()`. | Append `.catch()` error handler. |
-| **16** | **HIGH** | `resources/js/solar/pages/UsersPage.jsx` | 23 | `api('users').then` lacks `.catch()`. | Append `.catch()` error handler. |
-| **17** | **HIGH** | `resources/js/solar/pages/StockPage.jsx` | 53 | `await load()` inside modal callback lacks try/catch. | Wrap in try/catch. |
-| **18** | **HIGH** | `resources/js/solar/pages/AttendanceReportsPage.jsx` | 65 | Direct `<a href="/api/...">` fails on Capacitor/subdirectories. | Replace with authenticated download helper. |
-| **19** | **HIGH** | `resources/js/solar/pages/MySalaryPage.jsx` | 24 | `row?.employee.name` crashes if employee is undefined. | Use `row?.employee?.name`. |
-| **20** | **HIGH** | `resources/js/solar/api.js` | 19 | 401 Unauthorized does not redirect to login. | Implement global 401 event/interceptor. |
-| **21** | **HIGH** | `resources/js/solar/api.js` | 8 | `fetch()` lacks offline/network drop handler. | Catch network errors and display Gujarati toast. |
-| **22** | **HIGH** | `resources/js/solar/api.js` | 39 | Logout redirects to `/`, causing 404 on subdirectory setups. | Make logout redirection subdirectory-aware. |
-| **23** | **MEDIUM** | `vite.config.js` | N/A | Monolithic 1.37MB bundle slows down mobile initial load. | Implement code splitting with `React.lazy`. |
-| **24** | **MEDIUM** | `app/Http/Controllers/EmployeeLocationController.php` | 20 | DDL schema checks running on every GPS ping. | Remove `ensureTableExists()`; rely on migrations. |
-| **25** | **MEDIUM** | `resources/js/solar/pages/CurtailmentLossPage.jsx` | 21 | Hardcoded `id === 4` for super admin access. | Use role check `currentUser?.role === 'super_admin'`. |
-| **26** | **MEDIUM** | `resources/js/solar/pages/DashboardPage.jsx` | 194 | 10s background polling continues when tab is hidden. | Check `document.visibilityState`. |
-| **27** | **MEDIUM** | `resources/js/solar/pages/ExpensesPage.jsx` | 490 | 7-column table gets compressed on 768px tablet. | Activate card view at 820px breakpoint. |
-| **28** | **MEDIUM** | `resources/js/solar/pages/LoginPage.jsx` | 18 | Submit button not disabled during request flight. | Add `busy` state to prevent double-submits. |
-| **29** | **LOW** | `resources/js/solar/pages/ExcelImportPage.jsx` | 26 | Duplicate keys possible in import error details list. | Use `${item}-${idx}` as key. |
-| **30** | **LOW** | `resources/js/solar/pages/ReelsPage.jsx` | 138 | Silent `catch (e) {}` in like handler. | Provide gentle user feedback on failure. |
+| ID | Issue & Feature | Severity | File | Line | Current Status | Notes & Fix Detail |
+| :--- | :--- | :--- | :--- | :--- | :---: | :--- |
+| **01** | Raw MySQL `UPDATE ... JOIN` breaks SQLite in tests | **CRITICAL** | `database/migrations/2026_10_01_000001_enhance_shared_expenses_and_settlements.php` | 28 | **FIXED** | Added DB driver check (`DB::getDriverName() === 'mysql'`). |
+| **02** | Missing `tests/Unit` folder causing `artisan test` abort | **CRITICAL** | `phpunit.xml` / `tests/Unit/ExampleTest.php` | 9 | **FIXED** | Created `tests/Unit/ExampleTest.php` and set APP_URL. |
+| **03** | Device table horizontal overflow on 360px/390px phones | **CRITICAL** | `resources/js/solar/pages/ISolarCloudPage.jsx` | 192 | **FIXED** | Switched from `.table-responsive` to `.table-wrap`. |
+| **04** | API base URL hardcoded relative `/api/` on Capacitor | **CRITICAL** | `resources/js/solar/api.js` | 3-12 | **PARTIAL** | `VITE_API_URL` env read, but full server fallback in Capacitor needs enhancement. |
+| **05** | Power curtailment store/restore lacking role checks | **CRITICAL** | `app/Http/Controllers/SolarCurtailmentController.php` | 120 | **FIXED** | Enforced `super_admin` / `company_admin` authorization. |
+| **06** | Android hardware back button kills app immediately | **CRITICAL** | `resources/js/solar/App.jsx` | 32 | **PARTIAL** | `popstate` added; `@capacitor/app` native modal/exit listener needed. |
+| **07** | Offline screen + online auto-retry | **CRITICAL** | `resources/js/solar/App.jsx` / `OfflineOverlay.jsx` | N/A | **NOT FIXED** | No full-screen offline overlay with automatic retry on reconnection. |
+| **08** | `PlantPhotoController::saveTask` lacks permission check | **HIGH** | `app/Http/Controllers/PlantPhotoController.php` | 48 | **NOT FIXED** | Needs `super_admin` check. |
+| **09** | `PlantPhotoController::upload` falls back to `Employee::first()` | **HIGH** | `app/Http/Controllers/PlantPhotoController.php` | 120 | **NOT FIXED** | Remove fallback to `Employee::first()`, handle user or employee safely. |
+| **10** | `$employee->user->name` crashes on null user | **HIGH** | `app/Http/Controllers/EmployeeController.php` | 36-37 | **FIXED** | Nullsafe `$employee->user?->name ?? 'Staff'` added. |
+| **11** | `saveInverter` in CompaniesPage outside try/catch | **HIGH** | `resources/js/solar/pages/CompaniesPage.jsx` | 111 | **FIXED** | Wrapped in try/catch block with error message. |
+| **12** | `company.inverters.filter` crashes on null inverters | **HIGH** | `resources/js/solar/pages/CompaniesPage.jsx` | 130 | **FIXED** | Safe navigation `(company.inverters || []).filter` added. |
+| **13** | `DailyEntryPage.jsx` crashes on submit if company undefined | **HIGH** | `resources/js/solar/pages/DailyEntryPage.jsx` | 216 | **FIXED** | Guard check `if (!company?.id)` added. |
+| **14** | `ReelsPage.jsx` `video.play()` lacks `.catch()` | **HIGH** | `resources/js/solar/pages/ReelsPage.jsx` | 120 | **FIXED** | Added `.catch(() => setIsPlaying(false))`. |
+| **15** | `EmployeesPage.jsx` `api('employees')` error handling & state | **HIGH** | `resources/js/solar/pages/EmployeesPage.jsx` | 30 | **PARTIAL** | Catch added; needs full loading/error UI state. |
+| **16** | `UsersPage.jsx` `api('users')` error handling & state | **HIGH** | `resources/js/solar/pages/UsersPage.jsx` | 23 | **PARTIAL** | Catch added; needs try/catch and loading/error UI state. |
+| **17** | `StockPage.jsx` modal and API call error handling & state | **HIGH** | `resources/js/solar/pages/StockPage.jsx` | 53 | **PARTIAL** | Modal callback wrapped; needs independent loaders and error state. |
+| **18** | Direct `<a href="/api/...">` export links fail on Capacitor | **HIGH** | `resources/js/solar/pages/AttendanceReportsPage.jsx` | 65 | **NOT FIXED** | Needs authenticated programmatic file download helper. |
+| **19** | `MySalaryPage.jsx` `row?.employee.name` crashes on null | **HIGH** | `resources/js/solar/pages/MySalaryPage.jsx` | 24 | **FIXED** | Nullsafe `row?.employee?.name` added. |
+| **20** | 401 Unauthorized does not redirect to login | **HIGH** | `resources/js/solar/api.js` / `App.jsx` | 19, 28 | **FIXED** | Dispatches `solarflow:session_expired` and resets user. |
+| **21** | `fetch()` lacks offline/network drop handler | **HIGH** | `resources/js/solar/api.js` | 8 | **PARTIAL** | Wrapped in try/catch; needs integration with offline retry. |
+| **22** | Logout redirects to `/`, causing 404 on subdirectory setups | **HIGH** | `resources/js/solar/api.js` | 45 | **FIXED** | Redirects to `/git/public/` when on subdirectory. |
+| **23** | Monolithic 1.37MB bundle slows down mobile initial load | **MEDIUM** | `vite.config.js` / `App.jsx` | N/A | **NOT FIXED** | Route-level code splitting with `React.lazy` and `manualChunks`. |
+| **24** | DDL schema checks running on every GPS ping | **MEDIUM** | `app/Http/Controllers/EmployeeLocationController.php` | 20 | **FIXED** | Added migration for columns and memoized table check. |
+| **25** | Hardcoded `id === 4` for super admin access in CurtailmentLoss | **MEDIUM** | `resources/js/solar/pages/CurtailmentLossPage.jsx` | 21 | **NOT FIXED** | Use `currentUser?.role === 'super_admin'`. |
+| **26** | 10s background polling continues when tab is hidden | **MEDIUM** | `resources/js/solar/pages/DashboardPage.jsx` | 194 | **FIXED** | Paused polling when `document.hidden`. |
+| **27** | 7-column ledger table cramped on 768px tablet in ExpensesPage | **MEDIUM** | `resources/js/solar/pages/ExpensesPage.jsx` | 490 | **NOT FIXED** | Lower card view breakpoint to 820px. |
+| **28** | Form submit buttons not disabled during request flight | **MEDIUM** | `resources/js/solar/pages/LoginPage.jsx` & others | 18 | **NOT FIXED** | Disable submit buttons during request to prevent double submit. |
+| **29** | Duplicate keys possible in Excel import error details list | **LOW** | `resources/js/solar/pages/ExcelImportPage.jsx` | 26 | **FIXED** | Composite key `${item}-${idx}` implemented. |
+| **30** | ReelsPage vertical video 100% width on 1280px desktop | **MEDIUM** | `resources/js/solar/pages/ReelsPage.jsx` | 789 | **NOT FIXED** | Constrain max-width to 540px with margin auto. |
+| **31** | 419 CSRF silent token refresh + request retry (no page reload) | **HIGH** | `resources/js/solar/api.js` | 22 | **NOT FIXED** | Intercept 419, refresh CSRF cookie silently, retry request. |
+| **32** | `@capacitor/keyboard` & camera/GPS permission denied handling | **HIGH** | Mobile native shell / `MyAttendancePage.jsx` | N/A | **NOT FIXED** | Keyboard resize mode & friendly permission denied guide UI. |
+| **33** | Global ErrorBoundary + per-page ErrorBoundary | **HIGH** | `resources/js/solar/components/ErrorBoundary.jsx` | N/A | **NOT FIXED** | Catch unexpected render crashes gracefully. |
+| **34** | Security regression tests (normal user getting 403 on admin routes) | **HIGH** | `tests/Feature/SecurityAuthorizationTest.php` | N/A | **NOT FIXED** | Add automated tests for all secured endpoints. |
 
 ---
-*Report generated and verified against codebase on October 11, 2026.*
+*Report updated and verified against codebase on October 11, 2026 (Branch: `qa-fixes-2`).*
