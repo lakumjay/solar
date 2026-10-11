@@ -4,9 +4,25 @@ namespace App\Services;
 
 use App\Models\ActivityLog;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class ActivityLogger
 {
+    private static ?array $columns = null;
+
+    private static function getColumns(): array
+    {
+        if (self::$columns === null) {
+            try {
+                self::$columns = Schema::getColumnListing('activity_logs');
+            } catch (\Throwable) {
+                self::$columns = ['id', 'user_id', 'company_id', 'action', 'subject_type', 'subject_id', 'description', 'changes', 'created_at', 'updated_at'];
+            }
+        }
+        return self::$columns;
+    }
+
     public function log(
         User $actor,
         ?int $companyId,
@@ -17,7 +33,7 @@ class ActivityLogger
         array $changes = [],
         ?array $oldValues = null,
         ?array $newValues = null
-    ): ActivityLog {
+    ): ?ActivityLog {
         $request = request();
         $ip = null;
         $ua = null;
@@ -35,22 +51,45 @@ class ActivityLogger
 
         $deviceInfo = self::parseUserAgent($ua);
 
-        return ActivityLog::create([
-            'user_id' => $actor->id,
-            'company_id' => $companyId,
-            'action' => $action,
-            'subject_type' => $type,
-            'subject_id' => $subjectId,
-            'description' => $description,
-            'changes' => $changes,
-            'old_values' => $oldValues,
-            'new_values' => $newValues,
-            'ip_address' => $ip ?: '127.0.0.1',
-            'user_agent' => $ua ? substr($ua, 0, 500) : null,
-            'device' => $deviceInfo['device'] ?? 'Unknown Device',
-            'platform' => $deviceInfo['platform'] ?? 'Unknown OS',
-            'browser' => $deviceInfo['browser'] ?? 'Unknown Browser',
-        ]);
+        try {
+            $data = [
+                'user_id' => $actor->id,
+                'company_id' => $companyId,
+                'action' => $action,
+                'subject_type' => $type,
+                'subject_id' => $subjectId,
+                'description' => $description,
+                'changes' => $changes,
+            ];
+
+            $available = self::getColumns();
+            if (in_array('old_values', $available, true)) {
+                $data['old_values'] = $oldValues;
+            }
+            if (in_array('new_values', $available, true)) {
+                $data['new_values'] = $newValues;
+            }
+            if (in_array('ip_address', $available, true)) {
+                $data['ip_address'] = $ip ?: '127.0.0.1';
+            }
+            if (in_array('user_agent', $available, true)) {
+                $data['user_agent'] = $ua ? substr($ua, 0, 500) : null;
+            }
+            if (in_array('device', $available, true)) {
+                $data['device'] = $deviceInfo['device'] ?? 'Unknown Device';
+            }
+            if (in_array('platform', $available, true)) {
+                $data['platform'] = $deviceInfo['platform'] ?? 'Unknown OS';
+            }
+            if (in_array('browser', $available, true)) {
+                $data['browser'] = $deviceInfo['browser'] ?? 'Unknown Browser';
+            }
+
+            return ActivityLog::create($data);
+        } catch (\Throwable $e) {
+            Log::warning('ActivityLogger failed to record log: ' . $e->getMessage());
+            return null;
+        }
     }
 
     public static function parseUserAgent(?string $ua): array
