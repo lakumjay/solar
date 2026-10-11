@@ -25,6 +25,7 @@ import ReelsPage from './pages/ReelsPage';
 import CurtailmentLossPage from './pages/CurtailmentLossPage';
 import { ErrorBoundary } from './components/ErrorWireCut';
 import { LanguageProvider } from './context/LanguageContext';
+import OfflineScreen from './components/OfflineScreen';
 
 function AppContent() {
     const [user, setUser] = useState(undefined);
@@ -82,6 +83,20 @@ function AppContent() {
         window.addEventListener('solarflow:session_expired', handleSessionExpired);
         return () => window.removeEventListener('solarflow:session_expired', handleSessionExpired);
     }, []);
+
+    // Auto-retry when internet connection returns
+    useEffect(() => {
+        const handleReconnected = () => {
+            api('me').then(async current => {
+                if (current) {
+                    setUser(current);
+                    await loadCompanies(current, page);
+                }
+            }).catch(() => {});
+        };
+        window.addEventListener('solarflow:reconnected', handleReconnected);
+        return () => window.removeEventListener('solarflow:reconnected', handleReconnected);
+    }, [page]);
 
     // Mobile Back Button / Navigation history support
     useEffect(() => {
@@ -180,6 +195,7 @@ function AppContent() {
 export default function App() {
     return (
         <LanguageProvider>
+            <OfflineScreen />
             <AppContent />
         </LanguageProvider>
     );
