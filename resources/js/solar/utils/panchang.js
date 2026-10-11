@@ -69,6 +69,22 @@ const HOLIDAYS_MAP = {
     '2026-11-10': { name: 'ભાઈબીજ', nameEn: 'Bhai Dooj', isBankHoliday: true, isFestival: true, icon: '🪔' },
     '2026-11-20': { name: 'દેવ દિવાળી / તુલસી વિવાહ', nameEn: 'Dev Diwali', isBankHoliday: false, isFestival: true, icon: '🪔' },
 
+    // 2027 specific festival calendar dates (YYYY-MM-DD)
+    '2027-03-06': { name: 'મહા શિવરાત્રી', nameEn: 'Maha Shivratri', isBankHoliday: true, isFestival: true, icon: '🔱' },
+    '2027-03-22': { name: 'હોળી / ધૂળેટી', nameEn: 'Holi / Dhuleti', isBankHoliday: true, isFestival: true, icon: '🔥' },
+    '2027-04-15': { name: 'રામ નવમી', nameEn: 'Ram Navami', isBankHoliday: true, isFestival: true, icon: '🏹' },
+    '2027-04-20': { name: 'મહાવીર જયંતી', nameEn: 'Mahavir Jayanti', isBankHoliday: true, isFestival: false, icon: '🪔' },
+    '2027-08-17': { name: 'રક્ષાબંધન (બળેવ)', nameEn: 'Raksha Bandhan', isBankHoliday: false, isFestival: true, icon: '🪢' },
+    '2027-08-25': { name: 'શ્રીકૃષ્ણ જન્માષ્ટમી', nameEn: 'Janmashtami', isBankHoliday: true, isFestival: true, icon: '🦚' },
+    '2027-09-04': { name: 'ગણેશ ચતુર્થી', nameEn: 'Ganesh Chaturthi', isBankHoliday: true, isFestival: true, icon: '🐘' },
+    '2027-10-10': { name: 'વિજયાદશમી (દશેરા)', nameEn: 'Dussehra', isBankHoliday: true, isFestival: true, icon: '🏹' },
+    '2027-10-27': { name: 'ધનતેરસ', nameEn: 'Dhanteras', isBankHoliday: false, isFestival: true, icon: '🪔' },
+    '2027-10-28': { name: 'કાળી ચૌદશ', nameEn: 'Kali Chaudas', isBankHoliday: false, isFestival: true, icon: '🪔' },
+    '2027-10-29': { name: 'દિવાળી / લક્ષ્મી પૂજન', nameEn: 'Diwali', isBankHoliday: true, isFestival: true, icon: '🪔' },
+    '2027-10-30': { name: 'બેસતું વર્ષ (નૂતન વર્ષાભિનંદન)', nameEn: 'Gujarati New Year', isBankHoliday: true, isFestival: true, icon: '🪔' },
+    '2027-10-31': { name: 'ભાઈબીજ', nameEn: 'Bhai Dooj', isBankHoliday: true, isFestival: true, icon: '🪔' },
+    '2027-11-09': { name: 'દેવ દિવાળી', nameEn: 'Dev Diwali', isBankHoliday: false, isFestival: true, icon: '🪔' },
+
     // 2025 dates support
     '2025-02-26': { name: 'મહા શિવરાત્રી', nameEn: 'Maha Shivratri', isBankHoliday: true, isFestival: true, icon: '🔱' },
     '2025-03-14': { name: 'હોળી / ધૂળેટી', nameEn: 'Holi / Dhuleti', isBankHoliday: true, isFestival: true, icon: '🔥' },

@@ -8,7 +8,15 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('plant-photos:prune --days=10')->dailyAt('02:00');
+Schedule::command('plant-photos:prune --days=30')->dailyAt('02:00');
 Schedule::command('isolarcloud:auto-save-daily')->dailyAt('20:05');
 Schedule::command('isolarcloud:auto-save-daily')->dailyAt('20:30');
 Schedule::command('attendance:auto-close-daily')->dailyAt('23:55');
+
+Schedule::call(function () {
+    if (\Illuminate\Support\Facades\Schema::hasTable('employee_locations')) {
+        \Illuminate\Support\Facades\DB::table('employee_locations')
+            ->where('recorded_at', '<', now()->subDays(7))
+            ->delete();
+    }
+})->dailyAt('03:00')->name('prune-old-employee-locations');

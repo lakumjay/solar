@@ -40,8 +40,8 @@ class VoiceAgentController extends Controller
             'apiKey' => $apiKey ?: 'solarflow_ready',
             'hasGeminiKey' => !empty($apiKey),
             'model' => 'gemini-2.0-flash',
-            'liveModel' => env('GEMINI_LIVE_MODEL', 'gemini-3.1-flash-live-preview'),
-            'live_model' => env('GEMINI_LIVE_MODEL', 'gemini-3.1-flash-live-preview'),
+            'liveModel' => env('GEMINI_LIVE_MODEL', 'gemini-2.0-flash-exp'),
+            'live_model' => env('GEMINI_LIVE_MODEL', 'gemini-2.0-flash-exp'),
             'voice_name' => 'Aoede',
             'user' => [
                 'id' => $user?->id,
@@ -115,7 +115,7 @@ class VoiceAgentController extends Controller
             'speech_text' => $speechGu,
             'plant_name' => $plantName,
             'fault_type' => $faultType,
-            'engineer_phone' => '+919909900066',
+            'engineer_phone' => env('EMERGENCY_ENGINEER_PHONE', '+919909900066'),
             'target_user_id' => $user->id,
             'timestamp' => now()->toIso8601String(),
         ];
@@ -637,11 +637,12 @@ PROMPT;
 
     private function buildInstantContext($user, $liveSolarData = null): string
     {
+        $tariffRate = (float)env('SOLAR_PPA_TARIFF', 3.80);
         $liveKw = (float)($liveSolarData['live_total_power_kw'] ?? $liveSolarData['realtime_power_kw'] ?? 0);
         $todayKwh = (float)($liveSolarData['today_total_kwh'] ?? $liveSolarData['today_units_kwh'] ?? 0);
         $yesterdayKwh = (float)($liveSolarData['yesterday_total_kwh'] ?? 0);
         $curtailmentActive = !empty($liveSolarData['curtailment_active']) || !empty($liveSolarData['curtailment_system']['is_any_active']);
-        $todayRev = round($todayKwh * 3.80, 2);
+        $todayRev = round($todayKwh * $tariffRate, 2);
 
         $invertersText = [];
         $totalKw = 0;
@@ -682,12 +683,12 @@ PROMPT;
         $curMonthReadings = \App\Models\DailyReading::whereYear('reading_date', $curYear)->whereMonth('reading_date', $curMonth)->get();
         $curMonthGen = round($curMonthReadings->sum(fn($r) => $r->outputs->sum('generation')), 2);
         $curMonthExp = (float)$curMonthReadings->sum('plant_export_unit');
-        $curMonthRev = round($curMonthExp * 3.80, 2);
+        $curMonthRev = round($curMonthExp * $tariffRate, 2);
 
         $prevMonthReadings = \App\Models\DailyReading::whereYear('reading_date', $prevYear)->whereMonth('reading_date', $prevMonth)->get();
         $prevMonthGen = round($prevMonthReadings->sum(fn($r) => $r->outputs->sum('generation')), 2);
         $prevMonthExp = (float)$prevMonthReadings->sum('plant_export_unit');
-        $prevMonthRev = round($prevMonthExp * 3.80, 2);
+        $prevMonthRev = round($prevMonthExp * $tariffRate, 2);
 
         $diffGen = round($curMonthGen - $prevMonthGen, 2);
         $diffExp = round($curMonthExp - $prevMonthExp, 2);
@@ -720,14 +721,14 @@ PROMPT;
    - હાલનો લાઈવ જનરેશન પાવર: {$liveKw} kW
    - આજના લાઈવ ઉત્પાદન યુનિટ્સ: {$todayKwh} kWh
    - ગઈકાલના કુલ યુનિટ્સ: {$yesterdayKwh} kWh
-   - ટેરિફ ગણતરી: ફિક્સ ₹૩.૮૦ પ્રતિ યુનિટ
-   - આજના યુનિટની કમાણી: {$todayKwh} × ₹૩.૮૦ = ₹{$todayRev} રૂપિયા
+   - ટેરિફ ગણતરી: ફિક્સ ₹{$tariffRate} પ્રતિ યુનિટ
+   - આજના યુનિટની કમાણી: {$todayKwh} × ₹{$tariffRate} = ₹{$todayRev} રૂપિયા
    - સરેરાશ (Average) ઇન્વર્ટર પાવર: {$avgKw} kW (કુલ એક્ટિવ ઇન્વર્ટર: {$activeInvs})
    - PGVCL કર્ટલમેન્ટ સ્થિતિ: {$curtText}
    - કંપની મુજબ ઇન્વર્ટર લાઈવ પાવર:
 {$invertersListStr}
 
-૨. **ડેટાબેઝમાંથી મહિનાઓની માહિતી અને રેવન્યુ (રૂપિયા @ ₹૩.૮૦):**
+૨. **ડેટાબેઝમાંથી મહિનાઓની માહિતી અને રેવન્યુ (રૂપિયા @ ₹{$tariffRate}):**
    - ચાલુ મહિનો ({$curMonth}/{$curYear}): જનરેશન = {$curMonthGen} યુનિટ્સ, એક્સપોર્ટ = {$curMonthExp} યુનિટ્સ, રેવન્યુ = ₹{$curMonthRev} રૂપિયા
    - પાછલો મહિનો ({$prevMonth}/{$prevYear}): જનરેશન = {$prevMonthGen} યુનિટ્સ, એક્સપોર્ટ = {$prevMonthExp} યુનિટ્સ, રેવન્યુ = ₹{$prevMonthRev} રૂપિયા
    - મહિના સરખામણી: ચાલુ મહિનામાં પાછલા મહિના કરતા એક્સપોર્ટમાં {$diffExp} યુનિટ્સનો ફેરફાર છે.

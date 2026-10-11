@@ -33,10 +33,14 @@ class LeaveController extends Controller
     {
         $employee = $this->attendance->employeeFor($request->user());
         $data = $request->validated();
-        $data['leave_type_id'] = LeaveType::firstOrCreate(
-            ['name' => 'General Leave'],
-            ['paid' => true, 'active' => true],
-        )->id;
+        $leaveTypeId = $data['leave_type_id'] ?? null;
+        if (! $leaveTypeId) {
+            $leaveTypeId = LeaveType::where('active', true)->value('id') ?: LeaveType::firstOrCreate(
+                ['name' => 'General Leave'],
+                ['paid' => true, 'active' => true],
+            )->id;
+        }
+        $data['leave_type_id'] = $leaveTypeId;
         $overlap = LeaveRequest::where('employee_id', $employee->id)->whereIn('status', ['pending', 'approved'])
             ->whereDate('date_from', '<=', $data['date_to'])->whereDate('date_to', '>=', $data['date_from'])->exists();
         if ($overlap) {

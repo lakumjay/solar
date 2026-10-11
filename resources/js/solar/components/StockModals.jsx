@@ -489,7 +489,13 @@ export function BorrowStockModal({items, people, currentUser, selectedItem, onCl
                                         />
                                     </Field>
 
-                                    {currentItem && form.quantity && Number(form.quantity) > 0 && (
+                                    {currentItem && form.quantity && Number(form.quantity) > Number(currentItem.available_quantity) && (
+                                        <div style={{color: '#dc2626', fontSize: '12px', fontWeight: 700, marginTop: '4px'}}>
+                                            ⚠️ દાખલ કરેલો જથ્થો ઉપલબ્ધ સ્ટોક ({currentItem.available_quantity}) કરતાં વધુ છે!
+                                        </div>
+                                    )}
+
+                                    {currentItem && form.quantity && Number(form.quantity) > 0 && Number(form.quantity) <= Number(currentItem.available_quantity) && (
                                         <small style={{display: 'block', color: '#64748b', marginTop: '4px'}}>
                                             Remaining after issue: <b>{number(Math.max(0, currentItem.available_quantity - Number(form.quantity)))} units</b>
                                         </small>
@@ -682,6 +688,11 @@ export function ReturnStockModal({borrowing, people, currentUser, onClose, onSav
                             required
                             autoFocus
                         />
+                        {Number(form.quantity) > Number(borrowing.pending_quantity) && (
+                            <div style={{color: '#dc2626', fontSize: '11px', fontWeight: 700, marginTop: '3px'}}>
+                                ⚠️ દાખલ કરેલો જથ્થો બાકી નીકળતા જથ્થા ({borrowing.pending_quantity}) કરતાં વધુ છે!
+                            </div>
+                        )}
                     </Field>
                     <DatePicker
                         label="Return Date"

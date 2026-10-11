@@ -36,7 +36,7 @@ Route::get('/login', function () {
 
 Route::prefix('api')->group(function () {
     Route::get('isolarcloud/callback', [ISolarCloudController::class, 'callback']);
-    Route::post('login', [AuthController::class, 'login']);
+    Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
     Route::middleware('auth')->group(function () {
         Route::match(['get', 'post'], 'voice-agent/tts', [\App\Http\Controllers\Api\VoiceAgentController::class, 'tts']);
         Route::post('voice-agent/chat', [\App\Http\Controllers\Api\VoiceAgentController::class, 'chat']);

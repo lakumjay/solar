@@ -356,7 +356,7 @@ class SolarCurtailmentController extends Controller
 
         $records = $query->get();
         $now = Carbon::now();
-        $unitRate = 3.80; // Standard PPA tariff ₹3.80 / unit
+        $unitRate = (float) env('SOLAR_PPA_TARIFF', 3.80); // Standard PPA tariff ₹3.80 / unit
 
         $totalIncidents = $records->count();
         $totalMinutes = 0;

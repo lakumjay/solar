@@ -527,7 +527,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
             const authToken = cfg?.auth_token || cfg?.apiKey;
             const systemInstruction = cfg?.system_instruction || cfg?.systemInstruction;
             const voiceName = cfg?.voice_name || 'Aoede';
-            const liveModel = cfg?.live_model || cfg?.liveModel || 'gemini-3.1-flash-live-preview';
+            const liveModel = cfg?.live_model || cfg?.liveModel || 'gemini-2.0-flash-exp';
             const rawTools = cfg?.tools || [];
 
             // Ensure proper camelCase functionDeclarations for @google/genai SDK
@@ -539,9 +539,9 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                 throw new Error('Gemini API key is not configured in .env file.');
             }
 
-            let targetModel = (liveModel || 'gemini-3.1-flash-live-preview').replace(/^models\//, '');
-            if (!targetModel || targetModel.includes('gemini-3.8-live') || targetModel.includes('gemini-2.0-flash-exp')) {
-                targetModel = 'gemini-3.1-flash-live-preview';
+            let targetModel = (liveModel || 'gemini-2.0-flash-exp').replace(/^models\//, '');
+            if (!targetModel || targetModel.includes('gemini-3.1-flash-live-preview') || targetModel.includes('gemini-3.8-live')) {
+                targetModel = 'gemini-2.0-flash-exp';
             }
 
             // 3. Connect to Gemini Live via official SDK (modelled directly on telegram extenstion)

@@ -63,6 +63,27 @@ class AttendanceService
             $shiftStart->addMinutes($employee->half_day_minutes);
         }
 
+        $geofenceAlert = null;
+        try {
+            $company = $employee->user?->company ?: \App\Models\Company::where('active', true)->whereNotNull('latitude')->first();
+            if ($company && !empty($company->latitude) && !empty($company->longitude) && !empty($data['latitude']) && !empty($data['longitude'])) {
+                $earthRadius = 6371000;
+                $latFrom = deg2rad((float)$company->latitude);
+                $lonFrom = deg2rad((float)$company->longitude);
+                $latTo = deg2rad((float)$data['latitude']);
+                $lonTo = deg2rad((float)$data['longitude']);
+                $latDelta = $latTo - $latFrom;
+                $lonDelta = $lonTo - $lonFrom;
+                $angle = 2 * asin(sqrt(pow(sin($latDelta / 2), 2) + cos($latFrom) * cos($latTo) * pow(sin($lonDelta / 2), 2)));
+                $distanceMeters = $angle * $earthRadius;
+                $allowedRadius = (float)env('GEOFENCE_RADIUS_METERS', 1500);
+                if ($distanceMeters > $allowedRadius) {
+                    $km = round($distanceMeters / 1000, 1);
+                    $geofenceAlert = "⚠️ Geofence: Punched {$km} km away from plant ({$company->name})";
+                }
+            }
+        } catch (\Throwable $e) {}
+
         return AttendanceRecord::create([
             'employee_id' => $employee->id,
             'attendance_date' => $date,
@@ -73,6 +94,7 @@ class AttendanceService
             'selfie_path' => $selfiePath,
             'status' => 'open',
             'is_late' => $now->greaterThan($shiftStart),
+            'correction_reason' => $geofenceAlert,
         ]);
     }
 

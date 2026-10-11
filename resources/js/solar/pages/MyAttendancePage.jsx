@@ -95,6 +95,7 @@ export default function MyAttendancePage({companyId}) {
     const [today, setToday] = useState(null);
     const [history, setHistory] = useState([]);
     const [leaves, setLeaves] = useState([]);
+    const [leaveTypes, setLeaveTypes] = useState([]);
     const [photoTasks, setPhotoTasks] = useState(null);
     const [timeInOpen, setTimeInOpen] = useState(false);
     const [breakOutOpen, setBreakOutOpen] = useState(false);
@@ -102,7 +103,7 @@ export default function MyAttendancePage({companyId}) {
     const [cameraModalOpen, setCameraModalOpen] = useState(false);
     const [selectedTaskForPhoto, setSelectedTaskForPhoto] = useState(null);
     const [clockOutForm, setClockOutForm] = useState({work_done: '', learned: ''});
-    const [leaveForm, setLeaveForm] = useState({date_from: localDate(), date_to: localDate(), day_part: 'full_day', reason: ''});
+    const [leaveForm, setLeaveForm] = useState({date_from: localDate(), date_to: localDate(), day_part: 'full_day', reason: '', leave_type_id: ''});
     const [message, setMessage] = useState('');
     const [busy, setBusy] = useState(false);
     const [currentLang, setCurrentLang] = useState(() => getLanguage());
@@ -115,16 +116,18 @@ export default function MyAttendancePage({companyId}) {
 
     const load = async () => {
         try {
-            const [day, attendance, leaveRows, tasksData] = await Promise.all([
+            const [day, attendance, leaveRows, tasksData, types] = await Promise.all([
                 api('attendance/today'),
                 api('attendance/mine'),
                 api('leaves/mine'),
-                api('plant-photos/tasks').catch(() => null)
+                api('plant-photos/tasks').catch(() => null),
+                api('leave-types').catch(() => [])
             ]);
             setToday(day);
             setHistory(attendance);
             setLeaves(leaveRows);
             if (tasksData) setPhotoTasks(tasksData);
+            if (types?.length) setLeaveTypes(types);
         } catch (error) {
             setMessage(error.message);
         }
@@ -134,6 +137,12 @@ export default function MyAttendancePage({companyId}) {
 
     const clockOut = async event => {
         event.preventDefault();
+        const confirmMsg = currentLang === 'en'
+            ? 'Are you sure you want to submit your final Time Out and complete your day? Once submitted, attendance is locked for today.'
+            : 'શું તમે ખરેખર આજનો દિવસ પૂર્ણ (Final Time Out) કરવા માંગો છો? એકવાર Time Out કર્યા પછી આજે ફરી Time In કરી શકાશે નહીં.';
+        if (!window.confirm(confirmMsg)) {
+            return;
+        }
         setBusy(true);
         setMessage('Submitting work report…');
         try {
@@ -579,6 +588,14 @@ export default function MyAttendancePage({companyId}) {
                         <Send/>
                     </div>
                     <div className="form-grid two">
+                        <Field label={currentLang === 'en' ? 'Leave type' : 'રજાનો પ્રકાર (Leave Type)'}>
+                            <select value={leaveForm.leave_type_id} onChange={event => setLeaveForm({...leaveForm, leave_type_id: event.target.value})}>
+                                <option value="">{currentLang === 'en' ? 'General Leave (Default)' : 'જનરલ રજા (General Leave)'}</option>
+                                {leaveTypes.map(t => (
+                                    <option key={t.id} value={t.id}>{t.name} {t.paid ? '(Paid)' : '(Unpaid)'}</option>
+                                ))}
+                            </select>
+                        </Field>
                         <Field label="Day type">
                             <select value={leaveForm.day_part} onChange={event => setLeaveForm({...leaveForm, day_part: event.target.value})}>
                                 <option value="full_day">Full day</option>

@@ -122,16 +122,23 @@ class SalaryCalculationService
             $leave = $leaves->first(fn (LeaveRequest $item) => $item->date_from->lte($date) && $item->date_to->gte($date));
             $deductibleUnits = $eligible ? $this->deductibleLeaveUnits($leave, $holiday, $scheduleUnits) : 0;
 
+            $attendanceDay = $attendanceDays->get($dateString, []);
+            $dayStatus = $attendanceDay['status'] ?? ($eligible ? ($date->isPast() ? 'absent' : 'pending') : 'before_joining');
+
+            // Deduct unapproved absence when employee did not work and had no approved leave
+            if ($eligible && $scheduleUnits > 0 && ! $leave && $date->isPast() && in_array($dayStatus, ['absent', 'short_day'])) {
+                $deductibleUnits = $dayStatus === 'short_day' ? min(1, $scheduleUnits) : $scheduleUnits;
+            }
+
             $scheduledHalfUnits += $scheduleUnits;
             if ($eligible) {
                 $eligibleHalfUnits += $scheduleUnits;
                 $leaveHalfUnits += $deductibleUnits;
             }
 
-            $attendanceDay = $attendanceDays->get($dateString, []);
             $daily[] = [
                 'date' => $dateString,
-                'status' => $attendanceDay['status'] ?? ($eligible ? 'absent' : 'before_joining'),
+                'status' => $dayStatus,
                 'scheduled_units' => $scheduleUnits / 2,
                 'leave_units' => $deductibleUnits / 2,
                 'leave_part' => $leave?->day_part,

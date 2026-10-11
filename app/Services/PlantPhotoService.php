@@ -21,9 +21,6 @@ class PlantPhotoService
      */
     public function getTodayTasksWithProgress(?int $employeeId = null, ?int $companyId = null): array
     {
-        // 1. Auto prune photos older than 10 days on request
-        $this->pruneExpiredPhotos(10);
-
         $now = Carbon::now();
         $currentTimeStr = $now->format('H:i:s');
         $todayDate = $now->toDateString();
@@ -212,8 +209,14 @@ class PlantPhotoService
      */
     protected function resolveGpsAddress(float $lat, float $lon, ?string $defaultName = null): string
     {
+        $cacheKey = 'gps_addr_' . round($lat, 3) . '_' . round($lon, 3);
+        $cached = \Illuminate\Support\Facades\Cache::get($cacheKey);
+        if ($cached) {
+            return $cached;
+        }
+
         try {
-            $resp = Http::timeout(2)
+            $resp = Http::timeout(1.5)
                 ->withHeaders(['User-Agent' => 'SolarFlow-PlantMonitor/1.0'])
                 ->get('https://nominatim.openstreetmap.org/reverse', [
                     'lat' => $lat,
@@ -222,7 +225,9 @@ class PlantPhotoService
                 ]);
 
             if ($resp->successful() && ! empty($resp->json('display_name'))) {
-                return (string) $resp->json('display_name');
+                $addr = (string) $resp->json('display_name');
+                \Illuminate\Support\Facades\Cache::put($cacheKey, $addr, 86400 * 7);
+                return $addr;
             }
         } catch (\Throwable $t) {
             // Fallback

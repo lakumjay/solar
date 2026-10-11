@@ -60,6 +60,16 @@ class UserController extends Controller
                 $data['company_id'] = $request->user()->company_id;
             }
             abort_if($data['role'] === 'super_admin', 403);
+        } else {
+            // Protect Super Admin from accidentally deactivating self or changing own role
+            if (($data['id'] ?? null) == $request->user()->id) {
+                if (isset($data['active']) && ! (bool) $data['active']) {
+                    abort(422, 'You cannot deactivate your own Super Admin account.');
+                }
+                if (isset($data['role']) && $data['role'] !== 'super_admin') {
+                    abort(422, 'You cannot remove your own Super Admin role.');
+                }
+            }
         }
 
         if ($data['role'] === 'super_admin') {

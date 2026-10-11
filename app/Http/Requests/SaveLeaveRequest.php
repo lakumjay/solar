@@ -18,6 +18,7 @@ class SaveLeaveRequest extends FormRequest
         return [
             'date_from' => ['required', 'date'],
             'date_to' => ['required', 'date', 'after_or_equal:date_from'],
+            'leave_type_id' => ['nullable', 'integer', 'exists:leave_types,id'],
             'day_part' => ['required', Rule::in(['full_day', 'first_half', 'second_half'])],
             'reason' => ['required', 'string', 'max:2000'],
             'attachment' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],

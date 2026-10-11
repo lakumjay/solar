@@ -29,6 +29,7 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
     const [readings, setReadings] = useState({});
     const [outputs, setOutputs] = useState({});
     const [existing, setExisting] = useState(null);
+    const [previousReading, setPreviousReading] = useState(null);
     const [message, setMessage] = useState(null);
     const [busy, setBusy] = useState(false);
     const [syncingCloud, setSyncingCloud] = useState(false);
@@ -47,11 +48,20 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
         if (!company) return;
         setMessage(null);
         setExisting(null);
+        setPreviousReading(null);
         setReadings({});
         setOutputs({});
         setAutoFetched(false);
 
         try {
+            // Load previous day reading for reference
+            const d = new Date(targetDate);
+            d.setDate(d.getDate() - 1);
+            const prevStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            api(`readings?company_id=${company.id}&date_from=${prevStr}&date_to=${prevStr}`)
+                .then(res => setPreviousReading(res.data?.[0] || null))
+                .catch(() => setPreviousReading(null));
+
             const result = await api(`readings?company_id=${company.id}&date_from=${targetDate}&date_to=${targetDate}`);
             const row = result.data?.[0];
             if (row) {
@@ -372,9 +382,21 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
                 {METERS.map(([key, label]) => {
                     const currentMeterVal = readings[`${key}_reading`] ?? '';
                     const isValidMeter = currentMeterVal !== '' && parseFloat(currentMeterVal) > 0;
+                    const prevVal = previousReading?.[`${key}_reading`];
+                    const isLessThanPrev = prevVal && currentMeterVal !== '' && parseFloat(currentMeterVal) < parseFloat(prevVal);
 
                     return (
                         <Field key={key} label={`${label} Reading`} suffix="kWh">
+                            {prevVal && (
+                                <div style={{fontSize: '11px', color: '#64748b', marginBottom: '3px', display: 'flex', justifyContent: 'space-between'}}>
+                                    <span>{currentLang === 'en' ? 'Yesterday: ' : 'ગઈકાલનું: '}<b>{prevVal}</b></span>
+                                    {isLessThanPrev && (
+                                        <span style={{color: '#dc2626', fontWeight: 700}}>
+                                            ⚠️ {currentLang === 'en' ? 'Less than yesterday!' : 'ગઈકાલ કરતા ઓછું!'}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
                             <div className="smart-input-wrapper">
                                 <input
                                     type="number"
@@ -383,6 +405,7 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
                                     inputMode="decimal"
                                     placeholder="0.00"
                                     value={currentMeterVal}
+                                    style={isLessThanPrev ? {borderColor: '#f87171', background: '#fff5f5'} : undefined}
                                     onChange={event => setReadings({...readings, [`${key}_reading`]: event.target.value})}
                                     onBlur={event => {
                                         if (event.target.value !== '') {
