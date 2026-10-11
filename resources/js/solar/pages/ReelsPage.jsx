@@ -395,7 +395,7 @@ export default function ReelsPage({currentUser, companyId}) {
                 </div>
             ) : viewMode === 'feed' ? (
                 /* ================= FEED VIEW (VERTICAL REELS PLAYER) ================= */
-                <div className="reel-feed-wrapper" style={{display: 'flex', justifyContent: 'center', position: 'relative'}}>
+                <div className="reel-feed-wrapper" style={{display: 'flex', justifyContent: 'center', position: 'relative', maxWidth: '540px', margin: '0 auto', width: '100%'}}>
                     <div className="reel-vertical-container" style={{
                         position: 'relative',
                         width: '100%',

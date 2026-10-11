@@ -26,7 +26,7 @@ export default function ExpensesPage({currentUser}) {
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState('ledger'); // 'ledger' or 'settlements'
-    const [ledgerViewMode, setLedgerViewMode] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 768 ? 'cards' : 'table'));
+    const [ledgerViewMode, setLedgerViewMode] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 820 ? 'cards' : 'table'));
 
     const load = async () => {
         try {
