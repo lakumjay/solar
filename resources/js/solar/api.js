@@ -1,17 +1,30 @@
-export async function api(path, options = {}) {
-    const isFormData = options.body instanceof FormData;
+export function getApiBaseUrl() {
     let apiHost = '';
     if (typeof window !== 'undefined') {
+        const isCapacitor = !!(
+            window.Capacitor?.isNativePlatform?.() ||
+            window.location.protocol === 'capacitor:' ||
+            (window.location.hostname === 'localhost' && window.Capacitor)
+        );
+
         if (window.SOLARFLOW_API_URL) {
             apiHost = window.SOLARFLOW_API_URL.replace(/\/$/, '');
         } else if (import.meta.env?.VITE_API_URL) {
             apiHost = import.meta.env.VITE_API_URL.replace(/\/$/, '');
+        } else if (isCapacitor) {
+            apiHost = (localStorage.getItem('solarflow_api_host') || import.meta.env?.VITE_SERVER_URL || 'https://solar.example.com').replace(/\/$/, '');
         }
     }
     let base = `${apiHost}/api/`;
     if (typeof window !== 'undefined' && window.location.pathname.includes('/git/public')) {
         base = `${apiHost}/git/public/api/`;
     }
+    return { apiHost, base };
+}
+
+export async function api(path, options = {}) {
+    const isFormData = options.body instanceof FormData;
+    const { apiHost, base } = getApiBaseUrl();
     const cleanPath = path.startsWith('/') ? path.slice(1) : path;
     let response;
     try {
