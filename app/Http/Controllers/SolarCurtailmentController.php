@@ -129,6 +129,9 @@ class SolarCurtailmentController extends Controller
                     continue;
                 }
                 $companyId = (int) $item['company_id'];
+                if ($user->role === 'company_admin' && $companyId !== (int) $user->company_id) {
+                    abort(403, 'Company admin can only modify curtailment for their own company.');
+                }
                 $percentage = (int) $item['percentage'];
                 $inverterIds = $item['inverter_ids'] ?? [];
                 $pvStrings = $item['pv_strings'] ?? [];
@@ -196,6 +199,9 @@ class SolarCurtailmentController extends Controller
         ]);
 
         $companyId = (int) $validated['company_id'];
+        if ($user->role === 'company_admin' && $companyId !== (int) $user->company_id) {
+            abort(403, 'Company admin can only modify curtailment for their own company.');
+        }
         $percentage = (int) $validated['percentage'];
 
         // Check if there is an active curtailment for this company
@@ -272,7 +278,9 @@ class SolarCurtailmentController extends Controller
         $unitRate = 3.80;
 
         $query = SolarCurtailment::where('status', 'active');
-        if ($companyId && $companyId !== 'all') {
+        if ($user->role === 'company_admin') {
+            $query->where('company_id', (int) $user->company_id);
+        } elseif ($companyId && $companyId !== 'all') {
             $query->where('company_id', (int) $companyId);
         }
 
@@ -321,6 +329,9 @@ class SolarCurtailmentController extends Controller
     {
         $user = $request->user();
         abort_unless(in_array($user?->role, ['super_admin', 'company_admin'], true), 403, 'Unauthorized to delete plant curtailment.');
+        if ($user->role === 'company_admin' && (int) $curtailment->company_id !== (int) $user->company_id) {
+            abort(403, 'Company admin can only delete curtailment for their own company.');
+        }
         $curtailment->delete();
         return response()->json(['success' => true, 'message' => 'Curtailment record deleted.']);
     }
