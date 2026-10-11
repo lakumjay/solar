@@ -246,6 +246,8 @@ class ISolarCloudController extends Controller
                     \Illuminate\Support\Facades\Cache::put("dashboard_solar_overview_{$companyId}", $overview, 120);
                 }
             }
+        } catch (\Throwable $e) {}
+
         try {
             $activeEmergencyCall = \Illuminate\Support\Facades\Cache::get('active_emergency_call_super_admin');
             if ($activeEmergencyCall && is_array($overview)) {

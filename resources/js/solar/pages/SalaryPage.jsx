@@ -194,6 +194,7 @@ export default function SalaryPage() {
                                                     className="salary-action-btn add-extra"
                                                     onClick={() => setAdjustmentForm({
                                                         employee: row.employee,
+                                                        employee_id: row.employee.id,
                                                         salary_month: month,
                                                         type: 'addition',
                                                         work_date: new Date().toISOString().slice(0, 10),
@@ -279,6 +280,7 @@ export default function SalaryPage() {
                                                         {row.configured && (
                                                             <button className="link" onClick={() => setAdjustmentForm({
                                                                 employee: row.employee,
+                                                                employee_id: row.employee.id,
                                                                 salary_month: month,
                                                                 type: 'addition',
                                                                 work_date: new Date().toISOString().slice(0, 10),
@@ -678,7 +680,13 @@ function AdjustmentForm({form, setForm, onClose, onSaved}) {
         setBusy(true);
         setError('');
         try {
-            await api('salary-adjustments', {method: 'POST', body: JSON.stringify(form)});
+            await api('salary-adjustments', {
+                method: 'POST',
+                body: JSON.stringify({
+                    ...form,
+                    employee_id: form.employee_id || form.employee?.id
+                })
+            });
             await onSaved('Extra work / salary addition recorded successfully.');
         } catch (failure) {
             setError(failure.message);

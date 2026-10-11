@@ -14,6 +14,9 @@ class SaveSalaryAdjustmentRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        if (! $this->filled('employee_id') && $this->filled('employee.id')) {
+            $this->merge(['employee_id' => (int) $this->input('employee.id')]);
+        }
         if ($this->has('company_id') && ($this->company_id === '' || $this->company_id === null)) {
             $this->merge(['company_id' => null]);
         }
