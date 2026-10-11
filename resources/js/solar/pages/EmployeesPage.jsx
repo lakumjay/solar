@@ -19,6 +19,7 @@ export default function EmployeesPage({can, currentUser}) {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [salarySaving, setSalarySaving] = useState(false);
     const [salaryRates, setSalaryRates] = useState([]);
     const [salaryForm, setSalaryForm] = useState({effective_month: currentMonth(), monthly_salary: ''});
     const [salaryMessage, setSalaryMessage] = useState('');
@@ -65,11 +66,13 @@ export default function EmployeesPage({can, currentUser}) {
     };
     const saveSalary = async () => {
         setSalaryMessage('');
+        setSalarySaving(true);
         try {
             await api(`employees/${form.id}/salary-rates`, {method: 'POST', body: JSON.stringify(salaryForm)});
             setSalaryRates(await api(`employees/${form.id}/salary-rates`));
             setSalaryMessage(currentLang === 'en' ? 'Monthly salary saved successfully.' : 'માસિક પગાર સફળતાપૂર્વક સેવ થયો.');
         } catch (error) { setSalaryMessage(error.message); }
+        finally { setSalarySaving(false); }
     };
     const save = async event => {
         event.preventDefault();
@@ -85,12 +88,14 @@ export default function EmployeesPage({can, currentUser}) {
         });
         (form.weekly_offs || []).forEach(day => body.append('weekly_offs[]', day));
         if (photo) body.append('profile_photo', photo);
+        setSaving(true);
         try {
             await api('employees', {method: 'POST', body});
             setMessage(currentLang === 'en' ? 'Employee saved successfully.' : 'કર્મચારી સફળતાપૂર્વક સેવ થયો.');
             setForm(null);
             await load();
         } catch (error) { setMessage(error.message); }
+        finally { setSaving(false); }
     };
 
     return <div className="management-layout employee-management">
@@ -145,8 +150,8 @@ export default function EmployeesPage({can, currentUser}) {
             }} disabled={!can('manage_employees')}/><span/> {currentLang === 'en' ? 'Employee active' : 'કર્મચારી સક્રિય (Active)'}</label><label className="toggle"><input type="checkbox" checked={Boolean(form.manager_attendance_only)} onChange={event => setForm({...form, manager_attendance_only: event.target.checked})} disabled={!can('manage_employees')}/><span/> {currentLang === 'en' ? 'Manager records attendance' : 'મેનેજર હાજરી પૂરે (Manager only)'}</label></div>
             {form.manager_attendance_only && <div className="info-banner"><b>{currentLang === 'en' ? 'Self attendance will be disabled.' : 'સેલ્ફ એટેન્ડન્સ બંધ રહેશે.'}</b> {currentLang === 'en' ? 'An authorized manager or admin must add this employee’s completed attendance.' : 'મેનેજર અથવા એડમિન દ્વારા હાજરી પૂરવામાં આવશે.'}</div>}
             <div className="weekday-picker"><b>{currentLang === 'en' ? 'Weekly offs' : 'સાપ્તાહિક રજા (Weekly offs)'}</b><small>{currentLang === 'en' ? 'Select only off days. Leave every day unselected when the employee works all seven days.' : 'માત્ર રજાના દિવસો પસંદ કરો. જો સાતેય દિવસ કામ હોય તો ખાલી રાખો.'}</small><div>{DAYS.map(([value, label]) => <label key={value}><input type="checkbox" checked={(form.weekly_offs || []).map(String).includes(value)} disabled={!can('manage_employees')} onChange={event => setForm({...form, weekly_offs: event.target.checked ? [...(form.weekly_offs || []), Number(value)] : (form.weekly_offs || []).filter(day => String(day) !== value)})}/><span>{label}</span></label>)}</div></div>
-            {['super_admin', 'company_admin'].includes(currentUser.role) && form.id && <section className="employee-salary-config"><div><span className="company-icon"><IndianRupee/></span><span><b>{currentLang === 'en' ? 'Monthly salary' : 'માસિક પગાર (Monthly salary)'}</b><small>{currentLang === 'en' ? 'Confidential · effective-dated salary history' : 'ગુપ્ત · માસિક પગાર દર'}</small></span></div><div className="form-grid two"><Field label={currentLang === 'en' ? 'Effective month' : 'કયા મહિનાથી અમલી'}><input type="month" max={currentMonth()} value={salaryForm.effective_month} onChange={event => setSalaryForm({...salaryForm, effective_month: event.target.value})}/></Field><Field label={currentLang === 'en' ? 'Full monthly salary (₹)' : 'પૂરો માસિક પગાર (₹)'}><input type="number" min="0.01" step="0.01" value={salaryForm.monthly_salary} onChange={event => setSalaryForm({...salaryForm, monthly_salary: event.target.value})}/></Field></div><button type="button" className="secondary" disabled={!salaryForm.monthly_salary} onClick={saveSalary}>{currentLang === 'en' ? 'Save salary rate' : 'પગાર રેટ સેવ કરો'}</button>{salaryRates.length > 0 && <div className="salary-rate-history">{salaryRates.map(rate => <span key={rate.id}><b>₹{Number(rate.monthly_salary).toLocaleString('en-IN', {minimumFractionDigits: 2})}</b><small>From {rate.effective_month} · {rate.created_by || 'Super admin'}</small></span>)}</div>}{salaryMessage && <div className={salaryMessage.includes('successfully') ? 'success' : 'error'}>{salaryMessage}</div>}</section>}
-            {message && <div className={message.includes('successfully') ? 'success' : 'error'}>{message}</div>}{can('manage_employees') && <div className="form-actions"><span>{currentLang === 'en' ? 'Employee login is separate from company login.' : 'કર્મચારી લોગિન કંપની લોગિનથી અલગ છે.'}</span><button className="primary">{currentLang === 'en' ? 'Save employee' : 'કર્મચારી સેવ કરો'}</button></div>}
+            {['super_admin', 'company_admin'].includes(currentUser.role) && form.id && <section className="employee-salary-config"><div><span className="company-icon"><IndianRupee/></span><span><b>{currentLang === 'en' ? 'Monthly salary' : 'માસિક પગાર (Monthly salary)'}</b><small>{currentLang === 'en' ? 'Confidential · effective-dated salary history' : 'ગુપ્ત · માસિક પગાર દર'}</small></span></div><div className="form-grid two"><Field label={currentLang === 'en' ? 'Effective month' : 'કયા મહિનાથી અમલી'}><input type="month" max={currentMonth()} value={salaryForm.effective_month} onChange={event => setSalaryForm({...salaryForm, effective_month: event.target.value})}/></Field><Field label={currentLang === 'en' ? 'Full monthly salary (₹)' : 'પૂરો માસિક પગાર (₹)'}><input type="number" min="0.01" step="0.01" value={salaryForm.monthly_salary} onChange={event => setSalaryForm({...salaryForm, monthly_salary: event.target.value})}/></Field></div><button type="button" className="secondary" disabled={!salaryForm.monthly_salary || salarySaving} onClick={saveSalary}>{salarySaving ? (currentLang === 'en' ? 'Saving…' : 'સેવ થઈ રહ્યું છે…') : (currentLang === 'en' ? 'Save salary rate' : 'પગાર રેટ સેવ કરો')}</button>{salaryRates.length > 0 && <div className="salary-rate-history">{salaryRates.map(rate => <span key={rate.id}><b>₹{Number(rate.monthly_salary).toLocaleString('en-IN', {minimumFractionDigits: 2})}</b><small>From {rate.effective_month} · {rate.created_by || 'Super admin'}</small></span>)}</div>}{salaryMessage && <div className={salaryMessage.includes('successfully') ? 'success' : 'error'}>{salaryMessage}</div>}</section>}
+            {message && <div className={message.includes('successfully') ? 'success' : 'error'}>{message}</div>}{can('manage_employees') && <div className="form-actions"><span>{currentLang === 'en' ? 'Employee login is separate from company login.' : 'કર્મચારી લોગિન કંપની લોગિનથી અલગ છે.'}</span><button className="primary" disabled={saving}>{saving ? (currentLang === 'en' ? 'Saving employee…' : 'સેવ થઈ રહ્યું છે…') : (currentLang === 'en' ? 'Save employee' : 'કર્મચારી સેવ કરો')}</button></div>}
         </form> : <Empty title={currentLang === 'en' ? 'Select or add an employee' : 'કર્મચારી પસંદ કરો અથવા નવો ઉમેરો'} detail={currentLang === 'en' ? 'Employees are common to all companies and have their own attendance login.' : 'કર્મચારીઓ તમામ કંપનીઓ માટે કોમન છે અને પોતાનું લોગિન ધરાવે છે.'}/>}</div>
     </div>;
 }

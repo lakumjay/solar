@@ -33,6 +33,7 @@ export default function CompaniesPage({companies, refresh}) {
     const [ownerPhotoPreview, setOwnerPhotoPreview] = useState(null);
     const [showPassword, setShowPassword] = useState(false);
     const [message, setMessage] = useState('');
+    const [busy, setBusy] = useState(false);
 
     useEffect(() => () => {
         if (logoPreview?.startsWith('blob:')) URL.revokeObjectURL(logoPreview);
@@ -94,6 +95,7 @@ export default function CompaniesPage({companies, refresh}) {
         if (logoFile) payload.append('logo', logoFile);
         if (ownerPhotoFile) payload.append('owner_photo', ownerPhotoFile);
 
+        setBusy(true);
         try {
             const saved = await api('companies', {method: 'POST', body: payload});
             setSelected(saved);
@@ -104,6 +106,8 @@ export default function CompaniesPage({companies, refresh}) {
             await refresh();
         } catch (error) {
             setMessage(error.message);
+        } finally {
+            setBusy(false);
         }
     };
 
@@ -179,7 +183,12 @@ export default function CompaniesPage({companies, refresh}) {
                     {METERS.map(([key, label]) => <Field key={key} label={`${label} Unit Multiplier`}><input type="number" min="0" step="0.01" inputMode="decimal" value={form[`${key}_multiplier`]} onChange={event => setForm({...form, [`${key}_multiplier`]: event.target.value})} onBlur={event => setForm(current => ({...current, [`${key}_multiplier`]: fixedTwo(event.target.value)}))} required/></Field>)}
                 </div>
                 {message && <div className={message.includes('saved') ? 'success' : 'error'}>{message}</div>}
-                <div className="form-actions"><span>Changing a multiplier recalculates all saved units for this company.</span><button className="primary">Save company</button></div>
+                <div className="form-actions">
+                    <span>Changing a multiplier recalculates all saved units for this company.</span>
+                    <button className="primary" disabled={busy}>
+                        {busy ? 'Saving company…' : 'Save company'}
+                    </button>
+                </div>
             </form>
             {selected && <Inverters company={selected} save={saveInverter}/>} 
         </div>

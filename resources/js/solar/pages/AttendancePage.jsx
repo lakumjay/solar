@@ -31,6 +31,8 @@ export default function AttendancePage({canCorrect, canRecord}) {
     const [search, setSearch] = useState('');
     const [correction, setCorrection] = useState(null);
     const [manual, setManual] = useState(null);
+    const [savingManual, setSavingManual] = useState(false);
+    const [savingCorrection, setSavingCorrection] = useState(false);
     const [selfiePreview, setSelfiePreview] = useState(null);
     const [message, setMessage] = useState('');
     const [viewMode, setViewMode] = useState('cards');
@@ -132,12 +134,14 @@ export default function AttendancePage({canCorrect, canRecord}) {
     const saveCorrection = async event => {
         event.preventDefault();
         setMessage('');
+        setSavingCorrection(true);
         try {
             await api(`attendance/${correction.id}/correct`, {method: 'POST', body: JSON.stringify(correction)});
             setCorrection(null);
             setMessage('Attendance correction saved with audit history.');
             await load();
         } catch (error) { setMessage(error.message); }
+        finally { setSavingCorrection(false); }
     };
     const eligibleEmployees = employees.filter(employee => employee.active && employee.manager_attendance_only);
     const openManual = () => {
@@ -164,12 +168,14 @@ export default function AttendancePage({canCorrect, canRecord}) {
     const saveManual = async event => {
         event.preventDefault();
         setMessage('');
+        setSavingManual(true);
         try {
             await api('attendance/manual', {method: 'POST', body: JSON.stringify({...manual, employee_id: Number(manual.employee_id), break_minutes: Number(manual.break_minutes)})});
             setManual(null);
             setMessage('Manager-entered attendance saved with audit history.');
             await load();
         } catch (error) { setMessage(error.message); }
+        finally { setSavingManual(false); }
     };
     const todayDate = localDate();
     const isToday = date === todayDate;
@@ -1114,8 +1120,8 @@ export default function AttendancePage({canCorrect, canRecord}) {
                     <button type="button" className="secondary modal-cancel-btn" onClick={() => setManual(null)}>
                         {currentLang === 'en' ? 'Cancel' : 'રદ કરો (Cancel)'}
                     </button>
-                    <button type="submit" className="primary expense-submit-btn">
-                        {currentLang === 'en' ? '✓ Save Attendance' : '✓ Save Attendance (હાજરી સેવ કરો)'}
+                    <button type="submit" className="primary expense-submit-btn" disabled={savingManual}>
+                        {savingManual ? (currentLang === 'en' ? 'Saving…' : 'સેવ થઈ રહ્યું છે…') : (currentLang === 'en' ? '✓ Save Attendance' : '✓ Save Attendance (હાજરી સેવ કરો)')}
                     </button>
                 </div>
             </form>
@@ -1161,8 +1167,8 @@ export default function AttendancePage({canCorrect, canRecord}) {
                     <button type="button" className="secondary modal-cancel-btn" onClick={() => setCorrection(null)}>
                         {currentLang === 'en' ? 'Cancel' : 'રદ કરો (Cancel)'}
                     </button>
-                    <button type="submit" className="primary expense-submit-btn">
-                        {currentLang === 'en' ? '✓ Save Audited Correction' : '✓ Save Audited Correction (સેવ કરો)'}
+                    <button type="submit" className="primary expense-submit-btn" disabled={savingCorrection}>
+                        {savingCorrection ? (currentLang === 'en' ? 'Saving…' : 'સેવ થઈ રહ્યું છે…') : (currentLang === 'en' ? '✓ Save Audited Correction' : '✓ Save Audited Correction (સેવ કરો)')}
                     </button>
                 </div>
             </form>

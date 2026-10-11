@@ -15,29 +15,51 @@ export default function LeaveHolidayPage({can}) {
     const [status, setStatus] = useState('pending');
     const [holiday, setHoliday] = useState(blankHoliday());
     const [message, setMessage] = useState('');
+    const [savingHoliday, setSavingHoliday] = useState(false);
+    const [reviewingId, setReviewingId] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+
     const load = async () => {
-        const [leaveRows, holidayRows] = await Promise.all([api(`leaves${status ? `?status=${status}` : ''}`), api('holidays')]);
-        setLeaves(leaveRows);
-        setHolidays(holidayRows);
+        setLoading(true);
+        setError('');
+        try {
+            const [leaveRes, holidayRes] = await Promise.allSettled([
+                api(`leaves${status ? `?status=${status}` : ''}`),
+                api('holidays')
+            ]);
+            if (leaveRes.status === 'fulfilled') setLeaves(leaveRes.value || []);
+            else console.error('Failed to load leaves:', leaveRes.reason);
+            if (holidayRes.status === 'fulfilled') setHolidays(holidayRes.value || []);
+            else console.error('Failed to load holidays:', holidayRes.reason);
+        } catch (err) {
+            setError(err.message || 'Failed to load data.');
+        } finally {
+            setLoading(false);
+        }
     };
-    useEffect(() => { load().catch(error => setMessage(error.message)); }, [status]);
+    useEffect(() => { load(); }, [status]);
     const review = async (leave, decision) => {
         const remarks = window.prompt(`${decision === 'approved' ? 'Approval' : 'Rejection'} remarks (optional):`) ?? null;
         if (remarks === null) return;
+        setReviewingId(leave.id);
         try {
             await api(`leaves/${leave.id}/review`, {method: 'POST', body: JSON.stringify({status: decision, remarks})});
             setMessage(`Leave ${decision}.`);
             await load();
         } catch (error) { setMessage(error.message); }
+        finally { setReviewingId(null); }
     };
     const saveHoliday = async event => {
         event.preventDefault();
+        setSavingHoliday(true);
         try {
             await api('holidays', {method: 'POST', body: JSON.stringify(holiday)});
             setMessage(holiday.id ? 'Holiday updated.' : 'Holiday saved.');
             setHoliday(blankHoliday());
             await load();
         } catch (error) { setMessage(error.message); }
+        finally { setSavingHoliday(false); }
     };
 
     return <div className="leave-layout">
@@ -49,7 +71,7 @@ export default function LeaveHolidayPage({can}) {
                 <div className="leave-meta"><span><small>Dates</small><b>{leave.date_from} – {leave.date_to}</b></span><span><small>Day type</small><b>{leave.day_part.replaceAll('_', ' ')}</b></span></div>
                 <p>{leave.reason}</p>
                 {leave.reviewer && <small className="reviewed-by">Reviewed by {leave.reviewer.name}{leave.review_remarks ? ` · ${leave.review_remarks}` : ''}</small>}
-                {leave.status === 'pending' && can('approve_leaves') && <div className="review-actions"><button className="secondary danger-button" onClick={() => review(leave, 'rejected')}><X size={15}/> Reject</button><button className="primary" onClick={() => review(leave, 'approved')}><Check size={15}/> Approve</button></div>}
+                {leave.status === 'pending' && can('approve_leaves') && <div className="review-actions"><button className="secondary danger-button" disabled={reviewingId === leave.id} onClick={() => review(leave, 'rejected')}><X size={15}/> Reject</button><button className="primary" disabled={reviewingId === leave.id} onClick={() => review(leave, 'approved')}><Check size={15}/> Approve</button></div>}
             </article>)}</div> : (
                 <Empty title="No leave requests" detail={`There are no ${status || ''} leave requests.`}/>
             )}
@@ -59,7 +81,7 @@ export default function LeaveHolidayPage({can}) {
             {can('manage_attendance_settings') && <form className="holiday-form" onSubmit={saveHoliday}>
                 <Field label="Holiday name"><input value={holiday.name} onChange={event => setHoliday({...holiday, name: event.target.value})} required/></Field>
                 <div className="form-grid two"><Field label="Date"><input type="date" value={holiday.holiday_date} onChange={event => setHoliday({...holiday, holiday_date: event.target.value})} required/></Field><Field label="Holiday type"><select value={holiday.type} onChange={event => setHoliday({...holiday, type: event.target.value})}><option value="full_day">Full day</option><option value="first_half">First half</option><option value="second_half">Second half</option></select></Field></div>
-                <div className="holiday-actions"><label className="toggle"><input type="checkbox" checked={Boolean(holiday.active)} onChange={event => setHoliday({...holiday, active: event.target.checked})}/><span/> Holiday active</label>{holiday.id && <button type="button" className="secondary" onClick={() => setHoliday(blankHoliday())}>Cancel edit</button>}<button className="primary">{holiday.id ? 'Update holiday' : 'Add holiday'}</button></div>
+                <div className="holiday-actions"><label className="toggle"><input type="checkbox" checked={Boolean(holiday.active)} onChange={event => setHoliday({...holiday, active: event.target.checked})}/><span/> Holiday active</label>{holiday.id && <button type="button" className="secondary" onClick={() => setHoliday(blankHoliday())}>Cancel edit</button>}<button className="primary" disabled={savingHoliday}>{savingHoliday ? 'Saving…' : (holiday.id ? 'Update holiday' : 'Add holiday')}</button></div>
             </form>}
             <div className="simple-list holiday-list">{holidays.map(item => <button type="button" key={item.id} onClick={() => can('manage_attendance_settings') && setHoliday({id: item.id, name: item.name, holiday_date: item.holiday_date, type: item.type, active: item.active})}><span><b>{item.name}</b><small>{item.holiday_date} · {item.type.replaceAll('_', ' ')}</small></span><i className={item.active ? 'status on' : 'status'}>{item.active ? 'Active' : 'Inactive'}</i></button>)}</div>
         </section>
