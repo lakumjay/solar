@@ -115,10 +115,7 @@ class PlantPhotoController extends Controller
         $user = $request->user();
         $employee = Employee::where('user_id', $user->id)->first();
 
-        // If admin or user without separate employee row, fallback gracefully
-        if (! $employee) {
-            $employee = Employee::first();
-        }
+        abort_if(! $employee, 403, 'Only employees with an active profile can upload plant photos.');
 
         $request->validate([
             'photo' => ['required'], // file or base64 data url
