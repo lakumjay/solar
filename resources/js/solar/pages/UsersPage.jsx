@@ -17,10 +17,24 @@ export default function UsersPage({companies, currentUser}) {
     const [users, setUsers] = useState([]);
     const [form, setForm] = useState(null);
     const [message, setMessage] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
     const [filterTab, setFilterTab] = useState('all'); // 'all', 'staff', 'employees'
     const [searchQuery, setSearchQuery] = useState('');
 
-    const load = () => api('users?include_employees=1').then(setUsers).catch(err => setMessage(err.message));
+    const load = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const data = await api('users?include_employees=1');
+            setUsers(data || []);
+        } catch (err) {
+            setError(err.message || 'Failed to load users.');
+        } finally {
+            setLoading(false);
+        }
+    };
     useEffect(() => { load(); }, []);
 
     const rolePermissions = role => ({
@@ -34,13 +48,16 @@ export default function UsersPage({companies, currentUser}) {
 
     const save = async event => {
         event.preventDefault();
+        setSaving(true);
         try {
             await api('users', {method: 'POST', body: JSON.stringify(form)});
             setMessage('User access saved successfully.');
             setForm(null);
-            load();
-        } catch (error) {
-            setMessage(error.message);
+            await load();
+        } catch (err) {
+            setMessage(err.message);
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -163,7 +180,20 @@ export default function UsersPage({companies, currentUser}) {
 
                 {/* Users & Employees List */}
                 <div style={{maxHeight: 'calc(100vh - 230px)', overflowY: 'auto'}}>
-                    {filteredUsers.length === 0 ? (
+                    {error && (
+                        <div style={{margin: '12px', padding: '12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#dc2626', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                            <span>{error}</span>
+                            <button type="button" onClick={load} style={{background: '#dc2626', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px'}}>
+                                Retry
+                            </button>
+                        </div>
+                    )}
+                    {loading ? (
+                        <div style={{padding: '32px 16px', textAlign: 'center', color: '#64748b', fontSize: '13px'}}>
+                            <div className="animate-spin" style={{display: 'inline-block', marginBottom: '8px', fontSize: '18px'}}>⏳</div>
+                            <div>યુઝર્સ લોડ થઈ રહ્યા છે...</div>
+                        </div>
+                    ) : filteredUsers.length === 0 ? (
                         <div style={{padding: '24px 16px', textAlign: 'center', color: '#94a3b8', fontSize: '13px'}}>
                             No accounts match your filter.
                         </div>
@@ -392,8 +422,8 @@ export default function UsersPage({companies, currentUser}) {
 
                         <div className="form-actions">
                             <span>Inactive users cannot sign in.</span>
-                            <button className="primary" type="submit">
-                                Save Access
+                            <button className="primary" type="submit" disabled={saving}>
+                                {saving ? 'Saving...' : 'Save Access'}
                             </button>
                         </div>
                     </form>

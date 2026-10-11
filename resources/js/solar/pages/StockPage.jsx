@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {Boxes, HandCoins, History, IndianRupee, LayoutGrid, Package, PackageCheck, PackagePlus, PencilLine, Plus, Search, Table, TriangleAlert} from 'lucide-react';
+import {Boxes, HandCoins, History, IndianRupee, LayoutGrid, Package, PackageCheck, PackagePlus, PencilLine, Plus, RefreshCw, Search, Table, TriangleAlert} from 'lucide-react';
 import {api} from '../api';
 import {Empty, Loading, Metric} from '../components/Common';
 import {AddStockModal, BorrowingDetailModal, BorrowStockModal, ReturnStockModal, StockItemDetailModal, StockItemModal, StockPhotoModal} from '../components/StockModals';
@@ -32,16 +32,33 @@ export default function StockPage({can, currentUser}) {
     const [itemsPage, setItemsPage] = useState(1);
     const [borrowingsPage, setBorrowingsPage] = useState(1);
 
+    const [loading, setLoading] = useState(true);
+
     const load = async () => {
-        const [stock, borrowingRows, peopleRows] = await Promise.all([api('stock/items'), api('stock/borrowings'), api('stock/people')]);
-        setInventory(stock);
-        setBorrowings(borrowingRows);
-        setPeople(peopleRows);
+        setLoading(true);
         setError('');
+        try {
+            const [stockRes, borrowingRes, peopleRes] = await Promise.allSettled([
+                api('stock/items'),
+                api('stock/borrowings'),
+                api('stock/people')
+            ]);
+            if (stockRes.status === 'fulfilled') setInventory(stockRes.value);
+            if (borrowingRes.status === 'fulfilled') setBorrowings(borrowingRes.value);
+            if (peopleRes.status === 'fulfilled') setPeople(peopleRes.value);
+
+            if (stockRes.status === 'rejected') {
+                setError(stockRes.reason?.message || 'Failed to load stock inventory.');
+            }
+        } catch (err) {
+            setError(err.message || 'Failed to load stock data.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     useEffect(() => {
-        load().catch(failure => setError(failure.message));
+        load();
     }, []);
 
     const completed = async success => {
@@ -88,7 +105,14 @@ export default function StockPage({can, currentUser}) {
         return filteredBorrowings.slice(start, start + PAGE_SIZE);
     }, [filteredBorrowings, safeBorrowingsPage]);
 
-    if (error && !inventory) return <Empty title="Could not load stock" detail={error}/>;
+    if (error && !inventory) return (
+        <div style={{padding: '40px 20px', textAlign: 'center'}}>
+            <Empty title="Could not load stock" detail={error}/>
+            <button className="primary" onClick={load} style={{marginTop: '16px', display: 'inline-flex', alignItems: 'center', gap: '6px'}}>
+                <RefreshCw size={15}/> Retry
+            </button>
+        </div>
+    );
     if (!inventory) return <Loading/>;
     const summary = inventory.summary;
 

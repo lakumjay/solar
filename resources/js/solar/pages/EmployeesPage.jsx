@@ -16,6 +16,9 @@ export default function EmployeesPage({can, currentUser}) {
     const [photo, setPhoto] = useState(null);
     const [showPassword, setShowPassword] = useState(false);
     const [message, setMessage] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
     const [salaryRates, setSalaryRates] = useState([]);
     const [salaryForm, setSalaryForm] = useState({effective_month: currentMonth(), monthly_salary: ''});
     const [salaryMessage, setSalaryMessage] = useState('');
@@ -27,7 +30,18 @@ export default function EmployeesPage({can, currentUser}) {
         return () => window.removeEventListener('solarflow_language_change', handler);
     }, []);
 
-    const load = () => api('employees').then(setEmployees).catch(err => console.warn('Employees load error:', err));
+    const load = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const data = await api('employees');
+            setEmployees(data || []);
+        } catch (err) {
+            setError(err.message || 'Failed to load employees.');
+        } finally {
+            setLoading(false);
+        }
+    };
     useEffect(() => { load(); }, []);
 
     const filteredEmployees = useMemo(() => {
@@ -101,7 +115,26 @@ export default function EmployeesPage({can, currentUser}) {
                     {search && <button type="button" onClick={() => setSearch('')} style={{border: 0, background: 'none', cursor: 'pointer', color: '#94a3b8'}}>✕</button>}
                 </div>
             </div>
-            {filteredEmployees.map(employee => <button className="list-row" onClick={() => edit(employee)} key={employee.id}><span className="avatar employee-avatar">{employee.profile_photo_url ? <img src={employee.profile_photo_url} alt=""/> : employee.name.slice(0, 1)}</span><span><b>{employee.name}</b><small>{employee.employee_code} · {employee.manager_attendance_only ? (currentLang === 'en' ? 'Manager attendance' : 'મેનેજર હાજરી') : employee.designation || (currentLang === 'en' ? 'Employee' : 'સ્ટાફ')}</small></span><i className={employee.active ? 'status on' : 'status'}>{employee.active ? (currentLang === 'en' ? 'Active' : 'સક્રિય') : (currentLang === 'en' ? 'Inactive' : 'નિષ્ક્રિય')}</i></button>)}
+            {error && (
+                <div style={{margin: '0 12px 12px', padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', color: '#dc2626', fontSize: '12.5px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                    <span>{error}</span>
+                    <button type="button" onClick={load} style={{background: '#dc2626', color: '#fff', border: 'none', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px'}}>
+                        Retry
+                    </button>
+                </div>
+            )}
+            {loading ? (
+                <div style={{padding: '30px 16px', textAlign: 'center', color: '#64748b', fontSize: '13px'}}>
+                    <div className="animate-spin" style={{display: 'inline-block', marginBottom: '8px'}}>⏳</div>
+                    <div>{currentLang === 'en' ? 'Loading employees…' : 'કર્મચારીઓ લોડ થઈ રહ્યા છે...'}</div>
+                </div>
+            ) : filteredEmployees.length === 0 ? (
+                <div style={{padding: '24px 16px', textAlign: 'center', color: '#94a3b8', fontSize: '13px'}}>
+                    {currentLang === 'en' ? 'No employees found.' : 'કોઈ કર્મચારી મળ્યા નથી.'}
+                </div>
+            ) : (
+                filteredEmployees.map(employee => <button className="list-row" onClick={() => edit(employee)} key={employee.id}><span className="avatar employee-avatar">{employee.profile_photo_url ? <img src={employee.profile_photo_url} alt=""/> : employee.name.slice(0, 1)}</span><span><b>{employee.name}</b><small>{employee.employee_code} · {employee.manager_attendance_only ? (currentLang === 'en' ? 'Manager attendance' : 'મેનેજર હાજરી') : employee.designation || (currentLang === 'en' ? 'Employee' : 'સ્ટાફ')}</small></span><i className={employee.active ? 'status on' : 'status'}>{employee.active ? (currentLang === 'en' ? 'Active' : 'સક્રિય') : (currentLang === 'en' ? 'Inactive' : 'નિષ્ક્રિય')}</i></button>)
+            )}
         </section>
         <div>{form ? <form className="panel employee-form" onSubmit={save}><div className="panel-head"><div><h2>{form.id ? (currentLang === 'en' ? 'Employee details' : 'કર્મચારી વિગત') : (currentLang === 'en' ? 'Add employee' : 'નવો કર્મચારી')}</h2><p>{currentLang === 'en' ? 'One common employee account for attendance and leave.' : 'હાજરી અને રજા માટે કર્મચારીનું ખાતું.'}</p></div><button type="button" className="icon-button ghost" onClick={() => setForm(null)}><X/></button></div>
             <label className="employee-photo"><span>{photo ? <img src={URL.createObjectURL(photo)} alt=""/> : form.profile_photo_url ? <img src={form.profile_photo_url} alt=""/> : <UserRound/>}</span><div><b>{currentLang === 'en' ? 'Profile photo' : 'પ્રોફાઇલ ફોટો'}</b><small>{currentLang === 'en' ? 'Optional · JPG or PNG up to 5 MB' : 'ઓપ્શનલ · JPG અથવા PNG 5 MB સુધી'}</small></div>{can('manage_employees') && <input type="file" accept="image/*" onChange={event => setPhoto(event.target.files[0] || null)}/>}</label>
