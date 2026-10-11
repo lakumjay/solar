@@ -673,7 +673,7 @@ function RateForm({form, setForm, onClose, onSaved}) {
                     </button>
                 </div>
 
-                <div className="form-grid two salary-modal-grid" style={{gap: '12px', marginBottom: '12px'}}>
+                <div className="form-grid two salary-modal-grid" style={{gap: '10px', marginBottom: '10px'}}>
                     <Field label={getLanguage() === 'gu' ? 'ક્યારથી લાગુ (Effective month)' : 'Effective month'}>
                         <input
                             type="month"
@@ -681,7 +681,6 @@ function RateForm({form, setForm, onClose, onSaved}) {
                             value={form.effective_month}
                             onChange={event => setForm({...form, effective_month: event.target.value})}
                             required
-                            style={{height: '42px', borderRadius: '10px'}}
                         />
                     </Field>
                     <div className="modern-input-field" style={{marginBottom: 0}}>
@@ -705,8 +704,8 @@ function RateForm({form, setForm, onClose, onSaved}) {
                     </div>
                 </div>
 
-                <div className="quick-amount-chips" style={{marginBottom: '14px'}}>
-                    <span style={{fontSize: '10.5px', color: '#94a3b8', marginRight: '2px'}}>ઝડપી રકમ:</span>
+                <div className="quick-amount-chips" style={{marginBottom: '10px'}}>
+                    <span style={{fontSize: '9.5px', color: '#94a3b8', marginRight: '1px'}}>ઝડપી રકમ:</span>
                     {[8000, 10000, 12000, 15000, 20000, 25000].map(amt => (
                         <button
                             key={amt}
@@ -714,13 +713,13 @@ function RateForm({form, setForm, onClose, onSaved}) {
                             className="quick-amount-chip"
                             onClick={() => setForm({...form, monthly_salary: amt.toString()})}
                         >
-                            ₹{number(amt)}
+                            ₹{amt.toLocaleString('en-IN')}
                         </button>
                     ))}
                 </div>
 
-                <div style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#64748b', margin: '8px 0 12px'}}>
-                    <Eye size={13}/>
+                <div style={{display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10.5px', color: '#64748b', margin: '6px 0 10px'}}>
+                    <Eye size={12}/>
                     <span>{getLanguage() === 'gu' ? 'અગાઉના મહિનાના પગારમાં કોઈ ફેરફાર નહીં થાય.' : 'Previous months remain unchanged. Applied from this month onwards.'}</span>
                 </div>
 
@@ -728,13 +727,13 @@ function RateForm({form, setForm, onClose, onSaved}) {
 
                 <div className="modern-modal-footer">
                     <button type="button" className="btn-secondary-ghost" onClick={onClose}>
-                        {getLanguage() === 'gu' ? 'રદ કરો (Cancel)' : 'Cancel'}
+                        {getLanguage() === 'gu' ? 'રદ કરો' : 'Cancel'}
                     </button>
                     <button type="submit" className="btn-submit-action addition" disabled={busy || !parsedSalary}>
                         {busy ? (getLanguage() === 'gu' ? 'સેવ થાય છે…' : 'Saving…') : (
                             <>
-                                <Check size={15}/>
-                                <span>{getLanguage() === 'gu' ? `પગાર સેવ કરો (₹${number(parsedSalary)})` : `Save salary (₹${number(parsedSalary)})`}</span>
+                                <Check size={14}/>
+                                <span>{parsedSalary > 0 ? (getLanguage() === 'gu' ? `પગાર સેવ (₹${parsedSalary.toLocaleString('en-IN')})` : `Save salary (₹${parsedSalary.toLocaleString('en-IN')})`) : (getLanguage() === 'gu' ? 'પગાર સેવ કરો' : 'Save salary')}</span>
                             </>
                         )}
                     </button>
@@ -883,7 +882,7 @@ function AdjustmentForm({form, setForm, onClose, onSaved}) {
                         />
                     </div>
                     <div className="quick-amount-chips">
-                        <span style={{fontSize: '10.5px', color: '#94a3b8', marginRight: '2px'}}>ઝડપી રકમ:</span>
+                        <span style={{fontSize: '9.5px', color: '#94a3b8', marginRight: '1px'}}>ઝડપી રકમ:</span>
                         {[200, 500, 1000, 2000, 5000].map(amt => (
                             <button
                                 key={amt}
@@ -891,27 +890,25 @@ function AdjustmentForm({form, setForm, onClose, onSaved}) {
                                 className="quick-amount-chip"
                                 onClick={() => setForm({...form, amount: amt.toString()})}
                             >
-                                +₹{number(amt)}
+                                +₹{amt.toLocaleString('en-IN')}
                             </button>
                         ))}
                     </div>
                 </div>
 
                 {/* Work Date & Company Allocation Grid */}
-                <div className="form-grid two salary-modal-grid" style={{gap: '12px', marginBottom: '12px'}}>
+                <div className="form-grid two salary-modal-grid" style={{gap: '10px', marginBottom: '10px'}}>
                     <Field label={getLanguage() === 'gu' ? 'કામની તારીખ (Work Date)' : 'Work Date'}>
                         <input
                             type="date"
                             value={form.work_date || ''}
                             onChange={event => setForm({...form, work_date: event.target.value})}
-                            style={{height: '42px', borderRadius: '10px'}}
                         />
                     </Field>
                     <Field label={getLanguage() === 'gu' ? 'કંપની (Company Allocation)' : 'Company (Optional)'}>
                         <select
                             value={form.company_id || ''}
                             onChange={event => setForm({...form, company_id: event.target.value ? Number(event.target.value) : ''})}
-                            style={{height: '42px', borderRadius: '10px'}}
                         >
                             <option value="">{getLanguage() === 'gu' ? '🌐 તમામ / ન્યુટ્રલ (Company neutral)' : 'All / None (Company neutral)'}</option>
                             {companies.map(c => (
@@ -933,7 +930,6 @@ function AdjustmentForm({form, setForm, onClose, onSaved}) {
                         value={form.reason}
                         onChange={event => setForm({...form, reason: event.target.value})}
                         required
-                        style={{borderRadius: '10px', minHeight: '66px'}}
                     />
                 </Field>
 
@@ -947,7 +943,7 @@ function AdjustmentForm({form, setForm, onClose, onSaved}) {
                     >
                         <div className="switch-card-left">
                             <div className="switch-card-icon">
-                                <ReceiptIndianRupee size={17}/>
+                                <ReceiptIndianRupee size={15}/>
                             </div>
                             <div className="switch-card-text">
                                 <div className="switch-card-title">
@@ -976,16 +972,16 @@ function AdjustmentForm({form, setForm, onClose, onSaved}) {
                     <div className={`salary-impact-bar ${form.type}`}>
                         <span>
                             {isAddition
-                                ? `💡 +₹${number(parsedAmount)} will be added to ${form.employee.name}'s ${form.salary_month} salary`
-                                : `⚠️ −₹${number(parsedAmount)} will be deducted from ${form.employee.name}'s ${form.salary_month} salary`}
+                                ? `💡 +₹${parsedAmount.toLocaleString('en-IN')} will be added to ${form.employee.name}'s salary`
+                                : `⚠️ −₹${parsedAmount.toLocaleString('en-IN')} will be deducted from ${form.employee.name}'s salary`}
                         </span>
-                        <span style={{opacity: 0.85, fontSize: '10.5px'}}>
+                        <span style={{opacity: 0.85, fontSize: '10px'}}>
                             {getLanguage() === 'gu' ? '👁️ સ્લિપ પર દેખાશે' : '👁️ Visible on slip'}
                         </span>
                     </div>
                 ) : (
-                    <div style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#64748b', margin: '8px 0 12px'}}>
-                        <Eye size={13}/>
+                    <div style={{display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10.5px', color: '#64748b', margin: '6px 0 10px'}}>
+                        <Eye size={12}/>
                         <span>{getLanguage() === 'gu' ? 'કર્મચારીને તેના સેલ્ફ-સર્વિસ પોર્ટલ અને પગાર સ્લિપમાં વિગત દેખાશે.' : 'Visible to employee on self-service portal and pay slip.'}</span>
                     </div>
                 )}
@@ -995,7 +991,7 @@ function AdjustmentForm({form, setForm, onClose, onSaved}) {
                 {/* Footer Actions */}
                 <div className="modern-modal-footer">
                     <button type="button" className="btn-secondary-ghost" onClick={onClose}>
-                        {getLanguage() === 'gu' ? 'રદ કરો (Cancel)' : 'Cancel'}
+                        {getLanguage() === 'gu' ? 'રદ કરો' : 'Cancel'}
                     </button>
                     <button
                         type="submit"
@@ -1006,13 +1002,23 @@ function AdjustmentForm({form, setForm, onClose, onSaved}) {
                             <span>{getLanguage() === 'gu' ? 'સેવ થાય છે…' : 'Saving…'}</span>
                         ) : isAddition ? (
                             <>
-                                <PlusCircle size={15}/>
-                                <span>{getLanguage() === 'gu' ? `એડિશન સેવ કરો (+₹${number(parsedAmount)})` : `Record addition (+₹${number(parsedAmount)})`}</span>
+                                <PlusCircle size={14}/>
+                                <span>
+                                    {parsedAmount > 0
+                                        ? (getLanguage() === 'gu' ? `એડિશન સેવ (+₹${parsedAmount.toLocaleString('en-IN')})` : `Record addition (+₹${parsedAmount.toLocaleString('en-IN')})`)
+                                        : (getLanguage() === 'gu' ? 'એડિશન સેવ કરો' : 'Record addition')
+                                    }
+                                </span>
                             </>
                         ) : (
                             <>
-                                <MinusCircle size={15}/>
-                                <span>{getLanguage() === 'gu' ? `કપાત સેવ કરો (−₹${number(parsedAmount)})` : `Record deduction (−₹${number(parsedAmount)})`}</span>
+                                <MinusCircle size={14}/>
+                                <span>
+                                    {parsedAmount > 0
+                                        ? (getLanguage() === 'gu' ? `કપાત સેવ (−₹${parsedAmount.toLocaleString('en-IN')})` : `Record deduction (−₹${parsedAmount.toLocaleString('en-IN')})`)
+                                        : (getLanguage() === 'gu' ? 'કપાત સેવ કરો' : 'Record deduction')
+                                    }
+                                </span>
                             </>
                         )}
                     </button>
@@ -1054,7 +1060,7 @@ function CorrectionForm({form, setForm, onClose, onSaved}) {
                 <div className="modern-modal-header">
                     <div className="modern-modal-header-left">
                         <div className="modern-modal-icon-badge deduction">
-                            <PencilLine size={20}/>
+                            <PencilLine size={16}/>
                         </div>
                         <div>
                             <h2 className="modern-modal-title">
@@ -1079,7 +1085,6 @@ function CorrectionForm({form, setForm, onClose, onSaved}) {
                         value={form.correction_reason}
                         onChange={event => setForm({...form, correction_reason: event.target.value})}
                         required
-                        style={{borderRadius: '10px'}}
                     />
                 </Field>
 
@@ -1091,14 +1096,14 @@ function CorrectionForm({form, setForm, onClose, onSaved}) {
                 >
                     <div className="switch-card-left">
                         <div className="switch-card-icon">
-                            <Sparkles size={17}/>
+                            <Sparkles size={15}/>
                         </div>
                         <div className="switch-card-text">
                             <div className="switch-card-title">
-                                {getLanguage() === 'gu' ? 'નવા સાચા એડજસ્ટમેન્ટથી બદલો (Create replacement)' : 'Create a corrected replacement'}
+                                {getLanguage() === 'gu' ? 'નવા સાચા એડજસ્ટમેન્ટથી બદલો' : 'Create a corrected replacement'}
                             </div>
                             <div className="switch-card-desc">
-                                {getLanguage() === 'gu' ? 'જૂનું એન્ટ્રી કેન્સલ થશે અને નવી સુધારેલી એન્ટ્રી ઉમેરાશે.' : 'Cancels this entry and automatically records a new corrected one.'}
+                                {getLanguage() === 'gu' ? 'જૂની એન્ટ્રી કેન્સલ થશે અને નવી સુધારેલી એન્ટ્રી ઉમેરાશે.' : 'Cancels this entry and automatically records a new corrected one.'}
                             </div>
                         </div>
                     </div>
@@ -1116,12 +1121,11 @@ function CorrectionForm({form, setForm, onClose, onSaved}) {
 
                 {form.replace && (
                     <>
-                        <div className="form-grid two salary-modal-grid" style={{gap: '12px', marginBottom: '12px'}}>
+                        <div className="form-grid two salary-modal-grid" style={{gap: '10px', marginBottom: '10px'}}>
                             <Field label={getLanguage() === 'gu' ? 'નવો પ્રકાર (Type)' : 'Replacement type'}>
                                 <select
                                     value={form.replacement_type}
                                     onChange={event => setForm({...form, replacement_type: event.target.value})}
-                                    style={{height: '42px', borderRadius: '10px'}}
                                 >
                                     <option value="addition">➕ Addition (+)</option>
                                     <option value="deduction">➖ Deduction (−)</option>
@@ -1154,7 +1158,6 @@ function CorrectionForm({form, setForm, onClose, onSaved}) {
                                 value={form.replacement_reason}
                                 onChange={event => setForm({...form, replacement_reason: event.target.value})}
                                 required
-                                style={{borderRadius: '10px'}}
                             />
                         </Field>
                     </>
@@ -1164,7 +1167,7 @@ function CorrectionForm({form, setForm, onClose, onSaved}) {
 
                 <div className="modern-modal-footer">
                     <button type="button" className="btn-secondary-ghost" onClick={onClose}>
-                        {getLanguage() === 'gu' ? 'રદ કરો (Cancel)' : 'Cancel'}
+                        {getLanguage() === 'gu' ? 'રદ કરો' : 'Cancel'}
                     </button>
                     <button type="submit" className="btn-submit-action deduction" disabled={busy || !form.correction_reason?.trim()}>
                         {busy ? (getLanguage() === 'gu' ? 'સેવ થાય છે…' : 'Saving…') : form.replace ? (getLanguage() === 'gu' ? 'બદલો અને સેવ કરો' : 'Cancel and replace') : (getLanguage() === 'gu' ? 'એડજસ્ટમેન્ટ રદ કરો' : 'Cancel adjustment')}
