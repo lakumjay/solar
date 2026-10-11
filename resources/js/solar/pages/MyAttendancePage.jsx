@@ -266,7 +266,7 @@ export default function MyAttendancePage({companyId}) {
 
                     {/* Scheduled Slots */}
                     <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px', marginBottom: '12px'}}>
-                        {photoTasks.tasks.map((task) => {
+                        {(photoTasks?.tasks || []).map((task) => {
                             const isCurrent = task.is_current_window;
                             const isDone = task.is_completed;
 

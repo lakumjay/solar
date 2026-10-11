@@ -74,6 +74,26 @@ function AppContent() {
         if (user?.id) window.localStorage.setItem(`solarflow.activePage.${user.id}`, page);
     }, [page, user?.id]);
 
+    // Handle 401 Unauthorized / Session Expiry smoothly
+    useEffect(() => {
+        const handleSessionExpired = () => {
+            setUser(null);
+        };
+        window.addEventListener('solarflow:session_expired', handleSessionExpired);
+        return () => window.removeEventListener('solarflow:session_expired', handleSessionExpired);
+    }, []);
+
+    // Mobile Back Button / Navigation history support
+    useEffect(() => {
+        const handlePopState = () => {
+            if (page !== 'dashboard') {
+                setPage('dashboard');
+            }
+        };
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, [page]);
+
     // Service Worker push notification audio chime listener
     useEffect(() => {
         if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {

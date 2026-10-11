@@ -118,6 +118,7 @@ class SolarCurtailmentController extends Controller
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
+        abort_unless(in_array($user?->role, ['super_admin', 'company_admin'], true), 403, 'Unauthorized to modify plant curtailment.');
         $now = Carbon::now();
 
         // Check if multi-company payload was provided
@@ -264,6 +265,8 @@ class SolarCurtailmentController extends Controller
      */
     public function restoreAll(Request $request): JsonResponse
     {
+        $user = $request->user();
+        abort_unless(in_array($user?->role, ['super_admin', 'company_admin'], true), 403, 'Unauthorized to restore plant curtailment.');
         $companyId = $request->input('company_id');
         $now = Carbon::now();
         $unitRate = 3.80;
@@ -314,8 +317,10 @@ class SolarCurtailmentController extends Controller
     /**
      * Delete a curtailment
      */
-    public function destroy(SolarCurtailment $curtailment): JsonResponse
+    public function destroy(SolarCurtailment $curtailment, Request $request): JsonResponse
     {
+        $user = $request->user();
+        abort_unless(in_array($user?->role, ['super_admin', 'company_admin'], true), 403, 'Unauthorized to delete plant curtailment.');
         $curtailment->delete();
         return response()->json(['success' => true, 'message' => 'Curtailment record deleted.']);
     }

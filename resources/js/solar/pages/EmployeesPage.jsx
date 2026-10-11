@@ -27,13 +27,13 @@ export default function EmployeesPage({can, currentUser}) {
         return () => window.removeEventListener('solarflow_language_change', handler);
     }, []);
 
-    const load = () => api('employees').then(setEmployees);
+    const load = () => api('employees').then(setEmployees).catch(err => console.warn('Employees load error:', err));
     useEffect(() => { load(); }, []);
 
     const filteredEmployees = useMemo(() => {
         if (!search.trim()) return employees;
         const q = search.toLowerCase();
-        return employees.filter(e => 
+        return (employees || []).filter(e => 
             (e.name || '').toLowerCase().includes(q) ||
             (e.employee_code || '').toLowerCase().includes(q) ||
             (e.mobile || '').includes(q) ||
@@ -47,7 +47,7 @@ export default function EmployeesPage({can, currentUser}) {
         setForm({...employee, password: '', shift_start: employee.shift_start?.slice(0, 5), shift_end: employee.shift_end?.slice(0, 5), weekly_offs: employee.weekly_offs ?? []});
         setSalaryMessage('');
         setSalaryForm({effective_month: currentMonth(), monthly_salary: ''});
-        if (['super_admin', 'company_admin'].includes(currentUser.role)) api(`employees/${employee.id}/salary-rates`).then(setSalaryRates).catch(error => setSalaryMessage(error.message));
+        if (['super_admin', 'company_admin'].includes(currentUser?.role)) api(`employees/${employee.id}/salary-rates`).then(setSalaryRates).catch(error => setSalaryMessage(error.message));
     };
     const saveSalary = async () => {
         setSalaryMessage('');

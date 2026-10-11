@@ -189,7 +189,7 @@ export default function ISolarCloudPage({company, companies, user}) {
                 {activeCompanyObj && (
                     <div style={{marginTop: '16px'}}>
                         {liveData?.devices && liveData.devices.length > 0 ? (
-                            <div className="table-responsive">
+                            <div className="table-wrap">
                                 <table className="data-table" style={{width: '100%', textAlign: 'left', borderCollapse: 'collapse'}}>
                                     <thead>
                                         <tr style={{borderBottom: '2px solid #e2e8f0', background: '#f8fafc'}}>

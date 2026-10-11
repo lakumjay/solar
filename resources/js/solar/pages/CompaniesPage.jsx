@@ -108,26 +108,32 @@ export default function CompaniesPage({companies, refresh}) {
     };
 
     const saveInverter = async inverter => {
-        await api('inverters', {method: 'POST', body: JSON.stringify(inverter)});
-        const updatedCompanies = await refresh();
-        const updated = updatedCompanies.find(company => company.id === selected.id);
-        setSelected(updated);
-        setForm(current => ({...current, ...updated, password: ''}));
+        try {
+            await api('inverters', {method: 'POST', body: JSON.stringify(inverter)});
+            const updatedCompanies = await refresh();
+            const updated = (updatedCompanies || []).find(company => company.id === selected?.id);
+            if (updated) {
+                setSelected(updated);
+                setForm(current => ({...current, ...updated, password: ''}));
+            }
+        } catch (err) {
+            setMessage(err.message);
+        }
     };
 
     return <>
         <ExpensePercentagePanel companies={companies} refresh={refresh}/>
         <div className="management-layout">
         <section className="panel management-list">
-            <div className="panel-head"><div><h2>Companies</h2><p>{companies.length} configured</p></div><button type="button" className="icon-button" onClick={startNew}>+</button></div>
-            {companies.map(company => <button type="button" className={selected?.id === company.id ? 'list-row active' : 'list-row'} onClick={() => choose(company)} key={company.id}>
+            <div className="panel-head"><div><h2>Companies</h2><p>{companies?.length || 0} configured</p></div><button type="button" className="icon-button" onClick={startNew}>+</button></div>
+            {(companies || []).map(company => <button type="button" className={selected?.id === company.id ? 'list-row active' : 'list-row'} onClick={() => choose(company)} key={company.id}>
                 <span className="company-icon">{company.logo_url ? <img src={company.logo_url} alt=""/> : <Building2/>}</span>
                 <span>
                     <b>{company.name}</b>
                     <small>
                         {company.owner_name ? `👑 ${company.owner_name} · ` : ''}
                         {company.is_ss_reference ? 'Daily SS reference · ' : ''}
-                        {company.admin_email} · {company.inverters.filter(inverter => inverter.active).length} active inverters
+                        {company.admin_email} · {(company.inverters || []).filter(inverter => inverter.active).length} active inverters
                     </small>
                 </span>
                 <i className={company.active ? 'status on' : 'status'}>{company.active ? 'Active' : 'Inactive'}</i>

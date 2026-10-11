@@ -14,7 +14,7 @@ class MobileReadinessTest extends TestCase
             ->assertHeader('X-Content-Type-Options', 'nosniff')
             ->assertHeader('Referrer-Policy', 'same-origin')
             ->assertHeader('X-Frame-Options', 'SAMEORIGIN')
-            ->assertHeader('Permissions-Policy', 'camera=(self), geolocation=(self), microphone=()');
+            ->assertHeader('Permissions-Policy', 'camera=(self), geolocation=(self), microphone=(self)');
     }
 
     public function test_production_http_requests_are_redirected_to_https(): void

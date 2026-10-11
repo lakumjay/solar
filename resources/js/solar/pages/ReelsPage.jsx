@@ -117,7 +117,7 @@ export default function ReelsPage({currentUser, companyId}) {
     const togglePlay = () => {
         if (!videoRef.current) return;
         if (videoRef.current.paused) {
-            videoRef.current.play();
+            videoRef.current.play().catch(() => setIsPlaying(false));
             setIsPlaying(true);
         } else {
             videoRef.current.pause();

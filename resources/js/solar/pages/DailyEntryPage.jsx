@@ -187,6 +187,13 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
 
     const save = async event => {
         event.preventDefault();
+        if (!company?.id) {
+            setMessage({
+                type: 'error',
+                text: currentLang === 'en' ? 'Please select a company first.' : 'કૃપા કરીને પહેલા કંપની પસંદ કરો.'
+            });
+            return;
+        }
         triggerHaptic([45]);
         setBusy(true);
         setMessage(null);

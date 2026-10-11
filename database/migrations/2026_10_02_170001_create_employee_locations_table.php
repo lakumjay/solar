@@ -15,6 +15,8 @@ return new class extends Migration
                 $table->decimal('latitude', 10, 7);
                 $table->decimal('longitude', 10, 7);
                 $table->decimal('accuracy', 8, 2)->nullable();
+                $table->decimal('speed', 6, 2)->nullable();
+                $table->decimal('heading', 6, 2)->nullable();
                 $table->string('status_label')->default('Active');
                 $table->timestamp('recorded_at')->useCurrent();
                 $table->timestamps();

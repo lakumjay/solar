@@ -33,8 +33,8 @@ class EmployeeController extends Controller
             $leave = $leaves->get($employee->id)?->first();
             return [
                 ...$employee->toArray(),
-                'name' => $employee->user->name,
-                'email' => $employee->user->email,
+                'name' => $employee->user?->name ?? 'Staff',
+                'email' => $employee->user?->email ?? '',
                 'profile_photo_url' => $employee->profile_photo_path ? '/api/employees/'.$employee->id.'/photo?v='.$employee->updated_at?->timestamp : null,
                 'today_leave' => $leave ? [
                     'status' => $leave->status,

@@ -21,7 +21,7 @@ export default function MySalaryPage() {
             <section className="panel my-salary-hero">
                 <div>
                     <p className="eyebrow">Private salary statement</p>
-                    <h2>{row?.employee.name || 'My salary'}</h2>
+                    <h2>{row?.employee?.name || 'My salary'}</h2>
                     <p>Only you and the super admin can view these salary details.</p>
                 </div>
                 <label>

@@ -1,19 +1,40 @@
 export async function api(path, options = {}) {
     const isFormData = options.body instanceof FormData;
-    let base = '/api/';
+    let apiHost = '';
+    if (typeof window !== 'undefined') {
+        if (window.SOLARFLOW_API_URL) {
+            apiHost = window.SOLARFLOW_API_URL.replace(/\/$/, '');
+        } else if (import.meta.env?.VITE_API_URL) {
+            apiHost = import.meta.env.VITE_API_URL.replace(/\/$/, '');
+        }
+    }
+    let base = `${apiHost}/api/`;
     if (typeof window !== 'undefined' && window.location.pathname.includes('/git/public')) {
-        base = '/git/public/api/';
+        base = `${apiHost}/git/public/api/`;
     }
     const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-    const response = await fetch(`${base}${cleanPath}`, {
-        credentials: 'same-origin',
-        headers: {
-            ...(isFormData ? {} : {'Content-Type': 'application/json'}),
-            Accept: 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content,
-        },
-        ...options,
-    });
+    let response;
+    try {
+        response = await fetch(`${base}${cleanPath}`, {
+            credentials: apiHost ? 'include' : 'same-origin',
+            headers: {
+                ...(isFormData ? {} : {'Content-Type': 'application/json'}),
+                Accept: 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content,
+            },
+            ...options,
+        });
+    } catch (networkError) {
+        throw new Error('ઇન્ટરનેટ કનેક્શન નથી અથવા સર્વર બંધ છે. કૃપા કરીને નેટવર્ક ચેક કરો.');
+    }
+
+    if (response.status === 401 && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('solarflow:session_expired'));
+    }
+    if (response.status === 419) {
+        throw new Error('સેશન એક્સપાયર થઈ ગયું છે. કૃપા કરીને પેજ રિફ્રેશ કરો.');
+    }
+
     const payload = response.status === 204 ? null : await response.json().catch(() => ({}));
 
     if (!response.ok) {
@@ -36,7 +57,10 @@ export async function logout() {
         localStorage.clear();
         sessionStorage.clear();
     } catch (e) {}
-    window.location.href = '/';
+    const redirectPath = (typeof window !== 'undefined' && window.location.pathname.includes('/git/public'))
+        ? '/git/public/'
+        : '/';
+    window.location.href = redirectPath;
 }
 
 export function urlBase64ToUint8Array(base64String) {

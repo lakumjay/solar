@@ -20,10 +20,15 @@ class UserController extends Controller
     {
         $this->access->requireUserManagement($request);
         $query = User::with(['company:id,name', 'employee:id,user_id,employee_code,designation'])->orderBy('name');
+        if (! $request->boolean('include_employees') && $request->query('role') !== 'employee') {
+            $query->where('role', '!=', 'employee');
+        }
         if ($request->user()->role !== 'super_admin') {
             $query->where(function ($q) use ($request) {
-                $q->where('company_id', $request->user()->company_id)
-                  ->orWhere('role', 'employee');
+                $q->where('company_id', $request->user()->company_id);
+                if ($request->boolean('include_employees') || $request->query('role') === 'employee') {
+                    $q->orWhere('role', 'employee');
+                }
             })->where('role', '!=', 'super_admin');
         }
 

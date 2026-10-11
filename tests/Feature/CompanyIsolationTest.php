@@ -24,6 +24,7 @@ class CompanyIsolationTest extends TestCase
 
     public function test_company_login_only_sees_its_own_company_and_totals(): void
     {
+        Carbon::setTestNow('2026-09-20 10:00:00');
         [$ownCompany, $ownInverter] = $this->companyWithReading('Own Solar', 15);
         [$otherCompany] = $this->companyWithReading('Other Solar', 40);
         $user = User::factory()->create(['company_id' => $ownCompany->id, 'role' => 'company_admin']);

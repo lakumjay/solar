@@ -25,12 +25,24 @@ return new class extends Migration
             });
 
             // Backfill existing allocations: set amount_paid = expense.amount for the payer company
-            DB::statement('
-                UPDATE shared_expense_allocations sea
-                JOIN shared_expenses se ON sea.shared_expense_id = se.id
-                SET sea.amount_paid = CASE WHEN sea.company_id = se.payer_company_id THEN se.amount ELSE 0 END
-                WHERE sea.amount_paid = 0
-            ');
+            if (DB::getDriverName() === 'mysql') {
+                DB::statement('
+                    UPDATE shared_expense_allocations sea
+                    JOIN shared_expenses se ON sea.shared_expense_id = se.id
+                    SET sea.amount_paid = CASE WHEN sea.company_id = se.payer_company_id THEN se.amount ELSE 0 END
+                    WHERE sea.amount_paid = 0
+                ');
+            } else {
+                DB::statement('
+                    UPDATE shared_expense_allocations
+                    SET amount_paid = COALESCE((
+                        SELECT CASE WHEN shared_expense_allocations.company_id = se.payer_company_id THEN se.amount ELSE 0 END
+                        FROM shared_expenses se
+                        WHERE se.id = shared_expense_allocations.shared_expense_id
+                    ), 0)
+                    WHERE amount_paid = 0
+                ');
+            }
         }
 
         if (Schema::hasTable('expense_settlements')) {

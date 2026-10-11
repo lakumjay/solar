@@ -20,7 +20,7 @@ export default function UsersPage({companies, currentUser}) {
     const [filterTab, setFilterTab] = useState('all'); // 'all', 'staff', 'employees'
     const [searchQuery, setSearchQuery] = useState('');
 
-    const load = () => api('users').then(setUsers);
+    const load = () => api('users?include_employees=1').then(setUsers).catch(err => setMessage(err.message));
     useEffect(() => { load(); }, []);
 
     const rolePermissions = role => ({

@@ -53,7 +53,7 @@ export default function DashboardPage({companyId, currentUser}) {
         for (let s = 1; s <= 16; s++) allStrings.push('PV' + s);
 
         setCurtailForm({
-            company_id: targetComp ? targetComp.company_id : (liveData?.companies?.[0]?.company_id || ''),
+            company_id: targetComp?.company_id ?? (liveData?.companies?.[0]?.company_id ?? ''),
             percentage: initialPct,
             inverter_ids: invIds,
             pv_strings: allStrings,
@@ -190,8 +190,9 @@ export default function DashboardPage({companyId, currentUser}) {
             setNotifStatus(Notification.permission);
         }
 
-        // 10-second background polling without page reload
+        // 10-second background polling without page reload (pauses when tab is hidden)
         timerRef.current = setInterval(() => {
+            if (typeof document !== 'undefined' && document.hidden) return;
             fetchLiveSolar();
         }, 10000);
 

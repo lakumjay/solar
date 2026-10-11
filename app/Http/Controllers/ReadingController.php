@@ -58,6 +58,12 @@ class ReadingController extends Controller
             ->where('reading_date', $data['reading_date'])
             ->first();
 
+        if ($existing) {
+            abort_unless($user->hasPermission('edit_readings'), 403, 'Permission required to edit daily reading.');
+        } else {
+            abort_unless($user->hasPermission('enter_readings') || $user->hasPermission('edit_readings'), 403, 'Permission required to enter daily reading.');
+        }
+
         DB::transaction(function () use ($request, $data, $existing, &$reading) {
             $meterFields = ['plant_import_reading', 'plant_export_reading', 'sub_import_reading', 'sub_export_reading'];
             $cleanData = collect($data)->except('outputs');

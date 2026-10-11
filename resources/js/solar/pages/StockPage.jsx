@@ -50,7 +50,11 @@ export default function StockPage({can, currentUser}) {
         setGiveStock(null);
         setReturnStock(null);
         setMessage(success);
-        await load();
+        try {
+            await load();
+        } catch (err) {
+            setError(err.message);
+        }
     };
 
     // Filter items

@@ -16,8 +16,14 @@ class EmployeeLocationController extends Controller
     /**
      * Ensure employee_locations table exists in DB automatically
      */
+    private static bool $tableChecked = false;
+
     private function ensureTableExists(): void
     {
+        if (self::$tableChecked) {
+            return;
+        }
+        self::$tableChecked = true;
         try {
             if (!Schema::hasTable('employee_locations')) {
                 Schema::create('employee_locations', function (Blueprint $table) {

@@ -223,6 +223,6 @@ class SalaryController extends Controller
 
     private function requireSalaryAccess(Request $request): void
     {
-        abort_unless(in_array($request->user()?->role, ['super_admin', 'company_admin'], true), 403);
+        abort_unless($request->user()?->role === 'super_admin', 403);
     }
 }

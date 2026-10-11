@@ -86,6 +86,7 @@ Route::prefix('api')->group(function () {
         Route::get('dashboard', [DashboardController::class, 'show']);
         Route::get('readings', [ReadingController::class, 'index']);
         Route::post('readings', [ReadingController::class, 'store']);
+        Route::delete('readings/{reading}', fn () => abort(404));
         Route::get('report', [ReportController::class, 'show']);
         Route::get('report/export/excel', [ReportController::class, 'excel']);
         Route::get('report/export/daily-ss-excel', [ReportController::class, 'dailySsExcel']);
