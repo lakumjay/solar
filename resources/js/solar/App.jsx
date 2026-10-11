@@ -1,6 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {Sun} from 'lucide-react';
 import { App as CapacitorApp } from '@capacitor/app';
+import { Keyboard } from '@capacitor/keyboard';
 import {api} from './api';
 import AppShell from './components/AppShell';
 import ActivityLogPage from './pages/ActivityLogPage';
@@ -83,6 +84,14 @@ function AppContent() {
         };
         window.addEventListener('solarflow:session_expired', handleSessionExpired);
         return () => window.removeEventListener('solarflow:session_expired', handleSessionExpired);
+    }, []);
+
+    // Configure native keyboard behavior to prevent overlapping inputs
+    useEffect(() => {
+        try {
+            Keyboard.setResizeMode({ mode: 'body' }).catch(() => {});
+            Keyboard.setScroll({ isDisabled: false }).catch(() => {});
+        } catch (_) {}
     }, []);
 
     // Auto-retry when internet connection returns

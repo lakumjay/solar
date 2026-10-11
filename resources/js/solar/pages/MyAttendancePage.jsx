@@ -12,7 +12,21 @@ const localDate = () => {
 const formatTime = value => new Date(value).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: true});
 const location = () => new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error('Location is not supported on this device.'));
-    navigator.geolocation.getCurrentPosition(position => resolve({latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy: position.coords.accuracy}), () => reject(new Error('Location permission is required. Enable precise location in device settings and retry.')), {enableHighAccuracy: true, timeout: 15000, maximumAge: 0});
+    navigator.geolocation.getCurrentPosition(
+        position => resolve({latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy: position.coords.accuracy}),
+        error => {
+            if (error?.code === 1) {
+                reject(new Error('GPS / લોકેશન પરમિશન બ્લોક કરેલી છે. કૃપા કરીને ફોન/બ્રાઉઝર સેટિંગ્સમાં જઈ લોકેશન Allow કરો અને ફરી પ્રયાસ કરો.'));
+            } else if (error?.code === 2) {
+                reject(new Error('GPS સિગ્નલ નથી મળી રહ્યું. કૃપા કરીને ખુલ્લી જગ્યામાં આવો અને ફોનમાં Location ચાલુ કરો.'));
+            } else if (error?.code === 3) {
+                reject(new Error('લોકેશન મેળવવામાં સમય સમાપ્ત થઈ ગયો. ફરીથી પ્રયાસ કરો.'));
+            } else {
+                reject(new Error('Location permission is required. Enable precise location in device settings and retry.'));
+            }
+        },
+        {enableHighAccuracy: true, timeout: 15000, maximumAge: 0}
+    );
 });
 
 function SelfieModal({mode, onClose, onDone}) {
@@ -35,7 +49,15 @@ function SelfieModal({mode, onClose, onDone}) {
             if (!alive) return stream.getTracks().forEach(track => track.stop());
             streamRef.current = stream;
             if (videoRef.current) {videoRef.current.srcObject = stream; videoRef.current.play();}
-        }).catch(() => setError('Camera permission is required. Allow camera access in browser or app settings, then retry.'));
+        }).catch(err => {
+            if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+                setError('કેમેરા પરમિશન નકારી દેવામાં આવી છે. કૃપા કરીને સેટિંગ્સમાં જઈને Camera access Allow કરો અને Retry બટન દબાવો.');
+            } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
+                setError('કોઈ કેમેરા ડિવાઇસ મળ્યું નથી. કૃપા કરીને ફ્રન્ટ કેમેરા ચેક કરો.');
+            } else {
+                setError('Camera permission is required. Allow camera access in browser or app settings, then retry.');
+            }
+        });
         return () => { alive = false; streamRef.current?.getTracks().forEach(track => track.stop()); };
     }, [cameraKey]);
 
