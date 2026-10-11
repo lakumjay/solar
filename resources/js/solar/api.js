@@ -22,7 +22,31 @@ export function getApiBaseUrl() {
     return { apiHost, base };
 }
 
-export async function api(path, options = {}) {
+export async function refreshCsrfToken() {
+    const { apiHost, base } = getApiBaseUrl();
+    try {
+        const res = await fetch(`${base}csrf-token`, {
+            credentials: apiHost ? 'include' : 'same-origin',
+            headers: { Accept: 'application/json' },
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data?.csrf_token) {
+                let meta = document.querySelector('meta[name="csrf-token"]');
+                if (!meta) {
+                    meta = document.createElement('meta');
+                    meta.setAttribute('name', 'csrf-token');
+                    document.head.appendChild(meta);
+                }
+                meta.setAttribute('content', data.csrf_token);
+                return data.csrf_token;
+            }
+        }
+    } catch (_) {}
+    return null;
+}
+
+export async function api(path, options = {}, isRetry = false) {
     const isFormData = options.body instanceof FormData;
     const { apiHost, base } = getApiBaseUrl();
     const cleanPath = path.startsWith('/') ? path.slice(1) : path;
@@ -34,6 +58,7 @@ export async function api(path, options = {}) {
                 ...(isFormData ? {} : {'Content-Type': 'application/json'}),
                 Accept: 'application/json',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content,
+                ...(options.headers || {}),
             },
             ...options,
         });
@@ -45,6 +70,19 @@ export async function api(path, options = {}) {
         window.dispatchEvent(new CustomEvent('solarflow:session_expired'));
     }
     if (response.status === 419) {
+        if (!isRetry) {
+            // Silently refresh CSRF token and retry original request without reloading page
+            const newToken = await refreshCsrfToken();
+            if (newToken) {
+                return api(path, {
+                    ...options,
+                    headers: {
+                        ...(options.headers || {}),
+                        'X-CSRF-TOKEN': newToken,
+                    },
+                }, true);
+            }
+        }
         throw new Error('સેશન એક્સપાયર થઈ ગયું છે. કૃપા કરીને પેજ રિફ્રેશ કરો.');
     }
 
