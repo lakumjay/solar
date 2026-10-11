@@ -1,5 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import {Sun} from 'lucide-react';
+import { App as CapacitorApp } from '@capacitor/app';
 import {api} from './api';
 import AppShell from './components/AppShell';
 import ActivityLogPage from './pages/ActivityLogPage';
@@ -98,15 +99,52 @@ function AppContent() {
         return () => window.removeEventListener('solarflow:reconnected', handleReconnected);
     }, [page]);
 
-    // Mobile Back Button / Navigation history support
+    // Android Back Button via @capacitor/app & web popstate (modal close -> previous page -> exit on home)
     useEffect(() => {
-        const handlePopState = () => {
+        const handleBackAction = () => {
+            // 1. Check if any modal is currently visible
+            const openModalCloseBtn = document.querySelector('.modal-close, .modal-close-btn, [data-modal-close], button[aria-label="Close"], .btn-close');
+            const openModalBackdrop = document.querySelector('.modal, .modal-backdrop, [role="dialog"], .wire-cut-error-container');
+            if (openModalCloseBtn || openModalBackdrop) {
+                window.dispatchEvent(new CustomEvent('solarflow:close_active_modal'));
+                if (openModalCloseBtn) {
+                    openModalCloseBtn.click();
+                    return true;
+                }
+            }
+
+            // 2. If not on dashboard, return to dashboard
             if (page !== 'dashboard') {
                 setPage('dashboard');
+                return true;
             }
+
+            return false;
+        };
+
+        const handlePopState = () => {
+            handleBackAction();
         };
         window.addEventListener('popstate', handlePopState);
-        return () => window.removeEventListener('popstate', handlePopState);
+
+        let capListener = null;
+        try {
+            capListener = CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+                const handled = handleBackAction();
+                if (!handled) {
+                    CapacitorApp.exitApp();
+                }
+            });
+        } catch (_) {}
+
+        return () => {
+            window.removeEventListener('popstate', handlePopState);
+            if (capListener?.then) {
+                capListener.then(l => l?.remove?.()).catch(() => {});
+            } else if (capListener?.remove) {
+                capListener.remove();
+            }
+        };
     }, [page]);
 
     // Service Worker push notification audio chime listener

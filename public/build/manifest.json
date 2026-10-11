@@ -1,4 +1,13 @@
 {
+  "node_modules/@capacitor/app/dist/esm/web.js": {
+    "file": "assets/web-CC2vHqUa.js",
+    "name": "web",
+    "src": "node_modules/@capacitor/app/dist/esm/web.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ]
+  },
   "resources/css/app.css": {
     "file": "assets/app-CAv43wcO.css",
     "src": "resources/css/app.css",
@@ -9,9 +18,12 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-D1XUZMDV.js",
+    "file": "assets/app-DDrhF5Zb.js",
     "name": "app",
     "src": "resources/js/app.js",
-    "isEntry": true
+    "isEntry": true,
+    "dynamicImports": [
+      "node_modules/@capacitor/app/dist/esm/web.js"
+    ]
   }
 }
