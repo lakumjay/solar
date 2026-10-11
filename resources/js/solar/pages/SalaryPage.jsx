@@ -685,7 +685,7 @@ function RateForm({form, setForm, onClose, onSaved}) {
                     </Field>
                     <div className="modern-input-field" style={{marginBottom: 0}}>
                         <label className="modern-input-label">
-                            <span>{getLanguage() === 'gu' ? 'માસિક પગાર (Monthly Salary ₹)' : 'Full monthly salary (₹)'}</span>
+                            <span>{getLanguage() === 'gu' ? 'માસિક પગાર (Monthly Salary)' : 'Full monthly salary'}</span>
                         </label>
                         <div className="modern-currency-wrapper">
                             <span className="modern-currency-prefix">₹</span>
@@ -860,12 +860,7 @@ function AdjustmentForm({form, setForm, onClose, onSaved}) {
                 {/* Currency Amount Field with Quick Presets */}
                 <div className="modern-input-field">
                     <label className="modern-input-label">
-                        <span>{getLanguage() === 'gu' ? 'રકમ (Amount ₹)' : 'Amount (₹)'}</span>
-                        {parsedAmount > 0 && (
-                            <span style={{color: isAddition ? '#059669' : '#e11d48', fontWeight: 700}}>
-                                {isAddition ? '+' : '−'}₹{number(parsedAmount)}
-                            </span>
-                        )}
+                        <span>{getLanguage() === 'gu' ? 'રકમ (Amount)' : 'Amount'}</span>
                     </label>
                     <div className="modern-currency-wrapper">
                         <span className="modern-currency-prefix">₹</span>
@@ -890,7 +885,7 @@ function AdjustmentForm({form, setForm, onClose, onSaved}) {
                                 className="quick-amount-chip"
                                 onClick={() => setForm({...form, amount: amt.toString()})}
                             >
-                                +₹{amt.toLocaleString('en-IN')}
+                                {isAddition ? '+' : '−'}₹{amt.toLocaleString('en-IN')}
                             </button>
                         ))}
                     </div>
@@ -1133,7 +1128,7 @@ function CorrectionForm({form, setForm, onClose, onSaved}) {
                             </Field>
                             <div className="modern-input-field" style={{marginBottom: 0}}>
                                 <label className="modern-input-label">
-                                    <span>{getLanguage() === 'gu' ? 'નવી રકમ (Amount ₹)' : 'Replacement amount (₹)'}</span>
+                                    <span>{getLanguage() === 'gu' ? 'નવી રકમ' : 'Replacement amount'}</span>
                                 </label>
                                 <div className="modern-currency-wrapper">
                                     <span className="modern-currency-prefix">₹</span>

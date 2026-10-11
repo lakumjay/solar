@@ -8245,7 +8245,7 @@ input[type="number"] {
     margin-top: 1px;
 }
 
-/* Sleek Currency Field */
+/* Sleek Currency Field - Integrated Group (Zero Overlap) */
 .modern-input-field {
     margin-bottom: 10px;
 }
@@ -8261,39 +8261,62 @@ input[type="number"] {
 }
 
 .modern-currency-wrapper {
-    position: relative;
-    display: flex;
-    align-items: center;
-}
-
-.modern-currency-prefix {
-    position: absolute;
-    left: 10px;
-    font-size: 13.5px;
-    font-weight: 600;
-    color: #059669;
-    pointer-events: none;
-    z-index: 1;
-}
-
-.modern-currency-input {
-    width: 100% !important;
-    padding-left: 24px !important;
-    padding-right: 10px !important;
-    font-size: 13.5px !important;
-    font-weight: 550 !important;
-    color: #0f172a !important;
-    font-feature-settings: "tnum" 1 !important;
-    height: 36px !important;
+    display: flex !important;
+    align-items: center !important;
     border: 1px solid #cbd5e1 !important;
     border-radius: 8px !important;
     background: #ffffff !important;
-    transition: all 0.15s ease !important;
+    overflow: hidden !important;
+    height: 38px !important;
+    box-sizing: border-box !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+    position: relative !important;
+    width: 100% !important;
+}
+
+.modern-currency-wrapper:focus-within {
+    border-color: #059669 !important;
+    box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15) !important;
+}
+
+.modern-currency-prefix {
+    width: 36px !important;
+    height: 100% !important;
+    background: #f1f5f9 !important;
+    border-right: 1px solid #cbd5e1 !important;
+    color: #059669 !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+    user-select: none !important;
+    line-height: 1 !important;
+    position: static !important;
+}
+
+.modern-currency-input {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 100% !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    padding: 0 10px !important;
+    margin: 0 !important;
+    font-size: 15px !important;
+    font-weight: 550 !important;
+    color: #0f172a !important;
+    font-feature-settings: "tnum" 1 !important;
+    box-sizing: border-box !important;
 }
 
 .modern-currency-input:focus {
-    border-color: #059669 !important;
-    box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.12) !important;
+    border: none !important;
+    box-shadow: none !important;
 }
 
 /* Quick Amount Shortcut Chips */
@@ -8505,6 +8528,7 @@ input[type="number"] {
     color: #ffffff;
     cursor: pointer;
     transition: all 0.15s ease;
+    white-space: nowrap;
 }
 
 .modern-modal-footer .btn-submit-action.addition {
@@ -8530,26 +8554,69 @@ input[type="number"] {
     cursor: not-allowed;
 }
 
+/* 📱 Responsive Mobile Optimization (From 320px screens to large phones) */
+@media (max-width: 768px) {
+    /* 16px on mobile stops iOS Safari auto-zoom & screen shaking completely */
+    .modern-salary-modal input,
+    .modern-salary-modal select,
+    .modern-salary-modal textarea,
+    .modern-currency-input {
+        font-size: 16px !important;
+    }
+}
+
 @media (max-width: 520px) {
     .modern-salary-modal {
-        width: calc(100vw - 16px) !important;
-        padding: 13px 14px max(18px, env(safe-area-inset-bottom)) !important;
+        width: calc(100vw - 14px) !important;
+        max-width: calc(100vw - 14px) !important;
+        padding: 12px 10px max(18px, env(safe-area-inset-bottom)) !important;
         border-radius: 14px !important;
         margin: auto !important;
+        overflow-x: hidden !important;
+        box-sizing: border-box !important;
+    }
+    .modern-modal-header {
+        margin-bottom: 8px !important;
+        padding-bottom: 8px !important;
+    }
+    .modern-modal-title {
+        font-size: 12.5px !important;
     }
     .adjustment-type-grid {
-        grid-template-columns: 1fr;
-        gap: 6px;
+        grid-template-columns: 1fr !important;
+        gap: 6px !important;
+    }
+    .form-grid.two.salary-modal-grid {
+        grid-template-columns: 1fr !important;
+        gap: 8px !important;
+    }
+    .quick-amount-chips {
+        gap: 4px !important;
+    }
+    .quick-amount-chip {
+        font-size: 9.5px !important;
+        padding: 2px 6px !important;
+    }
+    .modern-switch-card {
+        padding: 7px 9px !important;
+        gap: 8px !important;
+    }
+    .switch-card-title {
+        font-size: 10.5px !important;
+    }
+    .switch-card-desc {
+        font-size: 9px !important;
+        line-height: 1.2 !important;
     }
     .modern-modal-footer {
-        flex-direction: column-reverse;
-        align-items: stretch;
-        gap: 6px;
+        flex-direction: column-reverse !important;
+        align-items: stretch !important;
+        gap: 6px !important;
     }
     .modern-modal-footer button {
-        width: 100%;
-        min-height: 38px;
-        justify-content: center;
+        width: 100% !important;
+        min-height: 38px !important;
+        justify-content: center !important;
     }
 }
 
