@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import {BarChart3, ChevronDown, ChevronUp, CloudRain, FileSpreadsheet, FileText, LayoutGrid, Sun, Table} from 'lucide-react';
-import {api} from '../api';
+import {api, getApiBaseUrl} from '../api';
 import {METERS, monthStart, today} from '../config';
 import {number, shortDate} from '../format';
 import {DatePicker, Empty, Metric} from '../components/Common';
@@ -27,6 +27,7 @@ const CHART_COLORS = [
 ];
 
 export default function ReportsPage({companyId, companies}) {
+    const { apiHost, base } = getApiBaseUrl();
     const [period, setPeriod] = useState('daily');
     const [from, setFrom] = useState(monthStart());
     const [to, setTo] = useState(today());
@@ -82,8 +83,8 @@ export default function ReportsPage({companyId, companies}) {
         if (e) e.preventDefault();
         setDownloadingPdf(true);
         try {
-            const response = await fetch(`/api/report/export/weather-issue-pdf?${weatherIssueQuery}`, {
-                credentials: 'same-origin',
+            const response = await fetch(`${base}report/export/weather-issue-pdf?${weatherIssueQuery}`, {
+                credentials: apiHost ? 'include' : 'same-origin',
                 headers: {
                     Accept: 'application/pdf',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content,
@@ -294,11 +295,11 @@ export default function ReportsPage({companyId, companies}) {
         )}
 
         {data && <>
-                <section className="panel daily-ss-panel"><div className="panel-head"><div><h2>Daily SS report</h2><p>Common Daily SS values use only <strong className="report-highlight-pill">{data.ss_reference?.company || 'the configured reference company'}</strong> 66kV Sub Import Unit. Every authorized company login receives the same report.</p></div><div className="export-actions"><a className="secondary daily-ss-download-btn" href={`/api/report/export/daily-ss-excel?${dailySsQuery}`}><FileSpreadsheet size={16}/>Download Excel</a></div></div></section>
+                <section className="panel daily-ss-panel"><div className="panel-head"><div><h2>Daily SS report</h2><p>Common Daily SS values use only <strong className="report-highlight-pill">{data.ss_reference?.company || 'the configured reference company'}</strong> 66kV Sub Import Unit. Every authorized company login receives the same report.</p></div><div className="export-actions"><a className="secondary daily-ss-download-btn" href={`${base}report/export/daily-ss-excel?${dailySsQuery}`} target="_blank" rel="noopener noreferrer"><FileSpreadsheet size={16}/>Download Excel</a></div></div></section>
                 {data.ss_reference?.missing_dates?.length > 0 && <div className="warning-banner"><b>Missing {data.ss_reference?.company} entries</b><span>Daily SS and combined 66kV Sub Import count 0.00 on: {(data.ss_reference?.missing_dates || []).map(shortDate).join(', ')}. Other companies are not used as a fallback.</span></div>}
             
             <section className="panel company-report-builder">
-                <div className="panel-head"><div><h2>Company-wise report</h2><p>Select the company and only the columns required in the Excel file. Date is always included.</p></div><div className="export-actions"><a className={reportCompanyId ? 'secondary generate-excel-btn' : 'secondary disabled generate-excel-btn'} href={reportCompanyId ? `/api/report/export/company-excel?${companyReportQuery}` : undefined}><FileSpreadsheet size={16}/>Generate Excel</a></div></div>
+                <div className="panel-head"><div><h2>Company-wise report</h2><p>Select the company and only the columns required in the Excel file. Date is always included.</p></div><div className="export-actions"><a className={reportCompanyId ? 'secondary generate-excel-btn' : 'secondary disabled generate-excel-btn'} href={reportCompanyId ? `${base}report/export/company-excel?${companyReportQuery}` : undefined} target="_blank" rel="noopener noreferrer"><FileSpreadsheet size={16}/>Generate Excel</a></div></div>
                 <label className="company-report-select"><span>Company</span><select value={reportCompanyId} onChange={event => setReportCompanyId(event.target.value)}>{companies.map(company => <option value={company.id} key={company.id}>{company.name}</option>)}</select></label>
                 <div className="report-column-groups">
                     <div><h3>Inverter generation</h3><div className="report-column-picker">{(selectedReportCompany?.inverters || []).map(inverter => {
@@ -340,8 +341,8 @@ export default function ReportsPage({companyId, companies}) {
                             {viewMode === 'cards' ? <Table size={15}/> : <LayoutGrid size={15}/>}
                             <span>{viewMode === 'cards' ? 'Table View' : 'Card View'}</span>
                         </button>
-                        <a className="secondary" href={`/api/report/export/excel?${query}`}><FileSpreadsheet size={16}/>Excel</a>
-                        <a className="secondary" href={`/api/report/export/pdf?${query}`}><FileText size={16}/>PDF</a>
+                        <a className="secondary" href={`${base}report/export/excel?${query}`} target="_blank" rel="noopener noreferrer"><FileSpreadsheet size={16}/>Excel</a>
+                        <a className="secondary" href={`${base}report/export/pdf?${query}`} target="_blank" rel="noopener noreferrer"><FileText size={16}/>PDF</a>
                     </div>
                 </div>
                 {data.rows.length ? (

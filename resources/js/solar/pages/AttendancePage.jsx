@@ -102,16 +102,30 @@ export default function AttendancePage({canCorrect, canRecord}) {
     const load = async () => {
         const query = new URLSearchParams({date});
         if (employeeId) query.set('employee_id', employeeId);
-        const [attendance, people] = await Promise.all([api(`attendance?${query}`), api('employees')]);
-        setRows(attendance);
-        setEmployees(people);
+        const [attendanceRes, peopleRes] = await Promise.allSettled([api(`attendance?${query}`), api('employees')]);
+        if (attendanceRes.status === 'fulfilled') setRows(attendanceRes.value || []);
+        if (peopleRes.status === 'fulfilled') setEmployees(peopleRes.value || []);
+        if (attendanceRes.status === 'rejected') setMessage(attendanceRes.reason?.message || 'Failed to load attendance.');
     };
 
     useEffect(() => {
         load().catch(error => setMessage(error.message));
         loadLiveLocations();
-        const locInterval = setInterval(loadLiveLocations, 30000); // 30s auto-refresh
-        return () => clearInterval(locInterval);
+        const locInterval = setInterval(() => {
+            if (typeof document !== 'undefined' && !document.hidden) {
+                loadLiveLocations();
+            }
+        }, 30000);
+        const handleVisibility = () => {
+            if (!document.hidden) {
+                loadLiveLocations();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibility);
+        return () => {
+            clearInterval(locInterval);
+            document.removeEventListener('visibilitychange', handleVisibility);
+        };
     }, [date, employeeId]);
 
     const filtered = useMemo(() => (rows || []).filter(row => {

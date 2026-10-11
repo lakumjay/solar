@@ -18,7 +18,7 @@ export default function CurtailmentLossPage({ companyId, companies = [], current
     const [selectedMonth, setSelectedMonth] = useState('all');
     const [callingTest, setCallingTest] = useState(false);
 
-    const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.name === 'Super Admin' || currentUser?.id === 4;
+    const isSuperAdmin = currentUser?.role === 'super_admin';
 
     const handleTestEmergencyCall = async () => {
         setCallingTest(true);

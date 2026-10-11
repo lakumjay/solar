@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {Download, FileText, LayoutGrid, Table} from 'lucide-react';
-import {api} from '../api';
+import {api, getApiBaseUrl} from '../api';
 import {Empty} from '../components/Common';
 
 const currentMonth = () => {
@@ -9,6 +9,7 @@ const currentMonth = () => {
 };
 
 export default function AttendanceReportsPage() {
+    const { base } = getApiBaseUrl();
     const [month, setMonth] = useState(currentMonth());
     const [employeeId, setEmployeeId] = useState('');
     const [employees, setEmployees] = useState([]);
@@ -62,10 +63,10 @@ export default function AttendanceReportsPage() {
                             {viewMode === 'cards' ? <Table size={15}/> : <LayoutGrid size={15}/>}
                             <span>{viewMode === 'cards' ? 'Table View' : 'Card View'}</span>
                         </button>
-                        <a className="secondary" href={`/api/attendance-report/export/excel?${query}`}>
+                        <a className="secondary" href={`${base}attendance-report/export/excel?${query}`} target="_blank" rel="noopener noreferrer">
                             <Download size={15}/> Excel
                         </a>
-                        <a className="secondary" href={`/api/attendance-report/export/pdf?${query}`}>
+                        <a className="secondary" href={`${base}attendance-report/export/pdf?${query}`} target="_blank" rel="noopener noreferrer">
                             <FileText size={15}/> PDF
                         </a>
                     </div>
