@@ -623,7 +623,7 @@ function RateForm({form, setForm, onClose, onSaved}) {
 
     return (
         <div className="modal-backdrop">
-            <form className="modal compact-salary-modal" onSubmit={save} style={{maxWidth: '460px'}}>
+            <form className="modal compact-salary-modal" onSubmit={save} style={{maxWidth: '460px', width: '100%'}}>
                 <div className="panel-head" style={{marginBottom: '12px'}}>
                     <div>
                         <h2 style={{fontSize: '15px'}}>Set monthly salary</h2>
@@ -631,7 +631,7 @@ function RateForm({form, setForm, onClose, onSaved}) {
                     </div>
                     <button type="button" className="icon-button ghost" onClick={onClose}><X size={16}/></button>
                 </div>
-                <div className="form-grid two" style={{gap: '10px', marginBottom: '10px'}}>
+                <div className="form-grid two salary-modal-grid" style={{gap: '10px', marginBottom: '10px'}}>
                     <Field label="Effective month">
                         <input
                             type="month"
@@ -655,7 +655,7 @@ function RateForm({form, setForm, onClose, onSaved}) {
                     </Field>
                 </div>
                 {error && <div className="error">{error}</div>}
-                <div className="form-actions" style={{marginTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                <div className="form-actions salary-modal-actions" style={{marginTop: '14px'}}>
                     <span style={{fontSize: '11px', color: '#64748b'}}>Previous months unchanged.</span>
                     <button className="primary" disabled={busy}>
                         {busy ? 'Saving…' : 'Save salary'}
@@ -697,7 +697,7 @@ function AdjustmentForm({form, setForm, onClose, onSaved}) {
 
     return (
         <div className="modal-backdrop">
-            <form className="modal compact-salary-modal" onSubmit={save} style={{maxWidth: '480px'}}>
+            <form className="modal compact-salary-modal" onSubmit={save} style={{maxWidth: '480px', width: '100%'}}>
                 <div className="panel-head" style={{marginBottom: '12px'}}>
                     <div>
                         <h2 style={{fontSize: '15px'}}>Add salary adjustment / Extra work</h2>
@@ -706,7 +706,7 @@ function AdjustmentForm({form, setForm, onClose, onSaved}) {
                     <button type="button" className="icon-button ghost" onClick={onClose}><X size={16}/></button>
                 </div>
 
-                <div className="form-grid two" style={{gap: '10px', marginBottom: '8px'}}>
+                <div className="form-grid two salary-modal-grid" style={{gap: '10px', marginBottom: '8px'}}>
                     <Field label="Adjustment type">
                         <select value={form.type} onChange={event => setForm({...form, type: event.target.value})}>
                             <option value="addition">Extra Work / Addition (+)</option>
@@ -722,7 +722,7 @@ function AdjustmentForm({form, setForm, onClose, onSaved}) {
                     </Field>
                 </div>
 
-                <div className="form-grid two" style={{gap: '10px', marginBottom: '8px'}}>
+                <div className="form-grid two salary-modal-grid" style={{gap: '10px', marginBottom: '8px'}}>
                     <Field label="Amount (₹)">
                         <input
                             type="number"
@@ -785,7 +785,7 @@ function AdjustmentForm({form, setForm, onClose, onSaved}) {
 
                 {error && <div className="error">{error}</div>}
 
-                <div className="form-actions" style={{marginTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                <div className="form-actions salary-modal-actions" style={{marginTop: '14px'}}>
                     <span style={{fontSize: '11px', color: '#64748b'}}>Visible to employee.</span>
                     <button className="primary" disabled={busy}>
                         {busy ? 'Saving…' : 'Record addition'}
@@ -824,7 +824,7 @@ function CorrectionForm({form, setForm, onClose, onSaved}) {
 
     return (
         <div className="modal-backdrop">
-            <form className="modal compact-salary-modal" onSubmit={save} style={{maxWidth: '500px'}}>
+            <form className="modal compact-salary-modal" onSubmit={save} style={{maxWidth: '500px', width: '100%'}}>
                 <div className="panel-head" style={{marginBottom: '12px'}}>
                     <div>
                         <h2 style={{fontSize: '15px'}}>Correct salary adjustment</h2>
@@ -856,7 +856,7 @@ function CorrectionForm({form, setForm, onClose, onSaved}) {
 
                 {form.replace && (
                     <>
-                        <div className="form-grid two" style={{gap: '10px', marginBottom: '8px'}}>
+                        <div className="form-grid two salary-modal-grid" style={{gap: '10px', marginBottom: '8px'}}>
                             <Field label="Replacement type">
                                 <select
                                     value={form.replacement_type}
@@ -890,7 +890,7 @@ function CorrectionForm({form, setForm, onClose, onSaved}) {
 
                 {error && <div className="error">{error}</div>}
 
-                <div className="form-actions" style={{marginTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                <div className="form-actions salary-modal-actions" style={{marginTop: '14px'}}>
                     <span style={{fontSize: '11px', color: '#64748b'}}>Cancelled entries never affect payable totals.</span>
                     <button className="primary" disabled={busy}>
                         {busy ? 'Saving…' : form.replace ? 'Cancel and replace' : 'Cancel adjustment'}
@@ -928,7 +928,7 @@ function WaiveBreakModal({form, setForm, onClose, onSaved}) {
 
     return (
         <div className="modal-backdrop">
-            <form className="modal compact-salary-modal" onSubmit={save} style={{maxWidth: '480px'}}>
+            <form className="modal compact-salary-modal" onSubmit={save} style={{maxWidth: '480px', width: '100%'}}>
                 <div className="panel-head" style={{marginBottom: '12px'}}>
                     <div>
                         <h2 style={{fontSize: '15px'}}>🚨 Urgent Out કપાત એડિટ / માફ કરો</h2>
@@ -1006,7 +1006,7 @@ function WaiveBreakModal({form, setForm, onClose, onSaved}) {
 
                 {error && <div className="error">{error}</div>}
 
-                <div className="form-actions" style={{marginTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                <div className="form-actions salary-modal-actions" style={{marginTop: '14px'}}>
                     <button type="button" className="secondary" onClick={onClose}>રદ કરો</button>
                     <button className="primary" disabled={busy}>
                         {busy ? 'સેવ થાય છે…' : mode === 'waive' ? 'કપાત માફ કરો (₹0)' : 'કપાત રકમ સેવ કરો'}

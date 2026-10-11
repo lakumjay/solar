@@ -87,7 +87,7 @@
     .field input,.field select,.field textarea,.company-switch select{font-size:16px}
     .employee-management .management-list{max-height:none}
 }
-.company-report-builder .panel-head{margin-bottom:16px}.company-report-select{display:grid;gap:6px;max-width:360px;color:#4e685b;font-size:12px;font-weight:700}.company-report-select select{border:1px solid #cfddd3;border-radius:9px;padding:10px 12px;background:#fff;color:#17352b}.report-column-groups{display:grid;grid-template-columns:minmax(220px,.7fr) minmax(420px,1.5fr);gap:18px;margin-top:18px}.report-column-groups>div{border:1px solid #e1e9e3;border-radius:11px;padding:15px}.report-column-groups h3{font-size:12px;margin:0 0 11px;color:#315445}.report-column-picker{display:flex;flex-wrap:wrap;gap:8px}.report-picker-pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#334155;font-size:12px;font-weight:500;cursor:pointer;transition:all .15s ease;user-select:none}.report-picker-pill:hover{background:#f1f5f9;border-color:#cbd5e1}.report-picker-pill.active{background:#f0fdf4;border-color:#86efac;color:#166534;font-weight:600;box-shadow:0 1px 2px rgba(22,101,52,.08)}.report-picker-pill input[type="checkbox"]{accent-color:#16a34a;width:14px;height:14px;margin:0}.secondary.disabled{pointer-events:none;opacity:.5}.daily-ss-panel{border-left:4px solid #10b981;background:#fff}.report-highlight-pill{display:inline-block;padding:1px 7px;border-radius:6px;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;font-weight:600}.daily-ss-download-btn{background:#107c41!important;color:#fff!important;border:1px solid #0d6334!important;font-weight:600}.daily-ss-download-btn:hover{background:#0d6334!important}.generate-excel-btn{background:#0f766e!important;color:#fff!important;border:1px solid #0d5f58!important;font-weight:600}.generate-excel-btn:hover{background:#0d5f58!important}.report-chart-panel{border:1px solid #e2e8f0;border-radius:12px;background:#fff;margin-bottom:20px}.report-chart-panel .panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.report-chart-panel .panel-head h2{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:#0f172a;margin:0}.chart-icon{color:#10b981}.chart-head-metric span{font-size:13px;font-weight:700;color:#0f172a;background:#f1f5f9;padding:4px 10px;border-radius:8px;border:1px solid #e2e8f0}.chart-head-metric small{color:#64748b;font-weight:500;margin-left:3px}.report-chart-canvas{width:100%;padding:8px 4px;background:#f8fafc;border-radius:10px;border:1px solid #f1f5f9;margin-bottom:14px}.report-svg-chart{width:100%;height:auto;max-height:200px;display:block}.chart-bar-rect{transition:opacity .2s ease;cursor:pointer}.chart-bar-rect:hover{opacity:.85}.chart-breakdown-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}.chart-breakdown-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px;display:flex;flex-direction:column;gap:6px}.chart-breakdown-top{display:flex;align-items:center;justify-content:space-between;gap:8px}.chart-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}.chart-breakdown-label{font-size:12px;font-weight:600;color:#1e293b;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.chart-breakdown-pct{font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;line-height:1.2}.chart-track{width:100%;height:6px;background:#e2e8f0;border-radius:4px;overflow:hidden}.chart-fill{height:100%;border-radius:4px;transition:width .4s ease-out}.chart-breakdown-val{font-size:12px;color:#334155;display:flex;align-items:baseline;gap:4px}.chart-breakdown-val strong{font-weight:700;color:#0f172a}.chart-breakdown-val small{color:#64748b}@media(max-width:850px){.report-column-groups{grid-template-columns:1fr}}@media(max-width:600px){.company-report-builder .panel-head{align-items:stretch;flex-direction:column}}
+.company-report-builder .panel-head{margin-bottom:16px}.company-report-select{display:grid;gap:6px;max-width:360px;color:#4e685b;font-size:12px;font-weight:700}.company-report-select select{border:1px solid #cfddd3;border-radius:9px;padding:10px 12px;background:#fff;color:#17352b}.report-column-groups{display:grid;grid-template-columns:minmax(220px,.7fr) minmax(420px,1.5fr);gap:18px;margin-top:18px}.report-column-groups>div{border:1px solid #e1e9e3;border-radius:11px;padding:15px}.report-column-groups h3{font-size:12px;margin:0 0 11px;color:#315445}.report-column-picker{display:flex;flex-wrap:wrap;gap:8px}.report-picker-pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#334155;font-size:12px;font-weight:500;cursor:pointer;transition:all .15s ease;user-select:none}.report-picker-pill:hover{background:#f1f5f9;border-color:#cbd5e1}.report-picker-pill.active{background:#f0fdf4;border-color:#86efac;color:#166534;font-weight:600;box-shadow:0 1px 2px rgba(22,101,52,.08)}.report-picker-pill input[type="checkbox"]{accent-color:#16a34a;width:14px;height:14px;margin:0}.secondary.disabled{pointer-events:none;opacity:.5}.daily-ss-panel{border-left:4px solid #10b981;background:#fff}.report-highlight-pill{display:inline-block;padding:1px 7px;border-radius:6px;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;font-weight:600}.daily-ss-download-btn{background:#107c41!important;color:#fff!important;border:1px solid #0d6334!important;font-weight:600}.daily-ss-download-btn:hover{background:#0d6334!important}.generate-excel-btn{background:#0f766e!important;color:#fff!important;border:1px solid #0d5f58!important;font-weight:600}.generate-excel-btn:hover{background:#0d5f58!important}.report-chart-panel{border:1px solid #e2e8f0;border-radius:12px;background:#fff;margin-bottom:20px}.report-chart-panel .panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.report-chart-panel .panel-head h2{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:#0f172a;margin:0}.chart-icon{color:#10b981}.chart-head-metric span{font-size:13px;font-weight:700;color:#0f172a;background:#f1f5f9;padding:4px 10px;border-radius:8px;border:1px solid #e2e8f0}.chart-head-metric small{color:#64748b;font-weight:500;margin-left:3px}.report-chart-canvas{width:100%;padding:8px 4px;background:#f8fafc;border-radius:10px;border:1px solid #f1f5f9;margin-bottom:14px}.report-svg-chart{width:100%;height:auto;max-height:200px;display:block}.chart-bar-rect{transition:opacity .2s ease;cursor:pointer}.chart-bar-rect:hover{opacity:.85}.chart-breakdown-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}.chart-breakdown-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px;display:flex;flex-direction:column;gap:6px}.chart-breakdown-top{display:flex;align-items:center;justify-content:space-between;gap:8px}.chart-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}.chart-breakdown-label{font-size:12px;font-weight:600;color:#1e293b;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.chart-breakdown-pct{font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;line-height:1.2}.chart-track{width:100%;height:6px;background:#e2e8f0;border-radius:4px;overflow:hidden}.chart-fill{height:100%;border-radius:4px;transition:width .4s ease-out}.chart-breakdown-val{font-size:12px;color:#334155;display:flex;align-items:baseline;gap:4px}.chart-breakdown-val strong{font-weight:700;color:#0f172a}.chart-breakdown-val small{color:#64748b}@media(max-width:850px){.report-column-groups{grid-template-columns:1fr}}@media(max-width:600px){.daily-ss-panel .panel-head,.company-report-builder .panel-head{align-items:stretch;flex-direction:column;gap:10px}.daily-ss-panel .export-actions,.company-report-builder .export-actions,.export-actions a,.export-actions button{width:100%;justify-content:center}}
 
 .expense-percentage-panel{margin-bottom:20px}.expense-percentage-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.expense-total{min-width:110px;padding:9px 13px;border-radius:10px;background:#fff0ed;color:#9e392c;text-align:right}.expense-total.valid{background:#e6f5ea;color:#1d6742}.expense-total small,.expense-total strong{display:block}.expense-total small{font-size:10px;text-transform:uppercase}.expense-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}.expense-toolbar>div{display:flex;align-items:flex-end;gap:10px}.expense-toolbar label{display:grid;gap:5px;color:#687c71;font-size:11px;font-weight:700;text-transform:uppercase}.expense-toolbar input{border:1px solid #cfddd3;border-radius:9px;padding:10px 12px;color:#17352b;background:#fff}.expense-toolbar button,.expense-toolbar a{display:flex;align-items:center;gap:7px}.expense-toolbar a{text-decoration:none;white-space:nowrap}.expense-summary-cards{grid-template-columns:repeat(4,minmax(0,1fr))}.expense-day{border:1px solid #e4ebe5;border-radius:11px;overflow:hidden;margin-bottom:13px}.expense-day:last-child{margin-bottom:0}.expense-day>h3{margin:0;padding:11px 14px;background:#eef5f0;color:#315445;font-size:12px}.expense-day table{margin:0}.expense-day td:first-child b,.expense-day td:first-child small{display:block}.expense-day td:first-child small{margin-top:4px;color:#7b8d83;white-space:normal}.allocation-list{display:grid;gap:3px;min-width:260px}.allocation-list span{display:flex;gap:5px;justify-content:flex-end;font-size:11px;color:#63796d}.row-actions a.link{display:inline-flex;align-items:center;gap:4px;text-decoration:none}.expense-modal{width:min(780px,calc(100vw - 26px));max-height:92vh;overflow:auto}.settlement-modal{width:min(570px,calc(100vw - 26px))}.expense-preview{margin:18px 0;border:1px solid #dfe9e1;border-radius:11px;overflow:hidden}.expense-preview h3{margin:0;padding:10px 13px;background:#eef5f0;color:#315445;font-size:12px}.expense-preview>span{display:grid;grid-template-columns:minmax(150px,1fr) 70px 110px auto;gap:10px;align-items:center;padding:9px 13px;border-top:1px solid #edf1ee;font-size:12px}.expense-preview small,.expense-preview i{color:#7b8d83}.expense-preview strong{text-align:right}.expense-preview i{font-size:10px}.settlement-balance{display:flex;align-items:center;justify-content:space-between;background:#fff4d9;color:#835c12;border-radius:10px;padding:13px 15px;margin-bottom:16px}.settlement-balance small{font-weight:700;text-transform:uppercase}.settlement-balance strong{font-size:21px}.expenses-page .status.danger{background:#fde6e3;color:#a23f32}.expenses-page td:last-child{min-width:90px}@media(max-width:1000px){.expense-percentage-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.expense-summary-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.expense-toolbar,.expense-toolbar>div{align-items:stretch;flex-direction:column}.expense-toolbar a,.expense-toolbar button{justify-content:center}.expense-preview>span{grid-template-columns:1fr 65px 95px}.expense-preview i{grid-column:1/-1}.expense-percentage-grid{grid-template-columns:1fr}}@media(max-width:480px){.expense-summary-cards{grid-template-columns:1fr}}
 
@@ -174,7 +174,7 @@
 .salary-page,.my-salary-page{display:grid;gap:18px}.salary-toolbar,.my-salary-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:24px}.salary-toolbar h2,.my-salary-hero h2{margin:2px 0 5px}.salary-toolbar p,.my-salary-hero p{margin:0;color:#6c8176}.salary-toolbar>div:last-child{display:flex;align-items:flex-end;gap:10px}.salary-toolbar label,.my-salary-hero label{display:grid;gap:5px;color:#687c71;font-size:10px;font-weight:750;text-transform:uppercase}.salary-toolbar input,.my-salary-hero input{border:1px solid #cfddd3;border-radius:9px;padding:10px 12px;background:#fff;color:#17352b}.salary-toolbar a{display:flex;align-items:center;gap:7px;text-decoration:none;white-space:nowrap}.salary-period-note{display:flex;align-items:center;gap:11px;border:1px solid #d8e6dc;border-radius:11px;padding:12px 15px;background:#f3f8f4;color:#537064}.salary-period-note>svg{color:#247052;flex:0 0 auto}.salary-period-note span{display:grid;gap:2px;font-size:11px}.salary-period-note b{color:#244c3d;font-size:12px}.salary-summary-cards,.my-salary-cards{grid-template-columns:repeat(5,minmax(0,1fr))}.salary-table td>small,.salary-table td>b{display:block}.salary-table td>small{margin-top:4px;color:#7d8f84;font-size:10px;white-space:nowrap}.salary-table td:last-child{min-width:190px}.salary-mini-stats{display:grid;gap:3px;white-space:nowrap}.salary-mini-stats small{color:#7d8f84;font-size:10px}.salary-mini-stats.positive{color:#20714d}.salary-details{scroll-margin-top:20px}.salary-breakdown,.salary-attendance-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px}.salary-breakdown>span,.salary-attendance-grid>span{display:grid;gap:4px;padding:12px;border-radius:10px;background:#f2f7f3}.salary-breakdown small,.salary-attendance-grid small{font-size:9px;color:#71877b;text-transform:uppercase}.salary-breakdown b,.salary-attendance-grid b{font-size:14px}.salary-adjustment-list{display:grid;border:1px solid #e0e9e2;border-radius:11px;overflow:hidden}.salary-adjustment-list>div{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:11px;padding:12px 14px;border-bottom:1px solid #e8eee9}.salary-adjustment-list>div:last-child{border-bottom:0}.salary-adjustment-list>div.cancelled{background:#f7f7f7;color:#7e8a84}.salary-adjustment-list>div.cancelled b{text-decoration:line-through}.salary-adjustment-list span:nth-child(2){display:grid;gap:3px}.salary-adjustment-list small,.salary-adjustment-list em{font-size:10px;color:#74877d;font-style:normal}.salary-adjustment-list em{color:#a15247}.salary-adjustment-icon{width:31px;height:31px;display:grid;place-items:center;border-radius:9px;font-weight:850}.salary-adjustment-icon.addition{background:#e2f3e8;color:#1f7149}.salary-adjustment-icon.deduction{background:#fde9e6;color:#a44236}.compact-salary-modal{width:min(620px,calc(100vw - 26px))}.compact-salary-modal>.field{margin-top:15px}.salary-replace-toggle{margin:16px 0;padding:0}.salary-statement-lines{display:grid;border:1px solid #e2eae4;border-radius:12px;overflow:hidden}.salary-statement-lines>span,.salary-statement-lines>strong{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:12px 15px;border-bottom:1px solid #e8eee9}.salary-statement-lines>span small{color:#61786c}.salary-statement-lines .deduction b{color:#a04437}.salary-statement-lines>strong{border-bottom:0;background:#eaf4ed;color:#205940;font-size:15px}.employee-salary-config{display:grid;gap:13px;margin-top:20px;padding:16px;border:1px solid #dce8df;border-radius:12px;background:#f7faf8}.employee-salary-config>div:first-child{display:flex;align-items:center;gap:10px}.employee-salary-config>div:first-child>span:last-child{display:grid;gap:2px}.employee-salary-config>div:first-child small{color:#788d82;font-size:10px}.employee-salary-config>.secondary{justify-self:start}.salary-rate-history{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.salary-rate-history>span{display:grid;gap:2px;padding:9px 11px;border-radius:8px;background:#fff;border:1px solid #e1e9e3}.salary-rate-history small{font-size:9px;color:#778b80}
 @media(max-width:1100px){.salary-summary-cards,.my-salary-cards{grid-template-columns:repeat(3,minmax(0,1fr))}.salary-breakdown,.salary-attendance-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:700px){.salary-toolbar,.my-salary-hero{align-items:stretch;flex-direction:column}.salary-toolbar>div:last-child{display:grid;grid-template-columns:1fr 1fr}.salary-toolbar a{justify-content:center}.salary-summary-cards,.my-salary-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.salary-breakdown,.salary-attendance-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.salary-adjustment-list>div{grid-template-columns:34px minmax(0,1fr)}.salary-adjustment-list button{grid-column:2;justify-self:start}.salary-rate-history{grid-template-columns:1fr}}
-@media(max-width:470px){.salary-summary-cards,.my-salary-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.salary-summary-cards .metric,.my-salary-cards .metric{padding:10px 12px}.salary-summary-cards .metric strong,.my-salary-cards .metric strong{font-size:17px}.salary-toolbar>div:last-child{grid-template-columns:1fr}.salary-statement-lines>span,.salary-statement-lines>strong{align-items:flex-start;flex-direction:column;gap:5px}.salary-attendance-grid{grid-template-columns:1fr 1fr}.compact-salary-modal .form-actions button{width:100%}}
+@media(max-width:470px){.salary-summary-cards,.my-salary-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.salary-summary-cards .metric,.my-salary-cards .metric{padding:10px 12px}.salary-summary-cards .metric strong,.my-salary-cards .metric strong{font-size:17px}.salary-toolbar>div:last-child{grid-template-columns:1fr}.salary-statement-lines>span,.salary-statement-lines>strong{align-items:flex-start;flex-direction:column;gap:5px}.salary-attendance-grid{grid-template-columns:1fr 1fr}.salary-breakdown{grid-template-columns:1fr 1fr !important;gap:6px !important}.salary-breakdown>span{padding:8px 10px !important}.salary-breakdown b{font-size:13px !important}.compact-salary-modal .form-actions button{width:100%}}
 
 /* ⚡ PGVCL Curtailment Box (Linear / Stripe Style) */
 .curtailment-banner {
@@ -2037,42 +2037,69 @@
         font-size: 9.5px;
     }
 
-    /* 4-column compact grid for PV Strings on mobile */
+    /* 4-column compact micro-grid for PV Strings on mobile */
     .pv-strings-grid {
         grid-template-columns: repeat(4, 1fr) !important;
-        gap: 3px;
+        gap: 3px !important;
     }
     .pv-string-cell {
-        padding: 3px 4px;
-        font-size: 9px;
-        flex-direction: column;
-        text-align: center;
-        gap: 1px;
+        padding: 3px 2px !important;
+        font-size: 8.5px !important;
+        min-height: 32px !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        text-align: center !important;
+        gap: 1px !important;
     }
     .pv-string-cell .pv-lbl {
-        font-size: 8px;
+        font-size: 7.5px !important;
         color: #64748b;
     }
     .pv-string-cell .pv-val {
-        font-weight: 700;
-        font-size: 9.5px;
+        font-weight: 800 !important;
+        font-size: 9px !important;
+        white-space: nowrap !important;
     }
 }
 
 @media (max-width: 480px) {
+    .inverter-status-row-main {
+        flex-wrap: wrap !important;
+        gap: 6px !important;
+    }
+    .inverter-info-left {
+        min-width: 0 !important;
+        flex: 1 1 auto !important;
+    }
+    .inverter-name-sn b {
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        max-width: 150px !important;
+    }
+    .inverter-power-right {
+        margin-left: auto !important;
+        flex-shrink: 0 !important;
+        gap: 6px !important;
+    }
     .pv-strings-grid {
-        grid-template-columns: repeat(2, 1fr) !important;
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 3px !important;
     }
     .pv-string-cell {
-        flex-direction: row;
-        justify-content: space-between;
-        padding: 4px 6px;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        padding: 2px 1px !important;
+        min-height: 30px !important;
     }
     .pv-string-cell .pv-lbl {
-        font-size: 8.5px;
+        font-size: 7.5px !important;
     }
     .pv-string-cell .pv-val {
-        font-size: 10px;
+        font-size: 8.5px !important;
+        white-space: nowrap !important;
     }
 }
 
@@ -3611,71 +3638,87 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 0;
+    padding: 8px 0;
+    gap: 6px;
 }
 
 .inv-clean-left {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
+    min-width: 0;
+    flex: 1 1 auto;
 }
 
 .inv-title-row {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
+    min-width: 0;
 }
 
 .inv-name-text {
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 700;
     color: #1e293b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
 }
 
 .inv-cleaning-alert-badge {
     background: #fffbeb;
     color: #dc2626;
     border: 1px solid #fecaca;
-    font-size: 10.5px;
-    font-weight: 600;
-    padding: 1px 5px;
+    font-size: 9.5px;
+    font-weight: 700;
+    padding: 1px 4px;
     border-radius: 4px;
     display: inline-flex;
     align-items: center;
     gap: 2px;
+    flex-shrink: 0;
 }
 
 .inv-sn-text {
-    font-size: 10.5px;
+    font-size: 9.5px;
     color: #64748b;
     font-family: ui-monospace, SFMono-Regular, monospace;
     font-weight: 400;
     margin-top: 1px;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .inv-clean-right {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    flex-shrink: 0;
 }
 
 .inv-vals-wrap {
     text-align: right;
+    white-space: nowrap;
 }
 
 .inv-kwh-text {
     display: block;
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 700;
     color: #1e293b;
+    line-height: 1.2;
 }
 
 .inv-kw-text {
     display: block;
-    font-size: 11px;
-    font-weight: 500;
+    font-size: 10px;
+    font-weight: 600;
     color: #059669;
-    margin-top: 1px;
+    line-height: 1.2;
 }
 
 .inv-pv-pill-btn {
@@ -3799,32 +3842,32 @@
     background: #e2e8f0;
 }
 
-/* 16 PV Strings Grid Panel */
+/* 16 PV Strings Grid Panel - Ultra-compact Micro-chips */
 .isolar-pv-strings-panel {
-    margin-top: 10px;
+    margin-top: 8px;
     background: #f8fafc;
     border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 10px;
+    border-radius: 8px;
+    padding: 6px 8px;
 }
 
 .isolar-strings-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 8px;
-    padding-bottom: 6px;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
     border-bottom: 1px dashed #e2e8f0;
 }
 
 .strings-head-title {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 800;
     color: #334155;
 }
 
 .strings-head-points {
-    font-size: 10px;
+    font-size: 9.5px;
     font-weight: 600;
     color: #64748b;
 }
@@ -3832,18 +3875,20 @@
 .isolar-strings-16-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 6px;
+    gap: 4px;
 }
 
 .pv-string-box {
-    border-radius: 8px;
-    padding: 6px 4px;
+    border-radius: 6px;
+    padding: 3px 2px;
     text-align: center;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 44px;
+    min-height: 32px;
+    max-height: 36px;
+    overflow: hidden;
     transition: transform 0.15s ease;
 }
 
@@ -3860,23 +3905,29 @@
 }
 
 .pv-box-label {
-    font-size: 9.5px;
-    font-weight: 800;
+    font-size: 8px;
+    font-weight: 700;
     line-height: 1;
+    letter-spacing: -0.02em;
 }
 
 .pv-box-amp {
-    font-size: 11px;
+    font-size: 9.5px;
     font-weight: 800;
-    margin-top: 3px;
+    margin-top: 1px;
     line-height: 1;
     display: inline-flex;
     align-items: baseline;
-    gap: 1.5px;
+    gap: 1px;
+    white-space: nowrap;
+}
+
+.pv-box-amp b {
+    font-weight: 800;
 }
 
 .pv-box-amp small {
-    font-size: 8.5px;
+    font-size: 7.5px;
     font-weight: 700;
 }
 
@@ -4823,7 +4874,10 @@
 
     .step-prog-item span {
         font-size: 8px;
-        max-width: 50px;
+        max-width: 65px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .confirm-summary-row {
@@ -7897,12 +7951,14 @@ input[type="number"] {
     cursor: pointer;
 }
 
-/* Compact Modal Mobile Polish */
+/* Compact Modal Mobile Polish - Zero-Clipping on Mobile */
 .compact-salary-modal {
-    width: min(500px, calc(100vw - 20px)) !important;
-    max-height: 90vh !important;
+    width: min(520px, calc(100vw - 20px)) !important;
+    max-height: 88vh !important;
+    max-height: 88dvh !important;
     overflow-y: auto !important;
-    padding: 16px 18px !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 16px 18px max(20px, env(safe-area-inset-bottom)) !important;
     border-radius: 16px !important;
 }
 
@@ -7913,13 +7969,43 @@ input[type="number"] {
 .compact-salary-modal .field input,
 .compact-salary-modal .field select {
     padding: 8px 10px !important;
-    font-size: 12.5px !important;
+    font-size: 13px !important;
 }
 
 .compact-salary-modal .field textarea {
     padding: 8px 10px !important;
-    font-size: 12.5px !important;
+    font-size: 13px !important;
     min-height: 60px !important;
+}
+
+.salary-modal-actions {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+    flex-wrap: wrap !important;
+}
+
+@media (max-width: 520px) {
+    .compact-salary-modal {
+        width: calc(100vw - 16px) !important;
+        padding: 14px 12px max(24px, env(safe-area-inset-bottom)) !important;
+        margin: auto !important;
+    }
+    .compact-salary-modal .salary-modal-grid,
+    .compact-salary-modal .form-grid.two {
+        grid-template-columns: 1fr !important;
+        gap: 8px !important;
+    }
+    .compact-salary-modal .salary-modal-actions {
+        flex-direction: column-reverse !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+    }
+    .compact-salary-modal .salary-modal-actions button {
+        width: 100% !important;
+        min-height: 44px !important;
+    }
 }
 
 /* ==========================================================================
@@ -8240,19 +8326,30 @@ input[type="number"] {
 
     .smart-input-wrapper input {
         height: 42px !important;
-        font-size: 15px !important;
+        font-size: 14px !important;
         padding-left: 10px !important;
-        padding-right: 56px !important;
+        padding-right: 68px !important;
     }
 
     .smart-input-wrapper .input-valid-tick {
-        right: 46px !important;
+        right: 48px !important;
     }
 
     .field-suffix-badge {
-        right: 5px !important;
-        padding: 2px 5px !important;
-        font-size: 10px !important;
+        right: 6px !important;
+        padding: 2px 6px !important;
+        font-size: 9.5px !important;
+    }
+
+    .entry-step-head {
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+    }
+
+    .entry-sync-btn {
+        width: 100% !important;
+        justify-content: center !important;
+        white-space: normal !important;
     }
 
     .entry-sticky-actions {
@@ -8286,11 +8383,17 @@ input[type="number"] {
     }
 }
 
-@media (max-width: 380px) {
-    .entry-inverters-grid,
+@media (max-width: 480px) {
     .entry-meters-grid {
         grid-template-columns: 1fr !important;
         gap: 10px !important;
+    }
+}
+
+@media (max-width: 380px) {
+    .entry-inverters-grid {
+        grid-template-columns: 1fr !important;
+        gap: 8px !important;
     }
 }
 

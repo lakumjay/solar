@@ -135,7 +135,7 @@ export default function LiveBackCameraModal({task, companyId, onClose, onUploade
 
     return (
         <div className="modal-backdrop" onClick={onClose}>
-            <div className="modal camera-modal" onClick={e => e.stopPropagation()} style={{padding: 0, overflow: 'hidden', background: '#091512'}}>
+            <div className="modal camera-modal" onClick={e => e.stopPropagation()} style={{padding: 0, overflow: 'hidden', background: '#091512', maxHeight: '94dvh', display: 'flex', flexDirection: 'column'}}>
                 {/* Header */}
                 <div style={{
                     padding: '12px 16px',
@@ -174,20 +174,20 @@ export default function LiveBackCameraModal({task, companyId, onClose, onUploade
                 </div>
 
                 {/* Camera View / Preview */}
-                <div style={{position: 'relative', background: '#000000', minHeight: '340px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                <div style={{position: 'relative', background: '#000000', minHeight: '260px', flex: '1 1 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'}}>
                     {!capturedImage ? (
                         <video
                             ref={videoRef}
                             autoPlay
                             playsInline
                             muted
-                            style={{width: '100%', maxHeight: '420px', objectFit: 'cover'}}
+                            style={{width: '100%', maxHeight: 'min(420px, calc(94dvh - 160px))', objectFit: 'cover'}}
                         />
                     ) : (
                         <img
                             src={capturedImage}
                             alt="Captured plant preview"
-                            style={{width: '100%', maxHeight: '420px', objectFit: 'contain'}}
+                            style={{width: '100%', maxHeight: 'min(420px, calc(94dvh - 160px))', objectFit: 'contain'}}
                         />
                     )}
 
@@ -226,7 +226,7 @@ export default function LiveBackCameraModal({task, companyId, onClose, onUploade
                 )}
 
                 {/* Footer Actions */}
-                <div style={{padding: '14px 16px', background: '#0d2820', display: 'flex', flexDirection: 'column', gap: '10px'}}>
+                <div style={{padding: '12px 16px max(14px, env(safe-area-inset-bottom))', background: '#0d2820', display: 'flex', flexDirection: 'column', gap: '10px'}}>
                     {capturedImage && (
                         <input
                             type="text"
