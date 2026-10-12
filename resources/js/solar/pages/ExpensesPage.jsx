@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {ArrowRight, Calendar, CheckCircle2, Clock, FileSpreadsheet, FileText, HandCoins, History, IndianRupee, Layers, LayoutGrid, PencilLine, Plus, ReceiptIndianRupee, RotateCcw, Scale, Sparkles, Split, Table, X, Zap} from 'lucide-react';
-import {api} from '../api';
+import {api, getApiBaseUrl} from '../api';
 import {Empty, Field, Loading, Metric} from '../components/Common';
 import {monthStart, today} from '../config';
 import {number, indianAmount, shortDate} from '../format';
@@ -355,11 +355,11 @@ export default function ExpensesPage({currentUser}) {
                     </div>
 
                     <div className="expense-toolbar-actions">
-                        <a className="secondary export-btn" href={`/api/expenses/export/excel?date_from=${from}&date_to=${to}${selectedCompany ? `&company_id=${selectedCompany}` : ''}`}>
+                        <a className="secondary export-btn" href={`${getApiBaseUrl().base}expenses/export/excel?date_from=${from}&date_to=${to}${selectedCompany ? `&company_id=${selectedCompany}` : ''}`}>
                             <FileSpreadsheet size={15}/>
                             <span>Excel</span>
                         </a>
-                        <a className="secondary export-btn pdf-btn" href={`/api/expenses/export/pdf?date_from=${from}&date_to=${to}${selectedCompany ? `&company_id=${selectedCompany}` : ''}`} target="_blank" rel="noreferrer">
+                        <a className="secondary export-btn pdf-btn" href={`${getApiBaseUrl().base}expenses/export/pdf?date_from=${from}&date_to=${to}${selectedCompany ? `&company_id=${selectedCompany}` : ''}`} target="_blank" rel="noreferrer">
                             <FileText size={15}/>
                             <span>{currentLang === 'en' ? 'PDF Report' : 'પીડીએફ'}</span>
                         </a>

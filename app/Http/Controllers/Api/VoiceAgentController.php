@@ -824,7 +824,9 @@ CTX;
                         'description' => 'Get shared expense percentages (38.15%, 39.69%, 22.16%) and recent active shared expense entries.',
                         'parameters' => [
                             'type' => 'OBJECT',
-                            'properties' => (object)[]
+                            'properties' => [
+                                'company_name' => ['type' => 'STRING', 'description' => 'Optional company name'],
+                            ]
                         ]
                     ],
                     [
@@ -874,7 +876,9 @@ CTX;
                         'description' => 'Get stock inventory items, quantities and low stock alerts.',
                         'parameters' => [
                             'type' => 'OBJECT',
-                            'properties' => (object)[]
+                            'properties' => [
+                                'company_name' => ['type' => 'STRING', 'description' => 'Optional company name'],
+                            ]
                         ]
                     ],
                 ];

@@ -252,19 +252,10 @@ export default function ReelsPage({currentUser, companyId}) {
             setUploadProgress(40);
             setUploadStatusText('Uploading full video with original audio...');
 
-            const uploadRes = await fetch('/api/plant-reels', {
+            await api('plant-reels', {
                 method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                    'Accept': 'application/json'
-                },
                 body: fd
             });
-
-            if (!uploadRes.ok) {
-                const errJson = await uploadRes.json().catch(() => ({}));
-                throw new Error(errJson.error || 'Failed to upload Reel');
-            }
 
             setUploadProgress(100);
             setUploadStatusText('Reel uploaded successfully! 🎉');

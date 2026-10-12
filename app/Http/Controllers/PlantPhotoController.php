@@ -113,7 +113,25 @@ class PlantPhotoController extends Controller
     public function upload(Request $request)
     {
         $user = $request->user();
-        $employee = Employee::where('user_id', $user->id)->first();
+        $employee = Employee::where('user_id', $user->id)->where('active', true)->first()
+            ?: Employee::where('user_id', $user->id)->first();
+
+        if (! $employee && in_array($user->role, ['super_admin', 'company_admin'], true)) {
+            $employee = Employee::where('active', true)->first();
+            if (! $employee && $user->role === 'super_admin') {
+                $employee = Employee::create([
+                    'user_id' => $user->id,
+                    'employee_code' => 'ADMIN-' . $user->id,
+                    'joining_date' => now()->toDateString(),
+                    'active' => true,
+                    'shift_start' => '09:00',
+                    'shift_end' => '18:00',
+                    'working_minutes' => 480,
+                    'half_day_minutes' => 240,
+                    'grace_minutes' => 15,
+                ]);
+            }
+        }
 
         abort_if(! $employee, 403, 'Only employees with an active profile can upload plant photos.');
 

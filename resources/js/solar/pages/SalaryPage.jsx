@@ -23,7 +23,7 @@ import {
     Wallet,
     X
 } from 'lucide-react';
-import {api} from '../api';
+import {api, getApiBaseUrl} from '../api';
 import {Empty, Field, Loading, Metric} from '../components/Common';
 import {number, shortDate} from '../format';
 import {getLanguage} from '../utils/translations';
@@ -84,7 +84,7 @@ export default function SalaryPage() {
                             onChange={event => { setMonth(event.target.value); setSelectedId(null); }}
                         />
                     </label>
-                    <a className="secondary" href={`/api/salaries/export/excel?month=${month}`}>
+                    <a className="secondary" href={`${getApiBaseUrl().base}salaries/export/excel?month=${month}`}>
                         <Download size={16}/> Export Excel
                     </a>
                 </div>

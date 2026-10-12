@@ -3,7 +3,7 @@ import {
     Phone, PhoneOff, PhoneCall, Volume2, VolumeX, AlertTriangle, 
     Zap, Radio, Activity, Sparkles, ExternalLink, RefreshCw, X 
 } from 'lucide-react';
-import { api } from '../api';
+import { api, getApiBaseUrl } from '../api';
 
 /**
  * EmergencyIncomingCallModal
@@ -199,7 +199,7 @@ export default function EmergencyIncomingCallModal({
         let ttsSuccess = false;
 
         // Try Backend Neural TTS first
-        const ttsUrl = `/api/voice-agent/tts?text=${encodeURIComponent(text)}&language=gu`;
+        const ttsUrl = `${getApiBaseUrl().base}voice-agent/tts?text=${encodeURIComponent(text)}&language=gu`;
         const audio = new Audio(ttsUrl);
         audio.volume = 1.0;
         speechAudioRef.current = audio;

@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import { PcmPlayer, ToneGenerator, arrayBufferToBase64, base64ToInt16 } from '../lib/audio';
-import { api } from '../api';
+import { api, getApiBaseUrl } from '../api';
 
 // Persistent audio stream cache across calls so user is asked permission only ONCE
 let globalMicStream = null;
@@ -78,6 +78,10 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
     const closeTimerRef = useRef(null);
     const fallbackRecogRef = useRef(null);
     const fallbackAudioRef = useRef(null);
+    const isToolPendingRef = useRef(false);
+    const reconnectAttemptsRef = useRef(0);
+    const reconnectingRef = useRef(false);
+    const liveCfgRef = useRef(null);
 
     // Sync states to refs
     useEffect(() => {
@@ -264,6 +268,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
     // Handle Tool Execution (Solar Generation Units, Curtailment, Attendance, Revenue)
     const handleToolCall = async (call) => {
         console.log(`[ToolCall] Gemini invoked tool: ${call.name}`, call.args);
+        isToolPendingRef.current = true;
         
         let toolLabel = `⚡ Checking ${call.name.replace(/_/g, ' ')}...`;
         if (call.name === 'get_generation_units') toolLabel = '☀️ Fetching 1-second live solar generation units...';
@@ -313,19 +318,23 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
             console.error('[Tool Execution Error]', err);
             setLastToolEvent(`⚠️ Note: ${err.message || 'Data query note'}`);
             if (sessionRef.current) {
-                sessionRef.current.sendToolResponse({
-                    functionResponses: [{
-                        id: call.id,
-                        name: call.name,
-                        response: {
-                            output: {
-                                status: "error",
-                                message: err.message || "Failed to fetch solar data."
+                try {
+                    sessionRef.current.sendToolResponse({
+                        functionResponses: [{
+                            id: call.id,
+                            name: call.name,
+                            response: {
+                                output: {
+                                    status: "error",
+                                    message: err.message || "Failed to fetch solar data."
+                                }
                             }
-                        }
-                    }]
-                });
+                        }]
+                    });
+                } catch (_) {}
             }
+        } finally {
+            isToolPendingRef.current = false;
         }
     };
 
@@ -341,15 +350,12 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                 setCurrentAiText('');
             }
 
-            // AI Audio chunks
+            // AI Audio chunks (ignore internal modelTurn.parts[].text which contains English chain-of-thought)
             const parts = sc.modelTurn?.parts || [];
             for (const part of parts) {
                 if (part.inlineData?.data) {
                     setIsAiSpeaking(true);
                     playerRef.current?.enqueue(base64ToInt16(part.inlineData.data));
-                }
-                if (part.text) {
-                    setCurrentAiText(prev => prev + part.text);
                 }
             }
 
@@ -359,7 +365,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                 handleTranscript('user', userSpeech);
             }
 
-            // AI Output Speech Transcription
+            // AI Output Speech Transcription (actual spoken Gujarati response)
             if (sc.outputTranscription?.text) {
                 handleTranscript('ai', sc.outputTranscription.text);
             }
@@ -425,6 +431,14 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
 
         micStreamRef.current = stream;
 
+        // If mic context is already active from an earlier connect in this call, keep it
+        if (micCtxRef.current && micCtxRef.current.state !== 'closed' && workletNodeRef.current) {
+            if (micCtxRef.current.state === 'suspended') {
+                await micCtxRef.current.resume().catch(() => {});
+            }
+            return;
+        }
+
         // 3. Dedicated 16kHz AudioContext for mic capture
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         const micCtx = new AudioCtx({ sampleRate: 16000 });
@@ -479,16 +493,17 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
 
                 workletNode.port.onmessage = (event) => {
                     if (!sessionRef.current || isMutedRef.current) return;
-                    // Don't send mic audio if AI is currently speaking to prevent feedback echo
-                    if (isAiSpeakingRef.current) return;
+                    if (isAiSpeakingRef.current || isToolPendingRef.current || reconnectingRef.current) return;
 
                     const base64Audio = arrayBufferToBase64(event.data);
-                    sessionRef.current.sendRealtimeInput({
-                        audio: {
-                            data: base64Audio,
-                            mimeType: 'audio/pcm;rate=16000'
-                        }
-                    });
+                    try {
+                        sessionRef.current.sendRealtimeInput({
+                            audio: {
+                                data: base64Audio,
+                                mimeType: 'audio/pcm;rate=16000'
+                            }
+                        });
+                    } catch (_) {}
                 };
 
                 source.connect(workletNode);
@@ -504,8 +519,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
 
         scriptNode.onaudioprocess = (e) => {
             if (!sessionRef.current || isMutedRef.current) return;
-            // Don't send mic audio if AI is currently speaking to prevent feedback echo
-            if (isAiSpeakingRef.current) return;
+            if (isAiSpeakingRef.current || isToolPendingRef.current || reconnectingRef.current) return;
 
             const channelData = e.inputBuffer.getChannelData(0);
             const pcm16 = new Int16Array(channelData.length);
@@ -514,12 +528,14 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                 pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
             }
             const base64Audio = arrayBufferToBase64(pcm16.buffer);
-            sessionRef.current.sendRealtimeInput({
-                audio: {
-                    data: base64Audio,
-                    mimeType: 'audio/pcm;rate=16000'
-                }
-            });
+            try {
+                sessionRef.current.sendRealtimeInput({
+                    audio: {
+                        data: base64Audio,
+                        mimeType: 'audio/pcm;rate=16000'
+                    }
+                });
+            } catch (_) {}
         };
 
         source.connect(scriptNode);
@@ -531,10 +547,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         if (!text || closingRef.current) return;
         setIsAiSpeaking(true);
         try {
-            const basePath = (typeof window !== 'undefined' && window.location.pathname.includes('/git/public'))
-                ? '/git/public/api/'
-                : '/api/';
-            const ttsUrl = `${basePath}voice-agent/tts?text=${encodeURIComponent(text)}&language=${encodeURIComponent(lang)}`;
+            const ttsUrl = `${getApiBaseUrl().base}voice-agent/tts?text=${encodeURIComponent(text)}&language=${encodeURIComponent(lang)}`;
             await new Promise((resolve) => {
                 const audio = new Audio(ttsUrl);
                 fallbackAudioRef.current = audio;
@@ -557,7 +570,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
     }, []);
 
     // Unbreakable Fallback Voice Call Mode (Web Speech API + /api/voice-agent/chat + /api/voice-agent/tts)
-    const startFallbackVoiceSession = useCallback(async () => {
+    const startFallbackVoiceSession = useCallback(async (skipGreeting = false) => {
         try {
             if (toneGenRef.current) toneGenRef.current.stopRingTone();
         } catch (_) {}
@@ -565,9 +578,10 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         setConnectionError(null);
         setCallState('connected');
         hasConnectedRef.current = true;
-        setTranscriptHistory([{ sender: 'ai', text: defaultGreeting }]);
-
-        await speakFallbackTts(defaultGreeting, 'gu');
+        if (!skipGreeting) {
+            setTranscriptHistory([{ sender: 'ai', text: defaultGreeting }]);
+            await speakFallbackTts(defaultGreeting, 'gu');
+        }
 
         const SpeechRecognition = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
         if (!SpeechRecognition || closingRef.current) return;
@@ -621,9 +635,107 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         startListeningLoop();
     }, [defaultGreeting, handleTranscript, speakFallbackTts]);
 
+    const connectLiveWebSocket = async (isSilentReconnect = false) => {
+        if (closingRef.current || !liveCfgRef.current) return;
+        const { authToken, targetModel, systemInstruction, voiceName, formattedTools } = liveCfgRef.current;
+
+        const ai = new GoogleGenAI({
+            apiKey: authToken,
+            httpOptions: { apiVersion: 'v1alpha' }
+        });
+
+        const session = await ai.live.connect({
+            model: targetModel,
+            config: {
+                responseModalities: [Modality.AUDIO],
+                systemInstruction: systemInstruction,
+                thinkingConfig: { thinkingBudget: 0 },
+                speechConfig: {
+                    voiceConfig: {
+                        prebuiltVoiceConfig: {
+                            voiceName: voiceName || 'Aoede'
+                        }
+                    }
+                },
+                inputAudioTranscription: {},
+                outputAudioTranscription: {},
+                tools: formattedTools.length > 0 ? formattedTools : undefined
+            },
+            callbacks: {
+                onopen: () => {
+                    console.log('[Gemini Live] Connected successfully.');
+                    reconnectAttemptsRef.current = 0;
+                    reconnectingRef.current = false;
+                    try {
+                        if (toneGenRef.current) toneGenRef.current.stopRingTone();
+                    } catch(e) {}
+                    setConnectionError(null);
+                    setCallState('connected');
+                },
+                onmessage: (msg) => handleLiveMessage(msg),
+                onerror: (e) => {
+                    console.warn('[Gemini Live Socket Notice]', e);
+                },
+                onclose: (e) => {
+                    console.log('[Gemini Live onclose]', e);
+                    if (closingRef.current) return;
+
+                    // Automatically and silently reconnect if the socket closed mid-call
+                    if (reconnectAttemptsRef.current < 3) {
+                        reconnectAttemptsRef.current += 1;
+                        reconnectingRef.current = true;
+                        sessionRef.current = null;
+                        setTimeout(async () => {
+                            if (closingRef.current) return;
+                            try {
+                                await connectLiveWebSocket(true);
+                            } catch (reErr) {
+                                console.warn('[Gemini Live Silent Reconnect Failed]', reErr);
+                                if (!closingRef.current) {
+                                    await startFallbackVoiceSession(true);
+                                }
+                            }
+                        }, 450);
+                        return;
+                    }
+
+                    // If 3 reconnect attempts failed, seamlessly continue in Fallback Voice Mode
+                    startFallbackVoiceSession(hasConnectedRef.current);
+                }
+            }
+        });
+
+        sessionRef.current = session;
+        reconnectingRef.current = false;
+
+        if (!isSilentReconnect) {
+            hasConnectedRef.current = true;
+            await startMic();
+            try {
+                if (toneGenRef.current) {
+                    toneGenRef.current.stopRingTone();
+                }
+            } catch(e) {}
+
+            setCallState('connected');
+            setTranscriptHistory([{ sender: 'ai', text: defaultGreeting }]);
+
+            // Trigger initial greeting so SolarFlow AI speaks immediately when call connects
+            try {
+                session.sendClientContent({
+                    turns: [{ role: 'user', parts: [{ text: 'નમસ્તે' }] }],
+                    turnComplete: true
+                });
+            } catch (_) {}
+        }
+    };
+
     const startLiveSession = async () => {
         closingRef.current = false;
         hasConnectedRef.current = false;
+        isToolPendingRef.current = false;
+        reconnectAttemptsRef.current = 0;
+        reconnectingRef.current = false;
         setConnectionError(null);
         setMicPermissionError(null);
         setCallState('connecting');
@@ -670,7 +782,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
 
             // If Gemini API key is not configured on server, seamlessly switch to Server Chat + Neural TTS Voice Mode
             if (!authToken || authToken === 'solarflow_ready') {
-                await startFallbackVoiceSession();
+                await startFallbackVoiceSession(false);
                 return;
             }
 
@@ -685,79 +797,16 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                 targetModel = 'gemini-2.5-flash-native-audio-latest';
             }
 
-            // 3. Connect to Gemini Live via official SDK
-            const ai = new GoogleGenAI({
-                apiKey: authToken,
-                httpOptions: { apiVersion: 'v1alpha' }
-            });
+            liveCfgRef.current = {
+                authToken,
+                targetModel,
+                systemInstruction,
+                voiceName,
+                formattedTools
+            };
 
-            const session = await ai.live.connect({
-                model: targetModel,
-                config: {
-                    responseModalities: [Modality.AUDIO],
-                    systemInstruction: systemInstruction,
-                    speechConfig: {
-                        voiceConfig: {
-                            prebuiltVoiceConfig: {
-                                voiceName: voiceName || 'Aoede'
-                            }
-                        }
-                    },
-                    inputAudioTranscription: {},
-                    outputAudioTranscription: {},
-                    tools: formattedTools.length > 0 ? formattedTools : undefined
-                },
-                callbacks: {
-                    onopen: () => {
-                        console.log('[Gemini Live] Connected successfully.');
-                        try {
-                            if (toneGenRef.current) toneGenRef.current.stopRingTone();
-                        } catch(e) {}
-                        setCallState('connected');
-                    },
-                    onmessage: (msg) => handleLiveMessage(msg),
-                    onerror: (e) => {
-                        console.error('[Gemini Live Error]', e);
-                        if (!closingRef.current) {
-                            setConnectionError(e?.message || 'Connection issue detected.');
-                        }
-                    },
-                    onclose: (e) => {
-                        console.log('[Gemini Live onclose]', e);
-                        if (!closingRef.current) {
-                            try {
-                                if (toneGenRef.current) toneGenRef.current.stopRingTone();
-                            } catch(err) {}
-                            setConnectionError('કૉલ ડિસ્કનેક્ટ થયો છે. ફરી જોડવા માટે Reconnect દબાવો.');
-                            setCallState('ended');
-                        }
-                    }
-                }
-            });
-
-            sessionRef.current = session;
-            hasConnectedRef.current = true;
-
-            // 4. Start Microphone capture AFTER session is ready
-            await startMic();
-
-            // Stop Ring tone
-            try {
-                if (toneGenRef.current) {
-                    toneGenRef.current.stopRingTone();
-                }
-            } catch(e) {}
-
-            setCallState('connected');
-            setTranscriptHistory([{ sender: 'ai', text: defaultGreeting }]);
-
-            // 5. Trigger initial greeting so SolarFlow AI speaks immediately when call connects
-            try {
-                session.sendClientContent({
-                    turns: [{ role: 'user', parts: [{ text: 'નમસ્તે' }] }],
-                    turnComplete: true
-                });
-            } catch (_) {}
+            // 3. Connect to Gemini Live via official SDK (with auto-reconnect protection)
+            await connectLiveWebSocket(false);
         } catch (err) {
             console.error('Failed to start Live Session:', err);
             try {
@@ -766,7 +815,8 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                 }
             } catch(e) {}
             if (!micPermissionError) {
-                setConnectionError(err.message || 'Failed to start voice session.');
+                await startFallbackVoiceSession(false);
+                return;
             }
             setCallState('ended');
         }
