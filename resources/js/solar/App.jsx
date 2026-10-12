@@ -169,7 +169,8 @@ function AppContent() {
             const handleSwMessage = (e) => {
                 if (e.data?.type === 'PUSH_NOTIFICATION_RECEIVED') {
                     try {
-                        const audio = new Audio('/sounds/alert.wav');
+                        const soundPrefix = window.location.pathname.includes('/git/public') ? '/git/public' : '';
+                        const audio = new Audio(`${soundPrefix}/sounds/alert.wav`);
                         audio.play().catch(() => {});
                     } catch (_) {}
                 }

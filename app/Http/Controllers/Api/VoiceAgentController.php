@@ -566,48 +566,43 @@ class VoiceAgentController extends Controller
             return null;
         }
 
-        $ttsModels = [
-            'gemini-2.5-flash-preview-tts',
-            'gemini-2.5-flash-tts',
-        ];
+        $ttsModel = 'gemini-2.5-flash-preview-tts';
 
-        foreach ($ttsModels as $ttsModel) {
-            try {
-                $response = Http::timeout(8)->withHeaders([
-                    'Content-Type' => 'application/json',
-                ])->post("https://generativelanguage.googleapis.com/v1beta/models/{$ttsModel}:generateContent?key={$apiKey}", [
-                    'contents' => [
-                        [
-                            'parts' => [
-                                ['text' => $text],
+        try {
+            $response = Http::connectTimeout(3)->timeout(4)->withHeaders([
+                'Content-Type' => 'application/json',
+            ])->post("https://generativelanguage.googleapis.com/v1beta/models/{$ttsModel}:generateContent?key={$apiKey}", [
+                'contents' => [
+                    [
+                        'parts' => [
+                            ['text' => $text],
+                        ],
+                    ],
+                ],
+                'generationConfig' => [
+                    'responseModalities' => ['AUDIO'],
+                    'speechConfig' => [
+                        'voiceConfig' => [
+                            'prebuiltVoiceConfig' => [
+                                'voiceName' => $voiceName ?: 'Aoede',
                             ],
                         ],
                     ],
-                    'generationConfig' => [
-                        'responseModalities' => ['AUDIO'],
-                        'speechConfig' => [
-                            'voiceConfig' => [
-                                'prebuiltVoiceConfig' => [
-                                    'voiceName' => $voiceName ?: 'Aoede',
-                                ],
-                            ],
-                        ],
-                    ],
-                ]);
+                ],
+            ]);
 
-                if ($response->successful()) {
-                    $json = $response->json();
-                    $b64Pcm = $json['candidates'][0]['content']['parts'][0]['inlineData']['data'] ?? null;
-                    if (!empty($b64Pcm)) {
-                        $pcmBytes = base64_decode($b64Pcm, true);
-                        if ($pcmBytes !== false && strlen($pcmBytes) > 400) {
-                            return $this->wrapPcm24kMonoInWavHeader($pcmBytes);
-                        }
+            if ($response->successful()) {
+                $json = $response->json();
+                $b64Pcm = $json['candidates'][0]['content']['parts'][0]['inlineData']['data'] ?? null;
+                if (!empty($b64Pcm)) {
+                    $pcmBytes = base64_decode($b64Pcm, true);
+                    if ($pcmBytes !== false && strlen($pcmBytes) > 400) {
+                        return $this->wrapPcm24kMonoInWavHeader($pcmBytes);
                     }
                 }
-            } catch (\Throwable $e) {
-                Log::debug("Gemini TTS model {$ttsModel} notice: " . $e->getMessage());
             }
+        } catch (\Throwable $e) {
+            Log::debug("Gemini TTS model {$ttsModel} notice: " . $e->getMessage());
         }
 
         return null;
@@ -730,10 +725,10 @@ class VoiceAgentController extends Controller
 
             $tools = $this->getToolsDeclaration();
 
-            // Use gemini-3.8-flash for fast, ultra-reliable AI response
+            // Use gemini-2.5-flash for fast, ultra-reliable AI response
             $response = Http::timeout(6)->withHeaders([
                 'Content-Type' => 'application/json',
-            ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={$apiKey}", [
+            ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={$apiKey}", [
                 'system_instruction' => [
                     'parts' => [['text' => $systemPrompt]]
                 ],
@@ -759,7 +754,7 @@ class VoiceAgentController extends Controller
                         $fArgs = $part['functionCall']['args'] ?? [];
                         $toolResult = $this->dataService->querySolarData($user, $fName, $fArgs);
 
-                        // Second turn with tool result (preserving thoughtSignature for Gemini 3.8)
+                        // Second turn with tool result
                         $contents[] = $candidates[0]['content'];
                         $contents[] = [
                             'role' => 'user',
@@ -772,7 +767,7 @@ class VoiceAgentController extends Controller
                         ];
 
                         $resFollowup = Http::timeout(6)->withHeaders(['Content-Type' => 'application/json'])
-                            ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={$apiKey}", [
+                            ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={$apiKey}", [
                                 'system_instruction' => ['parts' => [['text' => $systemPrompt]]],
                                 'contents' => $contents,
                             ]);

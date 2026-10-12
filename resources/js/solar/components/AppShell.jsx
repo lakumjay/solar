@@ -431,7 +431,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
                                     type="button"
                                     onClick={() => {
                                         const nextLang = currentLang === 'gu' ? 'en' : 'gu';
-                                        setLanguage(nextLang);
+                                        setLang(nextLang);
                                     }}
                                     style={{
                                         display: 'inline-flex',

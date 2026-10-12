@@ -26,6 +26,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>SolarFlow uses the front camera to capture the employee clock-in selfie.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>SolarFlow uses the microphone for live AI voice calls and voice attendance commands.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>SolarFlow uses precise location to verify employee clock-in and clock-out.</string>
 	<key>NSAppTransportSecurity</key>
