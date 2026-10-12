@@ -41,6 +41,9 @@ export default function EmergencyIncomingCallModal({
     const [isMuted, setIsMuted] = useState(false);
     const [isAiSpeaking, setIsAiSpeaking] = useState(false);
     const [speechAudioPlaying, setSpeechAudioPlaying] = useState(false);
+    const [voiceLogoutStatus, setVoiceLogoutStatus] = useState(null); // null | 'processing' | 'done'
+    const [activeDisplaySpeech, setActiveDisplaySpeech] = useState(speechText);
+    const [heardUserText, setHeardUserText] = useState('');
 
     // Audio & Vibration refs
     const ringAudioRef = useRef(null);
@@ -49,6 +52,8 @@ export default function EmergencyIncomingCallModal({
     const pcmPlayerRef = useRef(null);
     const liveSessionRef = useRef(null);
     const liveReadyRef = useRef(false);
+    const speechRecogRef = useRef(null);
+    const logoutTriggeredRef = useRef(false);
     const ringOscillatorCtxRef = useRef(null);
     const vibrateTimerRef = useRef(null);
     const durationTimerRef = useRef(null);
@@ -253,6 +258,98 @@ export default function EmergencyIncomingCallModal({
 
     const faultType = callData?.fault_type || 'grid_66kv_tripping';
     const isAttendanceCall = ['employee_missing_clock_in', 'attendance_pending_4pm', 'employee_logout_630pm', 'employee_logout_700pm'].includes(faultType);
+    const isLogoutCall = ['employee_logout_630pm', 'employee_logout_700pm'].includes(faultType);
+
+    // Execute Voice Logout ("હા AI, મારું લોગઆઉટ કરી દે") directly from the active call
+    const executeVoiceLogout = async () => {
+        if (logoutTriggeredRef.current) return;
+        logoutTriggeredRef.current = true;
+        setVoiceLogoutStatus('processing');
+
+        try {
+            const res = await api('voice-agent/voice-action', {
+                method: 'POST',
+                body: JSON.stringify({ action: 'logout' })
+            });
+            const replySpeech = res?.speech || 'હા, તમારું આજનું લોગઆઉટ સફળતાપૂર્વક થઈ ગયું છે. શુભ રાત્રિ!';
+            setVoiceLogoutStatus('done');
+            setActiveDisplaySpeech(replySpeech);
+            await playAiSpeech(replySpeech);
+
+            setTimeout(() => {
+                handleEndCall();
+            }, 4800);
+        } catch (err) {
+            logoutTriggeredRef.current = false;
+            setVoiceLogoutStatus(null);
+        }
+    };
+
+    // Listen for spoken voice command ("હા AI, મારું લોગઆઉટ કરી દે" / "લોગઆઉટ કરો") during connected call
+    useEffect(() => {
+        if (callState !== 'connected') return;
+        const SpeechRecognition = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
+        if (!SpeechRecognition) return;
+
+        let active = true;
+        const startRecog = () => {
+            if (!active || logoutTriggeredRef.current) return;
+            try {
+                const recog = new SpeechRecognition();
+                speechRecogRef.current = recog;
+                recog.lang = 'gu-IN';
+                recog.interimResults = true;
+                recog.maxAlternatives = 2;
+
+                recog.onresult = (event) => {
+                    for (let i = event.resultIndex; i < event.results.length; i++) {
+                        const transcript = (event.results[i]?.[0]?.transcript || '').trim();
+                        if (!transcript) continue;
+                        setHeardUserText(transcript);
+                        const lower = transcript.toLowerCase();
+                        if (
+                            lower.includes('લોગઆઉટ') ||
+                            lower.includes('લોગ આઉટ') ||
+                            lower.includes('logout') ||
+                            lower.includes('log out') ||
+                            lower.includes('clock out') ||
+                            lower.includes('ક્લોક આઉટ') ||
+                            (isLogoutCall && (lower.includes('હા') || lower.includes('કરી દે') || lower.includes('કરી દો') || lower.includes('yes') || lower.includes('ok')))
+                        ) {
+                            executeVoiceLogout();
+                            return;
+                        }
+                    }
+                };
+
+                recog.onend = () => {
+                    if (active && !logoutTriggeredRef.current) {
+                        setTimeout(startRecog, 350);
+                    }
+                };
+
+                recog.onerror = () => {
+                    if (active && !logoutTriggeredRef.current) {
+                        setTimeout(startRecog, 800);
+                    }
+                };
+
+                recog.start();
+            } catch (_) {}
+        };
+
+        startRecog();
+
+        return () => {
+            active = false;
+            try {
+                if (speechRecogRef.current) {
+                    speechRecogRef.current.stop();
+                    speechRecogRef.current = null;
+                }
+            } catch (_) {}
+        };
+    }, [callState, isLogoutCall]);
 
     // Handle Incoming Ringing State + Auto-Answer so AI speaks out loud automatically
     useEffect(() => {
@@ -388,6 +485,12 @@ export default function EmergencyIncomingCallModal({
     const handleEndCall = () => {
         stopRingtone();
         stopAiSpeech();
+        try {
+            if (speechRecogRef.current) {
+                speechRecogRef.current.stop();
+                speechRecogRef.current = null;
+            }
+        } catch (_) {}
         setCallState('ended');
 
         // Dismiss active emergency state in backend
@@ -637,8 +740,10 @@ export default function EmergencyIncomingCallModal({
                 {/* AI Speech Transcript Card (when connected) */}
                 {callState === 'connected' && (
                     <div style={{
-                        background: 'rgba(15, 23, 42, 0.8)',
-                        border: '1px solid rgba(56, 189, 248, 0.3)',
+                        background: 'rgba(15, 23, 42, 0.85)',
+                        border: voiceLogoutStatus === 'done'
+                            ? '1.5px solid rgba(34, 197, 94, 0.65)'
+                            : '1px solid rgba(56, 189, 248, 0.3)',
                         borderRadius: '16px',
                         padding: '16px 18px',
                         width: '100%',
@@ -655,19 +760,25 @@ export default function EmergencyIncomingCallModal({
                             <span style={{
                                 fontSize: '12px',
                                 fontWeight: 700,
-                                color: '#38bdf8',
+                                color: voiceLogoutStatus === 'done' ? '#4ade80' : '#38bdf8',
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '6px'
                             }}>
                                 <Volume2 size={15} />
-                                <span>{isAiSpeaking ? 'AI ગુજરાતીમાં બોલી રહ્યું છે...' : 'AI સંદેશ પૂર્ણ થયો'}</span>
+                                <span>
+                                    {voiceLogoutStatus === 'done'
+                                        ? '✅ કૉલ પરથી લોગઆઉટ પૂર્ણ!'
+                                        : isAiSpeaking
+                                        ? `AI (${selectedVoice}) ગુજરાતીમાં બોલી રહ્યું છે...`
+                                        : 'AI સંદેશ પૂર્ણ — તમે બોલી શકો છો'}
+                                </span>
                             </span>
 
                             {/* Replay voice button */}
                             <button
                                 type="button"
-                                onClick={() => playAiSpeech(speechText)}
+                                onClick={() => playAiSpeech(activeDisplaySpeech)}
                                 style={{
                                     background: 'rgba(56, 189, 248, 0.15)',
                                     border: '1px solid rgba(56, 189, 248, 0.4)',
@@ -694,8 +805,43 @@ export default function EmergencyIncomingCallModal({
                             color: '#f8fafc',
                             fontWeight: 500
                         }}>
-                            "{speechText}"
+                            "{activeDisplaySpeech}"
                         </p>
+
+                        {heardUserText && (
+                            <div style={{
+                                marginTop: '10px',
+                                padding: '6px 10px',
+                                borderRadius: '10px',
+                                background: 'rgba(16, 185, 129, 0.15)',
+                                border: '1px solid rgba(16, 185, 129, 0.35)',
+                                fontSize: '12px',
+                                color: '#6ee7b7',
+                                fontWeight: 600
+                            }}>
+                                🗣️ તમે બોલ્યા: "{heardUserText}"
+                            </div>
+                        )}
+
+                        {isLogoutCall && voiceLogoutStatus !== 'done' && (
+                            <div style={{
+                                marginTop: '10px',
+                                padding: '8px 12px',
+                                borderRadius: '12px',
+                                background: 'rgba(245, 158, 11, 0.14)',
+                                border: '1px solid rgba(245, 158, 11, 0.35)',
+                                fontSize: '12px',
+                                color: '#fde68a',
+                                fontWeight: 600,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '8px',
+                                flexWrap: 'wrap'
+                            }}>
+                                <span>🎙️ કૉલ પર બોલો: <strong>"હા AI, મારું લોગઆઉટ કરી દે"</strong></span>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -770,7 +916,39 @@ export default function EmergencyIncomingCallModal({
 
                 {/* 2. CONNECTED STATE: Quick Actions + End Call Button */}
                 {callState === 'connected' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {/* Instant Voice Logout Button when on a Logout / Attendance Call */}
+                        {(isLogoutCall || isAttendanceCall) && voiceLogoutStatus !== 'done' && (
+                            <button
+                                type="button"
+                                onClick={executeVoiceLogout}
+                                disabled={voiceLogoutStatus === 'processing'}
+                                style={{
+                                    width: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '8px',
+                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                    border: '1px solid rgba(110, 231, 183, 0.6)',
+                                    borderRadius: '14px',
+                                    padding: '13px 16px',
+                                    color: '#ffffff',
+                                    fontSize: '14px',
+                                    fontWeight: 800,
+                                    cursor: 'pointer',
+                                    boxShadow: '0 6px 20px rgba(16, 185, 129, 0.45)'
+                                }}
+                            >
+                                <Sparkles size={17} />
+                                <span>
+                                    {voiceLogoutStatus === 'processing'
+                                        ? 'લોગઆઉટ થઈ રહ્યું છે...'
+                                        : '🗣️ "હા AI, મારું લોગઆઉટ કરી દે" (કૉલ પરથી જ લોગઆઉટ)'}
+                                </span>
+                            </button>
+                        )}
+
                         {/* Action Row */}
                         <div style={{ display: 'flex', gap: '10px' }}>
                             {/* Call Site Engineer */}

@@ -64,6 +64,9 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
     ]);
     const [currentAiText, setCurrentAiText] = useState('');
     const [lastToolEvent, setLastToolEvent] = useState(null);
+    const [comparisonMemory, setComparisonMemory] = useState(null);
+    const [activeComparison, setActiveComparison] = useState(null);
+    const [voiceActionBanner, setVoiceActionBanner] = useState(null);
 
     // Refs
     const sessionRef = useRef(null);
@@ -89,6 +92,8 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
     const reconnectAttemptsRef = useRef(0);
     const reconnectingRef = useRef(false);
     const liveCfgRef = useRef(null);
+    const comparisonMemoryRef = useRef(null);
+    const voiceActionPendingRef = useRef(false);
 
     // Sync states to refs
     useEffect(() => {
@@ -98,6 +103,139 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
     useEffect(() => {
         isAiSpeakingRef.current = isAiSpeaking;
     }, [isAiSpeaking]);
+
+    useEffect(() => {
+        comparisonMemoryRef.current = comparisonMemory;
+    }, [comparisonMemory]);
+
+    // Build comparison card between a selected month and current month (or two months)
+    const selectMonthComparison = useCallback((monthNumA, monthNumB = null) => {
+        const mem = comparisonMemoryRef.current;
+        if (!mem?.months?.length) return;
+        const currentMonthNum = mem.current_month_num || (new Date().getMonth() + 1);
+        const targetB = monthNumB || currentMonthNum;
+        const monthA = mem.months.find(m => Number(m.month_num) === Number(monthNumA));
+        const monthB = mem.months.find(m => Number(m.month_num) === Number(targetB)) || mem.current_month;
+        if (!monthA || !monthB) return;
+
+        const diffKwh = Math.round((Number(monthB.gen_kwh || 0) - Number(monthA.gen_kwh || 0)) * 100) / 100;
+        const diffRev = Math.round((Number(monthB.revenue_rs || 0) - Number(monthA.revenue_rs || 0)) * 100) / 100;
+        const maxKwh = Math.max(Number(monthA.gen_kwh || 0), Number(monthB.gen_kwh || 0), 1);
+
+        setActiveComparison({
+            year: mem.year || new Date().getFullYear(),
+            monthA,
+            monthB,
+            diffKwh,
+            diffRev,
+            pctA: Math.min(100, Math.max(6, Math.round((Number(monthA.gen_kwh || 0) / maxKwh) * 100))),
+            pctB: Math.min(100, Math.max(6, Math.round((Number(monthB.gen_kwh || 0) / maxKwh) * 100))),
+        });
+    }, []);
+
+    // Execute voice logout or break action when spoken on call
+    const triggerVoiceAttendanceAction = useCallback(async (actionType) => {
+        if (voiceActionPendingRef.current) return;
+        voiceActionPendingRef.current = true;
+        try {
+            setLastToolEvent('⏳ લોગઆઉટ / હાજરી અપડેટ થઈ રહી છે...');
+            const res = await api('voice-agent/voice-action', {
+                method: 'POST',
+                body: JSON.stringify({ action: actionType })
+            });
+            const msg = res?.message_gu || 'તમારું લોગઆઉટ સફળતાપૂર્વક પૂર્ણ થઈ ગયું છે.';
+            setVoiceActionBanner({
+                success: Boolean(res?.success !== false),
+                message: msg
+            });
+            setLastToolEvent(`✅ ${msg}`);
+            try {
+                window.dispatchEvent(new CustomEvent('solarflow:attendance-updated', { detail: res }));
+            } catch (_) {}
+        } catch (err) {
+            setLastToolEvent(`⚠️ ${err?.message || 'Action could not be completed'}`);
+        } finally {
+            setTimeout(() => {
+                voiceActionPendingRef.current = false;
+            }, 3000);
+        }
+    }, []);
+
+    // Detect spoken month comparisons & voice logout/break commands from live speech
+    const analyzeSpeechForVisualsAndActions = useCallback((sender, fullText) => {
+        if (!fullText) return;
+        const norm = String(fullText).toLowerCase();
+
+        // 1. Check for voice logout / break command from user
+        if (sender === 'user') {
+            const wantsLogout = (
+                norm.includes('લોગઆઉટ') ||
+                norm.includes('લોગ આઉટ') ||
+                norm.includes('logout') ||
+                norm.includes('log out') ||
+                norm.includes('મારું લોગઆઉટ કરી દે') ||
+                norm.includes('લોગઆઉટ કરી દે') ||
+                norm.includes('clock out')
+            );
+            if (wantsLogout) {
+                triggerVoiceAttendanceAction('logout');
+            } else if (norm.includes('બ્રેક શરૂ') || norm.includes('start break')) {
+                triggerVoiceAttendanceAction('start_break');
+            } else if (norm.includes('બ્રેક પૂરો') || norm.includes('બ્રેક ખતમ') || norm.includes('end break')) {
+                triggerVoiceAttendanceAction('end_break');
+            }
+        }
+
+        // 2. Check for month mentions to show Mini Comparison Chart Card on screen
+        const mem = comparisonMemoryRef.current;
+        if (!mem?.months?.length) return;
+
+        const matchedMonths = [];
+        for (const m of mem.months) {
+            const kws = m.keywords || [String(m.name_en || '').toLowerCase(), String(m.name_gu || '')];
+            for (const kw of kws) {
+                if (!kw) continue;
+                // Match word boundary for short English names like "may", or direct substring for Gujarati script
+                const isAscii = /^[a-z]+$/i.test(kw);
+                const hit = isAscii
+                    ? new RegExp(`\\b${kw.toLowerCase()}\\b`, 'i').test(norm)
+                    : norm.includes(kw.toLowerCase());
+                if (hit) {
+                    if (!matchedMonths.includes(m.month_num)) {
+                        matchedMonths.push(m.month_num);
+                    }
+                    break;
+                }
+            }
+        }
+
+        if (matchedMonths.length >= 2) {
+            selectMonthComparison(matchedMonths[0], matchedMonths[1]);
+        } else if (matchedMonths.length === 1) {
+            const currentM = mem.current_month_num || (new Date().getMonth() + 1);
+            const spokenM = matchedMonths[0];
+            if (spokenM !== currentM) {
+                selectMonthComparison(spokenM, currentM);
+            } else {
+                const prevM = currentM > 1 ? currentM - 1 : 12;
+                selectMonthComparison(prevM, currentM);
+            }
+        } else if (
+            norm.includes('સરખામણી') ||
+            norm.includes('કમ્પેર') ||
+            norm.includes('compare') ||
+            norm.includes('ગયા મહિના') ||
+            norm.includes('ગયા મહિને') ||
+            norm.includes('last month') ||
+            norm.includes('તફાવત') ||
+            norm.includes('ડિફરન્સ') ||
+            norm.includes('difference')
+        ) {
+            const currentM = mem.current_month_num || (new Date().getMonth() + 1);
+            const prevM = currentM > 1 ? currentM - 1 : 12;
+            selectMonthComparison(prevM, currentM);
+        }
+    }, [selectMonthComparison, triggerVoiceAttendanceAction]);
 
     // Screen Wake Lock
     useEffect(() => {
@@ -140,17 +278,20 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
     // Auto-scroll Transcript
     useEffect(() => {
         transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [transcriptHistory, currentAiText, lastToolEvent]);
+    }, [transcriptHistory, currentAiText, lastToolEvent, activeComparison]);
 
     const handleTranscript = useCallback((sender, text) => {
         setTranscriptHistory(prev => {
             const last = prev[prev.length - 1];
             if (last && last.sender === sender) {
-                return [...prev.slice(0, -1), { ...last, text: last.text + text }];
+                const combined = last.text + text;
+                setTimeout(() => analyzeSpeechForVisualsAndActions(sender, combined), 0);
+                return [...prev.slice(0, -1), { ...last, text: combined }];
             }
+            setTimeout(() => analyzeSpeechForVisualsAndActions(sender, text), 0);
             return [...prev, { sender, text }];
         });
-    }, []);
+    }, [analyzeSpeechForVisualsAndActions]);
 
     // Internal session cleanup (does NOT close the modal, safe for Reconnect)
     const cleanupSession = useCallback(async (stopGlobalMic = false) => {
@@ -780,6 +921,10 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                     voice_name: activeVoice
                 })
             });
+            if (cfg?.comparison_memory) {
+                setComparisonMemory(cfg.comparison_memory);
+                comparisonMemoryRef.current = cfg.comparison_memory;
+            }
             const authToken = cfg?.auth_token || cfg?.apiKey;
             const systemInstruction = cfg?.system_instruction || cfg?.systemInstruction;
             const voiceName = cfg?.voice_name || activeVoice || 'Aoede';
@@ -921,14 +1066,14 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                 {/* Contact Profile & Visualizer Header */}
                 <div className="flex flex-col items-center text-center mt-1 px-4 z-10">
                     {/* Animated Avatar with Dual Aura Ring */}
-                    <div className="relative flex items-center justify-center my-2">
+                    <div className="relative flex items-center justify-center my-1.5">
                         <div 
                             className={`absolute rounded-full transition-all duration-150 ${
                                 isAiSpeaking 
-                                    ? 'w-36 h-36 bg-gradient-to-tr from-amber-500 via-orange-500 to-yellow-400 opacity-45 blur-xl animate-pulse'
+                                    ? 'w-32 h-32 bg-gradient-to-tr from-amber-500 via-orange-500 to-yellow-400 opacity-45 blur-xl animate-pulse'
                                     : callState === 'connected' && !isMuted
-                                    ? 'w-32 h-32 bg-emerald-500 opacity-25 blur-lg'
-                                    : 'w-28 h-28 bg-slate-700 opacity-10'
+                                    ? 'w-28 h-28 bg-emerald-500 opacity-25 blur-lg'
+                                    : 'w-24 h-24 bg-slate-700 opacity-10'
                             }`}
                             style={{
                                 transform: isAiSpeaking ? 'scale(1.18)' : `scale(${1 + (audioLevel / 100) * 0.5})`
@@ -936,41 +1081,65 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                         />
 
                         {/* SolarFlow Brand Sun Logo Circle */}
-                        <div className={`relative w-24 h-24 rounded-full p-1 bg-gradient-to-b from-amber-500/40 via-slate-900 to-slate-950 border-2 ${isAiSpeaking ? 'border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.45)]' : 'border-amber-500/40'} shadow-2xl flex items-center justify-center`}>
+                        <div className={`relative w-20 h-20 rounded-full p-1 bg-gradient-to-b from-amber-500/40 via-slate-900 to-slate-950 border-2 ${isAiSpeaking ? 'border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.45)]' : 'border-amber-500/40'} shadow-2xl flex items-center justify-center`}>
                             <div className="w-full h-full rounded-full bg-gradient-to-tr from-amber-950 via-slate-900 to-yellow-950 flex items-center justify-center overflow-hidden border border-amber-500/20 shadow-inner">
-                                <Sun className={`w-12 h-12 text-amber-400 filter drop-shadow transition-transform duration-700 ${isAiSpeaking ? 'animate-spin-slow scale-110' : ''}`} />
+                                <Sun className={`w-10 h-10 text-amber-400 filter drop-shadow transition-transform duration-700 ${isAiSpeaking ? 'animate-spin-slow scale-110' : ''}`} />
                             </div>
                         </div>
                     </div>
 
                     {/* Caller Name & Active User */}
-                    <h2 className="text-xl font-bold tracking-tight text-white">
-                        SolarFlow AI <span className="text-amber-400 font-semibold text-sm">PRO</span>
+                    <h2 className="text-lg font-bold tracking-tight text-white">
+                        SolarFlow AI <span className="text-amber-400 font-semibold text-xs">PRO</span>
                     </h2>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
+                    <p className="text-[11px] text-slate-400">
                         Instant Solar & HR Brain • <span className="text-amber-300 font-semibold">{displayName}</span>
                     </p>
 
                     {/* Live Solar Quick Telemetry Strip */}
                     {liveSolarData?.totals && (
-                        <div className="mt-2.5 grid grid-cols-3 gap-1.5 w-full max-w-[340px] px-1">
-                            <div className="bg-slate-900/90 border border-slate-800 rounded-xl py-1.5 px-2 flex flex-col items-center">
+                        <div className="mt-2 grid grid-cols-3 gap-1.5 w-full max-w-[340px] px-1">
+                            <div className="bg-slate-900/90 border border-slate-800 rounded-xl py-1 px-2 flex flex-col items-center">
                                 <span className="text-[9px] uppercase tracking-wider text-slate-400">Live Power</span>
                                 <span className="text-xs font-extrabold text-amber-400">{livePowerKw.toFixed(1)} kW</span>
                             </div>
-                            <div className="bg-slate-900/90 border border-slate-800 rounded-xl py-1.5 px-2 flex flex-col items-center">
+                            <div className="bg-slate-900/90 border border-slate-800 rounded-xl py-1 px-2 flex flex-col items-center">
                                 <span className="text-[9px] uppercase tracking-wider text-slate-400">Today Units</span>
                                 <span className="text-xs font-extrabold text-emerald-400">{liveTodayKwh.toFixed(0)} kWh</span>
                             </div>
-                            <div className="bg-slate-900/90 border border-slate-800 rounded-xl py-1.5 px-2 flex flex-col items-center">
+                            <div className="bg-slate-900/90 border border-slate-800 rounded-xl py-1 px-2 flex flex-col items-center">
                                 <span className="text-[9px] uppercase tracking-wider text-slate-400">Today Rev</span>
                                 <span className="text-xs font-extrabold text-cyan-300">₹{liveTodayRev.toLocaleString('en-IN')}</span>
                             </div>
                         </div>
                     )}
 
+                    {/* Quick Month Comparison Pills (User can speak "May મહિના અને આ મહિનાની સરખામણી બતાવ" OR tap any month) */}
+                    {comparisonMemory?.months?.length > 0 && (
+                        <div className="mt-2 w-full max-w-[350px] flex items-center space-x-1 overflow-x-auto pb-1 no-scrollbar">
+                            <span className="text-[9px] font-bold text-slate-400 whitespace-nowrap mr-1">📊 સરખામણી:</span>
+                            {comparisonMemory.months.map((m) => {
+                                const isSelected = activeComparison && Number(activeComparison.monthA?.month_num) === Number(m.month_num);
+                                return (
+                                    <button
+                                        key={m.month_num}
+                                        type="button"
+                                        onClick={() => selectMonthComparison(m.month_num)}
+                                        className={`px-2 py-0.5 rounded-full text-[9px] font-bold transition cursor-pointer flex-shrink-0 border ${
+                                            isSelected
+                                                ? 'bg-amber-500 text-slate-950 border-amber-400 shadow'
+                                                : 'bg-slate-900/80 text-slate-300 border-slate-800 hover:border-amber-500/40'
+                                        }`}
+                                    >
+                                        {String(m.name_en || '').slice(0, 3)}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+
                     {/* Live Speaking Status Pill & Multi-Bar Equalizer */}
-                    <div className="mt-2.5 flex items-center space-x-2">
+                    <div className="mt-1.5 flex items-center space-x-2">
                         {isAiSpeaking ? (
                             <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm">
                                 <Volume2 className="w-3.5 h-3.5 mr-1.5 animate-bounce" />
@@ -998,11 +1167,11 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
 
                     {/* Multi-bar Audio Waveform Equalizer */}
                     {callState === 'connected' && !isMuted && (
-                        <div className="mt-2 flex items-end justify-center space-x-1 h-4">
+                        <div className="mt-1.5 flex items-end justify-center space-x-1 h-3.5">
                             {[0.45, 0.85, 1.0, 0.7, 0.95, 0.6, 0.8, 0.5].map((mult, i) => {
                                 const activeHeight = isAiSpeaking
-                                    ? Math.max(4, Math.min(16, Math.round(6 + ((i % 3) + 1) * 3)))
-                                    : Math.max(3, Math.min(16, Math.round((audioLevel / 100) * 16 * mult)));
+                                    ? Math.max(4, Math.min(14, Math.round(5 + ((i % 3) + 1) * 3)))
+                                    : Math.max(3, Math.min(14, Math.round((audioLevel / 100) * 14 * mult)));
                                 return (
                                     <span
                                         key={i}
@@ -1017,16 +1186,96 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                     )}
                 </div>
 
+                {/* Live Voice Logout / Break Confirmation Banner */}
+                {voiceActionBanner && (
+                    <div className="mx-4 mt-1 px-3 py-2 bg-emerald-950/90 border border-emerald-500/60 rounded-2xl text-[11px] text-emerald-200 flex items-center justify-between shadow-lg z-20">
+                        <span className="font-semibold">✅ {voiceActionBanner.message}</span>
+                        <button
+                            type="button"
+                            onClick={() => setVoiceActionBanner(null)}
+                            className="text-[10px] text-emerald-300 hover:text-white ml-2 cursor-pointer"
+                        >
+                            ✕
+                        </button>
+                    </div>
+                )}
+
+                {/* LIVE MINI COMPARISON CHART CARD (Appears automatically when user asks e.g. "May મહિના અને આ મહિનાની સરખામણી બતાવ") */}
+                {activeComparison && (
+                    <div className="mx-4 mt-1.5 p-3 bg-gradient-to-br from-slate-900 via-indigo-950/80 to-slate-950 border border-amber-500/50 rounded-2xl shadow-xl z-20">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center space-x-1.5">
+                                <span className="text-xs font-extrabold text-amber-300">
+                                    📊 {activeComparison.monthA.name_gu} ({activeComparison.monthA.name_en}) vs {activeComparison.monthB.name_gu} ({activeComparison.monthB.name_en})
+                                </span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setActiveComparison(null)}
+                                className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 hover:text-white cursor-pointer"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Month A Bar */}
+                        <div className="space-y-1.5 text-[11px]">
+                            <div>
+                                <div className="flex justify-between text-slate-200 font-semibold mb-0.5">
+                                    <span>{activeComparison.monthA.name_gu} ({activeComparison.monthA.name_en})</span>
+                                    <span className="text-amber-300 font-bold">
+                                        {Number(activeComparison.monthA.gen_kwh || 0).toLocaleString('en-IN')} kWh • ₹{Number(activeComparison.monthA.revenue_rs || 0).toLocaleString('en-IN')}
+                                    </span>
+                                </div>
+                                <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full transition-all duration-500"
+                                        style={{ width: `${activeComparison.pctA}%` }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Month B Bar */}
+                            <div>
+                                <div className="flex justify-between text-slate-200 font-semibold mb-0.5">
+                                    <span>{activeComparison.monthB.name_gu} ({activeComparison.monthB.name_en})</span>
+                                    <span className="text-emerald-300 font-bold">
+                                        {Number(activeComparison.monthB.gen_kwh || 0).toLocaleString('en-IN')} kWh • ₹{Number(activeComparison.monthB.revenue_rs || 0).toLocaleString('en-IN')}
+                                    </span>
+                                </div>
+                                <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full bg-gradient-to-r from-emerald-500 to-cyan-400 rounded-full transition-all duration-500"
+                                        style={{ width: `${activeComparison.pctB}%` }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Exact Difference Footer */}
+                        <div className="mt-2 pt-1.5 border-t border-slate-800/90 flex items-center justify-between text-[10px]">
+                            <span className="text-slate-400 font-medium">તફાવત (Difference):</span>
+                            <span className={`font-extrabold px-2 py-0.5 rounded-full ${
+                                activeComparison.diffKwh >= 0
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                            }`}>
+                                {activeComparison.diffKwh >= 0 ? '+' : ''}{activeComparison.diffKwh.toLocaleString('en-IN')} kWh ({activeComparison.diffRev >= 0 ? '+₹' : '-₹'}{Math.abs(activeComparison.diffRev).toLocaleString('en-IN')})
+                            </span>
+                        </div>
+                    </div>
+                )}
+
                 {/* Tool Event Notification Bar */}
                 {lastToolEvent && (
-                    <div className="mx-5 px-3 py-1.5 bg-indigo-950/80 border border-indigo-500/40 rounded-xl text-[11px] text-indigo-200 flex items-center space-x-2 animate-bounce">
-                        <Sparkles className="w-3.5 h-3.5 text-indigo-300 flex-shrink-0" />
+                    <div className="mx-5 mt-1 px-3 py-1 bg-indigo-950/80 border border-indigo-500/40 rounded-xl text-[10px] text-indigo-200 flex items-center space-x-2">
+                        <Sparkles className="w-3 h-3 text-indigo-300 flex-shrink-0" />
                         <span className="truncate">{lastToolEvent}</span>
                     </div>
                 )}
 
                 {/* Modern Chat-Bubble Live Transcript Window */}
-                <div className="mx-4 my-2 p-3 bg-slate-900/75 border border-slate-800/90 rounded-2xl flex-1 overflow-y-auto space-y-2 text-xs font-sans shadow-inner max-h-[210px]">
+                <div className="mx-4 my-1.5 p-3 bg-slate-900/75 border border-slate-800/90 rounded-2xl flex-1 overflow-y-auto space-y-2 text-xs font-sans shadow-inner max-h-[175px]">
                     {transcriptHistory.map((item, idx) => (
                         <div 
                             key={idx} 

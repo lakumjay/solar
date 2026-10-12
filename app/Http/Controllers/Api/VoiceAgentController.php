@@ -58,8 +58,275 @@ class VoiceAgentController extends Controller
             ],
             'systemInstruction' => $systemPrompt,
             'system_instruction' => $systemPrompt,
+            'comparison_memory' => $this->buildComparisonMemory($user, $liveSolarData),
             'tools' => [],
         ]);
+    }
+
+    /**
+     * Execute voice-triggered actions (e.g. "હા AI, મારું લોગઆઉટ કરી દે" or break start/end) directly from an active AI Call
+     */
+    public function voiceAction(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $action = trim((string) $request->input('action', 'logout'));
+        $todayStr = now()->toDateString();
+
+        // Find employee profile for the current user (or latest open attendance record if admin triggered for an employee)
+        $employee = $user->employee;
+        if (! $employee) {
+            $openRec = \App\Models\AttendanceRecord::with('employee')
+                ->whereDate('attendance_date', $todayStr)
+                ->whereNull('clock_out_at')
+                ->latest('clock_in_at')
+                ->first();
+            $employee = $openRec?->employee;
+        }
+
+        if (! $employee) {
+            return response()->json([
+                'success' => false,
+                'speech' => 'તમારી કર્મચારી પ્રોફાઇલ કે આજની ચાલુ હાજરી મળી નથી.',
+            ]);
+        }
+
+        $record = \App\Models\AttendanceRecord::with('breaks')
+            ->where('employee_id', $employee->id)
+            ->whereDate('attendance_date', $todayStr)
+            ->first();
+
+        if ($action === 'start_break') {
+            if (! $record || $record->clock_out_at) {
+                return response()->json([
+                    'success' => false,
+                    'speech' => 'બ્રેક શરૂ કરવા માટે પહેલાં આજની હાજરી (Clock-In) હોવી જરૂરી છે.',
+                ]);
+            }
+            $openBreak = $record->breaks()->whereNull('ended_at')->first();
+            if ($openBreak) {
+                return response()->json([
+                    'success' => true,
+                    'action' => 'start_break',
+                    'speech' => 'તમારો બ્રેક પહેલેથી જ ચાલુ છે.',
+                ]);
+            }
+            $record->breaks()->create([
+                'break_type' => 'regular',
+                'out_reason' => 'AI વૉઇસ કૉલ દ્વારા બ્રેક શરૂ',
+                'started_at' => now(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'action' => 'start_break',
+                'speech' => 'તમારો બ્રેક સફળતાપૂર્વક શરૂ થઈ ગયો છે.',
+            ]);
+        }
+
+        if ($action === 'end_break') {
+            $openBreak = $record?->breaks()->whereNull('ended_at')->latest('started_at')->first();
+            if (! $openBreak) {
+                return response()->json([
+                    'success' => false,
+                    'speech' => 'હાલમાં કોઈ ચાલુ બ્રેક નથી.',
+                ]);
+            }
+            $dur = max(1, (int) floor($openBreak->started_at->diffInMinutes(now())));
+            $openBreak->update([
+                'ended_at' => now(),
+                'duration_minutes' => $dur,
+            ]);
+            $record->update(['break_minutes' => (int) $record->breaks()->sum('duration_minutes')]);
+
+            return response()->json([
+                'success' => true,
+                'action' => 'end_break',
+                'speech' => 'તમારો બ્રેક પૂરો થઈ ગયો છે અને કામ ફરી શરૂ થયું છે.',
+            ]);
+        }
+
+        // Default action: 'logout' (Clock-Out)
+        if (! $record) {
+            return response()->json([
+                'success' => false,
+                'speech' => 'આજે તમારી હાજરી (Clock-In) નોંધાયેલી નથી, તેથી લોગઆઉટ થઈ શકશે નહીં.',
+            ]);
+        }
+
+        if ($record->clock_out_at) {
+            try {
+                app(\App\Services\SmartVoiceCallAlertService::class)->dismissCallForUser($user);
+            } catch (\Throwable $e) {}
+
+            return response()->json([
+                'success' => true,
+                'action' => 'logout',
+                'already_done' => true,
+                'speech' => 'તમારું આજનું લોગઆઉટ પહેલેથી જ પૂર્ણ થઈ ગયું છે. શુભ રાત્રિ!',
+            ]);
+        }
+
+        // Automatically close any open break so voice logout never fails
+        $openBreaks = $record->breaks()->whereNull('ended_at')->get();
+        foreach ($openBreaks as $ob) {
+            $dur = max(0, (int) floor($ob->started_at->diffInMinutes(now())));
+            $ob->update([
+                'ended_at' => now(),
+                'duration_minutes' => $dur,
+            ]);
+        }
+
+        $now = now();
+        $totalBreakMins = (int) $record->breaks()->whereNotNull('ended_at')->sum('duration_minutes');
+        $workMins = max(30, (int) floor($record->clock_in_at->diffInMinutes($now)) - $totalBreakMins);
+        $requiredMins = $employee->working_minutes ?: 480;
+        $status = $workMins >= max(240, $requiredMins - 90) ? 'present' : ($workMins >= 180 ? 'half_day' : 'present');
+
+        $record->fill([
+            'clock_out_at' => $now,
+            'work_done' => $record->work_done ?: 'AI વૉઇસ કૉલ દ્વારા લોગઆઉટ પૂર્ણ',
+            'learned' => $record->learned ?: 'સોલાર પ્લાન્ટની દૈનિક કામગીરી પૂર્ણ',
+            'break_minutes' => $totalBreakMins,
+            'work_minutes' => $workMins,
+            'status' => $status,
+            'overtime_minutes' => max(0, $workMins - $requiredMins),
+        ]);
+        $record->save();
+
+        // Dismiss any active AI logout reminder call for this user
+        try {
+            app(\App\Services\SmartVoiceCallAlertService::class)->dismissCallForUser($user);
+            if ($employee->user && $employee->user->id !== $user->id) {
+                app(\App\Services\SmartVoiceCallAlertService::class)->dismissCallForUser($employee->user);
+            }
+        } catch (\Throwable $e) {}
+
+        $empName = $employee->user?->name ?: ($employee->name ?: '');
+        return response()->json([
+            'success' => true,
+            'action' => 'logout',
+            'clock_out_time' => $now->format('h:i A'),
+            'speech' => "હા {$empName}, તમારું આજનું લોગઆઉટ (Clock-Out) સફળતાપૂર્વક થઈ ગયું છે. શુભ રાત્રિ!",
+        ]);
+    }
+
+    /**
+     * Build structured 12-month + live comparison data for the on-screen Mini Comparison Chart Card
+     */
+    private function buildComparisonMemory($user, $liveSolarData = null): array
+    {
+        $tariffRate = (float) env('SOLAR_PPA_TARIFF', 3.80);
+        $role = $user?->role ?? 'super_admin';
+        $scopedCompanyId = ($role !== 'super_admin' && ! empty($user?->company_id)) ? (int) $user->company_id : null;
+
+        $year = (int) date('Y');
+        $curMonthNum = (int) date('n');
+        $todayKwh = (float) ($liveSolarData['today_total_kwh'] ?? $liveSolarData['today_units_kwh'] ?? $liveSolarData['totals']['today_energy_kwh'] ?? 0);
+        $liveKw = (float) ($liveSolarData['live_total_power_kw'] ?? $liveSolarData['realtime_power_kw'] ?? $liveSolarData['totals']['curr_power_kw'] ?? 0);
+
+        $guMonthNames = [
+            1 => 'જાન્યુઆરી', 2 => 'ફેબ્રુઆરી', 3 => 'માર્ચ', 4 => 'એપ્રિલ',
+            5 => 'મે', 6 => 'જૂન', 7 => 'જુલાઈ', 8 => 'ઓગસ્ટ',
+            9 => 'સપ્ટેમ્બર', 10 => 'ઓક્ટોબર', 11 => 'નવેમ્બર', 12 => 'ડિસેમ્બર',
+        ];
+        $enMonthNames = [
+            1 => 'January', 2 => 'February', 3 => 'March', 4 => 'April',
+            5 => 'May', 6 => 'June', 7 => 'July', 8 => 'August',
+            9 => 'September', 10 => 'October', 11 => 'November', 12 => 'December',
+        ];
+
+        $monthKeywords = [
+            1 => ['january', 'jan', 'જાન્યુઆરી', '1st month', 'પહેલા મહિના'],
+            2 => ['february', 'feb', 'ફેબ્રુઆરી', 'બીજા મહિના'],
+            3 => ['march', 'mar', 'માર્ચ', 'ત્રીજા મહિના'],
+            4 => ['april', 'apr', 'એપ્રિલ', 'ચોથા મહિના'],
+            5 => ['may', 'મે મહિના', 'મે ના', 'મે માસ', 'પાંચમા મહિના'],
+            6 => ['june', 'jun', 'જૂન', 'જુન', 'છઠ્ઠા મહિના'],
+            7 => ['july', 'jul', 'જુલાઈ', 'સાતમા મહિના'],
+            8 => ['august', 'aug', 'ઓગસ્ટ', 'આઠમા મહિના'],
+            9 => ['september', 'sep', 'સપ્ટેમ્બર', 'નવમા મહિના'],
+            10 => ['october', 'oct', 'ઓક્ટોબર', 'દસમા મહિના'],
+            11 => ['november', 'nov', 'નવેમ્બર', 'અગિયારમા મહિના'],
+            12 => ['december', 'dec', 'ડિસેમ્બર', 'બારમા મહિના'],
+        ];
+
+        $months = [];
+        try {
+            $q = \App\Models\DailyReading::with('company:id,name')->whereYear('reading_date', $year);
+            if ($scopedCompanyId) {
+                $q->where('company_id', $scopedCompanyId);
+            }
+            $readings = $q->get();
+
+            $grouped = [];
+            for ($m = 1; $m <= 12; $m++) {
+                $grouped[$m] = ['gen' => 0.0, 'exp' => 0.0, 'companies' => []];
+            }
+
+            foreach ($readings as $r) {
+                $m = (int) $r->reading_date->format('n');
+                $g = (float) $r->total_generation_units;
+                $e = (float) $r->pgvcl_export_unit;
+                $cName = $r->company?->name ?? 'Company';
+                $grouped[$m]['gen'] += $g;
+                $grouped[$m]['exp'] += $e;
+                $grouped[$m]['companies'][$cName] = ($grouped[$m]['companies'][$cName] ?? 0.0) + $g;
+            }
+
+            // Include today's live solar in current month if today's reading is not yet saved
+            if ($todayKwh > 0) {
+                $grouped[$curMonthNum]['gen'] = max($grouped[$curMonthNum]['gen'], $grouped[$curMonthNum]['gen'] + 0);
+            }
+
+            for ($m = 1; $m <= 12; $m++) {
+                $gen = round($grouped[$m]['gen'], 2);
+                $exp = round($grouped[$m]['exp'], 2);
+                $rev = round($gen * $tariffRate, 0);
+                $compBreak = [];
+                foreach ($grouped[$m]['companies'] as $cn => $cg) {
+                    $compBreak[] = [
+                        'name' => $cn,
+                        'gen_kwh' => round($cg, 1),
+                        'revenue_rs' => round($cg * $tariffRate, 0),
+                    ];
+                }
+                $months[$m] = [
+                    'month_num' => $m,
+                    'name_en' => $enMonthNames[$m],
+                    'name_gu' => $guMonthNames[$m],
+                    'keywords' => $monthKeywords[$m],
+                    'gen_kwh' => $gen,
+                    'exp_kwh' => $exp,
+                    'revenue_rs' => $rev,
+                    'companies' => $compBreak,
+                ];
+            }
+        } catch (\Throwable $e) {}
+
+        $curMonth = $months[$curMonthNum] ?? [
+            'month_num' => $curMonthNum,
+            'name_en' => $enMonthNames[$curMonthNum] ?? 'Current',
+            'name_gu' => $guMonthNames[$curMonthNum] ?? 'ચાલુ મહિનો',
+            'gen_kwh' => round($todayKwh, 2),
+            'revenue_rs' => round($todayKwh * $tariffRate, 0),
+        ];
+
+        return [
+            'year' => $year,
+            'tariff_rate' => $tariffRate,
+            'current_month_num' => $curMonthNum,
+            'current_month' => $curMonth,
+            'today' => [
+                'gen_kwh' => round($todayKwh, 2),
+                'power_kw' => round($liveKw, 2),
+                'revenue_rs' => round($todayKwh * $tariffRate, 0),
+            ],
+            'months' => $months,
+        ];
     }
 
     /**

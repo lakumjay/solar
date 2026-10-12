@@ -194,6 +194,65 @@ export default function AttendancePage({canCorrect, canRecord}) {
     const todayDate = localDate();
     const isToday = date === todayDate;
     const [showLiveMaps, setShowLiveMaps] = useState(true);
+    const [quickSelectEmpId, setQuickSelectEmpId] = useState(null);
+    const [quickDayType, setQuickDayType] = useState('full_day');
+    const [savingQuickEmpId, setSavingQuickEmpId] = useState(null);
+
+    useEffect(() => {
+        const handleVoiceAttendanceUpdate = () => {
+            load().catch(() => {});
+            loadLiveLocations();
+        };
+        window.addEventListener('solarflow:attendance-updated', handleVoiceAttendanceUpdate);
+        return () => window.removeEventListener('solarflow:attendance-updated', handleVoiceAttendanceUpdate);
+    }, [date, employeeId]);
+
+    const checklistEmployees = useMemo(() => {
+        const activeList = (employees || []).filter(emp => emp.active !== false);
+        // Sort so manager_attendance_only or pending attendance appear first
+        return [...activeList].sort((a, b) => {
+            const aRow = (rows || []).find(r => String(r.employee_id) === String(a.id) || String(r.employee?.id) === String(a.id));
+            const bRow = (rows || []).find(r => String(r.employee_id) === String(b.id) || String(r.employee?.id) === String(b.id));
+            if (Boolean(a.manager_attendance_only) !== Boolean(b.manager_attendance_only)) {
+                return a.manager_attendance_only ? -1 : 1;
+            }
+            if (Boolean(aRow) !== Boolean(bRow)) {
+                return aRow ? 1 : -1;
+            }
+            return String(a.name || '').localeCompare(String(b.name || ''));
+        });
+    }, [employees, rows]);
+
+    const confirmQuickAttendance = async (emp, chosenDayType = quickDayType) => {
+        if (!emp?.id) return;
+        setMessage('');
+        setSavingQuickEmpId(emp.id);
+        try {
+            const targetDate = date > localDate() ? localDate() : date;
+            await api('attendance/quick-mark', {
+                method: 'POST',
+                body: JSON.stringify({
+                    employee_id: Number(emp.id),
+                    attendance_date: targetDate,
+                    day_type: chosenDayType,
+                    entry_reason: chosenDayType === 'half_day'
+                        ? 'Half Day confirmed via Quick Attendance Checklist'
+                        : 'Full Day confirmed via Quick Attendance Checklist'
+                })
+            });
+            setQuickSelectEmpId(null);
+            setMessage(
+                currentLang === 'en'
+                    ? `Attendance saved (${chosenDayType === 'half_day' ? 'Half Day' : 'Full Day'}) for ${emp.name}.`
+                    : `${emp.name} ની હાજરી (${chosenDayType === 'half_day' ? 'Half Day - અડધો દિવસ' : 'Full Day - આખો દિવસ'}) સફળતાપૂર્વક સેવ થઈ ગઈ છે.`
+            );
+            await load();
+        } catch (error) {
+            setMessage(error.message || 'Could not save attendance.');
+        } finally {
+            setSavingQuickEmpId(null);
+        }
+    };
 
     const absentToday = useMemo(() => {
         if (!isToday || !employees.length) return [];
@@ -832,6 +891,266 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                     }}>
                                         {leaveInfo?.is_approved ? (currentLang === 'en' ? 'Approved' : 'મંજૂર રજા') : (currentLang === 'en' ? 'Unapproved' : 'મંજૂરી વિના')}
                                     </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* ✅/⬜ Quick Manual Attendance Checklist UI (Full Day / Half Day Confirm) */}
+            {(canRecord || canCorrect) && checklistEmployees.length > 0 && (
+                <div style={{
+                    margin: '0 0 18px 0',
+                    padding: '14px 16px',
+                    background: 'linear-gradient(135deg, #f8fafc 0%, #f0fdf4 100%)',
+                    border: '1.5px solid #bbf7d0',
+                    borderRadius: '14px',
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.06)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                }}>
+                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px'}}>
+                        <div>
+                            <b style={{fontSize: '13.5px', color: '#065f46', display: 'flex', alignItems: 'center', gap: '6px'}}>
+                                ☑️ {currentLang === 'en' ? 'Quick Attendance Checklist (Full Day / Half Day)' : 'ઝડપી હાજરી ચેકલિસ્ટ (Full Day / Half Day કન્ફર્મ કરો)'}
+                            </b>
+                            <small style={{display: 'block', fontSize: '11px', color: '#475569', marginTop: '2px'}}>
+                                {currentLang === 'en'
+                                    ? `Date: ${date} • Checked (✅) = Attendance Completed • Unchecked (⬜) = Attendance Pending (Click box to confirm Full Day or Half Day)`
+                                    : `તારીખ: ${date} • ખરાની નિશાની (✅) = હાજરી પૂરી થઈ ગઈ છે • ખાલી બોક્સ (⬜) = હાજરી બાકી છે (બોક્સ સિલેક્ટ કરી Full Day કે Half Day કન્ફર્મ કરો)`}
+                            </small>
+                        </div>
+                        <span style={{
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            padding: '4px 10px',
+                            borderRadius: '999px',
+                            background: '#dcfce7',
+                            color: '#166534',
+                            border: '1px solid #86efac'
+                        }}>
+                            ✅ {checklistEmployees.filter(emp => (rows || []).some(r => String(r.employee_id) === String(emp.id) || String(r.employee?.id) === String(emp.id))).length} / {checklistEmployees.length} {currentLang === 'en' ? 'Completed' : 'પૂર્ણ'}
+                        </span>
+                    </div>
+
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))',
+                        gap: '10px'
+                    }}>
+                        {checklistEmployees.map(emp => {
+                            const attRow = (rows || []).find(r => String(r.employee_id) === String(emp.id) || String(r.employee?.id) === String(emp.id));
+                            const isCompleted = Boolean(attRow);
+                            const isHalfDay = attRow?.status === 'half_day' || (attRow?.clock_out_at && Number(attRow?.work_minutes || 0) > 0 && Number(attRow?.work_minutes || 0) <= 270);
+                            const isSelectedForConfirm = String(quickSelectEmpId) === String(emp.id);
+                            const isSavingThis = String(savingQuickEmpId) === String(emp.id);
+
+                            return (
+                                <div
+                                    key={emp.id}
+                                    style={{
+                                        background: isCompleted ? '#ffffff' : (isSelectedForConfirm ? '#fffbeb' : '#ffffff'),
+                                        border: isCompleted
+                                            ? '1.5px solid #4ade80'
+                                            : (isSelectedForConfirm ? '1.5px solid #f59e0b' : '1.5px dashed #cbd5e1'),
+                                        borderRadius: '12px',
+                                        padding: '10px 12px',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '8px',
+                                        transition: 'all 0.15s ease'
+                                    }}
+                                >
+                                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px'}}>
+                                        <label
+                                            onClick={() => {
+                                                if (isSelectedForConfirm) {
+                                                    setQuickSelectEmpId(null);
+                                                } else {
+                                                    setQuickSelectEmpId(emp.id);
+                                                    setQuickDayType(isHalfDay ? 'half_day' : 'full_day');
+                                                }
+                                            }}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '10px',
+                                                cursor: 'pointer',
+                                                flex: 1,
+                                                minWidth: 0,
+                                                margin: 0
+                                            }}
+                                        >
+                                            {/* Custom Visual Checkbox: Green Checkmark if completed, Empty Box if pending */}
+                                            <div
+                                                role="checkbox"
+                                                aria-checked={isCompleted}
+                                                title={isCompleted ? 'હાજરી પૂર્ણ છે (Click to edit Full/Half day)' : 'હાજરી બાકી છે (Click to mark Full/Half day)'}
+                                                style={{
+                                                    width: '24px',
+                                                    height: '24px',
+                                                    borderRadius: '7px',
+                                                    border: isCompleted
+                                                        ? '2px solid #16a34a'
+                                                        : (isSelectedForConfirm ? '2px solid #f59e0b' : '2px solid #94a3b8'),
+                                                    background: isCompleted
+                                                        ? '#16a34a'
+                                                        : (isSelectedForConfirm ? '#fef3c7' : '#f8fafc'),
+                                                    color: isCompleted ? '#ffffff' : '#0f172a',
+                                                    display: 'grid',
+                                                    placeItems: 'center',
+                                                    fontWeight: 900,
+                                                    fontSize: '14px',
+                                                    flexShrink: 0,
+                                                    boxShadow: isCompleted ? '0 2px 6px rgba(22, 163, 74, 0.25)' : 'none'
+                                                }}
+                                            >
+                                                {isCompleted ? '✓' : ''}
+                                            </div>
+                                            <div style={{minWidth: 0, flex: 1}}>
+                                                <div style={{display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap'}}>
+                                                    <b style={{fontSize: '12.5px', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+                                                        {emp.name}
+                                                    </b>
+                                                    {emp.manager_attendance_only && (
+                                                        <span style={{
+                                                            fontSize: '9.5px',
+                                                            padding: '1px 6px',
+                                                            borderRadius: '4px',
+                                                            background: '#e0e7ff',
+                                                            color: '#3730a3',
+                                                            fontWeight: 700
+                                                        }}>
+                                                            Manual
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <small style={{display: 'block', fontSize: '10.5px', color: '#64748b'}}>
+                                                    {emp.employee_code} · {emp.designation || 'Staff'}
+                                                </small>
+                                            </div>
+                                        </label>
+
+                                        {/* Status Badge */}
+                                        {isCompleted ? (
+                                            <span
+                                                onClick={() => {
+                                                    setQuickSelectEmpId(isSelectedForConfirm ? null : emp.id);
+                                                    setQuickDayType(isHalfDay ? 'half_day' : 'full_day');
+                                                }}
+                                                style={{
+                                                    fontSize: '10.5px',
+                                                    fontWeight: 800,
+                                                    padding: '3px 8px',
+                                                    borderRadius: '6px',
+                                                    background: isHalfDay ? '#fef3c7' : '#dcfce7',
+                                                    color: isHalfDay ? '#92400e' : '#166534',
+                                                    border: isHalfDay ? '1px solid #fde68a' : '1px solid #86efac',
+                                                    cursor: 'pointer',
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                                title="Click to switch Full Day / Half Day"
+                                            >
+                                                {isHalfDay
+                                                    ? (currentLang === 'en' ? '✅ Half Day' : '✅ Half Day (અડધો દિવસ)')
+                                                    : (currentLang === 'en' ? '✅ Full Day' : '✅ Full Day (આખો દિવસ)')}
+                                            </span>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setQuickSelectEmpId(isSelectedForConfirm ? null : emp.id);
+                                                    setQuickDayType('full_day');
+                                                }}
+                                                style={{
+                                                    fontSize: '10.5px',
+                                                    fontWeight: 800,
+                                                    padding: '4px 9px',
+                                                    borderRadius: '6px',
+                                                    background: isSelectedForConfirm ? '#f59e0b' : '#fff1f2',
+                                                    color: isSelectedForConfirm ? '#ffffff' : '#be123c',
+                                                    border: isSelectedForConfirm ? '1px solid #d97706' : '1px solid #fecdd3',
+                                                    cursor: 'pointer',
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                            >
+                                                {currentLang === 'en' ? '⬜ Pending (Mark)' : '⬜ બાકી (પૂરો કરો)'}
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* Inline Full Day / Half Day Confirmation Box when checkbox is clicked */}
+                                    {isSelectedForConfirm && (
+                                        <div style={{
+                                            marginTop: '4px',
+                                            paddingTop: '8px',
+                                            borderTop: '1px dashed #cbd5e1',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            gap: '6px',
+                                            flexWrap: 'wrap'
+                                        }}>
+                                            <div style={{display: 'flex', gap: '6px', flex: 1}}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setQuickDayType('full_day')}
+                                                    style={{
+                                                        flex: 1,
+                                                        padding: '6px 8px',
+                                                        borderRadius: '8px',
+                                                        fontSize: '11px',
+                                                        fontWeight: 800,
+                                                        cursor: 'pointer',
+                                                        border: quickDayType === 'full_day' ? '1.5px solid #16a34a' : '1px solid #cbd5e1',
+                                                        background: quickDayType === 'full_day' ? '#dcfce7' : '#f8fafc',
+                                                        color: quickDayType === 'full_day' ? '#166534' : '#475569'
+                                                    }}
+                                                >
+                                                    ☀️ {currentLang === 'en' ? 'Full Day' : 'Full Day (આખો)'}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setQuickDayType('half_day')}
+                                                    style={{
+                                                        flex: 1,
+                                                        padding: '6px 8px',
+                                                        borderRadius: '8px',
+                                                        fontSize: '11px',
+                                                        fontWeight: 800,
+                                                        cursor: 'pointer',
+                                                        border: quickDayType === 'half_day' ? '1.5px solid #d97706' : '1px solid #cbd5e1',
+                                                        background: quickDayType === 'half_day' ? '#fef3c7' : '#f8fafc',
+                                                        color: quickDayType === 'half_day' ? '#92400e' : '#475569'
+                                                    }}
+                                                >
+                                                    🌗 {currentLang === 'en' ? 'Half Day' : 'Half Day (અડધો)'}
+                                                </button>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                disabled={isSavingThis}
+                                                onClick={() => confirmQuickAttendance(emp, quickDayType)}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    borderRadius: '8px',
+                                                    fontSize: '11.5px',
+                                                    fontWeight: 800,
+                                                    cursor: isSavingThis ? 'wait' : 'pointer',
+                                                    border: 'none',
+                                                    background: '#16a34a',
+                                                    color: '#ffffff',
+                                                    boxShadow: '0 2px 6px rgba(22, 163, 74, 0.3)'
+                                                }}
+                                            >
+                                                {isSavingThis
+                                                    ? (currentLang === 'en' ? 'Saving...' : 'સેવ થાય છે...')
+                                                    : (currentLang === 'en' ? '✅ Confirm' : '✅ કન્ફર્મ કરો')}
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}

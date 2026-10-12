@@ -300,6 +300,110 @@ class AttendanceService
         });
     }
 
+    public function quickMark(Employee $employee, array $data, User $actor): AttendanceRecord
+    {
+        return DB::transaction(function () use ($employee, $data, $actor) {
+            $employee = Employee::with('user')->whereKey($employee->id)->lockForUpdate()->firstOrFail();
+            if (! $employee->active || ! $employee->user?->active) {
+                throw ValidationException::withMessages(['employee_id' => 'Only active employees can receive attendance.']);
+            }
+
+            $date = Carbon::createFromFormat('Y-m-d', $data['attendance_date'])->startOfDay();
+            if ($date->isFuture()) {
+                throw ValidationException::withMessages(['attendance_date' => 'Future attendance dates are not allowed.']);
+            }
+
+            $dayType = ($data['day_type'] ?? 'full_day') === 'half_day' ? 'half_day' : 'full_day';
+            $shiftStartStr = substr((string) ($employee->shift_start ?: '09:00:00'), 0, 5);
+            $shiftEndStr = $dayType === 'half_day'
+                ? '13:30'
+                : substr((string) ($employee->shift_end ?: '18:00:00'), 0, 5);
+
+            $clockIn = Carbon::parse($date->toDateString() . ' ' . $shiftStartStr);
+            $clockOut = Carbon::parse($date->toDateString() . ' ' . $shiftEndStr);
+            if ($clockOut->lessThanOrEqualTo($clockIn)) {
+                $clockOut = $clockIn->copy()->addMinutes($dayType === 'half_day' ? 270 : 540);
+            }
+
+            $breakMinutes = $dayType === 'half_day' ? 0 : 60;
+            $workMinutes = $dayType === 'half_day'
+                ? ($employee->half_day_minutes ?: 240)
+                : ($employee->working_minutes ?: 480);
+            $status = $dayType === 'half_day' ? 'half_day' : 'present';
+            $reason = trim((string) ($data['entry_reason'] ?? '')) ?: ($dayType === 'half_day' ? 'Quick Checklist: Half Day (અડધો દિવસ)' : 'Quick Checklist: Full Day (આખો દિવસ)');
+
+            $existing = AttendanceRecord::where('employee_id', $employee->id)
+                ->whereDate('attendance_date', $date)
+                ->lockForUpdate()
+                ->first();
+
+            if ($existing) {
+                $existing->fill([
+                    'clock_in_at' => $existing->clock_in_at ?: $clockIn,
+                    'clock_out_at' => $clockOut,
+                    'entry_source' => $existing->entry_source ?: 'manager',
+                    'recorded_by' => $actor->id,
+                    'entry_reason' => $reason,
+                    'work_done' => $existing->work_done ?: ($dayType === 'half_day' ? 'Half Day Solar Plant Duty' : 'Full Day Solar Plant Duty'),
+                    'learned' => $existing->learned ?: 'Completed plant inspection and operations',
+                    'work_minutes' => $workMinutes,
+                    'break_minutes' => $breakMinutes,
+                    'status' => $status,
+                    'is_early_out' => false,
+                    'manual_correction' => true,
+                    'correction_reason' => $reason,
+                    'corrected_by' => $actor->id,
+                    'corrected_at' => now(),
+                ]);
+                $existing->save();
+                $record = $existing;
+            } else {
+                $record = AttendanceRecord::create([
+                    'employee_id' => $employee->id,
+                    'attendance_date' => $date,
+                    'clock_in_at' => $clockIn,
+                    'clock_in_latitude' => null,
+                    'clock_in_longitude' => null,
+                    'clock_in_accuracy' => null,
+                    'selfie_path' => null,
+                    'entry_source' => 'manager',
+                    'recorded_by' => $actor->id,
+                    'entry_reason' => $reason,
+                    'clock_out_at' => $clockOut,
+                    'clock_out_latitude' => null,
+                    'clock_out_longitude' => null,
+                    'clock_out_accuracy' => null,
+                    'work_done' => $dayType === 'half_day' ? 'Half Day Solar Plant Duty' : 'Full Day Solar Plant Duty',
+                    'learned' => 'Completed plant inspection and operations',
+                    'is_late' => false,
+                    'work_minutes' => $workMinutes,
+                    'break_minutes' => $breakMinutes,
+                    'status' => $status,
+                    'is_early_out' => false,
+                    'overtime_minutes' => 0,
+                ]);
+            }
+
+            try {
+                if ($employee->user) {
+                    app(\App\Services\SmartVoiceCallAlertService::class)->dismissCallForUser($employee->user);
+                }
+            } catch (\Throwable $e) {}
+
+            $this->activity->log(
+                $actor,
+                null,
+                'created',
+                'manager_attendance',
+                $record->id,
+                "Quick checklist attendance ({$dayType}) recorded for {$employee->employee_code} on {$date->toDateString()}",
+                ['employee_id' => $employee->id, 'attendance_date' => $date->toDateString(), 'day_type' => $dayType]
+            );
+
+            return $record->fresh(['employee.user:id,name,email', 'recordedBy:id,name', 'breaks']);
+        });
+    }
+
     public function correct(AttendanceRecord $record, array $data, User $actor): AttendanceRecord
     {
         $clockOut = Carbon::parse($data['clock_out_at']);

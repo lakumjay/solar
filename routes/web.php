@@ -43,6 +43,7 @@ Route::prefix('api')->group(function () {
         Route::post('voice-agent/chat', [\App\Http\Controllers\Api\VoiceAgentController::class, 'chat']);
         Route::match(['get', 'post'], 'voice-agent/config', [\App\Http\Controllers\Api\VoiceAgentController::class, 'config']);
         Route::post('voice-agent/execute-tool', [\App\Http\Controllers\Api\VoiceAgentController::class, 'executeTool']);
+        Route::post('voice-agent/voice-action', [\App\Http\Controllers\Api\VoiceAgentController::class, 'voiceAction']);
         Route::post('voice-agent/test-emergency-call', [\App\Http\Controllers\Api\VoiceAgentController::class, 'testEmergencyCall']);
         Route::get('voice-agent/emergency-status', [\App\Http\Controllers\Api\VoiceAgentController::class, 'emergencyStatus']);
         Route::post('voice-agent/dismiss-emergency', [\App\Http\Controllers\Api\VoiceAgentController::class, 'dismissEmergency']);
@@ -110,6 +111,7 @@ Route::prefix('api')->group(function () {
         Route::post('attendance/break-out', [AttendanceController::class, 'endBreak']);
         Route::post('attendance/breaks/{attendanceBreak}/waive', [AttendanceController::class, 'waiveBreak']);
         Route::post('attendance/manual', [AttendanceController::class, 'manual']);
+        Route::post('attendance/quick-mark', [AttendanceController::class, 'quickMark']);
         Route::get('attendance/breaks/{attendanceBreak}/selfie', [AttendanceController::class, 'breakSelfie'])->name('attendance.break-selfie');
         Route::get('attendance/breaks/{attendanceBreak}/out-selfie', [AttendanceController::class, 'breakOutSelfie'])->name('attendance.break-out-selfie');
         Route::get('attendance', [AttendanceController::class, 'index']);

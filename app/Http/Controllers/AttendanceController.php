@@ -91,6 +91,22 @@ class AttendanceController extends Controller
         );
     }
 
+    public function quickMark(Request $request)
+    {
+        $this->access->requirePermission($request, 'record_employee_attendance');
+        $data = $request->validate([
+            'employee_id' => ['required', 'integer', 'exists:employees,id'],
+            'attendance_date' => ['required', 'date_format:Y-m-d'],
+            'day_type' => ['required', 'string', 'in:full_day,half_day'],
+            'entry_reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        return response()->json(
+            $this->attendance->quickMark(Employee::findOrFail($data['employee_id']), $data, $request->user()),
+            201
+        );
+    }
+
     public function index(Request $request)
     {
         $this->access->requirePermission($request, 'view_attendance');
