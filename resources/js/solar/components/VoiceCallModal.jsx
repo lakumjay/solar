@@ -50,6 +50,13 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
     const [audioLevel, setAudioLevel] = useState(0);
     const [micPermissionError, setMicPermissionError] = useState(null);
     const [connectionError, setConnectionError] = useState(null);
+    const [selectedVoice, setSelectedVoice] = useState(() => {
+        try {
+            return localStorage.getItem('solarflow.aiVoiceName') || 'Aoede';
+        } catch (_) {
+            return 'Aoede';
+        }
+    });
     
     // Live User and AI speech transcriptions
     const [transcriptHistory, setTranscriptHistory] = useState([
@@ -542,12 +549,13 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         scriptNode.connect(micCtx.destination);
     };
 
-    // Speak text via backend neural TTS (used in Fallback Voice Mode)
+    // Speak text via backend Gemini Aoede / selected voice WAV (used in Fallback Voice Mode)
     const speakFallbackTts = useCallback(async (text, lang = 'gu') => {
         if (!text || closingRef.current) return;
         setIsAiSpeaking(true);
         try {
-            const ttsUrl = `${getApiBaseUrl().base}voice-agent/tts?text=${encodeURIComponent(text)}&language=${encodeURIComponent(lang)}`;
+            const voiceParam = encodeURIComponent(selectedVoice || 'Aoede');
+            const ttsUrl = `${getApiBaseUrl().base}voice-agent/tts?text=${encodeURIComponent(text)}&language=${encodeURIComponent(lang)}&voice=${voiceParam}`;
             await new Promise((resolve) => {
                 const audio = new Audio(ttsUrl);
                 fallbackAudioRef.current = audio;
@@ -567,7 +575,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         } catch (_) {
             setIsAiSpeaking(false);
         }
-    }, []);
+    }, [selectedVoice]);
 
     // Unbreakable Fallback Voice Call Mode (Web Speech API + /api/voice-agent/chat + /api/voice-agent/tts)
     const startFallbackVoiceSession = useCallback(async (skipGreeting = false) => {
@@ -653,7 +661,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                 speechConfig: {
                     voiceConfig: {
                         prebuiltVoiceConfig: {
-                            voiceName: voiceName || 'Aoede'
+                            voiceName: voiceName || selectedVoice || 'Aoede'
                         }
                     }
                 },
@@ -730,7 +738,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         }
     };
 
-    const startLiveSession = async () => {
+    const startLiveSession = async (overrideVoice = null) => {
         closingRef.current = false;
         hasConnectedRef.current = false;
         isToolPendingRef.current = false;
@@ -739,6 +747,8 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         setConnectionError(null);
         setMicPermissionError(null);
         setCallState('connecting');
+
+        const activeVoice = overrideVoice || selectedVoice || 'Aoede';
 
         // Start Realistic Telephone Ringing Sound
         try {
@@ -766,12 +776,13 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                 method: 'POST',
                 body: JSON.stringify({
                     live_solar_data: currentLiveData,
-                    company_id: activeCompany?.id
+                    company_id: activeCompany?.id,
+                    voice_name: activeVoice
                 })
             });
             const authToken = cfg?.auth_token || cfg?.apiKey;
             const systemInstruction = cfg?.system_instruction || cfg?.systemInstruction;
-            const voiceName = cfg?.voice_name || 'Aoede';
+            const voiceName = cfg?.voice_name || activeVoice || 'Aoede';
             const liveModel = cfg?.live_model || cfg?.liveModel || 'gemini-2.5-flash-native-audio-latest';
             const rawTools = cfg?.tools || [];
 
@@ -839,6 +850,18 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
 
     const toggleMute = () => {
         setIsMuted(!isMuted);
+    };
+
+    const cycleVoice = async () => {
+        const voices = ['Aoede', 'Kore', 'Leda', 'Puck'];
+        const nextIdx = (voices.indexOf(selectedVoice) + 1) % voices.length;
+        const nextVoice = voices[nextIdx];
+        setSelectedVoice(nextVoice);
+        try {
+            localStorage.setItem('solarflow.aiVoiceName', nextVoice);
+        } catch (_) {}
+        await cleanupSession(false);
+        startLiveSession(nextVoice);
     };
 
     const retryCall = async () => {
@@ -1059,12 +1082,19 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                             </span>
                         </div>
 
-                        {/* 2. Speaker Indicator */}
+                        {/* 2. Voice Selector (Aoede / Kore / Leda / Puck) */}
                         <div className="flex flex-col items-center">
-                            <div className="w-14 h-14 rounded-full bg-slate-800/90 border border-slate-700 text-white flex items-center justify-center">
+                            <button
+                                type="button"
+                                onClick={cycleVoice}
+                                title="Change AI Voice"
+                                className="w-14 h-14 rounded-full bg-slate-800/90 hover:bg-slate-700 active:scale-95 border border-emerald-500/40 text-white flex items-center justify-center transition cursor-pointer"
+                            >
                                 <Volume2 className="w-6 h-6 text-emerald-400" />
-                            </div>
-                            <span className="text-[10px] font-medium text-slate-300 mt-1">HD Voice</span>
+                            </button>
+                            <span className="text-[10px] font-semibold text-emerald-300 mt-1">
+                                Voice: {selectedVoice}
+                            </span>
                         </div>
 
                         {/* 3. Instant Speed Indicator */}

@@ -3,12 +3,14 @@ import {
     Phone, PhoneOff, PhoneCall, Volume2, VolumeX, AlertTriangle, 
     Zap, Radio, Activity, Sparkles, ExternalLink, RefreshCw, X 
 } from 'lucide-react';
+import { GoogleGenAI, Modality } from '@google/genai';
+import { PcmPlayer, base64ToInt16 } from '../lib/audio';
 import { api, getApiBaseUrl } from '../api';
 
 /**
  * EmergencyIncomingCallModal
  * Realistic iPhone / Android In-App Emergency Phone Call Interface
- * Triggered when 66KV grid line trips, daytime inverters shut down, or Super Admin tests the emergency alert.
+ * Uses the exact selected Gemini natural human voice (Aoede / selected voice) — zero robotic voice.
  */
 export default function EmergencyIncomingCallModal({ 
     isOpen, 
@@ -18,6 +20,14 @@ export default function EmergencyIncomingCallModal({
     onNavigateLossAnalytics 
 }) {
     if (!isOpen) return null;
+
+    const selectedVoice = (() => {
+        try {
+            return localStorage.getItem('solarflow.aiVoiceName') || callData?.voice_name || 'Aoede';
+        } catch (_) {
+            return callData?.voice_name || 'Aoede';
+        }
+    })();
 
     const callerName = callData?.caller_name || '⚡ SolarFlow AI Emergency Dispatch';
     const callerNumber = callData?.caller_number || '+91 1800-SOLAR-AI';
@@ -35,6 +45,10 @@ export default function EmergencyIncomingCallModal({
     // Audio & Vibration refs
     const ringAudioRef = useRef(null);
     const speechAudioRef = useRef(null);
+    const preloadedAudioRef = useRef(null);
+    const pcmPlayerRef = useRef(null);
+    const liveSessionRef = useRef(null);
+    const liveReadyRef = useRef(false);
     const ringOscillatorCtxRef = useRef(null);
     const vibrateTimerRef = useRef(null);
     const durationTimerRef = useRef(null);
@@ -70,13 +84,11 @@ export default function EmergencyIncomingCallModal({
 
     // Synthesize phone ringing tones
     const startRingtone = () => {
-        // 1. Play audio chime / alert sound loop
         try {
             const audio = new Audio('/sounds/alert.wav');
             audio.loop = true;
             audio.volume = 1.0;
             audio.play().catch(() => {
-                // Autoplay policy fallback: use synthetic Web Audio
                 playSyntheticRing();
             });
             ringAudioRef.current = audio;
@@ -84,7 +96,6 @@ export default function EmergencyIncomingCallModal({
             playSyntheticRing();
         }
 
-        // 2. Start tactile phone vibration pattern (repeat every 3s)
         const triggerVibration = () => {
             if (typeof navigator !== 'undefined' && navigator.vibrate) {
                 navigator.vibrate([1000, 400, 1000, 400, 1000]);
@@ -139,31 +150,119 @@ export default function EmergencyIncomingCallModal({
         } catch (_) {}
     };
 
-    // Request Screen Wake Lock so phone doesn't sleep during call
+    // Request Screen Wake Lock & pre-connect Gemini Live Selected Voice (Aoede) while ringing
     useEffect(() => {
         if ('wakeLock' in navigator) {
             navigator.wakeLock.request('screen').then(lock => {
                 wakeLockRef.current = lock;
             }).catch(() => {});
         }
+
+        let cancelled = false;
+        const initGeminiVoice = async () => {
+            try {
+                const player = new PcmPlayer(24000);
+                player.onEndedCallback = () => {
+                    setIsAiSpeaking(false);
+                    setSpeechAudioPlaying(false);
+                };
+                pcmPlayerRef.current = player;
+
+                const cfg = await api('voice-agent/config', {
+                    method: 'POST',
+                    body: JSON.stringify({ voice_name: selectedVoice })
+                });
+                if (cancelled) return;
+
+                const authToken = cfg?.auth_token || cfg?.apiKey;
+                const voiceToUse = cfg?.voice_name || selectedVoice || 'Aoede';
+                if (!authToken || authToken === 'solarflow_ready') return;
+
+                const ai = new GoogleGenAI({
+                    apiKey: authToken,
+                    httpOptions: { apiVersion: 'v1alpha' }
+                });
+
+                const session = await ai.live.connect({
+                    model: 'gemini-2.5-flash-native-audio-latest',
+                    config: {
+                        responseModalities: [Modality.AUDIO],
+                        systemInstruction: `તમે SolarFlow AI છો. તમારો અવાજ કુદરતી અને મીઠો સ્ત્રીનો અવાજ (${voiceToUse}) છે. યુઝર તમને જે ગુજરાતી એલર્ટ સંદેશ આપે, તે સંદેશ કોઈ પણ ફેરફાર વગર શબ્દશઃ સ્પષ્ટ અને કુદરતી ગુજરાતી અવાજમાં બોલી સંભળાવો.`,
+                        thinkingConfig: { thinkingBudget: 0 },
+                        speechConfig: {
+                            voiceConfig: {
+                                prebuiltVoiceConfig: {
+                                    voiceName: voiceToUse
+                                }
+                            }
+                        }
+                    },
+                    callbacks: {
+                        onopen: () => {
+                            if (!cancelled) {
+                                liveReadyRef.current = true;
+                            }
+                        },
+                        onmessage: (msg) => {
+                            const parts = msg?.serverContent?.modelTurn?.parts || [];
+                            for (const part of parts) {
+                                if (part.inlineData?.data && pcmPlayerRef.current) {
+                                    setIsAiSpeaking(true);
+                                    setSpeechAudioPlaying(true);
+                                    pcmPlayerRef.current.enqueue(base64ToInt16(part.inlineData.data));
+                                }
+                            }
+                        },
+                        onerror: () => {},
+                        onclose: () => {
+                            liveReadyRef.current = false;
+                        }
+                    }
+                });
+
+                if (!cancelled) {
+                    liveSessionRef.current = session;
+                } else {
+                    try { session.close(); } catch (_) {}
+                }
+            } catch (_) {}
+        };
+
+        initGeminiVoice();
+
         return () => {
+            cancelled = true;
+            liveReadyRef.current = false;
+            try {
+                if (liveSessionRef.current) {
+                    liveSessionRef.current.close();
+                    liveSessionRef.current = null;
+                }
+            } catch (_) {}
+            try {
+                if (pcmPlayerRef.current) {
+                    pcmPlayerRef.current.close();
+                    pcmPlayerRef.current = null;
+                }
+            } catch (_) {}
             if (wakeLockRef.current) {
                 wakeLockRef.current.release().catch(() => {});
             }
         };
-    }, []);
+    }, [selectedVoice]);
 
     const faultType = callData?.fault_type || 'grid_66kv_tripping';
     const isAttendanceCall = ['employee_missing_clock_in', 'attendance_pending_4pm', 'employee_logout_630pm', 'employee_logout_700pm'].includes(faultType);
 
     // Handle Incoming Ringing State + Auto-Answer so AI speaks out loud automatically
     useEffect(() => {
-        // Preload neural TTS audio immediately so playback has zero buffering delay
+        // Preload backend Gemini Aoede WAV audio immediately so playback has zero buffering delay
         try {
-            const preloadUrl = `${getApiBaseUrl().base}voice-agent/tts?text=${encodeURIComponent(speechText)}&language=gu`;
+            const preloadUrl = `${getApiBaseUrl().base}voice-agent/tts?text=${encodeURIComponent(speechText)}&language=gu&voice=${encodeURIComponent(selectedVoice)}`;
             const preloadAudio = new Audio(preloadUrl);
             preloadAudio.preload = 'auto';
             preloadAudio.load();
+            preloadedAudioRef.current = preloadAudio;
         } catch (_) {}
 
         let autoAnswerTimer = null;
@@ -181,7 +280,7 @@ export default function EmergencyIncomingCallModal({
             if (autoAnswerTimer) clearTimeout(autoAnswerTimer);
             stopRingtone();
         };
-    }, [callState, speechText]);
+    }, [callState, speechText, selectedVoice]);
 
     // Handle Connected Call: Timer and AI Voice Speech
     useEffect(() => {
@@ -193,7 +292,7 @@ export default function EmergencyIncomingCallModal({
                 setCallDuration(d => d + 1);
             }, 1000);
 
-            // Play AI Speech in Gujarati out loud immediately
+            // Play AI Speech in Gujarati out loud immediately using selected Gemini voice (Aoede)
             playAiSpeech(speechText);
         } else {
             if (durationTimerRef.current) {
@@ -210,16 +309,38 @@ export default function EmergencyIncomingCallModal({
         };
     }, [callState, speechText]);
 
-    // Play Voice via Edge TTS API or Web SpeechSynthesis
-    const playAiSpeech = (text) => {
+    // Play Voice via Selected Gemini Live Voice (Aoede) or Backend Gemini Aoede WAV (NEVER robotic browser speechSynthesis)
+    const playAiSpeech = async (text) => {
         if (!text) return;
         stopAiSpeech();
         setIsAiSpeaking(true);
         setSpeechAudioPlaying(true);
 
-        // Try Backend Neural TTS first
-        const ttsUrl = `${getApiBaseUrl().base}voice-agent/tts?text=${encodeURIComponent(text)}&language=gu`;
-        const audio = new Audio(ttsUrl);
+        // 1. If Gemini Live (Aoede) WebSocket is ready, speak directly through 24kHz HD PcmPlayer
+        if (liveSessionRef.current && liveReadyRef.current && pcmPlayerRef.current) {
+            try {
+                await pcmPlayerRef.current.resume();
+                liveSessionRef.current.sendClientContent({
+                    turns: [
+                        {
+                            role: 'user',
+                            parts: [
+                                {
+                                    text: `આ એલર્ટ સંદેશ શબ્દશઃ ગુજરાતીમાં બોલો: "${text}"`
+                                }
+                            ]
+                        }
+                    ],
+                    turnComplete: true
+                });
+                return;
+            } catch (_) {}
+        }
+
+        // 2. Otherwise play Backend Gemini Aoede 24kHz WAV Audio
+        const ttsUrl = `${getApiBaseUrl().base}voice-agent/tts?text=${encodeURIComponent(text)}&language=gu&voice=${encodeURIComponent(selectedVoice)}`;
+        const audio = preloadedAudioRef.current || new Audio(ttsUrl);
+        preloadedAudioRef.current = null;
         audio.volume = 1.0;
         speechAudioRef.current = audio;
 
@@ -229,61 +350,27 @@ export default function EmergencyIncomingCallModal({
         };
 
         audio.onerror = () => {
-            fallbackSpeechSynthesis(text);
+            setIsAiSpeaking(false);
+            setSpeechAudioPlaying(false);
         };
 
         audio.play().catch(() => {
-            fallbackSpeechSynthesis(text);
+            setIsAiSpeaking(false);
+            setSpeechAudioPlaying(false);
         });
     };
 
-    // Browser Speech Synthesis fallback
-    const fallbackSpeechSynthesis = (text) => {
-        try {
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-                const utter = new SpeechSynthesisUtterance(text);
-                utter.lang = 'gu-IN';
-                utter.rate = 0.95;
-                utter.pitch = 1.0;
-
-                const voices = window.speechSynthesis.getVoices();
-                const guVoice = voices.find(v => v.lang.startsWith('gu')) || 
-                                voices.find(v => v.lang.startsWith('hi')) || 
-                                voices.find(v => v.lang.includes('IN'));
-                if (guVoice) utter.voice = guVoice;
-
-                utter.onend = () => {
-                    setIsAiSpeaking(false);
-                    setSpeechAudioPlaying(false);
-                };
-                utter.onerror = () => {
-                    setIsAiSpeaking(false);
-                    setSpeechAudioPlaying(false);
-                };
-
-                window.speechSynthesis.speak(utter);
-            } else {
-                setIsAiSpeaking(false);
-                setSpeechAudioPlaying(false);
-            }
-        } catch (_) {
-            setIsAiSpeaking(false);
-            setSpeechAudioPlaying(false);
-        }
-    };
-
     const stopAiSpeech = () => {
+        try {
+            if (pcmPlayerRef.current) {
+                pcmPlayerRef.current.interrupt();
+            }
+        } catch (_) {}
         try {
             if (speechAudioRef.current) {
                 speechAudioRef.current.pause();
                 speechAudioRef.current.currentTime = 0;
                 speechAudioRef.current = null;
-            }
-        } catch (_) {}
-        try {
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
             }
         } catch (_) {}
         setIsAiSpeaking(false);
@@ -322,6 +409,9 @@ export default function EmergencyIncomingCallModal({
     // Unlock iOS/Android AudioContext on first touch / tap and ensure speech plays out loud
     const unlockAudioOnGesture = () => {
         try {
+            if (pcmPlayerRef.current) {
+                pcmPlayerRef.current.resume().catch(() => {});
+            }
             if (callState === 'incoming') {
                 stopRingtone();
                 setCallState('connected');

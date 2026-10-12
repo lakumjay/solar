@@ -40,6 +40,8 @@ class VoiceAgentController extends Controller
             $liveModel = 'gemini-2.5-flash-native-audio-latest';
         }
 
+        $voiceName = trim((string) $request->input('voice_name', 'Aoede')) ?: 'Aoede';
+
         return response()->json([
             'auth_token' => $apiKey,
             'apiKey' => $apiKey ?: 'solarflow_ready',
@@ -47,7 +49,7 @@ class VoiceAgentController extends Controller
             'model' => 'gemini-2.5-flash',
             'liveModel' => $liveModel,
             'live_model' => $liveModel,
-            'voice_name' => 'Aoede',
+            'voice_name' => $voiceName,
             'user' => [
                 'id' => $user?->id,
                 'name' => $user?->name,
@@ -118,6 +120,7 @@ class VoiceAgentController extends Controller
             'caller_number' => '+91 1800-SOLAR-AI',
             'alert_title' => '🚨 ૬૬KV લાઇન ટ્રીપ / ઇન્વર્ટર બંધ',
             'speech_text' => $speechGu,
+            'voice_name' => 'Aoede',
             'plant_name' => $plantName,
             'fault_type' => $faultType,
             'engineer_phone' => env('EMERGENCY_ENGINEER_PHONE', '+919909900066'),
@@ -205,18 +208,19 @@ class VoiceAgentController extends Controller
     }
 
     /**
-     * Synthesize natural studio female voice audio (Edge Neural Engine + Fast Disk Cache)
+     * Synthesize natural Gemini Aoede female voice audio (24kHz WAV + Edge Neural + Fast Disk Cache)
      */
     public function tts(Request $request)
     {
         $text = trim((string)$request->input('text', ''));
         $language = $request->input('language', 'gu');
+        $voiceName = trim((string)$request->input('voice', 'Aoede')) ?: 'Aoede';
         if (empty($text)) {
             return response()->json(['error' => 'No text provided'], 400);
         }
 
         $cleanText = preg_replace('/[*_#`]/u', '', $text);
-        $cleanText = mb_substr($cleanText, 0, 450);
+        $cleanText = mb_substr($cleanText, 0, 500);
 
         $cacheDir = storage_path('app/public/voice_cache');
         if (!File::exists($cacheDir) || !is_writable($cacheDir)) {
@@ -229,30 +233,52 @@ class VoiceAgentController extends Controller
             }
         }
 
-        $cacheHash = md5($cleanText . '_' . $language);
-        $cachedFile = $cacheDir . '/' . $cacheHash . '.mp3';
+        $cacheHash = md5($cleanText . '_' . $language . '_' . $voiceName);
+        $cachedWavFile = $cacheDir . '/aoede_' . $cacheHash . '.wav';
+        $cachedMp3File = $cacheDir . '/' . $cacheHash . '.mp3';
 
-        // 1. Instant Cache hit (0.005s!)
-        if (file_exists($cachedFile) && filesize($cachedFile) > 500) {
-            return response()->file($cachedFile, [
+        // 1. Instant Cache Hit for Gemini Aoede WAV (0.005s!)
+        if (file_exists($cachedWavFile) && filesize($cachedWavFile) > 800) {
+            return response()->file($cachedWavFile, [
+                'Content-Type' => 'audio/wav',
+                'Cache-Control' => 'public, max-age=86400',
+                'Access-Control-Allow-Origin' => '*',
+            ]);
+        }
+
+        // 2. Primary: Generate authentic Gemini Selected Voice (Aoede) 24kHz HD WAV
+        $geminiWavBytes = $this->synthesizeGeminiVoiceWav($cleanText, $voiceName);
+        if ($geminiWavBytes !== null && strlen($geminiWavBytes) > 800) {
+            @file_put_contents($cachedWavFile, $geminiWavBytes);
+            return response($geminiWavBytes, 200, [
+                'Content-Type' => 'audio/wav',
+                'Content-Disposition' => 'inline; filename="aoede_voice.wav"',
+                'Cache-Control' => 'public, max-age=86400',
+                'Access-Control-Allow-Origin' => '*',
+            ]);
+        }
+
+        // 3. Secondary Cache Hit for Neural MP3
+        if (file_exists($cachedMp3File) && filesize($cachedMp3File) > 500) {
+            return response()->file($cachedMp3File, [
                 'Content-Type' => 'audio/mpeg',
                 'Cache-Control' => 'public, max-age=86400',
                 'Access-Control-Allow-Origin' => '*',
             ]);
         }
 
-        // 2. High-quality Neural Studio Female Voice via sneha_tts.py (Edge Neural Dhwani / Swara / Neerja)
+        // 4. Secondary Neural Studio Female Voice via sneha_tts.py (Edge Neural Dhwani / Swara)
         $scriptPath = base_path('scripts/sneha_tts.py');
         if (file_exists($scriptPath)) {
             $escapedText = escapeshellarg($cleanText);
-            $escapedOut = escapeshellarg($cachedFile);
+            $escapedOut = escapeshellarg($cachedMp3File);
             $escapedLang = escapeshellarg($language);
 
             $cmd = "python3 {$scriptPath} {$escapedText} {$escapedOut} {$escapedLang} 2>&1";
             exec($cmd, $output, $returnCode);
 
-            if ($returnCode === 0 && file_exists($cachedFile) && filesize($cachedFile) > 500) {
-                return response()->file($cachedFile, [
+            if ($returnCode === 0 && file_exists($cachedMp3File) && filesize($cachedMp3File) > 500) {
+                return response()->file($cachedMp3File, [
                     'Content-Type' => 'audio/mpeg',
                     'Cache-Control' => 'public, max-age=86400',
                     'Access-Control-Allow-Origin' => '*',
@@ -260,38 +286,97 @@ class VoiceAgentController extends Controller
             }
         }
 
-        // 3. Fallback to Google Translate if python was unavailable
-        $tl = match($language) {
-            'hi' => 'hi',
-            'en' => 'en-IN',
-            default => 'gu',
-        };
+        return response()->json(['error' => 'TTS synthesis unavailable'], 503);
+    }
 
-        $encodedText = urlencode($cleanText);
-        $clients = ['dict-chrome-ex', 'tw-ob', 'gtx', 'webapp'];
+    /**
+     * Synthesize authentic Gemini selected voice (Aoede) and package 24kHz 16-bit mono PCM into a standard WAV container.
+     */
+    public function synthesizeGeminiVoiceWav(string $text, string $voiceName = 'Aoede'): ?string
+    {
+        $apiKey = config('services.gemini.key', env('GEMINI_API_KEY', env('GOOGLE_GENAI_API_KEY', env('GOOGLE_API_KEY'))));
+        if (empty($apiKey)) {
+            return null;
+        }
 
-        foreach ($clients as $client) {
+        $ttsModels = [
+            'gemini-2.5-flash-preview-tts',
+            'gemini-2.5-flash-tts',
+        ];
+
+        foreach ($ttsModels as $ttsModel) {
             try {
-                $url = "https://translate.google.com/translate_tts?ie=UTF-8&q={$encodedText}&tl={$tl}&client={$client}";
-                $res = Http::withHeaders([
-                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                    'Referer' => 'https://translate.google.com/',
-                ])->timeout(5)->get($url);
+                $response = Http::timeout(8)->withHeaders([
+                    'Content-Type' => 'application/json',
+                ])->post("https://generativelanguage.googleapis.com/v1beta/models/{$ttsModel}:generateContent?key={$apiKey}", [
+                    'contents' => [
+                        [
+                            'parts' => [
+                                ['text' => $text],
+                            ],
+                        ],
+                    ],
+                    'generationConfig' => [
+                        'responseModalities' => ['AUDIO'],
+                        'speechConfig' => [
+                            'voiceConfig' => [
+                                'prebuiltVoiceConfig' => [
+                                    'voiceName' => $voiceName ?: 'Aoede',
+                                ],
+                            ],
+                        ],
+                    ],
+                ]);
 
-                if ($res->successful() && strlen($res->body()) > 200) {
-                    @file_put_contents($cachedFile, $res->body());
-                    return response($res->body(), 200, [
-                        'Content-Type' => 'audio/mpeg',
-                        'Content-Disposition' => 'inline; filename="voice.mp3"',
-                        'Cache-Control' => 'public, max-age=86400',
-                    ]);
+                if ($response->successful()) {
+                    $json = $response->json();
+                    $b64Pcm = $json['candidates'][0]['content']['parts'][0]['inlineData']['data'] ?? null;
+                    if (!empty($b64Pcm)) {
+                        $pcmBytes = base64_decode($b64Pcm, true);
+                        if ($pcmBytes !== false && strlen($pcmBytes) > 400) {
+                            return $this->wrapPcm24kMonoInWavHeader($pcmBytes);
+                        }
+                    }
                 }
             } catch (\Throwable $e) {
-                Log::warning("VoiceAgent TTS Proxy client={$client} failed: " . $e->getMessage());
+                Log::debug("Gemini TTS model {$ttsModel} notice: " . $e->getMessage());
             }
         }
 
-        return response()->json(['error' => 'TTS synthesis failed'], 500);
+        return null;
+    }
+
+    /**
+     * Wrap raw 24000 Hz, 16-bit, mono little-endian signed PCM bytes in a 44-byte RIFF WAVE header.
+     */
+    private function wrapPcm24kMonoInWavHeader(string $pcmBytes): string
+    {
+        $sampleRate = 24000;
+        $numChannels = 1;
+        $bitsPerSample = 16;
+        $byteRate = $sampleRate * $numChannels * ($bitsPerSample / 8); // 48000
+        $blockAlign = $numChannels * ($bitsPerSample / 8); // 2
+        $dataSize = strlen($pcmBytes);
+        $chunkSize = 36 + $dataSize;
+
+        $header = pack(
+            'a4Va4a4VvvVVvva4V',
+            'RIFF',
+            $chunkSize,
+            'WAVE',
+            'fmt ',
+            16,             // Subchunk1Size for PCM
+            1,              // AudioFormat 1 = PCM
+            $numChannels,   // 1 channel (mono)
+            $sampleRate,    // 24000 Hz
+            $byteRate,      // 48000 bytes/sec
+            $blockAlign,    // 2 bytes/sample
+            $bitsPerSample, // 16 bits
+            'data',
+            $dataSize
+        );
+
+        return $header . $pcmBytes;
     }
 
     public function detectLanguage(string $text, string $default = 'gu'): string

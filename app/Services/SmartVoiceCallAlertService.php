@@ -333,12 +333,15 @@ class SmartVoiceCallAlertService
      */
     public function dispatchCallToUser(User $user, array $data): array
     {
+        $voiceName = $data['voice_name'] ?? 'Aoede';
+
         $callPayload = [
             'id' => 'ai_call_' . $user->id . '_' . time(),
             'caller_name' => $data['caller_name'] ?? '⚡ SolarFlow AI Dispatch',
             'caller_number' => '+91 1800-SOLAR-AI',
             'alert_title' => $data['alert_title'] ?? '🚨 SolarFlow AI Voice Alert',
             'speech_text' => $data['speech_text'] ?? '',
+            'voice_name' => $voiceName,
             'plant_name' => $data['plant_name'] ?? 'SolarFlow Plant',
             'fault_type' => $data['fault_type'] ?? 'general_alert',
             'engineer_phone' => env('EMERGENCY_ENGINEER_PHONE', '+919909900066'),
@@ -351,8 +354,8 @@ class SmartVoiceCallAlertService
             Cache::put('active_emergency_call_super_admin', $callPayload, now()->addMinutes(15));
         }
 
-        // Pre-warm studio Gujarati TTS audio file so it plays instantaneously when the call rings/connects
-        $this->prewarmTtsAudio($callPayload['speech_text'], 'gu');
+        // Pre-warm authentic Gemini Aoede Gujarati TTS audio file so it plays instantaneously
+        $this->prewarmTtsAudio($callPayload['speech_text'], 'gu', $voiceName);
 
         // Dispatch Web Push notification to this user's devices
         try {
@@ -381,11 +384,11 @@ class SmartVoiceCallAlertService
         return $callPayload;
     }
 
-    private function prewarmTtsAudio(string $text, string $language = 'gu'): void
+    private function prewarmTtsAudio(string $text, string $language = 'gu', string $voiceName = 'Aoede'): void
     {
         try {
             $cleanText = preg_replace('/[*_#`]/u', '', trim($text));
-            $cleanText = mb_substr($cleanText, 0, 450);
+            $cleanText = mb_substr($cleanText, 0, 500);
             if (empty($cleanText)) {
                 return;
             }
@@ -394,20 +397,30 @@ class SmartVoiceCallAlertService
             if (! File::exists($cacheDir)) {
                 @File::makeDirectory($cacheDir, 0777, true);
             }
-            $cacheHash = md5($cleanText . '_' . $language);
-            $cachedFile = $cacheDir . '/' . $cacheHash . '.mp3';
+            $cacheHash = md5($cleanText . '_' . $language . '_' . $voiceName);
+            $cachedWavFile = $cacheDir . '/aoede_' . $cacheHash . '.wav';
 
-            if (file_exists($cachedFile) && filesize($cachedFile) > 500) {
+            if (file_exists($cachedWavFile) && filesize($cachedWavFile) > 800) {
                 return;
             }
 
+            // Generate Gemini Aoede WAV directly if possible
+            $voiceCtrl = app(\App\Http\Controllers\Api\VoiceAgentController::class);
+            $wavBytes = $voiceCtrl->synthesizeGeminiVoiceWav($cleanText, $voiceName);
+            if ($wavBytes !== null && strlen($wavBytes) > 800) {
+                @file_put_contents($cachedWavFile, $wavBytes);
+                return;
+            }
+
+            // Secondary neural fallback
+            $cachedMp3File = $cacheDir . '/' . $cacheHash . '.mp3';
             $scriptPath = base_path('scripts/sneha_tts.py');
-            if (file_exists($scriptPath)) {
+            if (file_exists($scriptPath) && ! file_exists($cachedMp3File)) {
                 $cmd = sprintf(
                     'python3 %s %s %s %s > /dev/null 2>&1 &',
                     escapeshellarg($scriptPath),
                     escapeshellarg($cleanText),
-                    escapeshellarg($cachedFile),
+                    escapeshellarg($cachedMp3File),
                     escapeshellarg($language)
                 );
                 @exec($cmd);
