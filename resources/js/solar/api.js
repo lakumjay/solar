@@ -3,8 +3,7 @@ export function getApiBaseUrl() {
     if (typeof window !== 'undefined') {
         const isCapacitor = !!(
             window.Capacitor?.isNativePlatform?.() ||
-            window.location.protocol === 'capacitor:' ||
-            (window.location.hostname === 'localhost' && window.Capacitor)
+            window.location.protocol === 'capacitor:'
         );
 
         if (window.SOLARFLOW_API_URL) {

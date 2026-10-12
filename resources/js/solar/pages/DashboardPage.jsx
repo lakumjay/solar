@@ -175,7 +175,9 @@ export default function DashboardPage({companyId, currentUser}) {
                 });
             }
         } catch (error) {
-            console.error('Failed to load live solar data', error);
+            if (error?.message !== 'Unauthenticated.') {
+                console.error('Failed to load live solar data', error);
+            }
         } finally {
             setLoading(false);
             if (isManual) setRefreshing(false);

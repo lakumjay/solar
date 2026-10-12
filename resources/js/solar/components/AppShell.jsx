@@ -169,7 +169,9 @@ export default function AppShell({user, page, setPage, companies, companyId, set
                 } catch (e) {}
             }
         } catch (e) {
-            console.error('Mobile live solar fetch error', e);
+            if (e?.message !== 'Unauthenticated.') {
+                console.error('Mobile live solar fetch error', e);
+            }
         }
     };
 
@@ -418,7 +420,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
                                 <small>{user?.role?.replaceAll('_', ' ')}{activeCompany?.owner_name ? ` (${t('owner')}: ${activeCompany.owner_name})` : ''}</small>
                             </span>
                         </div>
-                        <nav>{navigation.map(([key, label, Icon]) => <button key={key} className={page === key ? 'nav active' : 'nav'} onClick={() => choosePage(key)}><Icon size={18}/><span>{label}</span><ChevronRight size={15}/></button>)}</nav>
+                        <nav>{navigation.map(([key, label, Icon]) => <button key={key} data-page={key} className={page === key ? 'nav active' : 'nav'} onClick={() => choosePage(key)}><Icon size={18}/><span>{label}</span><ChevronRight size={15}/></button>)}</nav>
                         <button className="nav signout" onClick={logout}><LogOut size={18}/><span>Sign out</span></button>
                     </aside>
                     {menuOpen && <div className="scrim" onClick={() => setMenuOpen(false)}/>} 

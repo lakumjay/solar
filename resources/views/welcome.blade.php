@@ -9,15 +9,16 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="SolarFlow">
-    <link rel="manifest" href="/site.webmanifest">
-    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
-    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <link rel="manifest" href="{{ asset('site.webmanifest') }}">
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('icons/icon-192.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('icons/icon-192.png') }}">
     <title>SolarFlow</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js?v=53').then(reg => {
+                const swPath = window.location.pathname.includes('/git/public') ? '/git/public/sw.js?v=53' : '/sw.js?v=53';
+                navigator.serviceWorker.register(swPath).then(reg => {
                     reg.update();
                 }).catch(err => console.log('SW registration failed', err));
             });

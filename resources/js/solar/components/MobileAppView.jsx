@@ -2351,6 +2351,7 @@ export default function MobileAppView({
                 <nav className="mobile-bottom-navbar">
                     <button
                         type="button"
+                        data-page="dashboard"
                         className={`bnav-item ${page === 'dashboard' ? 'active' : ''}`}
                         onClick={() => {
                             playNavClickSound();
@@ -2364,6 +2365,7 @@ export default function MobileAppView({
                     {can('enter_readings') && (
                         <button
                             type="button"
+                            data-page="entry"
                             className={`bnav-item ${page === 'entry' ? 'active' : ''}`}
                             onClick={() => {
                             playNavClickSound();
@@ -2378,6 +2380,7 @@ export default function MobileAppView({
                     {(user.role === 'employee' || can('view_attendance')) && (
                         <button
                             type="button"
+                            data-page="attendance"
                             className={`bnav-item ${[attendanceTargetPage, 'attendance', 'my-attendance'].includes(page) ? 'active' : ''}`}
                             onClick={() => {
                                 playNavClickSound();
@@ -2392,6 +2395,7 @@ export default function MobileAppView({
                     {can('view_reports') && (
                         <button
                             type="button"
+                            data-page="reports"
                             className={`bnav-item ${page === 'reports' ? 'active' : ''}`}
                             onClick={() => {
                                 playNavClickSound();
@@ -2405,6 +2409,7 @@ export default function MobileAppView({
 
                     <button
                         type="button"
+                        data-page="gallery"
                         className={`bnav-item ${page === 'gallery' ? 'active' : ''}`}
                         onClick={() => {
                             playNavClickSound();
@@ -2417,6 +2422,7 @@ export default function MobileAppView({
 
                     <button
                         type="button"
+                        data-action="more-menu"
                         className={`bnav-item ${moreMenuOpen ? 'active' : ''}`}
                         onClick={() => {
                             playNavClickSound();
@@ -2790,6 +2796,7 @@ export default function MobileAppView({
                             {(isSuperAdmin || user.role === 'company_admin' || can('view_expenses')) && (
                                 <button
                                     type="button"
+                                    data-page="expenses"
                                     className="dmenu-card"
                                     onClick={() => { setPage('expenses'); setMoreMenuOpen(false); }}
                                 >
@@ -2812,6 +2819,7 @@ export default function MobileAppView({
                             {(isSuperAdmin || user.role === 'company_admin' || user.role === 'employee') && (
                                 <button
                                     type="button"
+                                    data-page="salaries"
                                     className="dmenu-card"
                                     onClick={() => { setPage(salaryTargetPage); setMoreMenuOpen(false); }}
                                 >
