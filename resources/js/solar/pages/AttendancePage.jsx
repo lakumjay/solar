@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {ClockAlert, ExternalLink, MapPin, Navigation, PencilLine, Plus, Radio, RefreshCw, Search, Smartphone, User, X} from 'lucide-react';
-import {api} from '../api';
+import {api, resolveMediaUrl} from '../api';
 import { getLanguage, t } from '../utils/translations';
 import {DatePicker, Empty, Field} from '../components/Common';
 
@@ -877,11 +877,11 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                             <div className="att-card-user">
                                                 <div
                                                     className="att-card-avatar"
-                                                    onClick={() => row.selfie_url && setSelfiePreview({url: row.selfie_url, employee: empName, date: row.attendance_date})}
+                                                    onClick={() => row.selfie_url && setSelfiePreview({url: resolveMediaUrl(row.selfie_url), employee: empName, date: row.attendance_date})}
                                                     style={{cursor: row.selfie_url ? 'pointer' : 'default'}}
                                                 >
                                                     {row.selfie_url ? (
-                                                        <img src={row.selfie_url} alt={empName} />
+                                                        <img src={resolveMediaUrl(row.selfie_url)} alt={empName} />
                                                     ) : (
                                                         <span>{empName.slice(0, 2).toUpperCase()}</span>
                                                     )}
@@ -900,13 +900,25 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                             </div>
 
                                             <div className="att-card-status-wrap">
-                                                <span className={`status ${row.status === 'present' ? 'on' : (isActiveShift ? 'on' : 'warning')}`}>
-                                                    {isActiveShift
-                                                        ? (currentLang === 'en' ? '🟢 Active' : '🟢 ચાલુ')
-                                                        : isMissingOut
-                                                        ? (currentLang === 'en' ? '⚠️ Missing Out' : '⚠️ Out બાકી')
-                                                        : (row.status || '').replaceAll('_', ' ')}
-                                                </span>
+                                                {(() => {
+                                                    const activeBrk = breaks.find(b => !b.ended_at);
+                                                    if (activeBrk) {
+                                                        return (
+                                                            <span className="status warning" style={{background: activeBrk.break_type === 'urgent_out' ? '#fee2e2' : '#fef3c7', color: activeBrk.break_type === 'urgent_out' ? '#b91c1c' : '#92400e'}}>
+                                                                {activeBrk.break_type === 'urgent_out' ? '🚨 અર્જન્ટ બહાર' : '☕ બ્રેક ચાલુ'}
+                                                            </span>
+                                                        );
+                                                    }
+                                                    return (
+                                                        <span className={`status ${row.status === 'present' ? 'on' : (isActiveShift ? 'on' : 'warning')}`}>
+                                                            {isActiveShift
+                                                                ? (currentLang === 'en' ? '🟢 Active' : '🟢 ચાલુ')
+                                                                : isMissingOut
+                                                                ? (currentLang === 'en' ? '⚠️ Missing Out' : '⚠️ Out બાકી')
+                                                                : (row.status || '').replaceAll('_', ' ')}
+                                                        </span>
+                                                    );
+                                                })()}
                                                 {canCorrect && (
                                                     <button
                                                         type="button"
@@ -950,27 +962,44 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                                     <button
                                                         type="button"
                                                         className="att-photo-chip"
-                                                        onClick={() => setSelfiePreview({url: row.selfie_url, employee: empName, date: row.attendance_date, title: currentLang === 'en' ? 'Time In Selfie' : 'આવવાનો સમય સેલ્ફી'})}
+                                                        onClick={() => setSelfiePreview({url: resolveMediaUrl(row.selfie_url), employee: empName, date: row.attendance_date, title: currentLang === 'en' ? 'Time In Selfie' : 'આવવાનો સમય સેલ્ફી'})}
                                                         title="Time In Selfie"
                                                     >
-                                                        <img src={row.selfie_url} alt="In" />
+                                                        <img src={resolveMediaUrl(row.selfie_url)} alt="In" />
                                                         <span>Selfie</span>
                                                     </button>
                                                 )}
+                                                {breaks.filter(b => b.out_selfie_url).map((b, idx) => (
+                                                    <button
+                                                        key={`out-${b.id}`}
+                                                        type="button"
+                                                        className="att-photo-chip"
+                                                        onClick={() => setSelfiePreview({
+                                                            url: resolveMediaUrl(b.out_selfie_url),
+                                                            employee: empName,
+                                                            date: row.attendance_date,
+                                                            title: `🚨 અર્જન્ટ બહાર સેલ્ફી ${idx + 1}${b.out_reason ? ` (${b.out_reason})` : ''}`
+                                                        })}
+                                                        title={b.out_reason || `Urgent Out ${idx + 1}`}
+                                                    >
+                                                        <img src={resolveMediaUrl(b.out_selfie_url)} alt="Out" />
+                                                        <span>Out {idx + 1}</span>
+                                                    </button>
+                                                ))}
                                                 {breaks.filter(b => b.return_selfie_url).map((b, idx) => (
                                                     <button
                                                         key={b.id}
                                                         type="button"
                                                         className="att-photo-chip"
                                                         onClick={() => setSelfiePreview({
-                                                            url: b.return_selfie_url,
+                                                            url: resolveMediaUrl(b.return_selfie_url),
                                                             employee: empName,
                                                             date: row.attendance_date,
                                                             title: `${currentLang === 'en' ? 'Break Return' : 'બ્રેક રિટર્ન'} ${idx + 1}`
                                                         })}
                                                         title={`Break ${idx + 1}`}
                                                     >
-                                                        <img src={b.return_selfie_url} alt="Break" />
+                                                        <img src={resolveMediaUrl(b.return_selfie_url)} alt="Break" />
                                                         <span>Break {idx + 1}</span>
                                                     </button>
                                                 ))}
@@ -1027,8 +1056,8 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                         return (
                                             <tr key={row.id}>
                                                 <td><b>{empName}</b><small>{empCode}</small>{row.entry_source === 'manager' && <i className="status warning">Manager entered</i>}</td>
-                                                <td>{row.selfie_url ? <button type="button" className="photo-preview-button" onClick={() => setSelfiePreview({url: row.selfie_url, employee: empName, date: row.attendance_date, title: currentLang === 'en' ? 'Time In Selfie' : 'આવવાનો સમય સેલ્ફી'})} title="Time In Selfie"><img className="selfie-thumb" src={row.selfie_url} alt={`${empName} Time In selfie`}/></button> : <small>Not provided — manager entry</small>}</td>
-                                                <td><span className="break-selfies">{breaks.filter(item => item.return_selfie_url).map((item, index) => <button key={item.id} type="button" className="photo-preview-button" onClick={() => setSelfiePreview({url: item.return_selfie_url, employee: empName, date: row.attendance_date, title: `${currentLang === 'en' ? 'Break Return' : 'બ્રેક રિટર્ન'} ${index + 1}`})} title={`Break ${index + 1} Selfie`}><img className="selfie-thumb" src={item.return_selfie_url} alt={`Break return ${index + 1}`}/></button>)}{!breaks.some(item => item.return_selfie_url) && '—'}</span></td>
+                                                <td>{row.selfie_url ? <button type="button" className="photo-preview-button" onClick={() => setSelfiePreview({url: resolveMediaUrl(row.selfie_url), employee: empName, date: row.attendance_date, title: currentLang === 'en' ? 'Time In Selfie' : 'આવવાનો સમય સેલ્ફી'})} title="Time In Selfie"><img className="selfie-thumb" src={resolveMediaUrl(row.selfie_url)} alt={`${empName} Time In selfie`}/></button> : <small>Not provided — manager entry</small>}</td>
+                                                <td><span className="break-selfies">{breaks.filter(item => item.return_selfie_url).map((item, index) => <button key={item.id} type="button" className="photo-preview-button" onClick={() => setSelfiePreview({url: resolveMediaUrl(item.return_selfie_url), employee: empName, date: row.attendance_date, title: `${currentLang === 'en' ? 'Break Return' : 'બ્રેક રિટર્ન'} ${index + 1}`})} title={`Break ${index + 1} Selfie`}><img className="selfie-thumb" src={resolveMediaUrl(item.return_selfie_url)} alt={`Break return ${index + 1}`}/></button>)}{!breaks.some(item => item.return_selfie_url) && '—'}</span></td>
                                                 <td>{displayTime(row.clock_in_at)}{row.is_late && <small className="danger-text">Late</small>}</td>
                                                 <td>{row.clock_out_at ? displayTime(row.clock_out_at) : (isToday ? <span className="status on" style={{fontSize: '11px', padding: '2px 7px'}}>{currentLang === 'en' ? '🟢 Active Shift' : '🟢 ચાલુ શિફ્ટ'}</span> : <span className="status warning" style={{fontSize: '11px', padding: '2px 7px'}}>{currentLang === 'en' ? '⚠️ Missing Time Out' : '⚠️ Time Out બાકી'}</span>)}</td>
                                                 <td>{(() => {

@@ -61,13 +61,33 @@ function SelfieModal({mode, onClose, onDone}) {
         return () => { alive = false; streamRef.current?.getTracks().forEach(track => track.stop()); };
     }, [cameraKey]);
 
+    useEffect(() => {
+        return () => {
+            if (preview) URL.revokeObjectURL(preview);
+        };
+    }, [preview]);
+
     const capture = () => {
         const video = videoRef.current;
         if (!video?.videoWidth) return setError('Camera is not ready yet.');
+        const maxDim = 1280;
+        let width = video.videoWidth;
+        let height = video.videoHeight;
+        if (width > maxDim || height > maxDim) {
+            const ratio = Math.min(maxDim / width, maxDim / height);
+            width = Math.round(width * ratio);
+            height = Math.round(height * ratio);
+        }
         const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0);
-        canvas.toBlob(blob => {setPhoto(blob); setPreview(URL.createObjectURL(blob)); streamRef.current?.getTracks().forEach(track => track.stop());}, 'image/jpeg', .86);
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(video, 0, 0, width, height);
+        canvas.toBlob(blob => {
+            if (!blob) return setError('કેમેરામાંથી ફોટો કેપ્ચર થઈ શક્યો નથી. ફરી પ્રયાસ કરો.');
+            setPhoto(blob);
+            setPreview(URL.createObjectURL(blob));
+            streamRef.current?.getTracks().forEach(track => track.stop());
+        }, 'image/jpeg', 0.84);
     };
 
     const submit = async () => {
@@ -88,7 +108,11 @@ function SelfieModal({mode, onClose, onDone}) {
             const endpoint = isTimeIn ? 'attendance/clock-in' : isUrgentOut ? 'attendance/break-in' : 'attendance/break-out';
             await api(endpoint, {method: 'POST', body});
             await onDone();
-        } catch (failure) { setError(failure.message); setBusy(false); }
+        } catch (failure) {
+            setError(failure.message);
+        } finally {
+            setBusy(false);
+        }
     };
 
     return <div className="modal-backdrop"><div className="modal camera-modal"><div className="panel-head"><div><h2>{isTimeIn ? 'Time In verification' : isUrgentOut ? '🚨 Urgent Out Verification (અર્જન્ટ બહાર)' : 'Break Out verification (પાછા ફર્યા)'}</h2><p>{isTimeIn ? 'Front-camera selfie is required to verify your attendance.' : isUrgentOut ? 'અર્જન્ટ કામ માટે બહાર જતી વખતે લાઈવ સેલ્ફી અને કારણ સબમિટ કરો.' : 'Capture a fresh front-camera selfie before returning to work.'}</p></div><button className="icon-button ghost" onClick={onClose}><X/></button></div>
@@ -200,7 +224,10 @@ export default function MyAttendancePage({companyId}) {
         setBusy(true);
         setMessage('');
         try {
-            await api('attendance/break-in', {method: 'POST'});
+            await api('attendance/break-in', {
+                method: 'POST',
+                body: JSON.stringify({break_type: 'regular'}),
+            });
             setMessage('Break started successfully.');
             await load();
         } catch (error) {
@@ -488,7 +515,48 @@ export default function MyAttendancePage({companyId}) {
                         </div>
                     )}
 
-                    {activeBreak && <div className="info-banner">Break out before completing your day.</div>}
+                    {activeBreak && (
+                        <div style={{
+                            background: '#fff1f2',
+                            border: '1.5px solid #fda4af',
+                            borderRadius: '10px',
+                            padding: '12px 14px',
+                            marginBottom: '14px',
+                            color: '#9f1239',
+                            fontSize: '12.5px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: '10px'
+                        }}>
+                            <span>
+                                <b>⚠️ {currentLang === 'en' ? 'Active Break in Progress:' : 'હાલમાં તમારો બ્રેક ચાલુ છે:'}</b>{' '}
+                                {currentLang === 'en'
+                                    ? 'Please complete your break with a return selfie before submitting Final Time Out.'
+                                    : 'Final Time Out કરતા પહેલાં સેલ્ફી લઈને બ્રેક પૂર્ણ (Break Out / Return) કરવો જરૂરી છે.'}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setBreakOutOpen(true)}
+                                style={{
+                                    background: '#e11d48',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    padding: '7px 12px',
+                                    borderRadius: '7px',
+                                    fontWeight: 700,
+                                    fontSize: '12px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <Camera size={14}/> {currentLang === 'en' ? 'End Break & Return' : '📸 અહીંથી બ્રેક પૂરો કરો'}
+                            </button>
+                        </div>
+                    )}
 
                     <div style={{marginBottom: '14px'}}>
                         <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px'}}>

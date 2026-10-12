@@ -35,13 +35,18 @@ class VoiceAgentController extends Controller
         // Fetch user permissions and allowed companies
         $systemPrompt = $this->buildSystemPrompt($user, 'gu', $liveSolarData);
 
+        $liveModel = env('GEMINI_LIVE_MODEL', 'gemini-2.5-flash-native-audio-latest');
+        if (empty($liveModel) || str_contains($liveModel, '2.0-flash-exp')) {
+            $liveModel = 'gemini-2.5-flash-native-audio-latest';
+        }
+
         return response()->json([
             'auth_token' => $apiKey,
             'apiKey' => $apiKey ?: 'solarflow_ready',
             'hasGeminiKey' => !empty($apiKey),
-            'model' => 'gemini-2.0-flash',
-            'liveModel' => env('GEMINI_LIVE_MODEL', 'gemini-2.0-flash-exp'),
-            'live_model' => env('GEMINI_LIVE_MODEL', 'gemini-2.0-flash-exp'),
+            'model' => 'gemini-2.5-flash',
+            'liveModel' => $liveModel,
+            'live_model' => $liveModel,
             'voice_name' => 'Aoede',
             'user' => [
                 'id' => $user?->id,

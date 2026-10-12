@@ -21,6 +21,21 @@ export function getApiBaseUrl() {
     return { apiHost, base };
 }
 
+export function resolveMediaUrl(url) {
+    if (!url || typeof url !== 'string') return url;
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
+        return url;
+    }
+    const { base } = getApiBaseUrl();
+    if (url.startsWith('/api/')) {
+        return `${base}${url.slice(5)}`;
+    }
+    if (url.startsWith('api/')) {
+        return `${base}${url.slice(4)}`;
+    }
+    return url;
+}
+
 export async function refreshCsrfToken() {
     const { apiHost, base } = getApiBaseUrl();
     try {

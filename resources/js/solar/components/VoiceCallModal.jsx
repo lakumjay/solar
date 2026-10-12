@@ -75,6 +75,9 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
     const wakeLockRef = useRef(null);
     const heartbeatRef = useRef(null);
     const hasConnectedRef = useRef(false);
+    const closeTimerRef = useRef(null);
+    const fallbackRecogRef = useRef(null);
+    const fallbackAudioRef = useRef(null);
 
     // Sync states to refs
     useEffect(() => {
@@ -138,31 +141,40 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         });
     }, []);
 
-    // End call cleanup
-    const endCall = useCallback(async () => {
+    // Internal session cleanup (does NOT close the modal, safe for Reconnect)
+    const cleanupSession = useCallback(async (stopGlobalMic = false) => {
         closingRef.current = true;
-        setCallState('ended');
 
-        // Play phone disconnect tone & vibration
-        try {
-            if (toneGenRef.current) {
-                toneGenRef.current.playDisconnectTone();
-            }
-        } catch(e) {}
-
-        // Auto close and return to dashboard after brief disconnect feedback
-        setTimeout(() => {
-            if (onClose) onClose();
-        }, 850);
+        if (closeTimerRef.current) {
+            clearTimeout(closeTimerRef.current);
+            closeTimerRef.current = null;
+        }
 
         if (heartbeatRef.current) {
             clearInterval(heartbeatRef.current);
             heartbeatRef.current = null;
         }
 
-        if (wakeLockRef.current) {
-            wakeLockRef.current.release().catch(() => {});
-            wakeLockRef.current = null;
+        try {
+            if (toneGenRef.current) {
+                toneGenRef.current.stopRingTone();
+            }
+        } catch (e) {}
+
+        if (fallbackRecogRef.current) {
+            try {
+                fallbackRecogRef.current.onend = null;
+                fallbackRecogRef.current.stop();
+            } catch (e) {}
+            fallbackRecogRef.current = null;
+        }
+
+        if (fallbackAudioRef.current) {
+            try {
+                fallbackAudioRef.current.pause();
+                fallbackAudioRef.current.src = '';
+            } catch (e) {}
+            fallbackAudioRef.current = null;
         }
 
         try {
@@ -184,24 +196,26 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
             micSourceRef.current = null;
         }
 
-        if (micStreamRef.current) {
-            try {
-                micStreamRef.current.getTracks().forEach(t => {
-                    t.stop();
-                    t.enabled = false;
-                });
-            } catch(e) {}
-            micStreamRef.current = null;
-        }
+        if (stopGlobalMic) {
+            if (micStreamRef.current) {
+                try {
+                    micStreamRef.current.getTracks().forEach(t => {
+                        t.stop();
+                        t.enabled = false;
+                    });
+                } catch(e) {}
+                micStreamRef.current = null;
+            }
 
-        if (globalMicStream) {
-            try {
-                globalMicStream.getTracks().forEach(t => {
-                    t.stop();
-                    t.enabled = false;
-                });
-            } catch(e) {}
-            globalMicStream = null;
+            if (globalMicStream) {
+                try {
+                    globalMicStream.getTracks().forEach(t => {
+                        t.stop();
+                        t.enabled = false;
+                    });
+                } catch(e) {}
+                globalMicStream = null;
+            }
         }
 
         if (micCtxRef.current && micCtxRef.current.state !== 'closed') {
@@ -220,7 +234,32 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         }
 
         setIsAiSpeaking(false);
-    }, [onClose]);
+    }, []);
+
+    // End call cleanup (closes the modal when user hangs up)
+    const endCall = useCallback(async () => {
+        closingRef.current = true;
+        setCallState('ended');
+
+        // Play phone disconnect tone & vibration
+        try {
+            if (toneGenRef.current) {
+                toneGenRef.current.playDisconnectTone();
+            }
+        } catch(e) {}
+
+        await cleanupSession(true);
+
+        if (wakeLockRef.current) {
+            wakeLockRef.current.release().catch(() => {});
+            wakeLockRef.current = null;
+        }
+
+        // Auto close and return to dashboard after brief disconnect feedback
+        closeTimerRef.current = setTimeout(() => {
+            if (onClose) onClose();
+        }, 650);
+    }, [cleanupSession, onClose]);
 
     // Handle Tool Execution (Solar Generation Units, Curtailment, Attendance, Revenue)
     const handleToolCall = async (call) => {
@@ -416,16 +455,15 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         };
         updateVolume();
 
-        // 5. Load AudioWorklet module (try root and relative paths)
+        // 5. Load AudioWorklet module (try relative and root paths)
         let workletLoaded = false;
         if (micCtx.audioWorklet) {
             try {
-                await micCtx.audioWorklet.addModule('/pcm-capture-worklet.js');
+                await micCtx.audioWorklet.addModule('pcm-capture-worklet.js');
                 workletLoaded = true;
             } catch (wErr) {
-                console.warn('Fallback loading relative pcm-capture-worklet.js', wErr);
                 try {
-                    await micCtx.audioWorklet.addModule('pcm-capture-worklet.js');
+                    await micCtx.audioWorklet.addModule('/pcm-capture-worklet.js');
                     workletLoaded = true;
                 } catch (wErr2) {
                     console.warn('Could not load worklet module, using ScriptProcessorNode:', wErr2);
@@ -488,6 +526,101 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         scriptNode.connect(micCtx.destination);
     };
 
+    // Speak text via backend neural TTS (used in Fallback Voice Mode)
+    const speakFallbackTts = useCallback(async (text, lang = 'gu') => {
+        if (!text || closingRef.current) return;
+        setIsAiSpeaking(true);
+        try {
+            const basePath = (typeof window !== 'undefined' && window.location.pathname.includes('/git/public'))
+                ? '/git/public/api/'
+                : '/api/';
+            const ttsUrl = `${basePath}voice-agent/tts?text=${encodeURIComponent(text)}&language=${encodeURIComponent(lang)}`;
+            await new Promise((resolve) => {
+                const audio = new Audio(ttsUrl);
+                fallbackAudioRef.current = audio;
+                audio.onended = () => {
+                    setIsAiSpeaking(false);
+                    resolve();
+                };
+                audio.onerror = () => {
+                    setIsAiSpeaking(false);
+                    resolve();
+                };
+                audio.play().catch(() => {
+                    setIsAiSpeaking(false);
+                    resolve();
+                });
+            });
+        } catch (_) {
+            setIsAiSpeaking(false);
+        }
+    }, []);
+
+    // Unbreakable Fallback Voice Call Mode (Web Speech API + /api/voice-agent/chat + /api/voice-agent/tts)
+    const startFallbackVoiceSession = useCallback(async () => {
+        try {
+            if (toneGenRef.current) toneGenRef.current.stopRingTone();
+        } catch (_) {}
+
+        setConnectionError(null);
+        setCallState('connected');
+        hasConnectedRef.current = true;
+        setTranscriptHistory([{ sender: 'ai', text: defaultGreeting }]);
+
+        await speakFallbackTts(defaultGreeting, 'gu');
+
+        const SpeechRecognition = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
+        if (!SpeechRecognition || closingRef.current) return;
+
+        const startListeningLoop = () => {
+            if (closingRef.current) return;
+            try {
+                const recog = new SpeechRecognition();
+                fallbackRecogRef.current = recog;
+                recog.lang = 'gu-IN';
+                recog.interimResults = false;
+                recog.maxAlternatives = 1;
+
+                recog.onresult = async (event) => {
+                    if (closingRef.current || isMutedRef.current || isAiSpeakingRef.current) return;
+                    const spoken = event.results?.[0]?.[0]?.transcript?.trim();
+                    if (!spoken) return;
+                    handleTranscript('user', spoken);
+                    try {
+                        const res = await api('voice-agent/chat', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                message: spoken,
+                                language: 'gu'
+                            })
+                        });
+                        const reply = res?.reply || 'હું સાંભળી રહી છું, આગળ બોલો.';
+                        handleTranscript('ai', reply);
+                        await speakFallbackTts(reply, res?.language || 'gu');
+                    } catch (err) {
+                        console.warn('[Fallback Chat Error]', err);
+                    }
+                };
+
+                recog.onend = () => {
+                    if (!closingRef.current) {
+                        setTimeout(startListeningLoop, 300);
+                    }
+                };
+
+                recog.onerror = () => {
+                    if (!closingRef.current) {
+                        setTimeout(startListeningLoop, 800);
+                    }
+                };
+
+                recog.start();
+            } catch (_) {}
+        };
+
+        startListeningLoop();
+    }, [defaultGreeting, handleTranscript, speakFallbackTts]);
+
     const startLiveSession = async () => {
         closingRef.current = false;
         hasConnectedRef.current = false;
@@ -527,7 +660,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
             const authToken = cfg?.auth_token || cfg?.apiKey;
             const systemInstruction = cfg?.system_instruction || cfg?.systemInstruction;
             const voiceName = cfg?.voice_name || 'Aoede';
-            const liveModel = cfg?.live_model || cfg?.liveModel || 'gemini-2.0-flash-exp';
+            const liveModel = cfg?.live_model || cfg?.liveModel || 'gemini-2.5-flash-native-audio-latest';
             const rawTools = cfg?.tools || [];
 
             // Ensure proper camelCase functionDeclarations for @google/genai SDK
@@ -535,16 +668,24 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                 functionDeclarations: t.functionDeclarations || t.function_declarations || []
             }));
 
+            // If Gemini API key is not configured on server, seamlessly switch to Server Chat + Neural TTS Voice Mode
             if (!authToken || authToken === 'solarflow_ready') {
-                throw new Error('Gemini API key is not configured in .env file.');
+                await startFallbackVoiceSession();
+                return;
             }
 
-            let targetModel = (liveModel || 'gemini-2.0-flash-exp').replace(/^models\//, '');
-            if (!targetModel || targetModel.includes('gemini-3.1-flash-live-preview') || targetModel.includes('gemini-3.8-live')) {
-                targetModel = 'gemini-2.0-flash-exp';
+            // Use gemini-2.5-flash-native-audio-latest which supports bidiGenerateContent + tools + live audio transcription
+            let targetModel = (liveModel || 'gemini-2.5-flash-native-audio-latest').replace(/^models\//, '');
+            if (
+                !targetModel ||
+                targetModel.includes('2.0-flash-exp') ||
+                targetModel.includes('gemini-3.1-flash-live-preview') ||
+                targetModel.includes('gemini-3.8-live')
+            ) {
+                targetModel = 'gemini-2.5-flash-native-audio-latest';
             }
 
-            // 3. Connect to Gemini Live via official SDK (modelled directly on telegram extenstion)
+            // 3. Connect to Gemini Live via official SDK
             const ai = new GoogleGenAI({
                 apiKey: authToken,
                 httpOptions: { apiVersion: 'v1alpha' }
@@ -577,7 +718,9 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                     onmessage: (msg) => handleLiveMessage(msg),
                     onerror: (e) => {
                         console.error('[Gemini Live Error]', e);
-                        setConnectionError(e?.message || 'Connection issue detected.');
+                        if (!closingRef.current) {
+                            setConnectionError(e?.message || 'Connection issue detected.');
+                        }
                     },
                     onclose: (e) => {
                         console.log('[Gemini Live onclose]', e);
@@ -585,7 +728,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                             try {
                                 if (toneGenRef.current) toneGenRef.current.stopRingTone();
                             } catch(err) {}
-                            setConnectionError('Call ended. Tap Reconnect to call again.');
+                            setConnectionError('કૉલ ડિસ્કનેક્ટ થયો છે. ફરી જોડવા માટે Reconnect દબાવો.');
                             setCallState('ended');
                         }
                     }
@@ -595,7 +738,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
             sessionRef.current = session;
             hasConnectedRef.current = true;
 
-            // 4. Start Microphone capture AFTER session is ready (EXACTLY like telegram extenstion)
+            // 4. Start Microphone capture AFTER session is ready
             await startMic();
 
             // Stop Ring tone
@@ -607,6 +750,14 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
 
             setCallState('connected');
             setTranscriptHistory([{ sender: 'ai', text: defaultGreeting }]);
+
+            // 5. Trigger initial greeting so SolarFlow AI speaks immediately when call connects
+            try {
+                session.sendClientContent({
+                    turns: [{ role: 'user', parts: [{ text: 'નમસ્તે' }] }],
+                    turnComplete: true
+                });
+            } catch (_) {}
         } catch (err) {
             console.error('Failed to start Live Session:', err);
             try {
@@ -626,7 +777,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
             startLiveSession();
         }
         return () => {
-            endCall();
+            cleanupSession(true);
         };
     }, [isOpen]);
 
@@ -640,11 +791,12 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         setIsMuted(!isMuted);
     };
 
-    const retryCall = () => {
-        endCall();
-        setTimeout(() => {
-            startLiveSession();
-        }, 400);
+    const retryCall = async () => {
+        await cleanupSession(false);
+        setCallDuration(0);
+        setConnectionError(null);
+        setMicPermissionError(null);
+        startLiveSession();
     };
 
     return (

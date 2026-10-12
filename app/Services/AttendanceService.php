@@ -391,8 +391,9 @@ class AttendanceService
             || $context['leave'] && $context['leave']->day_part !== 'full_day';
         $requiredMinutes = $halfEntitlement ? $employee->half_day_minutes : $employee->working_minutes;
         
-        // Grace period: allow 30 minutes grace on full day (e.g. 450 minutes = 7.5 hours qualifies as present)
-        $presentThreshold = max(240, $requiredMinutes - 30);
+        // Grace period: allow 30 minutes grace + up to 60 minutes regular lunch/tea break allowance on a full day
+        $breakAllowance = $halfEntitlement ? 0 : min(60, $breakMinutes);
+        $presentThreshold = max(240, $requiredMinutes - 30 - $breakAllowance);
         $halfDayThreshold = max(180, (int) round($employee->half_day_minutes * 0.85));
 
         $shiftEnd = Carbon::parse($record->attendance_date->toDateString().' '.$employee->shift_end);
