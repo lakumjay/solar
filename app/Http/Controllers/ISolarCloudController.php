@@ -249,7 +249,8 @@ class ISolarCloudController extends Controller
         } catch (\Throwable $e) {}
 
         try {
-            $activeEmergencyCall = \Illuminate\Support\Facades\Cache::get('active_emergency_call_super_admin');
+            $smartCallService = app(\App\Services\SmartVoiceCallAlertService::class);
+            $activeEmergencyCall = $smartCallService->evaluateAndGetActiveCallForUser($user, is_array($overview) ? $overview : null);
             if ($activeEmergencyCall && is_array($overview)) {
                 $overview['emergency_call'] = $activeEmergencyCall;
             }

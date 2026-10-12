@@ -98,11 +98,9 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         };
     }, []);
 
-    // 3. Fast emergency status check for Super Admin (Instant + 3s interval + tab focus)
+    // 3. Smart AI Voice Call check for all roles (Employees, Company Founders/Admins, Managers & Super Admin)
     useEffect(() => {
         if (!user) return;
-        const isSuperAdmin = user.role === 'super_admin' || user.role === 'superadmin' || user.name === 'Super Admin' || user.id === 4;
-        if (!isSuperAdmin) return;
 
         const checkEmergencyStatus = async () => {
             try {
@@ -120,8 +118,8 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         // Check immediately
         checkEmergencyStatus();
 
-        // High frequency poll during testing (every 3 seconds)
-        const interval = setInterval(checkEmergencyStatus, 3000);
+        // Poll every 12 seconds for incoming AI calls
+        const interval = setInterval(checkEmergencyStatus, 12000);
 
         const handleTabActive = () => {
             if (document.visibilityState === 'visible') {
@@ -499,15 +497,19 @@ export default function AppShell({user, page, setPage, companies, companyId, set
                 />
             )}
 
-            {/* 🚨 AI Emergency Incoming Call Fullscreen Modal */}
+            {/* 🚨 AI Incoming Voice Call Fullscreen Modal */}
             {emergencyCall.isOpen && (
                 <EmergencyIncomingCallModal
                     isOpen={emergencyCall.isOpen}
                     onClose={() => setEmergencyCall({ isOpen: false, autoAnswer: false, data: null })}
                     callData={emergencyCall.data}
                     autoAnswer={emergencyCall.autoAnswer}
-                    onNavigateLossAnalytics={() => {
-                        setPage('curtailment-loss');
+                    onNavigateLossAnalytics={(targetPage) => {
+                        if (targetPage) {
+                            setPage(targetPage);
+                        } else {
+                            setPage('curtailment-loss');
+                        }
                     }}
                 />
             )}

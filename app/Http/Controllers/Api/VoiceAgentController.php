@@ -56,7 +56,7 @@ class VoiceAgentController extends Controller
             ],
             'systemInstruction' => $systemPrompt,
             'system_instruction' => $systemPrompt,
-            'tools' => $this->getToolsDeclaration(),
+            'tools' => [],
         ]);
     }
 
@@ -172,7 +172,7 @@ class VoiceAgentController extends Controller
     }
 
     /**
-     * Check if there is an active emergency incoming call pending for Super Admin
+     * Check if there is an active AI incoming call pending for the current user (Super Admin, Company Founder, Manager, or Employee)
      */
     public function emergencyStatus(Request $request): JsonResponse
     {
@@ -180,24 +180,27 @@ class VoiceAgentController extends Controller
         if (! $user) {
             return response()->json(['active' => false]);
         }
-        $isSuperAdmin = ($user->role === 'super_admin' || $user->name === 'Super Admin' || $user->id === 4);
-        if (! $isSuperAdmin) {
-            return response()->json(['active' => false]);
-        }
 
-        $activeCall = \Illuminate\Support\Facades\Cache::get('active_emergency_call_super_admin');
+        $smartCallService = app(\App\Services\SmartVoiceCallAlertService::class);
+        $activeCall = $smartCallService->evaluateAndGetActiveCallForUser($user);
+
         return response()->json([
-            'active' => !empty($activeCall),
+            'active' => ! empty($activeCall),
             'call' => $activeCall,
         ]);
     }
 
     /**
-     * Dismiss active emergency call state
+     * Dismiss active AI call state for the current user
      */
     public function dismissEmergency(Request $request): JsonResponse
     {
-        \Illuminate\Support\Facades\Cache::forget('active_emergency_call_super_admin');
+        $user = $request->user();
+        if ($user) {
+            app(\App\Services\SmartVoiceCallAlertService::class)->dismissCallForUser($user);
+        } else {
+            \Illuminate\Support\Facades\Cache::forget('active_emergency_call_super_admin');
+        }
         return response()->json(['success' => true]);
     }
 
@@ -642,114 +645,238 @@ PROMPT;
 
     private function buildInstantContext($user, $liveSolarData = null): string
     {
-        $tariffRate = (float)env('SOLAR_PPA_TARIFF', 3.80);
-        $liveKw = (float)($liveSolarData['live_total_power_kw'] ?? $liveSolarData['realtime_power_kw'] ?? 0);
-        $todayKwh = (float)($liveSolarData['today_total_kwh'] ?? $liveSolarData['today_units_kwh'] ?? 0);
-        $yesterdayKwh = (float)($liveSolarData['yesterday_total_kwh'] ?? 0);
-        $curtailmentActive = !empty($liveSolarData['curtailment_active']) || !empty($liveSolarData['curtailment_system']['is_any_active']);
-        $todayRev = round($todayKwh * $tariffRate, 2);
+        $tariffRate = (float) env('SOLAR_PPA_TARIFF', 3.80);
+        $role = $user?->role ?? 'super_admin';
+        $scopedCompanyId = ($role !== 'super_admin' && ! empty($user?->company_id)) ? (int) $user->company_id : null;
+
+        $liveKw = (float) ($liveSolarData['live_total_power_kw'] ?? $liveSolarData['realtime_power_kw'] ?? 0);
+        $todayKwh = (float) ($liveSolarData['today_total_kwh'] ?? $liveSolarData['today_units_kwh'] ?? 0);
+        $yesterdayKwh = (float) ($liveSolarData['yesterday_total_kwh'] ?? 0);
+        $curtailmentActive = ! empty($liveSolarData['curtailment_active']) || ! empty($liveSolarData['curtailment_system']['is_any_active']);
 
         $invertersText = [];
-        $totalKw = 0;
+        $companyLiveText = [];
+        $totalKw = 0.0;
+        $totalTodayFromComp = 0.0;
         $activeInvs = 0;
 
-        if (!empty($liveSolarData['companies'])) {
+        if (! empty($liveSolarData['companies'])) {
             foreach ($liveSolarData['companies'] as $c) {
+                $cId = (int) ($c['company_id'] ?? 0);
+                if ($scopedCompanyId && $cId !== $scopedCompanyId) {
+                    continue;
+                }
                 $cName = $c['company_name'] ?? 'Company';
+                $cLiveKw = (float) ($c['total_live_kw'] ?? 0);
+                $cTodayKwh = (float) ($c['total_today_kwh'] ?? 0);
+                $cRev = round($cTodayKwh * $tariffRate, 2);
+                $totalTodayFromComp += $cTodayKwh;
+                $companyLiveText[] = "  * {$cName}: હાલનો લાઈવ પાવર {$cLiveKw} kW | આજના યુનિટ્સ {$cTodayKwh} kWh | આજની આવક ₹{$cRev}";
+
                 foreach ($c['inverters'] ?? [] as $inv) {
                     $iName = $inv['name'] ?? 'Inverter';
-                    $iKw = (float)($inv['live_kw'] ?? 0);
-                    $iToday = (float)($inv['today_kwh'] ?? 0);
-                    $isOnline = !empty($inv['online']);
+                    $iKw = (float) ($inv['live_kw'] ?? 0);
+                    $iToday = (float) ($inv['today_kwh'] ?? 0);
+                    $isOnline = ! empty($inv['online']);
                     if ($isOnline) {
                         $totalKw += $iKw;
                         $activeInvs++;
                     }
-                    $status = $isOnline ? 'ઓનલાઈન' : 'ઓફલાઈન';
-                    $invertersText[] = "  * {$iName} ({$cName}): લાઈવ પાવર {$iKw} kW (આજના: {$iToday} kWh, સ્થિતિ: {$status})";
+                    $status = $isOnline ? 'ઓનલાઈન (ચાલુ)' : 'ઓફલાઈન (બંધ)';
+                    $invertersText[] = "  * {$iName} ({$cName}): લાઈવ પાવર {$iKw} kW | આજના યુનિટ્સ: {$iToday} kWh | સ્થિતિ: {$status}";
                 }
             }
         }
 
-        // If overall liveKw wasn't set at top level but inverters had live power
         if ($liveKw <= 0 && $totalKw > 0) {
             $liveKw = round($totalKw, 2);
         }
-
-        $avgKw = $activeInvs > 0 ? round($totalKw / $activeInvs, 2) : 0;
-        $invertersListStr = !empty($invertersText) ? implode("\n", $invertersText) : "  * બધા ઇન્વર્ટર સામાન્ય રીતે કનેક્ટેડ છે.";
-
-        // Database Summary: Months & Revenue
-        $curMonth = (int)date('n');
-        $curYear = (int)date('Y');
-        $prevMonth = $curMonth > 1 ? $curMonth - 1 : 12;
-        $prevYear = $curMonth > 1 ? $curYear : $curYear - 1;
-
-        $curMonthReadings = \App\Models\DailyReading::whereYear('reading_date', $curYear)->whereMonth('reading_date', $curMonth)->get();
-        $curMonthGen = round($curMonthReadings->sum(fn($r) => $r->outputs->sum('generation')), 2);
-        $curMonthExp = (float)$curMonthReadings->sum('plant_export_unit');
-        $curMonthRev = round($curMonthExp * $tariffRate, 2);
-
-        $prevMonthReadings = \App\Models\DailyReading::whereYear('reading_date', $prevYear)->whereMonth('reading_date', $prevMonth)->get();
-        $prevMonthGen = round($prevMonthReadings->sum(fn($r) => $r->outputs->sum('generation')), 2);
-        $prevMonthExp = (float)$prevMonthReadings->sum('plant_export_unit');
-        $prevMonthRev = round($prevMonthExp * $tariffRate, 2);
-
-        $diffGen = round($curMonthGen - $prevMonthGen, 2);
-        $diffExp = round($curMonthExp - $prevMonthExp, 2);
-
-        // Employee Attendance
-        $employees = \App\Models\Employee::with([
-            'user',
-            'attendanceRecords' => fn($q) => $q->whereDate('attendance_date', today()),
-            'leaveRequests' => fn($q) => $q->where('status', 'approved')->orderByDesc('date_from'),
-        ])->where('active', true)->get();
-
-        $empText = [];
-        foreach ($employees as $emp) {
-            $name = $emp->user?->name ?? 'કર્મચારી';
-            $todayRec = $emp->attendanceRecords->first();
-            $clockIn = $todayRec && $todayRec->clock_in_at ? \Carbon\Carbon::parse($todayRec->clock_in_at)->format('h:i A') : null;
-            $leaveCount = $emp->leaveRequests->count();
-            $leaveDates = $emp->leaveRequests->pluck('date_from')->map(fn($d) => \Carbon\Carbon::parse($d)->format('d-m-Y'))->take(5)->implode(', ');
-            $arrivalText = $clockIn ? "આજે સવારે {$clockIn} વાગ્યે આવ્યા છે (હાજર)" : "આજે હજુ આવ્યા નથી (ગેરહાજર)";
-            $leaveText = $leaveCount > 0 ? "કુલ {$leaveCount} રજા લીધી ({$leaveDates} તારીખે)" : "૦ રજા લીધી છે";
-            $empText[] = "  * {$name}: {$arrivalText}. અત્યાર સુધી {$leaveText}.";
+        if ($todayKwh <= 0 && $totalTodayFromComp > 0) {
+            $todayKwh = round($totalTodayFromComp, 2);
         }
-        $empListStr = !empty($empText) ? implode("\n", $empText) : "  * બધા કર્મચારીઓ નિયમિત કામગીરી પર છે.";
+        $todayRev = round($todayKwh * $tariffRate, 2);
+        $avgKw = $activeInvs > 0 ? round($totalKw / $activeInvs, 2) : 0;
+        $companyLiveStr = ! empty($companyLiveText) ? implode("\n", $companyLiveText) : "  * તમામ પ્લાન્ટ કનેક્ટેડ છે.";
+        $invertersListStr = ! empty($invertersText) ? implode("\n", $invertersText) : "  * બધા ઇન્વર્ટર સામાન્ય રીતે કનેક્ટેડ છે.";
+
+        // Cache heavy DB aggregation for 45 seconds so config endpoint responds in <15ms
+        $cacheKey = 'voice_agent_instant_db_ctx_' . ($scopedCompanyId ?: 'all') . '_' . round($todayKwh);
+        $dbContextBlock = \Illuminate\Support\Facades\Cache::remember($cacheKey, 45, function () use ($scopedCompanyId, $tariffRate, $todayKwh) {
+            $monthNamesGu = [
+                1 => 'જાન્યુઆરી (Jan / મહિનો 1)',
+                2 => 'ફેબ્રુઆરી (Feb / મહિનો 2)',
+                3 => 'માર્ચ (Mar / મહિનો 3)',
+                4 => 'એપ્રિલ (Apr / મહિનો 4)',
+                5 => 'મે (May / મહિનો 5)',
+                6 => 'જૂન (Jun / મહિનો 6)',
+                7 => 'જુલાઈ (Jul / મહિનો 7)',
+                8 => 'ઓગસ્ટ (Aug / મહિનો 8)',
+                9 => 'સપ્ટેમ્બર (Sep / મહિનો 9)',
+                10 => 'ઓક્ટોબર (Oct / મહિનો 10)',
+                11 => 'નવેમ્બર (Nov / મહિનો 11)',
+                12 => 'ડિસેમ્બર (Dec / મહિનો 12)',
+            ];
+
+            $readingsQuery = \App\Models\DailyReading::with(['outputs', 'company:id,name'])
+                ->orderBy('reading_date', 'desc');
+            if ($scopedCompanyId) {
+                $readingsQuery->where('company_id', $scopedCompanyId);
+            }
+            $allReadings = $readingsQuery->get();
+
+            $curMonth = (int) date('n');
+            $curYear = (int) date('Y');
+
+            // Group readings by Month Number (1..12) across latest available year so asking "May month" always finds May data
+            $monthlyStats = [];
+            for ($m = 1; $m <= 12; $m++) {
+                $monthlyStats[$m] = [
+                    'gen' => 0.0,
+                    'exp' => 0.0,
+                    'imp' => 0.0,
+                    'days' => 0,
+                    'companies' => [],
+                ];
+            }
+
+            $dailyMap = [];
+            foreach ($allReadings as $r) {
+                $dStr = $r->reading_date ? \Carbon\Carbon::parse($r->reading_date)->toDateString() : null;
+                if (! $dStr) {
+                    continue;
+                }
+                $mNum = (int) substr($dStr, 5, 2);
+                $cName = $r->company?->name ?? 'Solar Plant';
+                $gen = (float) $r->outputs->sum('generation');
+                $exp = (float) $r->plant_export_unit;
+                $imp = (float) $r->plant_import_unit;
+                $effectiveUnits = $gen > 0 ? $gen : $exp;
+
+                $monthlyStats[$mNum]['gen'] += $effectiveUnits;
+                $monthlyStats[$mNum]['exp'] += $exp;
+                $monthlyStats[$mNum]['imp'] += $imp;
+                $monthlyStats[$mNum]['days'] += 1;
+
+                if (! isset($monthlyStats[$mNum]['companies'][$cName])) {
+                    $monthlyStats[$mNum]['companies'][$cName] = ['gen' => 0.0, 'exp' => 0.0];
+                }
+                $monthlyStats[$mNum]['companies'][$cName]['gen'] += $effectiveUnits;
+                $monthlyStats[$mNum]['companies'][$cName]['exp'] += $exp;
+
+                if (count($dailyMap) < 35 || isset($dailyMap[$dStr])) {
+                    if (! isset($dailyMap[$dStr])) {
+                        $dailyMap[$dStr] = ['gen' => 0.0, 'exp' => 0.0, 'by_comp' => []];
+                    }
+                    $dailyMap[$dStr]['gen'] += $effectiveUnits;
+                    $dailyMap[$dStr]['exp'] += $exp;
+                    $dailyMap[$dStr]['by_comp'][] = "{$cName}: " . round($effectiveUnits, 2) . " kWh";
+                }
+            }
+
+            // Current month total including today's live kWh if today's reading isn't saved yet
+            $todayDateStr = date('Y-m-d');
+            $curMonthDbUnits = round($monthlyStats[$curMonth]['gen'], 2);
+            $curMonthWithLiveUnits = isset($dailyMap[$todayDateStr])
+                ? $curMonthDbUnits
+                : round($curMonthDbUnits + $todayKwh, 2);
+
+            $monthLines = [];
+            for ($m = 1; $m <= 12; $m++) {
+                $mName = $monthNamesGu[$m];
+                $mGen = round($monthlyStats[$m]['gen'], 2);
+                $mExp = round($monthlyStats[$m]['exp'], 2);
+                $mRev = round(($mExp > 0 ? $mExp : $mGen) * $tariffRate, 2);
+
+                // Pre-calculate exact difference with current month AND with today's live units
+                $diffVsCurMonth = round($curMonthWithLiveUnits - $mGen, 2);
+                $diffVsTodayLive = round($todayKwh - $mGen, 2);
+
+                $compBreak = [];
+                foreach ($monthlyStats[$m]['companies'] as $cn => $cv) {
+                    $compBreak[] = "{$cn}: " . round($cv['gen'], 2) . " યુનિટ્સ (એક્સપોર્ટ: " . round($cv['exp'], 2) . ")";
+                }
+                $compBreakStr = ! empty($compBreak) ? ' [' . implode(' | ', $compBreak) . ']' : '';
+
+                $monthLines[] = "  * {$mName}: કુલ જનરેશન = {$mGen} યુનિટ્સ | એક્સપોર્ટ = {$mExp} યુનિટ્સ | આવક (@₹{$tariffRate}) = ₹{$mRev}{$compBreakStr} | (ચાલુ મહિના ({$curMonthWithLiveUnits}) સાથે તફાવત: {$diffVsCurMonth} યુનિટ્સ | આજના લાઈવ યુનિટ ({$todayKwh}) સાથે તફાવત: {$diffVsTodayLive} યુનિટ્સ)";
+            }
+            $allMonthsStr = implode("\n", $monthLines);
+
+            $dailyLines = [];
+            foreach (array_slice($dailyMap, 0, 25, true) as $dDate => $dInfo) {
+                $dGen = round($dInfo['gen'], 2);
+                $dExp = round($dInfo['exp'], 2);
+                $dRev = round(($dExp > 0 ? $dExp : $dGen) * $tariffRate, 2);
+                $cStr = implode(', ', $dInfo['by_comp']);
+                $dailyLines[] = "  * તારીખ {$dDate}: કુલ જનરેશન {$dGen} યુનિટ્સ | એક્સપોર્ટ {$dExp} યુનિટ્સ | આવક ₹{$dRev} ({$cStr})";
+            }
+            $recentDaysStr = ! empty($dailyLines) ? implode("\n", $dailyLines) : "  * દૈનિક રીડિંગ્સ ઉપલબ્ધ છે.";
+
+            // Shared Expenses Summary
+            $totalSharedExp = round((float) \App\Models\SharedExpense::where('status', 'active')->sum('amount'), 2);
+
+            // Employee Attendance & Leaves
+            $employees = \App\Models\Employee::with([
+                'user',
+                'attendanceRecords' => fn ($q) => $q->whereDate('attendance_date', today()),
+                'leaveRequests' => fn ($q) => $q->where('status', 'approved')->orderByDesc('date_from'),
+            ])->where('active', true)->get();
+
+            $empText = [];
+            foreach ($employees as $emp) {
+                $name = $emp->user?->name ?? 'કર્મચારી';
+                $todayRec = $emp->attendanceRecords->first();
+                $clockIn = $todayRec && $todayRec->clock_in_at ? \Carbon\Carbon::parse($todayRec->clock_in_at)->format('h:i A') : null;
+                $clockOut = $todayRec && $todayRec->clock_out_at ? \Carbon\Carbon::parse($todayRec->clock_out_at)->format('h:i A') : null;
+                $breakMins = (int) ($todayRec?->break_minutes ?? 0);
+                $leaveCount = $emp->leaveRequests->count();
+                $leaveDates = $emp->leaveRequests->pluck('date_from')->map(fn ($d) => \Carbon\Carbon::parse($d)->format('d-m-Y'))->take(5)->implode(', ');
+                $arrivalText = $clockIn
+                    ? ("આજે સવારે {$clockIn} વાગ્યે આવ્યા છે (હાજર)" . ($clockOut ? ", સાંજે {$clockOut} વાગ્યે લોગઆઉટ કર્યું" : ", હજુ ડ્યુટી પર ચાલુ છે") . ($breakMins > 0 ? ", બ્રેક: {$breakMins} મિનિટ" : ""))
+                    : "આજે હજુ આવ્યા નથી (ગેરહાજર / પંચ બાકી)";
+                $leaveText = $leaveCount > 0 ? "કુલ {$leaveCount} રજા લીધી ({$leaveDates} તારીખે)" : "૦ રજા લીધી છે";
+                $empText[] = "  * {$name}: {$arrivalText}. અત્યાર સુધી {$leaveText}.";
+            }
+            $empListStr = ! empty($empText) ? implode("\n", $empText) : "  * બધા કર્મચારીઓ નિયમિત કામગીરી પર છે.";
+
+            return <<<DBBLOCK
+૨. **આખા વર્ષના તમામ ૧૨ મહિનાના (જાન્યુઆરીથી ડિસેમ્બર) યુનિટ્સ, કંપની વાઈઝ હિસાબ અને તફાવત (PRE-CALCULATED 12-MONTH TABLE):**
+   - ચાલુ મહિનો ({$monthNamesGu[$curMonth]}): કુલ યુનિટ્સ (લાઈવ સાથે) = {$curMonthWithLiveUnits} kWh (ડેટાબેઝ સેવ: {$curMonthDbUnits} kWh)
+{$allMonthsStr}
+
+૩. **છેલ્લા દિવસોના તારીખ-વાઈઝ રોજેરોજના રીડિંગ્સ (RECENT DAILY READINGS):**
+{$recentDaysStr}
+
+૪. **કર્મચારીઓની આજની હાજરી, બ્રેક, લોગઆઉટ અને રજાઓ:**
+{$empListStr}
+
+૫. **શેર્ડ એક્સપેન્સ (કુલ ખર્ચ):** ₹{$totalSharedExp} રૂપિયા (કંપની ભાગ: 38.15%, 39.69%, 22.16%).
+DBBLOCK;
+        });
 
         $curtText = $curtailmentActive ? "ચેતવણી: PGVCL પાવર ઘટાડો (કર્ટલમેન્ટ) સક્રિય છે." : "કોઈ કર્ટલમેન્ટ નથી, પ્લાન્ટ ૧૦૦% ફુલ કેપેસિટીથી ચાલુ છે.";
 
         return <<<CTX
-## તમારા મગજમાં હાલનો તાજો ડેટાબેઝ અને લાઈવ ડેશબોર્ડ ડેટા (INSTANT LIVE MEMORY):
+## તમારા મગજમાં હાલનો તાજો ડેટાબેઝ અને લાઈવ ડેશબોર્ડ ડેટા (ZERO-WAIT INSTANT LIVE MEMORY):
 ૧. **આજનો લાઈવ સોલાર ડેટા (ડેશબોર્ડમાંથી સીધો લાઈવ):**
-   - હાલનો લાઈવ જનરેશન પાવર: {$liveKw} kW
+   - હાલનો કુલ લાઈવ જનરેશન પાવર: {$liveKw} kW
    - આજના લાઈવ ઉત્પાદન યુનિટ્સ: {$todayKwh} kWh
    - ગઈકાલના કુલ યુનિટ્સ: {$yesterdayKwh} kWh
    - ટેરિફ ગણતરી: ફિક્સ ₹{$tariffRate} પ્રતિ યુનિટ
    - આજના યુનિટની કમાણી: {$todayKwh} × ₹{$tariffRate} = ₹{$todayRev} રૂપિયા
    - સરેરાશ (Average) ઇન્વર્ટર પાવર: {$avgKw} kW (કુલ એક્ટિવ ઇન્વર્ટર: {$activeInvs})
    - PGVCL કર્ટલમેન્ટ સ્થિતિ: {$curtText}
-   - કંપની મુજબ ઇન્વર્ટર લાઈવ પાવર:
+   - કંપની મુજબ આજનો લાઈવ પાવર અને યુનિટ્સ:
+{$companyLiveStr}
+   - કંપની મુજબ દરેક ઇન્વર્ટરનો લાઈવ પાવર:
 {$invertersListStr}
 
-૨. **ડેટાબેઝમાંથી મહિનાઓની માહિતી અને રેવન્યુ (રૂપિયા @ ₹{$tariffRate}):**
-   - ચાલુ મહિનો ({$curMonth}/{$curYear}): જનરેશન = {$curMonthGen} યુનિટ્સ, એક્સપોર્ટ = {$curMonthExp} યુનિટ્સ, રેવન્યુ = ₹{$curMonthRev} રૂપિયા
-   - પાછલો મહિનો ({$prevMonth}/{$prevYear}): જનરેશન = {$prevMonthGen} યુનિટ્સ, એક્સપોર્ટ = {$prevMonthExp} યુનિટ્સ, રેવન્યુ = ₹{$prevMonthRev} રૂપિયા
-   - મહિના સરખામણી: ચાલુ મહિનામાં પાછલા મહિના કરતા એક્સપોર્ટમાં {$diffExp} યુનિટ્સનો ફેરફાર છે.
+{$dbContextBlock}
 
-૩. **કર્મચારીઓની આજની હાજરી અને રજાઓ:**
-{$empListStr}
-
-૪. **STRICT RULES FOR ULTRA-FAST ANSWERS & ANTI-HALLUCINATION:**
-   - ઉપરનો તમામ લાઈવ અને ડેટાબેઝ ડેટા તમારા મગજમાં પહેલેથી જ હાજર છે. જ્યારે યુઝર આજના યુનિટ્સ, લાઈવ પાવર, ઇન્વર્ટર ૧ નો પાવર, સરેરાશ પાવર, આ મહિનાના રૂપિયા, મહિનાઓની સરખામણી કે કર્મચારી હાજરી પૂછે:
-     તમારે કોઈપણ ટૂલ કોલ કર્યા વગર ૧ સેકન્ડમાં સીધો મોઢેથી જ સચોટ જવાબ આપવો!
-   - 🚫 **સખત મનાઈ (Zero Hallucination Rule):** દિવસે (સવારે ૭:૦૦ થી સાંજે ૬:૩૦ વચ્ચે) ક્યારેય એવું ન બોલવું કે "સૂરજ હજુ ઊગ્યો નથી" કે "તડકો નથી". જો કોઈ કારણસર લાઈવ પાવર ૦ kW દેખાય કે ડેટા ન મળે, તો પોતાની જાતે કોઈ પણ મનઘડંત કારણ કે હવામાનનું બહાનું ન કાઢવું! સ્પષ્ટ અને પ્રામાણિકતાથી કહેવું:
-     "હાલ ડેટા લોગર સિન્ક થઈ રહ્યો છે, જેથી લાઈવ ડેટા અપડેટ થવાનો બાકી છે." અથવા "મને આ વિગતનો હાલ ખ્યાલ નથી."
-   - જો યુઝર કોઈ એવી ચોક્કસ તારીખ પૂછે જેનો ડેટા ડેટાબેઝમાં નોંધાયેલો નથી (દા.ત. કર્મચારીએ એપમાં એન્ટ્રી ન કરી હોય):
-     તો કોઈપણ અંદાજ લગાવ્યા વગર સ્પષ્ટ અને પ્રામાણિકતાથી કહેવું:
-     "તમારા કર્મચારીએ આ તારીખનો ડેટા એપમાં હજી દાખલ (entry) નથી કર્યો, એટલે આ તારીખની વિગત ઉપલબ્ધ નથી."
-   - જો યુઝર કોઈ જૂની તારીખ પૂછે જે ઉપરના લિસ્ટમાં ન હોય, તો જ `get_generation_units` ટૂલ વાપરીને ડેટાબેઝમાંથી ચેક કરવું.
+૬. **STRICT RULES FOR 0.3-SECOND INSTANT ANSWERS (NO DATABASE WAIT TIME):**
+   - ઉપર બધા જ ૧૨ મહિનાના (મે મહિનો, જૂન, જુલાઈ, ઓગસ્ટ, સપ્ટેમ્બર, ઓક્ટોબર વગેરે) યુનિટ્સ, કંપની વાઈઝ યુનિટ્સ, ચાલુ મહિના સાથેનો તફાવત, આજના લાઈવ યુનિટ સાથેનો તફાવત, તારીખ વાઈઝ રીડિંગ્સ અને કર્મચારીઓની હાજરી પહેલેથી જ ગણતરી કરીને આપેલા છે!
+   - જ્યારે યુઝર કોઈપણ મહિનાના યુનિટ્સ (દા.ત. "મે મહિનાના યુનિટ્સ અને હાલના યુનિટ્સમાં કેટલો તફાવત છે?"), કોઈપણ કંપનીના યુનિટ્સ, કોઈપણ તારીખના યુનિટ્સ, કે ₹૩.૮૦ લેખે રૂપિયા પૂછે:
+     તમારે કોઈપણ રાહ જોયા વગર (Zero Wait) ઉપરના ટેબલમાંથી સીધો જ ૦.૩ સેકન્ડમાં ફટાફટ જવાબ આપવો!
+   - 🚫 **સખત મનાઈ (Zero Hallucination Rule):** દિવસે (સવારે ૭:૦૦ થી સાંજે ૬:૩૦ વચ્ચે) ક્યારેય એવું ન બોલવું કે "સૂરજ હજુ ઊગ્યો નથી" કે "તડકો નથી".
 CTX;
     }
 

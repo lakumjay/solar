@@ -153,15 +153,35 @@ export default function EmergencyIncomingCallModal({
         };
     }, []);
 
-    // Handle Incoming Ringing State
+    const faultType = callData?.fault_type || 'grid_66kv_tripping';
+    const isAttendanceCall = ['employee_missing_clock_in', 'attendance_pending_4pm', 'employee_logout_630pm', 'employee_logout_700pm'].includes(faultType);
+
+    // Handle Incoming Ringing State + Auto-Answer so AI speaks out loud automatically
     useEffect(() => {
+        // Preload neural TTS audio immediately so playback has zero buffering delay
+        try {
+            const preloadUrl = `${getApiBaseUrl().base}voice-agent/tts?text=${encodeURIComponent(speechText)}&language=gu`;
+            const preloadAudio = new Audio(preloadUrl);
+            preloadAudio.preload = 'auto';
+            preloadAudio.load();
+        } catch (_) {}
+
+        let autoAnswerTimer = null;
         if (callState === 'incoming') {
             startRingtone();
+            // Automatically connect after 2.2 seconds of ringing so AI speaks the Gujarati voice alert out loud
+            autoAnswerTimer = setTimeout(() => {
+                stopRingtone();
+                setCallState('connected');
+            }, 2200);
         } else {
             stopRingtone();
         }
-        return () => stopRingtone();
-    }, [callState]);
+        return () => {
+            if (autoAnswerTimer) clearTimeout(autoAnswerTimer);
+            stopRingtone();
+        };
+    }, [callState, speechText]);
 
     // Handle Connected Call: Timer and AI Voice Speech
     useEffect(() => {
@@ -173,7 +193,7 @@ export default function EmergencyIncomingCallModal({
                 setCallDuration(d => d + 1);
             }, 1000);
 
-            // Play AI Speech in Gujarati
+            // Play AI Speech in Gujarati out loud immediately
             playAiSpeech(speechText);
         } else {
             if (durationTimerRef.current) {
@@ -188,15 +208,14 @@ export default function EmergencyIncomingCallModal({
             }
             stopAiSpeech();
         };
-    }, [callState]);
+    }, [callState, speechText]);
 
     // Play Voice via Edge TTS API or Web SpeechSynthesis
     const playAiSpeech = (text) => {
+        if (!text) return;
         stopAiSpeech();
         setIsAiSpeaking(true);
         setSpeechAudioPlaying(true);
-
-        let ttsSuccess = false;
 
         // Try Backend Neural TTS first
         const ttsUrl = `${getApiBaseUrl().base}voice-agent/tts?text=${encodeURIComponent(text)}&language=gu`;
@@ -210,13 +229,10 @@ export default function EmergencyIncomingCallModal({
         };
 
         audio.onerror = () => {
-            // Fallback to browser SpeechSynthesis
             fallbackSpeechSynthesis(text);
         };
 
-        audio.play().then(() => {
-            ttsSuccess = true;
-        }).catch(() => {
+        audio.play().catch(() => {
             fallbackSpeechSynthesis(text);
         });
     };
@@ -227,6 +243,7 @@ export default function EmergencyIncomingCallModal({
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
                 const utter = new SpeechSynthesisUtterance(text);
+                utter.lang = 'gu-IN';
                 utter.rate = 0.95;
                 utter.pitch = 1.0;
 
@@ -277,6 +294,7 @@ export default function EmergencyIncomingCallModal({
     const handleAcceptCall = () => {
         stopRingtone();
         setCallState('connected');
+        playAiSpeech(speechText);
     };
 
     // Decline / End call
@@ -301,16 +319,15 @@ export default function EmergencyIncomingCallModal({
         return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     };
 
-    // Unlock iOS AudioContext on first touch / tap
+    // Unlock iOS/Android AudioContext on first touch / tap and ensure speech plays out loud
     const unlockAudioOnGesture = () => {
         try {
             if (callState === 'incoming') {
-                if (ringAudioRef.current && ringAudioRef.current.paused) {
-                    ringAudioRef.current.play().catch(() => {});
-                }
-                if (ringOscillatorCtxRef.current && ringOscillatorCtxRef.current.state === 'suspended') {
-                    ringOscillatorCtxRef.current.resume().catch(() => {});
-                }
+                stopRingtone();
+                setCallState('connected');
+                playAiSpeech(speechText);
+            } else if (callState === 'connected' && !speechAudioPlaying) {
+                playAiSpeech(speechText);
             }
         } catch (_) {}
     };
@@ -689,13 +706,13 @@ export default function EmergencyIncomingCallModal({
                                 <span>ઇજનેરને કૉલ કરો</span>
                             </a>
 
-                            {/* View Loss Analytics */}
+                            {/* Context-Aware Action Button (Attendance/Logout vs Loss Analytics) */}
                             <button
                                 type="button"
                                 onClick={() => {
                                     handleEndCall();
                                     if (typeof onNavigateLossAnalytics === 'function') {
-                                        onNavigateLossAnalytics();
+                                        onNavigateLossAnalytics(isAttendanceCall ? 'my-attendance' : 'curtailment-loss');
                                     }
                                 }}
                                 style={{
@@ -704,18 +721,18 @@ export default function EmergencyIncomingCallModal({
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     gap: '8px',
-                                    background: 'rgba(239, 68, 68, 0.2)',
-                                    border: '1px solid rgba(239, 68, 68, 0.4)',
+                                    background: isAttendanceCall ? 'rgba(34, 197, 94, 0.22)' : 'rgba(239, 68, 68, 0.2)',
+                                    border: isAttendanceCall ? '1px solid rgba(34, 197, 94, 0.45)' : '1px solid rgba(239, 68, 68, 0.4)',
                                     borderRadius: '14px',
                                     padding: '12px 14px',
-                                    color: '#fca5a5',
+                                    color: isAttendanceCall ? '#86efac' : '#fca5a5',
                                     fontSize: '13px',
                                     fontWeight: 700,
                                     cursor: 'pointer'
                                 }}
                             >
                                 <Zap size={15} />
-                                <span>લોસ એનાલિટિક્સ</span>
+                                <span>{isAttendanceCall ? 'હાજરી / લોગઆઉટ ખોલો' : 'લોસ એનાલિટિક્સ'}</span>
                             </button>
                         </div>
 

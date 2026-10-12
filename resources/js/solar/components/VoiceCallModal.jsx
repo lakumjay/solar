@@ -849,25 +849,36 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         startLiveSession();
     };
 
+    const livePowerKw = Number(liveSolarData?.totals?.curr_power_kw ?? 0);
+    const liveTodayKwh = Number(liveSolarData?.totals?.today_energy_kwh ?? 0);
+    const liveTodayRev = Math.round(liveTodayKwh * 3.8);
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/95 backdrop-blur-2xl animate-fadeIn">
-            {/* iPhone Frame Container */}
-            <div className="relative w-full h-full sm:h-[844px] sm:max-w-[390px] bg-gradient-to-b from-slate-900 via-neutral-950 to-black sm:rounded-[54px] sm:border-[8px] sm:border-neutral-800 shadow-2xl flex flex-col justify-between overflow-hidden text-white font-sans select-none sm:ring-1 sm:ring-neutral-700">
+            {/* Premium Call Frame Container */}
+            <div className="relative w-full h-full sm:h-[852px] sm:max-w-[400px] bg-gradient-to-b from-slate-950 via-[#090d16] to-black sm:rounded-[52px] sm:border-[7px] sm:border-slate-800/90 shadow-[0_0_80px_rgba(245,158,11,0.15)] flex flex-col justify-between overflow-hidden text-white font-sans select-none sm:ring-1 sm:ring-amber-500/20">
                 
-                {/* Dynamic Island / Top Notch Bar */}
-                <div className="w-full pt-3 pb-2 flex flex-col items-center z-20">
-                    <div className="w-36 h-6 bg-black rounded-full flex items-center justify-between px-3 border border-neutral-800/80 shadow-md">
-                        <div className={`w-2 h-2 rounded-full ${callState === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></div>
-                        <span className="text-[10px] text-neutral-400 font-medium tracking-tight">Gemini Live VAD</span>
-                        <div className="w-2.5 h-2.5 rounded-full border border-neutral-600 flex items-center justify-center">
-                            <div className="w-1 h-1 rounded-full bg-neutral-400"></div>
-                        </div>
+                {/* Ambient Background Glow */}
+                <div className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-80 h-80 rounded-full bg-amber-500/10 blur-3xl" />
+                <div className="pointer-events-none absolute bottom-20 left-1/2 -translate-x-1/2 w-72 h-72 rounded-full bg-emerald-500/5 blur-3xl" />
+
+                {/* Dynamic Island / Top Status Pill */}
+                <div className="w-full pt-3 pb-1.5 flex flex-col items-center z-20">
+                    <div className="px-4 h-7 bg-black/90 rounded-full flex items-center space-x-2.5 border border-slate-800 shadow-lg">
+                        <div className={`w-2 h-2 rounded-full ${callState === 'connected' ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
+                        <span className="text-[10px] text-amber-300 font-bold tracking-wider uppercase">
+                            ⚡ Zero-Wait 12M Memory
+                        </span>
+                        <span className="text-[10px] text-slate-500">•</span>
+                        <span className="text-[10px] text-emerald-400 font-mono font-semibold">
+                            {callState === 'connected' ? formatTime(callDuration) : 'LIVE'}
+                        </span>
                     </div>
                 </div>
 
                 {/* Error Banner on Display (if any) */}
                 {(micPermissionError || connectionError) && (
-                    <div className="mx-5 p-3.5 bg-red-950/90 border border-red-500/60 rounded-2xl text-xs text-red-200 flex flex-col space-y-2 z-20 shadow-lg shadow-red-950/50">
+                    <div className="mx-5 p-3 bg-red-950/90 border border-red-500/60 rounded-2xl text-xs text-red-200 flex flex-col space-y-2 z-20 shadow-lg shadow-red-950/50">
                         <div className="flex items-start space-x-2">
                             <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
                             <span className="text-[11px] leading-relaxed flex-1">{micPermissionError || connectionError}</span>
@@ -884,167 +895,202 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                     </div>
                 )}
 
-                {/* Contact Profile Header */}
-                <div className="flex flex-col items-center text-center mt-2 px-4 z-10">
-                    {/* Animated Avatar with Pulsing Waves */}
-                    <div className="relative flex items-center justify-center my-3">
+                {/* Contact Profile & Visualizer Header */}
+                <div className="flex flex-col items-center text-center mt-1 px-4 z-10">
+                    {/* Animated Avatar with Dual Aura Ring */}
+                    <div className="relative flex items-center justify-center my-2">
                         <div 
                             className={`absolute rounded-full transition-all duration-150 ${
                                 isAiSpeaking 
-                                    ? 'w-40 h-40 bg-gradient-to-tr from-amber-500 via-orange-500 to-yellow-500 opacity-40 blur-xl animate-pulse'
+                                    ? 'w-36 h-36 bg-gradient-to-tr from-amber-500 via-orange-500 to-yellow-400 opacity-45 blur-xl animate-pulse'
                                     : callState === 'connected' && !isMuted
-                                    ? 'w-36 h-36 bg-amber-500 opacity-25 blur-lg'
-                                    : 'w-32 h-32 bg-neutral-700 opacity-10'
+                                    ? 'w-32 h-32 bg-emerald-500 opacity-25 blur-lg'
+                                    : 'w-28 h-28 bg-slate-700 opacity-10'
                             }`}
                             style={{
-                                transform: isAiSpeaking ? 'scale(1.2)' : `scale(${1 + (audioLevel / 100) * 0.6})`
+                                transform: isAiSpeaking ? 'scale(1.18)' : `scale(${1 + (audioLevel / 100) * 0.5})`
                             }}
                         />
 
                         {/* SolarFlow Brand Sun Logo Circle */}
-                        <div className={`relative w-28 h-28 rounded-full p-1 bg-gradient-to-b from-amber-500/30 to-neutral-900 border-2 ${isAiSpeaking ? 'border-amber-400 shadow-lg shadow-amber-500/40' : 'border-amber-500/40'} shadow-2xl flex items-center justify-center`}>
-                            <div className="w-full h-full rounded-full bg-gradient-to-tr from-amber-950 via-neutral-900 to-yellow-950 flex items-center justify-center overflow-hidden border border-amber-500/20 shadow-inner">
-                                <Sun className={`w-14 h-14 text-amber-400 filter drop-shadow transition-transform duration-700 ${isAiSpeaking ? 'animate-spin-slow scale-110' : ''}`} />
+                        <div className={`relative w-24 h-24 rounded-full p-1 bg-gradient-to-b from-amber-500/40 via-slate-900 to-slate-950 border-2 ${isAiSpeaking ? 'border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.45)]' : 'border-amber-500/40'} shadow-2xl flex items-center justify-center`}>
+                            <div className="w-full h-full rounded-full bg-gradient-to-tr from-amber-950 via-slate-900 to-yellow-950 flex items-center justify-center overflow-hidden border border-amber-500/20 shadow-inner">
+                                <Sun className={`w-12 h-12 text-amber-400 filter drop-shadow transition-transform duration-700 ${isAiSpeaking ? 'animate-spin-slow scale-110' : ''}`} />
                             </div>
                         </div>
                     </div>
 
-                    {/* Caller Name */}
-                    <h2 className="text-2xl font-semibold tracking-tight text-white mt-1">
-                        SolarFlow AI
+                    {/* Caller Name & Active User */}
+                    <h2 className="text-xl font-bold tracking-tight text-white">
+                        SolarFlow AI <span className="text-amber-400 font-semibold text-sm">PRO</span>
                     </h2>
-                    <p className="text-xs text-neutral-400 mt-0.5">
-                        Solar Assistant • <span className="text-amber-400 font-medium">{displayName}</span>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                        Instant Solar & HR Brain • <span className="text-amber-300 font-semibold">{displayName}</span>
                     </p>
 
-                    {/* Call Status / Timer */}
-                    <p className="text-sm font-medium mt-1">
-                        {callState === 'connecting' ? (
-                            <span className="text-amber-400 animate-pulse font-medium">Connecting SolarFlow AI...</span>
-                        ) : callState === 'connected' ? (
-                            <span className="text-neutral-300 font-mono tracking-wider">{formatTime(callDuration)}</span>
-                        ) : (
-                            <span className="text-red-400">Call Ended</span>
-                        )}
-                    </p>
-
-                    {/* Live Speaking Status Pill & Mic Level Meter */}
-                    <div className="mt-2 flex flex-col items-center space-y-1">
-                        <div>
-                            {isAiSpeaking ? (
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                    <Volume2 className="w-3 h-3 mr-1.5 animate-bounce" />
-                                    SolarFlow Speaking (Aoede)...
-                                </span>
-                            ) : !isMuted && callState === 'connected' ? (
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
-                                    <Mic className="w-3 h-3 mr-1.5 animate-pulse" />
-                                    Listening (Live VAD)...
-                                </span>
-                            ) : isMuted ? (
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-neutral-800 text-neutral-400">
-                                    <MicOff className="w-3 h-3 mr-1.5" />
-                                    Muted
-                                </span>
-                            ) : null}
-                        </div>
-
-                        {/* On-Screen Mic Level Bar */}
-                        {!isMuted && callState === 'connected' && (
-                            <div className="w-24 h-1.5 bg-neutral-800 rounded-full overflow-hidden flex items-center px-0.5">
-                                <div 
-                                    className="h-1 bg-emerald-400 rounded-full transition-all duration-75"
-                                    style={{ width: `${Math.max(5, audioLevel)}%` }}
-                                ></div>
+                    {/* Live Solar Quick Telemetry Strip */}
+                    {liveSolarData?.totals && (
+                        <div className="mt-2.5 grid grid-cols-3 gap-1.5 w-full max-w-[340px] px-1">
+                            <div className="bg-slate-900/90 border border-slate-800 rounded-xl py-1.5 px-2 flex flex-col items-center">
+                                <span className="text-[9px] uppercase tracking-wider text-slate-400">Live Power</span>
+                                <span className="text-xs font-extrabold text-amber-400">{livePowerKw.toFixed(1)} kW</span>
                             </div>
+                            <div className="bg-slate-900/90 border border-slate-800 rounded-xl py-1.5 px-2 flex flex-col items-center">
+                                <span className="text-[9px] uppercase tracking-wider text-slate-400">Today Units</span>
+                                <span className="text-xs font-extrabold text-emerald-400">{liveTodayKwh.toFixed(0)} kWh</span>
+                            </div>
+                            <div className="bg-slate-900/90 border border-slate-800 rounded-xl py-1.5 px-2 flex flex-col items-center">
+                                <span className="text-[9px] uppercase tracking-wider text-slate-400">Today Rev</span>
+                                <span className="text-xs font-extrabold text-cyan-300">₹{liveTodayRev.toLocaleString('en-IN')}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Live Speaking Status Pill & Multi-Bar Equalizer */}
+                    <div className="mt-2.5 flex items-center space-x-2">
+                        {isAiSpeaking ? (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm">
+                                <Volume2 className="w-3.5 h-3.5 mr-1.5 animate-bounce" />
+                                SolarFlow બોલી રહ્યું છે...
+                            </span>
+                        ) : callState === 'connecting' ? (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 animate-pulse">
+                                <Sparkles className="w-3 h-3 mr-1.5" />
+                                હાઈ-સ્પીડ AI કનેક્ટ થઈ રહ્યું છે...
+                            </span>
+                        ) : !isMuted && callState === 'connected' ? (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                <Mic className="w-3 h-3 mr-1.5 animate-pulse" />
+                                સાંભળી રહ્યું છે (ગમે તે મહિનાના યુનિટ પૂછો)...
+                            </span>
+                        ) : isMuted ? (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-slate-800 text-slate-400">
+                                <MicOff className="w-3 h-3 mr-1.5" />
+                                માઈક મ્યૂટ છે
+                            </span>
+                        ) : (
+                            <span className="text-xs text-red-400 font-semibold">કૉલ પૂર્ણ થયો</span>
                         )}
                     </div>
+
+                    {/* Multi-bar Audio Waveform Equalizer */}
+                    {callState === 'connected' && !isMuted && (
+                        <div className="mt-2 flex items-end justify-center space-x-1 h-4">
+                            {[0.45, 0.85, 1.0, 0.7, 0.95, 0.6, 0.8, 0.5].map((mult, i) => {
+                                const activeHeight = isAiSpeaking
+                                    ? Math.max(4, Math.min(16, Math.round(6 + ((i % 3) + 1) * 3)))
+                                    : Math.max(3, Math.min(16, Math.round((audioLevel / 100) * 16 * mult)));
+                                return (
+                                    <span
+                                        key={i}
+                                        className={`w-1 rounded-full transition-all duration-75 ${
+                                            isAiSpeaking ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'
+                                        }`}
+                                        style={{ height: `${activeHeight}px` }}
+                                    />
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
 
                 {/* Tool Event Notification Bar */}
                 {lastToolEvent && (
-                    <div className="mx-6 px-3 py-2 bg-indigo-950/70 border border-indigo-500/40 rounded-xl text-[11px] text-indigo-200 flex items-center space-x-2 animate-bounce">
+                    <div className="mx-5 px-3 py-1.5 bg-indigo-950/80 border border-indigo-500/40 rounded-xl text-[11px] text-indigo-200 flex items-center space-x-2 animate-bounce">
                         <Sparkles className="w-3.5 h-3.5 text-indigo-300 flex-shrink-0" />
                         <span className="truncate">{lastToolEvent}</span>
                     </div>
                 )}
 
-                {/* Live Transcript Window */}
-                <div className="mx-6 my-2 p-3.5 bg-neutral-900/80 border border-neutral-800 rounded-2xl flex-1 overflow-y-auto space-y-2 text-xs font-sans shadow-inner max-h-[175px]">
+                {/* Modern Chat-Bubble Live Transcript Window */}
+                <div className="mx-4 my-2 p-3 bg-slate-900/75 border border-slate-800/90 rounded-2xl flex-1 overflow-y-auto space-y-2 text-xs font-sans shadow-inner max-h-[210px]">
                     {transcriptHistory.map((item, idx) => (
                         <div 
                             key={idx} 
-                            className={`flex space-x-1.5 leading-relaxed ${
-                                item.sender === 'user' ? 'text-emerald-400' : 'text-neutral-300'
+                            className={`flex flex-col ${
+                                item.sender === 'user' ? 'items-end' : 'items-start'
                             }`}
                         >
-                            <span className="font-semibold text-[11px] uppercase tracking-wider opacity-75 shrink-0">
-                                {item.sender === 'user' ? `${displayName}:` : 'SolarFlow:'}
-                            </span>
-                            <span>{item.text}</span>
+                            <div
+                                className={`max-w-[90%] rounded-2xl px-3 py-2 leading-relaxed ${
+                                    item.sender === 'user'
+                                        ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-200 rounded-br-sm'
+                                        : 'bg-slate-800/90 border border-slate-700/70 text-slate-100 rounded-bl-sm'
+                                }`}
+                            >
+                                <span className="block font-bold text-[10px] uppercase tracking-wider opacity-75 mb-0.5 text-amber-300">
+                                    {item.sender === 'user' ? displayName : 'SolarFlow AI'}
+                                </span>
+                                <span>{item.text}</span>
+                            </div>
                         </div>
                     ))}
                     {currentAiText && (
-                        <div className="text-pink-300 flex items-center space-x-1 animate-pulse">
-                            <span>{currentAiText}</span>
+                        <div className="flex items-start">
+                            <div className="max-w-[90%] rounded-2xl rounded-bl-sm px-3 py-2 bg-amber-500/15 border border-amber-500/30 text-amber-200 animate-pulse">
+                                <span className="block font-bold text-[10px] uppercase tracking-wider text-amber-300 mb-0.5">
+                                    SolarFlow AI
+                                </span>
+                                <span>{currentAiText}</span>
+                            </div>
                         </div>
                     )}
                     <div ref={transcriptEndRef} />
                 </div>
 
                 {/* In-Call Controls Grid */}
-                <div className="px-8 pb-8 pt-1 z-10 flex flex-col items-center">
-                    <div className="grid grid-cols-3 gap-x-8 gap-y-4 mb-5 w-full max-w-[280px]">
+                <div className="px-7 pb-6 pt-1 z-10 flex flex-col items-center">
+                    <div className="grid grid-cols-3 gap-x-7 gap-y-3 mb-4 w-full max-w-[270px]">
                         
                         {/* 1. Mute Button */}
                         <div className="flex flex-col items-center">
                             <button
                                 onClick={toggleMute}
-                                className={`w-16 h-16 rounded-full flex items-center justify-center transition active:scale-95 cursor-pointer ${
+                                className={`w-14 h-14 rounded-full flex items-center justify-center transition active:scale-95 cursor-pointer border ${
                                     isMuted 
-                                        ? 'bg-white text-black shadow-lg shadow-white/20' 
-                                        : 'bg-neutral-800/90 text-white hover:bg-neutral-700/90'
+                                        ? 'bg-white text-black border-white shadow-lg shadow-white/20' 
+                                        : 'bg-slate-800/90 text-white border-slate-700 hover:bg-slate-700'
                                     }`}
                             >
-                                {isMuted ? <MicOff className="w-7 h-7" /> : <Mic className="w-7 h-7" />}
+                                {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
                             </button>
-                            <span className="text-[11px] font-medium text-neutral-300 mt-1.5">
+                            <span className="text-[10px] font-medium text-slate-300 mt-1">
                                 {isMuted ? 'Unmute' : 'Mute'}
                             </span>
                         </div>
 
                         {/* 2. Speaker Indicator */}
                         <div className="flex flex-col items-center">
-                            <div className="w-16 h-16 rounded-full bg-neutral-800/90 text-white flex items-center justify-center">
-                                <Volume2 className="w-7 h-7 text-emerald-400" />
+                            <div className="w-14 h-14 rounded-full bg-slate-800/90 border border-slate-700 text-white flex items-center justify-center">
+                                <Volume2 className="w-6 h-6 text-emerald-400" />
                             </div>
-                            <span className="text-[11px] font-medium text-neutral-300 mt-1.5">HD Audio</span>
+                            <span className="text-[10px] font-medium text-slate-300 mt-1">HD Voice</span>
                         </div>
 
-                        {/* 3. Status Indicator */}
+                        {/* 3. Instant Speed Indicator */}
                         <div className="flex flex-col items-center">
-                            <div className="w-16 h-16 rounded-full bg-neutral-800/90 text-white flex items-center justify-center">
-                                <Zap className="w-7 h-7 text-amber-300" />
+                            <div className="w-14 h-14 rounded-full bg-amber-500/15 border border-amber-500/40 text-white flex items-center justify-center">
+                                <Zap className="w-6 h-6 text-amber-400" />
                             </div>
-                            <span className="text-[11px] font-medium text-neutral-300 mt-1.5">Live VAD</span>
+                            <span className="text-[10px] font-semibold text-amber-300 mt-1">0.3s Fast</span>
                         </div>
 
                     </div>
 
                     {/* Big Red End Call Button */}
-                    <div className="flex justify-center mt-1">
+                    <div className="flex justify-center">
                         {callState !== 'ended' ? (
                             <button
                                 onClick={endCall}
-                                className="w-20 h-20 rounded-full bg-red-600 hover:bg-red-500 active:scale-90 text-white flex items-center justify-center shadow-2xl shadow-red-600/50 transition cursor-pointer"
+                                className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 active:scale-90 text-white flex items-center justify-center shadow-2xl shadow-red-600/50 transition cursor-pointer"
                                 title="End Call"
                             >
-                                <PhoneOff className="w-9 h-9" />
+                                <PhoneOff className="w-8 h-8" />
                             </button>
                         ) : (
                             <button
                                 onClick={onClose}
-                                className="px-8 py-3 rounded-full bg-neutral-800 hover:bg-neutral-700 text-white text-sm font-semibold transition active:scale-95 cursor-pointer border border-neutral-700"
+                                className="px-8 py-3 rounded-full bg-slate-800 hover:bg-slate-700 text-white text-sm font-semibold transition active:scale-95 cursor-pointer border border-slate-700"
                             >
                                 Close Call
                             </button>
@@ -1052,12 +1098,13 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                     </div>
                 </div>
 
-                {/* iPhone Bottom Home Bar Indicator */}
+                {/* Bottom Home Bar Indicator */}
                 <div className="w-full flex justify-center pb-2 z-20">
-                    <div className="w-32 h-1 bg-neutral-600/60 rounded-full"></div>
+                    <div className="w-32 h-1 bg-slate-700/70 rounded-full"></div>
                 </div>
 
             </div>
         </div>
     );
 }
+
