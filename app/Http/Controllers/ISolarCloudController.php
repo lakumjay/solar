@@ -124,6 +124,8 @@ HTML
         $this->access->requireSuperAdmin($request);
 
         $request->validate([
+            'user_account' => ['nullable', 'string'],
+            'user_password' => ['nullable', 'string'],
             'code' => ['nullable', 'string'],
             'access_token' => ['nullable', 'string'],
             'refresh_token' => ['nullable', 'string'],
@@ -131,8 +133,27 @@ HTML
         ]);
 
         try {
+            if ($request->filled('user_account') && $request->filled('user_password')) {
+                $account = trim((string) $request->input('user_account'));
+                $password = (string) $request->input('user_password');
+                $this->solarCloud->saveAutoCredentials($account, $password);
+                $loginRes = $this->solarCloud->loginWithCredentials($account, $password);
+                \Illuminate\Support\Facades\Cache::forget('dashboard_solar_overview_all');
+
+                $this->activity->log($request->user(), null, 'updated', 'isolarcloud', 0, 'iSolarCloud 100% Auto-Login credentials saved', ['account' => $account]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => $loginRes
+                        ? '✅ Auto-Login સેવ થઈ ગયું અને નવું ટોકન જનરેટ થઈ ગયું!'
+                        : '✅ Auto-Login ID/Password સેવ થઈ ગયું! હવે બેકગ્રાઉન્ડમાં ઓટો-રીફ્રેશ ચાલુ રહેશે.',
+                    'status' => $this->solarCloud->getConnectionStatus(),
+                ]);
+            }
+
             if ($request->filled('code')) {
                 $result = $this->solarCloud->exchangeCode($request->input('code'));
+                \Illuminate\Support\Facades\Cache::forget('dashboard_solar_overview_all');
                 $this->activity->log($request->user(), null, 'connected', 'isolarcloud', 0, 'iSolarCloud OAuth connected via code', []);
                 return response()->json([
                     'success' => true,
@@ -148,6 +169,7 @@ HTML
                     'expires_in' => $request->input('expires_in') ?? 169400,
                     'token_type' => 'bearer',
                 ]);
+                \Illuminate\Support\Facades\Cache::forget('dashboard_solar_overview_all');
 
                 $this->activity->log($request->user(), null, 'updated', 'isolarcloud', 0, 'iSolarCloud manual token saved', []);
                 return response()->json([
@@ -157,7 +179,7 @@ HTML
                 ]);
             }
 
-            return response()->json(['error' => 'Please provide either a code or access_token.'], 422);
+            return response()->json(['error' => 'Please provide iSolarCloud login credentials, an authorization code, or an access_token.'], 422);
         } catch (Exception $e) {
             return response()->json(['error' => $e->getMessage()], 400);
         }

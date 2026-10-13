@@ -7,6 +7,8 @@ export default function ISolarCloudPage({company, companies, user}) {
     const [status, setStatus] = useState(null);
     const [loading, setLoading] = useState(true);
     const [message, setMessage] = useState(null);
+    const [autoAccount, setAutoAccount] = useState('');
+    const [autoPassword, setAutoPassword] = useState('');
     const [manualCode, setManualCode] = useState('');
     const [manualToken, setManualToken] = useState('');
     const [manualRefreshToken, setManualRefreshToken] = useState('');
@@ -20,6 +22,9 @@ export default function ISolarCloudPage({company, companies, user}) {
             setLoading(true);
             const data = await api('isolarcloud/status');
             setStatus(data);
+            if (data?.saved_account && !autoAccount) {
+                setAutoAccount(data.saved_account);
+            }
         } catch (err) {
             setMessage({type: 'error', text: err.message});
         } finally {
@@ -71,6 +76,10 @@ export default function ISolarCloudPage({company, companies, user}) {
         setMessage(null);
         try {
             const payload = {};
+            if (autoAccount.trim() && autoPassword.trim()) {
+                payload.user_account = autoAccount.trim();
+                payload.user_password = autoPassword.trim();
+            }
             if (manualCode.trim()) payload.code = manualCode.trim();
             if (manualToken.trim()) payload.access_token = manualToken.trim();
             if (manualRefreshToken.trim()) payload.refresh_token = manualRefreshToken.trim();
@@ -80,6 +89,7 @@ export default function ISolarCloudPage({company, companies, user}) {
                 body: JSON.stringify(payload),
             });
             setMessage({type: 'success', text: res.message || 'Token saved successfully!'});
+            setAutoPassword('');
             setManualCode('');
             setManualToken('');
             setManualRefreshToken('');
@@ -111,11 +121,11 @@ export default function ISolarCloudPage({company, companies, user}) {
             <section className="panel">
                 <div className="panel-head">
                     <div>
-                        <p className="step">SUNGROW OPENAPI</p>
+                        <p className="step">SUNGROW OPENAPI • 3-LAYER AUTO TOKEN</p>
                         <h2>iSolarCloud Connection Status</h2>
-                        <p>Authenticate with Sungrow OAuth 2.0 to sync daily generation readings directly.</p>
+                        <p>૧૦૦% ઓટોમેટિક ટોકન રીફ્રેશ (દર ૧ કલાકે) + ખોટા એલર્ટ કૉલ પ્રોટેક્શન સક્રિય છે.</p>
                     </div>
-                    <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
+                    <div style={{display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap'}}>
                         <button type="button" className="secondary" onClick={loadStatus} disabled={loading}>
                             <RefreshCw size={16} className={loading ? 'spin' : ''} /> Refresh Status
                         </button>
@@ -128,23 +138,28 @@ export default function ISolarCloudPage({company, companies, user}) {
                 <div className="form-grid" style={{marginTop: '16px'}}>
                     <div className="field">
                         <label>Status</label>
-                        <div>
+                        <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center'}}>
                             {status?.connected ? (
                                 <span className="status on" style={{display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px'}}>
-                                    <CheckCircle2 size={16}/> Connected & Ready
+                                    <CheckCircle2 size={16}/> Connected & Auto-Refresh Active
                                 </span>
                             ) : (
                                 <span className="status" style={{display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', background: '#fee2e2', color: '#991b1b'}}>
                                     <ShieldAlert size={16}/> {status?.is_expired ? 'Expired / Disconnected' : 'Not Connected'}
                                 </span>
                             )}
+                            {status?.auto_login_enabled && (
+                                <span className="status on" style={{display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', fontSize: '12px', background: '#ecfdf5', color: '#047857'}}>
+                                    ⚡ Auto-Login Backup: {status.saved_account}
+                                </span>
+                            )}
                         </div>
                     </div>
 
                     <div className="field">
-                        <label>Token Expiry</label>
+                        <label>Token Expiry & Keep-Alive</label>
                         <div style={{fontWeight: 600, paddingTop: '8px'}}>
-                            {status?.expires_in_human || 'No token active'}
+                            {status?.expires_in_human || 'No token active'} (Auto-renews every 1h)
                         </div>
                     </div>
 
@@ -240,18 +255,37 @@ export default function ISolarCloudPage({company, companies, user}) {
                 )}
             </section>
 
-            {/* Manual Token Exchange Form */}
+            {/* Auto-Login Credentials & Manual Token Exchange Form */}
             <section className="panel" style={{marginTop: '24px'}}>
                 <div className="panel-head">
                     <div>
-                        <p className="step">DIRECT TOKEN / CODE</p>
-                        <h2>Manual Token / Authorization Code</h2>
-                        <p>If testing on localhost or using Postman, you can paste the OAuth code or access token directly here.</p>
+                        <p className="step">PERMANENT AUTO-LOGIN & DIRECT TOKEN</p>
+                        <h2>⚡ 100% Auto-Login Backup & Manual Token</h2>
+                        <p>તમારા iSolarCloud ના User ID અને Password અહીં એકવાર સેવ કરી રાખવાથી ભવિષ્યમાં ટોકન ક્યારેય એક્સપાયર થાય તો પણ સિસ્ટમ આપમેળે નવું ટોકન બનાવી લેશે.</p>
                     </div>
                 </div>
 
                 <form onSubmit={handleSaveManual} style={{marginTop: '16px'}}>
                     <div className="form-grid">
+                        <div className="field">
+                            <label>iSolarCloud Account / Email (For 100% Auto-Login)</label>
+                            <input
+                                placeholder="e.g. your_isolarcloud_email@gmail.com"
+                                value={autoAccount}
+                                onChange={e => setAutoAccount(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="field">
+                            <label>iSolarCloud Password (Encrypted Backup)</label>
+                            <input
+                                type="password"
+                                placeholder="Enter iSolarCloud password"
+                                value={autoPassword}
+                                onChange={e => setAutoPassword(e.target.value)}
+                            />
+                        </div>
+
                         <div className="field">
                             <label>OAuth Authorization Code (from callback URL ?code=...)</label>
                             <input
@@ -278,8 +312,12 @@ export default function ISolarCloudPage({company, companies, user}) {
                     </div>
 
                     <div style={{marginTop: '16px', display: 'flex', justifyContent: 'flex-end'}}>
-                        <button type="submit" className="primary" disabled={submittingManual || (!manualCode.trim() && !manualToken.trim())}>
-                            <KeyRound size={16} /> Save Token / Exchange Code
+                        <button
+                            type="submit"
+                            className="primary"
+                            disabled={submittingManual || (! (autoAccount.trim() && autoPassword.trim()) && !manualCode.trim() && !manualToken.trim())}
+                        >
+                            <KeyRound size={16} /> Save Auto-Login / Token
                         </button>
                     </div>
                 </form>

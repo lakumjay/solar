@@ -20,7 +20,7 @@ Schedule::call(function () {
     } catch (\Throwable $e) {
         \Illuminate\Support\Facades\Log::warning('Scheduled iSolarCloud token keepalive failed: ' . $e->getMessage());
     }
-})->everySixHours()->name('isolarcloud-token-keepalive');
+})->hourly()->name('isolarcloud-token-keepalive');
 
 Schedule::call(function () {
     if (\Illuminate\Support\Facades\Schema::hasTable('employee_locations')) {

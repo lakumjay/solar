@@ -73,29 +73,67 @@ class ISolarCloudService
         return $json;
     }
 
-    public function refreshToken(?string $refreshToken = null): ?array
+    public function saveAutoCredentials(string $account, string $password): void
     {
-        $tokenRecord = ISolarCloudToken::latest()->first();
-        $refreshToken = $refreshToken
-            ?: $tokenRecord?->refresh_token
-            ?: ($tokenRecord?->raw_response['refresh_token'] ?? $tokenRecord?->raw_response['result_data']['refresh_token'] ?? null);
+        try {
+            $path = storage_path('app/isolarcloud_auto_credentials.json');
+            file_put_contents($path, json_encode([
+                'user_account' => trim($account),
+                'user_password_encrypted' => \Illuminate\Support\Facades\Crypt::encryptString($password),
+                'updated_at' => Carbon::now()->toIso8601String(),
+            ], JSON_PRETTY_PRINT));
+        } catch (\Throwable $e) {
+            Log::warning('Failed to save iSolarCloud auto credentials: ' . $e->getMessage());
+        }
+    }
 
-        if (! $refreshToken) {
+    public function getAutoCredentials(): ?array
+    {
+        try {
+            $path = storage_path('app/isolarcloud_auto_credentials.json');
+            if (file_exists($path)) {
+                $data = json_decode((string) file_get_contents($path), true);
+                if (! empty($data['user_account']) && ! empty($data['user_password_encrypted'])) {
+                    return [
+                        'user_account' => $data['user_account'],
+                        'user_password' => \Illuminate\Support\Facades\Crypt::decryptString($data['user_password_encrypted']),
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {
+            // Fallback to env if decryption fails
+        }
+
+        $envAccount = env('ISOLARCLOUD_USER_ACCOUNT');
+        $envPass = env('ISOLARCLOUD_USER_PASSWORD');
+        if (! empty($envAccount) && ! empty($envPass)) {
+            return [
+                'user_account' => $envAccount,
+                'user_password' => $envPass,
+            ];
+        }
+
+        return null;
+    }
+
+    public function loginWithCredentials(?string $account = null, ?string $password = null): ?array
+    {
+        if (! $account || ! $password) {
+            $saved = $this->getAutoCredentials();
+            $account = $account ?: ($saved['user_account'] ?? null);
+            $password = $password ?: ($saved['user_password'] ?? null);
+        }
+
+        if (empty($account) || empty($password)) {
             return null;
         }
 
-        // Restore refresh_token column if it was previously cleared
-        if ($tokenRecord && empty($tokenRecord->refresh_token)) {
-            $tokenRecord->update(['refresh_token' => $refreshToken]);
-        }
-
-        $url = rtrim(config('isolarcloud.base_url', 'https://gateway.isolarcloud.in'), '/') . '/openapi/apiManage/token?';
+        $url = rtrim(config('isolarcloud.base_url', 'https://gateway.isolarcloud.in'), '/') . '/openapi/login';
         $appKey = config('isolarcloud.app_key');
         $accessKey = config('isolarcloud.access_key');
         $sysCode = config('isolarcloud.sys_code', '901');
 
         if (empty($appKey) || empty($accessKey)) {
-            Log::warning('iSolarCloud refreshToken skipped: app_key or access_key missing');
             return null;
         }
 
@@ -107,22 +145,98 @@ class ISolarCloudService
 
         $payload = [
             'appkey' => $appKey,
-            'grant_type' => 'refresh_token',
-            'refresh_token' => $refreshToken,
+            'user_account' => trim($account),
+            'user_password' => $password,
         ];
 
-        $response = Http::withHeaders($headers)
-            ->timeout(20)
-            ->post($url, $payload);
+        try {
+            $response = Http::withHeaders($headers)->timeout(20)->post($url, $payload);
+            $json = $response->json() ?? [];
+            $resultData = $json['result_data'] ?? [];
+            $loginToken = $resultData['token'] ?? $json['access_token'] ?? $resultData['access_token'] ?? null;
 
-        $json = $response->json() ?? [];
-
-        if ($response->successful() && (! empty($json['access_token']) || ! empty($json['result_data']['access_token']))) {
-            $this->saveTokenData($json);
-            return $json;
+            if ($response->successful() && ! empty($loginToken) && ($resultData['login_state'] ?? '1') !== '-1') {
+                $this->saveTokenData([
+                    'access_token' => $loginToken,
+                    'refresh_token' => $resultData['refresh_token'] ?? $json['refresh_token'] ?? null,
+                    'expires_in' => (int) ($resultData['expires_in'] ?? 169400),
+                    'auth_user' => (string) ($resultData['user_id'] ?? $resultData['user_account'] ?? $account),
+                    'result_data' => $resultData,
+                ]);
+                return $json;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('iSolarCloud auto-login with credentials failed: ' . $e->getMessage());
         }
 
-        Log::warning('iSolarCloud refreshToken failed', ['response' => $json]);
+        return null;
+    }
+
+    public function refreshToken(?string $refreshToken = null): ?array
+    {
+        $url = rtrim(config('isolarcloud.base_url', 'https://gateway.isolarcloud.in'), '/') . '/openapi/apiManage/token?';
+        $appKey = config('isolarcloud.app_key');
+        $accessKey = config('isolarcloud.access_key');
+        $sysCode = config('isolarcloud.sys_code', '901');
+
+        if (empty($appKey) || empty($accessKey)) {
+            Log::warning('iSolarCloud refreshToken skipped: app_key or access_key missing');
+            return null;
+        }
+
+        // Gather candidate refresh tokens from recent records (newest first)
+        $candidates = [];
+        if (! empty($refreshToken)) {
+            $candidates[] = $refreshToken;
+        }
+
+        $recentRecords = ISolarCloudToken::latest()->limit(10)->get();
+        foreach ($recentRecords as $rec) {
+            $rt = $rec->refresh_token
+                ?: ($rec->raw_response['refresh_token'] ?? $rec->raw_response['result_data']['refresh_token'] ?? null);
+            if (! empty($rt) && ! in_array($rt, $candidates, true)) {
+                $candidates[] = $rt;
+            }
+        }
+
+        if (empty($candidates)) {
+            return $this->loginWithCredentials();
+        }
+
+        $headers = [
+            'Content-Type' => 'application/json',
+            'x-access-key' => $accessKey,
+            'sys_code' => (string) $sysCode,
+        ];
+
+        foreach ($candidates as $candidateRt) {
+            try {
+                $response = Http::withHeaders($headers)
+                    ->timeout(20)
+                    ->post($url, [
+                        'appkey' => $appKey,
+                        'grant_type' => 'refresh_token',
+                        'refresh_token' => $candidateRt,
+                    ]);
+
+                $json = $response->json() ?? [];
+
+                if ($response->successful() && (! empty($json['access_token']) || ! empty($json['result_data']['access_token']))) {
+                    $this->saveTokenData($json);
+                    return $json;
+                }
+            } catch (\Throwable $e) {
+                Log::warning('iSolarCloud candidate refreshToken error: ' . $e->getMessage());
+            }
+        }
+
+        // Layer 3 Fallback: If all refresh tokens failed, attempt automatic credential login
+        $autoLogged = $this->loginWithCredentials();
+        if ($autoLogged) {
+            return $autoLogged;
+        }
+
+        Log::warning('iSolarCloud refreshToken failed for all candidates');
 
         return null;
     }
@@ -130,7 +244,7 @@ class ISolarCloudService
     public function saveTokenData(array $data): ISolarCloudToken
     {
         $resultData = $data['result_data'] ?? [];
-        $accessToken = $data['access_token'] ?? $resultData['access_token'] ?? '';
+        $accessToken = $data['access_token'] ?? $resultData['access_token'] ?? $resultData['token'] ?? '';
         $refreshToken = $data['refresh_token'] ?? $resultData['refresh_token'] ?? $data['refreshToken'] ?? $resultData['refreshToken'] ?? null;
         
         // Preserve existing refresh token if new response did not include one
@@ -163,21 +277,26 @@ class ISolarCloudService
     {
         $token = ISolarCloudToken::latest()->first();
         if (! $token) {
-            return null;
+            if ($this->loginWithCredentials()) {
+                $token = ISolarCloudToken::latest()->first();
+            }
+            if (! $token) {
+                return null;
+            }
         }
 
         $effectiveRefreshToken = $token->refresh_token
             ?: ($token->raw_response['refresh_token'] ?? $token->raw_response['result_data']['refresh_token'] ?? null);
 
-        // Proactively refresh if token expires in less than 24 hours, or already expired
+        // Proactively refresh if token expires in less than 36 hours (out of 48h), or already expired
         $needsRefresh = ! $token->expires_at
-            || Carbon::now()->addHours(24)->gte($token->expires_at)
+            || Carbon::now()->addHours(36)->gte($token->expires_at)
             || $token->isExpired();
 
-        if ($needsRefresh && $effectiveRefreshToken) {
-            $cacheKey = 'isolarcloud_token_refresh_attempt_' . md5($effectiveRefreshToken);
+        if ($needsRefresh && ($effectiveRefreshToken || $this->getAutoCredentials())) {
+            $cacheKey = 'isolarcloud_token_refresh_attempt_' . md5((string) ($effectiveRefreshToken ?: 'auto_creds'));
             if (! Cache::has($cacheKey)) {
-                Cache::put($cacheKey, true, now()->addMinutes(5));
+                Cache::put($cacheKey, true, now()->addMinutes(3));
                 try {
                     $refreshed = $this->refreshToken($effectiveRefreshToken);
                     if ($refreshed) {
@@ -232,17 +351,20 @@ class ISolarCloudService
         if (! $response->successful() || ($json['error'] ?? null)) {
             $errorMsg = $json['error_description'] ?? $json['error'] ?? $json['message'] ?? 'Failed to get device real-time data.';
             if (($json['error'] ?? null) === 'invalid_token' || str_contains(strtolower($errorMsg), 'invalid access token')) {
-                // Attempt one token refresh and retry
+                // Attempt token refresh (or auto-login fallback) and retry
                 $tokenRecord = ISolarCloudToken::latest()->first();
                 $effectiveRefresh = $tokenRecord?->refresh_token
                     ?: ($tokenRecord?->raw_response['refresh_token'] ?? $tokenRecord?->raw_response['result_data']['refresh_token'] ?? null);
-                if ($effectiveRefresh && $this->refreshToken($effectiveRefresh)) {
-                    $newToken = $this->getValidToken();
-                    $headers['Authorization'] = 'Bearer ' . $newToken;
-                    $retryResponse = Http::withHeaders($headers)->timeout(25)->post($url, $payload);
-                    $retryJson = $retryResponse->json() ?? [];
-                    if ($retryResponse->successful() && ! ($retryJson['error'] ?? null)) {
-                        return $retryJson;
+                if ($this->refreshToken($effectiveRefresh)) {
+                    $newTokenRecord = ISolarCloudToken::latest()->first();
+                    $newToken = $newTokenRecord?->access_token;
+                    if ($newToken) {
+                        $headers['Authorization'] = 'Bearer ' . $newToken;
+                        $retryResponse = Http::withHeaders($headers)->timeout(25)->post($url, $payload);
+                        $retryJson = $retryResponse->json() ?? [];
+                        if ($retryResponse->successful() && ! ($retryJson['error'] ?? null)) {
+                            return $retryJson;
+                        }
                     }
                 }
                 // Both access_token and refresh_token were rejected by Sungrow (authorization revoked)
@@ -352,8 +474,12 @@ class ISolarCloudService
                 : 'Expires in ' . $token->expires_at->diffForHumans(null, true);
         }
 
+        $autoCreds = $this->getAutoCredentials();
+
         return [
             'connected' => (bool) $isConnected,
+            'auto_login_enabled' => ! empty($autoCreds['user_account']),
+            'saved_account' => $autoCreds['user_account'] ?? null,
             'app_key' => config('isolarcloud.app_key'),
             'access_key' => config('isolarcloud.access_key'),
             'redirect_uri' => config('isolarcloud.redirect_uri'),

@@ -43,6 +43,11 @@ class SmartVoiceCallAlertService
         if ($call) {
             // Auto-clear attendance/logout call if the employee already completed the action
             $faultType = $call['fault_type'] ?? '';
+            $isTelemetryLive = ! empty($liveOverview['live']) || ! empty($liveOverview['is_live']);
+            if (in_array($faultType, ['inverter_shutdown', 'grid_66kv_tripping'], true) && $liveOverview !== null && ! $isTelemetryLive) {
+                $this->dismissCallForUser($user);
+                return null;
+            }
             if (in_array($faultType, ['employee_missing_clock_in', 'attendance_pending_4pm', 'employee_logout_630pm', 'employee_logout_700pm'], true)) {
                 $emp = Employee::where('user_id', $user->id)->first();
                 if ($emp) {
@@ -93,9 +98,15 @@ class SmartVoiceCallAlertService
             $liveOverview = Cache::get('dashboard_solar_overview_all');
         }
 
+        // CRITICAL GUARD: Only evaluate Inverter / 66KV Grid calls if iSolarCloud live telemetry is 100% connected ($isTelemetryLive === true).
+        // If the iSolarCloud token is expired or disconnected, NEVER trigger false Inverter Shutdown calls to company founders!
+        $isTelemetryLive = ! empty($liveOverview['live']) || ! empty($liveOverview['is_live']);
+        $totalPlantOnline = (int) ($liveOverview['online_count'] ?? 0);
+
         // ── 1 & 2: Daytime Solar Inverter Shutdown & 66KV Grid Trip (07:45 AM to 17:45 PM) ──
-        if (! empty($liveOverview) && $hourFloat >= 7.75 && $hourFloat <= 17.75) {
-            $isGridDown = ! empty($liveOverview['grid_downtime_tracker']['is_down']);
+        if (! empty($liveOverview) && $isTelemetryLive && $hourFloat >= 7.75 && $hourFloat <= 17.75) {
+            $isGridDown = ! empty($liveOverview['grid_downtime_tracker']['is_down'])
+                || ! empty($liveOverview['smart_insights']['grid_downtime']['is_down']);
 
             if ($isGridDown) {
                 $gridLockKey = "ai_voice_call_grid_66kv_{$todayStr}_" . $now->format('H');
@@ -114,8 +125,8 @@ class SmartVoiceCallAlertService
                         ]);
                     }
                 }
-            } else {
-                // Check individual company inverter shutdown
+            } elseif ($totalPlantOnline > 0) {
+                // Check individual company inverter shutdown (only when at least 1 other inverter in plant is online)
                 foreach ($liveOverview['companies'] ?? [] as $compData) {
                     $compId = $compData['company_id'] ?? null;
                     $compName = $compData['company_name'] ?? 'Solar Plant';
