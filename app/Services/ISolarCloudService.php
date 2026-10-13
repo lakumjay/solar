@@ -73,16 +73,28 @@ class ISolarCloudService
     public function refreshToken(?string $refreshToken = null): ?array
     {
         $tokenRecord = ISolarCloudToken::latest()->first();
-        $refreshToken = $refreshToken ?: $tokenRecord?->refresh_token;
+        $refreshToken = $refreshToken
+            ?: $tokenRecord?->refresh_token
+            ?: ($tokenRecord?->raw_response['refresh_token'] ?? $tokenRecord?->raw_response['result_data']['refresh_token'] ?? null);
 
         if (! $refreshToken) {
             return null;
+        }
+
+        // Restore refresh_token column if it was previously cleared
+        if ($tokenRecord && empty($tokenRecord->refresh_token)) {
+            $tokenRecord->update(['refresh_token' => $refreshToken]);
         }
 
         $url = rtrim(config('isolarcloud.base_url', 'https://gateway.isolarcloud.in'), '/') . '/openapi/apiManage/token?';
         $appKey = config('isolarcloud.app_key');
         $accessKey = config('isolarcloud.access_key');
         $sysCode = config('isolarcloud.sys_code', '901');
+
+        if (empty($appKey) || empty($accessKey)) {
+            Log::warning('iSolarCloud refreshToken skipped: app_key or access_key missing');
+            return null;
+        }
 
         $headers = [
             'Content-Type' => 'application/json',
@@ -109,12 +121,6 @@ class ISolarCloudService
 
         Log::warning('iSolarCloud refreshToken failed', ['response' => $json]);
 
-        // If the refresh token is invalid or rejected by Sungrow, nullify it to avoid repeated failing requests
-        $errorMsg = strtolower(($json['result_msg'] ?? '') . ' ' . ($json['error_description'] ?? '') . ' ' . ($json['error'] ?? ''));
-        if (str_contains($errorMsg, 'invalid') || str_contains($errorMsg, 'invalid_grant') || str_contains($errorMsg, 'expired')) {
-            ISolarCloudToken::where('refresh_token', $refreshToken)->update(['refresh_token' => null]);
-        }
-
         return null;
     }
 
@@ -127,7 +133,8 @@ class ISolarCloudService
         // Preserve existing refresh token if new response did not include one
         if (! $refreshToken) {
             $lastToken = ISolarCloudToken::latest()->first();
-            $refreshToken = $lastToken?->refresh_token;
+            $refreshToken = $lastToken?->refresh_token
+                ?: ($lastToken?->raw_response['refresh_token'] ?? $lastToken?->raw_response['result_data']['refresh_token'] ?? null);
         }
 
         $tokenType = $data['token_type'] ?? $resultData['token_type'] ?? 'bearer';
@@ -156,17 +163,20 @@ class ISolarCloudService
             return null;
         }
 
+        $effectiveRefreshToken = $token->refresh_token
+            ?: ($token->raw_response['refresh_token'] ?? $token->raw_response['result_data']['refresh_token'] ?? null);
+
         // Proactively refresh if token expires in less than 24 hours, or already expired
         $needsRefresh = ! $token->expires_at
             || Carbon::now()->addHours(24)->gte($token->expires_at)
             || $token->isExpired();
 
-        if ($needsRefresh && $token->refresh_token) {
-            $cacheKey = 'isolarcloud_token_refresh_attempt_' . md5($token->refresh_token);
+        if ($needsRefresh && $effectiveRefreshToken) {
+            $cacheKey = 'isolarcloud_token_refresh_attempt_' . md5($effectiveRefreshToken);
             if (! Cache::has($cacheKey)) {
-                Cache::put($cacheKey, true, now()->addMinutes(10));
+                Cache::put($cacheKey, true, now()->addMinutes(5));
                 try {
-                    $refreshed = $this->refreshToken($token->refresh_token);
+                    $refreshed = $this->refreshToken($effectiveRefreshToken);
                     if ($refreshed) {
                         $token = ISolarCloudToken::latest()->first();
                     }
@@ -221,7 +231,9 @@ class ISolarCloudService
             if (($json['error'] ?? null) === 'invalid_token') {
                 // Attempt one token refresh and retry
                 $tokenRecord = ISolarCloudToken::latest()->first();
-                if ($tokenRecord?->refresh_token && $this->refreshToken($tokenRecord->refresh_token)) {
+                $effectiveRefresh = $tokenRecord?->refresh_token
+                    ?: ($tokenRecord?->raw_response['refresh_token'] ?? $tokenRecord?->raw_response['result_data']['refresh_token'] ?? null);
+                if ($effectiveRefresh && $this->refreshToken($effectiveRefresh)) {
                     $newToken = $this->getValidToken();
                     $headers['Authorization'] = 'Bearer ' . $newToken;
                     $retryResponse = Http::withHeaders($headers)->timeout(25)->post($url, $payload);
@@ -309,6 +321,7 @@ class ISolarCloudService
 
     public function getConnectionStatus(): array
     {
+        $this->getValidToken();
         $token = ISolarCloudToken::latest()->first();
         $isConnected = $token && ! $token->isExpired();
 

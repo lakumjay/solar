@@ -2991,6 +2991,30 @@ export default function MobileAppView({
                                     {currentLang === 'en' ? 'Company Unit Loss' : 'કંપની વાઇઝ લોસ હિસાબ'}
                                 </div>
                             </button>
+
+                            {/* 12. iSolarCloud Live OAuth Connection (Super Admin) */}
+                            {isSuperAdmin && (
+                                <button
+                                    type="button"
+                                    className="dmenu-card"
+                                    onClick={() => { setPage('isolarcloud'); setMoreMenuOpen(false); }}
+                                >
+                                    <div className="dmenu-card-top">
+                                        <div className="dmenu-bubble" style={{background: '#ecfdf5', color: '#16a34a', border: '1px solid #bbf7d0'}}>
+                                            <Cloud size={19}/>
+                                        </div>
+                                        <span className="dmenu-badge" style={{background: '#dcfce7', color: '#15803d'}}>
+                                            Sungrow
+                                        </span>
+                                    </div>
+                                    <div className="dmenu-card-title">
+                                        iSolarCloud Sync
+                                    </div>
+                                    <div className="dmenu-card-sub">
+                                        {currentLang === 'en' ? 'OAuth & Token Status' : 'કનેક્શન અને ટોકન સેટિંગ્સ'}
+                                    </div>
+                                </button>
+                            )}
                         </div>
 
                         <div className="drawer-footer-actions">

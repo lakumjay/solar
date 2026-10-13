@@ -26,7 +26,10 @@ use App\Http\Controllers\StockItemController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
+Route::get('/', function (\Illuminate\Http\Request $request) {
+    if ($request->filled('code')) {
+        return app(ISolarCloudController::class)->callback($request);
+    }
     return view('welcome');
 })->name('login');
 
@@ -34,9 +37,11 @@ Route::get('/login', function () {
     return redirect('/');
 });
 
+Route::match(['get', 'post'], '/callback', [ISolarCloudController::class, 'callback'])->name('isolarcloud.callback');
+
 Route::prefix('api')->group(function () {
     Route::get('csrf-token', fn () => response()->json(['csrf_token' => csrf_token()]));
-    Route::get('isolarcloud/callback', [ISolarCloudController::class, 'callback']);
+    Route::match(['get', 'post'], 'isolarcloud/callback', [ISolarCloudController::class, 'callback']);
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
     Route::middleware('auth')->group(function () {
         Route::match(['get', 'post'], 'voice-agent/tts', [\App\Http\Controllers\Api\VoiceAgentController::class, 'tts']);

@@ -15,6 +15,14 @@ Schedule::command('attendance:auto-close-daily')->dailyAt('23:55');
 Schedule::command('solar:check-ai-voice-calls')->everyMinute();
 
 Schedule::call(function () {
+    try {
+        app(\App\Services\ISolarCloudService::class)->getValidToken();
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::warning('Scheduled iSolarCloud token keepalive failed: ' . $e->getMessage());
+    }
+})->everySixHours()->name('isolarcloud-token-keepalive');
+
+Schedule::call(function () {
     if (\Illuminate\Support\Facades\Schema::hasTable('employee_locations')) {
         \Illuminate\Support\Facades\DB::table('employee_locations')
             ->where('recorded_at', '<', now()->subDays(7))
