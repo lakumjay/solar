@@ -331,7 +331,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
     ].filter(Boolean);
     const titles = {
         dashboard: ['Live Solar Generation & Real-Time Flow', companyId === 'all' ? 'All Companies Live Sync' : activeCompany?.name],
-        entry: ['Daily reading entry', activeCompany?.name],
+        entry: ['Daily reading entry', activeCompany?.name || 'All Plants Daily Entry'],
         reports: ['Reports', companyId === 'all' ? 'All companies combined' : activeCompany?.name],
         gallery: ['Plant Photo Gallery', 'Daily scheduled inspection records and photo log'],
         reels: ['Plant Solar Reels', 'Cinematic video hub with auto slow-mo, trending beats & Instagram share'],
@@ -362,7 +362,6 @@ export default function AppShell({user, page, setPage, companies, companyId, set
     }, [navigationKey, page, setPage, user.role]);
 
     const choosePage = key => {
-        if (key === 'entry' && companyId === 'all' && companies[0]) setCompanyId(String(companies[0].id));
         setPage(key);
         setMenuOpen(false);
     };
@@ -524,7 +523,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
                                     <Phone size={17} className="animate-pulse" />
                                 </button>
 
-                                {((user.role === 'super_admin' && ['dashboard', 'reports', 'entry', 'activity'].includes(page)) || (!user.company_id && ['dashboard', 'reports', 'entry', 'activity', 'stock'].includes(page)) || (user.role === 'employee' && page === 'entry')) && <label className="company-switch"><span>Company</span><select value={companyId} onChange={event => setCompanyId(event.target.value)}>{page !== 'entry' && <option value="all">All Companies</option>}{companies.map(company => <option value={company.id} key={company.id}>{company.name}</option>)}</select></label>}
+                                {((user.role === 'super_admin' && ['dashboard', 'reports', 'activity'].includes(page)) || (!user.company_id && ['dashboard', 'reports', 'activity', 'stock'].includes(page))) && <label className="company-switch"><span>Company</span><select value={companyId} onChange={event => setCompanyId(event.target.value)}><option value="all">All Companies</option>{companies.map(company => <option value={company.id} key={company.id}>{company.name}</option>)}</select></label>}
                             </div>
                         </header>
                         {children({can, activeCompany})}

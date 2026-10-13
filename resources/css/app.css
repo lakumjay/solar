@@ -7246,6 +7246,181 @@ button:active, .mqa-btn:active, .bnav-item:active, .bento-card:active {
     max-height: 290px;
 }
 
+/* Fix all textareas in Clock-Out card & Employee Self-Service */
+.employee-self textarea,
+.clockout-card textarea,
+.modal textarea {
+    display: block !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    box-sizing: border-box !important;
+    border: 1.5px solid #cbd5e1 !important;
+    border-radius: 10px !important;
+    padding: 11px 14px !important;
+    background: #f8fafc !important;
+    color: #0f172a !important;
+    font-size: 13.5px !important;
+    line-height: 1.5 !important;
+    outline: none !important;
+    resize: vertical !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease !important;
+}
+
+.employee-self textarea:focus,
+.clockout-card textarea:focus,
+.modal textarea:focus {
+    background: #ffffff !important;
+    border-color: #16a34a !important;
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.14) !important;
+}
+
+.employee-self textarea::placeholder,
+.clockout-card textarea::placeholder {
+    color: #94a3b8 !important;
+}
+
+.clockout-card {
+    max-width: 100% !important;
+    border: 1.5px solid #bbf7d0 !important;
+    box-shadow: 0 8px 24px rgba(15, 41, 30, 0.05) !important;
+}
+
+/* Attendance KPI Summary Grid */
+.att-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.att-kpi-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.att-kpi-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+}
+
+.att-kpi-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+}
+
+.att-kpi-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.att-kpi-info small {
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.att-kpi-info strong {
+    font-size: 18px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.25;
+}
+
+.att-kpi-info span {
+    font-size: 11px;
+    color: #475569;
+    font-weight: 600;
+}
+
+/* Recent Attendance Enhanced Badges */
+.att-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: capitalize;
+    white-space: nowrap;
+}
+
+.att-status-pill.full_day {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #86efac;
+}
+
+.att-status-pill.half_day {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
+}
+
+.att-status-pill.working {
+    background: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #93c5fd;
+}
+
+.att-status-pill.missing {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+}
+
+.att-time-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.att-time-badge.in {
+    background: #f0fdf4;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+}
+
+.att-time-badge.out {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+}
+
+.att-time-badge.missing {
+    background: #fff1f2;
+    color: #be123c;
+    border: 1px solid #fecdd3;
+}
+
+.att-mobile-list {
+    display: none;
+}
+
+@media (max-width: 960px) {
+    .att-kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
 @media (max-width: 768px) {
     .self-grid {
         grid-template-columns: 1fr !important;
@@ -7277,6 +7452,31 @@ button:active, .mqa-btn:active, .bnav-item:active, .bento-card:active {
     }
     .camera-modal .camera-frame {
         max-height: 230px !important;
+    }
+    .att-desktop-table {
+        display: none !important;
+    }
+    .att-mobile-list {
+        display: grid !important;
+        gap: 10px !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .att-kpi-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    .att-kpi-card {
+        padding: 10px;
+        gap: 8px;
+    }
+    .att-kpi-icon {
+        width: 34px;
+        height: 34px;
+    }
+    .att-kpi-info strong {
+        font-size: 15px;
     }
 }
 

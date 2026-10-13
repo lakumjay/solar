@@ -247,13 +247,13 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
     };
 
     return <form className="entry" onSubmit={save}>
-        {companies.length > 1 && (user?.role === 'super_admin' || !user?.company_id) && (
+        {validCompanies.length > 1 && (
             <div className="entry-company-picker">
                 <span className="entry-company-label">
                     {currentLang === 'en' ? '🏢 Select Company:' : '🏢 કંપની પસંદ કરો (Company):'}
                 </span>
                 <div className="entry-company-pills">
-                    {companies.filter(c => String(c.id) !== 'all').map(comp => {
+                    {validCompanies.map(comp => {
                         const isSelected = String(comp.id) === String(company?.id);
                         return (
                             <button

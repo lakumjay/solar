@@ -153,6 +153,7 @@ export default function MyAttendancePage({companyId}) {
     const [leaveForm, setLeaveForm] = useState({date_from: localDate(), date_to: localDate(), day_part: 'full_day', reason: '', leave_type_id: ''});
     const [message, setMessage] = useState('');
     const [busy, setBusy] = useState(false);
+    const [listeningField, setListeningField] = useState(null);
     const [currentLang, setCurrentLang] = useState(() => getLanguage());
 
     useEffect(() => {
@@ -239,24 +240,94 @@ export default function MyAttendancePage({companyId}) {
         }
     };
 
+    const startVoiceInput = (field) => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) return alert('તમારા બ્રાઉઝરમાં વૉઇસ રેકોર્ડિંગ સપોર્ટ નથી.');
+        const recog = new SpeechRecognition();
+        recog.lang = currentLang === 'gu' ? 'gu-IN' : 'hi-IN';
+        setListeningField(field);
+        recog.onresult = (e) => {
+            const transcript = e.results[0][0].transcript;
+            setClockOutForm(prev => ({...prev, [field]: (prev[field] ? prev[field] + ' ' : '') + transcript}));
+        };
+        recog.onerror = () => setListeningField(null);
+        recog.onend = () => setListeningField(null);
+        recog.start();
+    };
+
     const dayNote = today?.holiday ? `${today.holiday.name} · ${today.holiday.type.replaceAll('_', ' ')}` : today?.leave ? `Approved ${today.leave.day_part.replaceAll('_', ' ')} leave` : today?.weekly_off ? 'Today is your weekly off' : 'Regular working day';
     const activeBreak = today?.record?.breaks?.find(item => !item.ended_at);
     const breakMinutes = Number(today?.record?.break_minutes || 0);
 
     if (!today) return <div className="panel">{message || 'Loading attendance…'}</div>;
 
-    const earliestOutHuman = today?.earliest_clock_out_human || (today?.has_approved_half_day ? '01:00 PM' : '06:00 PM');
     const isTimeOutUnlocked = today?.can_clock_out;
     const isClockedInWaiting = today?.is_clocked_in_waiting;
+
+    // Calculate live elapsed work time today
+    const elapsedMinutesToday = today?.record?.clock_in_at
+        ? Math.max(0, Math.floor(((today.record.clock_out_at ? new Date(today.record.clock_out_at) : new Date()) - new Date(today.record.clock_in_at)) / 60000) - breakMinutes)
+        : 0;
+    const elapsedHoursFormatted = `${Math.floor(elapsedMinutesToday / 60)}h ${elapsedMinutesToday % 60}m`;
+
+    // Calculate KPI summary metrics from history
+    const currentMonthPrefix = localDate().slice(0, 7);
+    const totalPresentDays = history.length;
+    const fullDaysCount = history.filter(r => r.status === 'full_day').length;
+    const halfDaysCount = history.filter(r => r.status === 'half_day').length;
+    const thisMonthCount = history.filter(r => String(r.attendance_date || '').startsWith(currentMonthPrefix)).length;
+    const totalWorkHours = history.reduce((sum, r) => sum + (Number(r.work_minutes || 0) / 60), 0);
+    const avgDailyHours = totalPresentDays > 0 ? (totalWorkHours / totalPresentDays) : 0;
+    const totalBreakHours = history.reduce((sum, r) => sum + (Number(r.break_minutes || 0) / 60), 0);
+    const totalUrgentOuts = history.reduce((sum, r) => sum + ((r.breaks || []).filter(b => b.break_type === 'urgent_out').length), 0);
+
+    const formatNiceDate = (dateStr) => {
+        if (!dateStr) return { main: '-', day: '' };
+        try {
+            const d = new Date(`${String(dateStr).slice(0, 10)}T00:00:00`);
+            const main = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+            const day = d.toLocaleDateString(currentLang === 'en' ? 'en-US' : 'gu-IN', { weekday: 'short' });
+            return { main, day };
+        } catch (e) {
+            return { main: dateStr, day: '' };
+        }
+    };
+
+    const getStatusBadge = (row) => {
+        if (!row.clock_out_at) {
+            const isRowToday = String(row.attendance_date).slice(0, 10) === localDate();
+            if (isRowToday) {
+                return <span className="att-status-pill working">🟢 {currentLang === 'en' ? 'Working Now' : 'હાલમાં ચાલુ'}</span>;
+            }
+            return <span className="att-status-pill missing">⚠️ {currentLang === 'en' ? 'Out Missing' : 'Time-Out બાકી'}</span>;
+        }
+        if (row.status === 'full_day') {
+            return <span className="att-status-pill full_day">✓ {currentLang === 'en' ? 'Full Day' : 'આખો દિવસ (Full Day)'}</span>;
+        }
+        if (row.status === 'half_day') {
+            return <span className="att-status-pill half_day">◐ {currentLang === 'en' ? 'Half Day' : 'અડધો દિવસ (Half Day)'}</span>;
+        }
+        return <span className="att-status-pill working">{String(row.status || '').replaceAll('_', ' ')}</span>;
+    };
 
     return (
         <div className="employee-self">
             {/* Top Attendance Status Hero */}
-            <section className="attendance-hero panel">
+            <section className="attendance-hero panel" style={{flexWrap: 'wrap', gap: '14px'}}>
                 <div>
                     <p className="eyebrow">{new Date(`${today.date}T00:00:00`).toLocaleDateString('en-GB', {weekday: 'long', day: 'numeric', month: 'long'})}</p>
                     <h2>Hello, {today.employee.user.name}</h2>
                     <p className="day-note">{dayNote}</p>
+                    {today.record?.clock_in_at && (
+                        <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '10px'}}>
+                            <span style={{background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.28)', padding: '4px 10px', borderRadius: '999px', fontSize: '11.5px', fontWeight: 700, color: '#ffffff'}}>
+                                🕒 Time In: {formatTime(today.record.clock_in_at)}
+                            </span>
+                            <span style={{background: 'rgba(134,239,172,0.22)', border: '1px solid rgba(134,239,172,0.45)', padding: '4px 10px', borderRadius: '999px', fontSize: '11.5px', fontWeight: 700, color: '#ecfdf5'}}>
+                                ⏱️ {currentLang === 'en' ? 'Work Time:' : 'કામનો સમય:'} {elapsedHoursFormatted}
+                            </span>
+                        </div>
+                    )}
                 </div>
                 <div className={`attendance-state ${today.record?.clock_out_at ? 'complete' : today.record ? 'working' : ''}`}>
                     {today.record?.clock_out_at ? <CheckCircle2/> : <Clock3/>}
@@ -470,12 +541,16 @@ export default function MyAttendancePage({companyId}) {
             {/* Clock Out / Complete Day Form with Time Lock rules */}
             {!today.manager_attendance_only && today.record && !today.record.clock_out_at && (
                 <form className="panel clockout-card" onSubmit={clockOut}>
-                    <div className="panel-head">
+                    <div className="panel-head" style={{marginBottom: '12px'}}>
                         <div>
                             <h2>Complete your day (Final Time Out)</h2>
                             <p>Timed in at {formatTime(today.record.clock_in_at)}. Please provide your daily work summary.</p>
                         </div>
-                        <LogOut/>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
+                            <span className="att-time-badge in">🕒 In: {formatTime(today.record.clock_in_at)}</span>
+                            <span className="att-time-badge out">⏱️ {elapsedHoursFormatted}</span>
+                            <LogOut style={{color: '#16a34a'}}/>
+                        </div>
                     </div>
 
                     {/* Time Out Rule Notice Banner */}
@@ -485,7 +560,7 @@ export default function MyAttendancePage({companyId}) {
                             border: '1px solid #fde68a',
                             borderRadius: '8px',
                             padding: '10px 14px',
-                            marginBottom: '12px',
+                            marginBottom: '14px',
                             color: '#92400e',
                             fontSize: '12px',
                             display: 'flex',
@@ -503,7 +578,7 @@ export default function MyAttendancePage({companyId}) {
                             border: '1px solid #a7f3d0',
                             borderRadius: '8px',
                             padding: '10px 14px',
-                            marginBottom: '12px',
+                            marginBottom: '14px',
                             color: '#065f46',
                             fontSize: '12px',
                             display: 'flex',
@@ -560,99 +635,83 @@ export default function MyAttendancePage({companyId}) {
                         </div>
                     )}
 
-                    <div style={{marginBottom: '14px'}}>
-                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px'}}>
-                            <label style={{fontSize: '13px', fontWeight: 700, color: '#334155'}}>
-                                {currentLang === 'en' ? 'What did you do today?' : 'What did you do today? (આજે શું કામ કર્યું?)'}
-                            </label>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                                    if (!SpeechRecognition) return alert('તમારા બ્રાઉઝરમાં વૉઇસ રેકોર્ડિંગ સપોર્ટ નથી.');
-                                    const recog = new SpeechRecognition();
-                                    recog.lang = currentLang === 'gu' ? 'gu-IN' : 'hi-IN';
-                                    recog.onresult = (e) => {
-                                        const transcript = e.results[0][0].transcript;
-                                        setClockOutForm(prev => ({...prev, work_done: (prev.work_done ? prev.work_done + ' ' : '') + transcript}));
-                                    };
-                                    recog.start();
-                                }}
-                                style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    background: '#f1f5f9',
-                                    border: '1px solid #cbd5e1',
-                                    borderRadius: '6px',
-                                    padding: '3px 8px',
-                                    fontSize: '11px',
-                                    fontWeight: 700,
-                                    color: '#0284c7',
-                                    cursor: 'pointer'
-                                }}
-                                title="બોલીને લખવા માટે માઇક દબાવો"
-                            >
-                                🎙️ {currentLang === 'en' ? 'Speak' : 'બોલીને લખો'}
-                            </button>
+                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px', marginBottom: '16px'}}>
+                        <div style={{display: 'flex', flexDirection: 'column', gap: '6px'}}>
+                            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                                <label style={{fontSize: '13px', fontWeight: 800, color: '#1e293b'}}>
+                                    🛠️ {currentLang === 'en' ? 'What did you do today?' : 'What did you do today? (આજે શું કામ કર્યું?)'}
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => startVoiceInput('work_done')}
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        background: listeningField === 'work_done' ? '#fee2e2' : '#f1f5f9',
+                                        border: listeningField === 'work_done' ? '1px solid #f87171' : '1px solid #cbd5e1',
+                                        borderRadius: '6px',
+                                        padding: '4px 10px',
+                                        fontSize: '11.5px',
+                                        fontWeight: 700,
+                                        color: listeningField === 'work_done' ? '#dc2626' : '#0284c7',
+                                        cursor: 'pointer'
+                                    }}
+                                    title="બોલીને લખવા માટે માઇક દબાવો"
+                                >
+                                    {listeningField === 'work_done' ? '🔴 Listening…' : `🎙️ ${currentLang === 'en' ? 'Speak' : 'બોલીને લખો'}`}
+                                </button>
+                            </div>
+                            <textarea
+                                value={clockOutForm.work_done}
+                                onChange={event => setClockOutForm({...clockOutForm, work_done: event.target.value})}
+                                rows="4"
+                                placeholder={currentLang === 'en' ? 'Describe the work performed today (e.g. cleaned panels, checked inverters, grass cutting)...' : 'આજે પ્લાન્ટ પર કરેલું કામ લખો અથવા માઇકથી બોલો (દા.ત. પેનલ સફાઈ, ઇન્વર્ટર ચેકિંગ)...'}
+                                required
+                            />
                         </div>
-                        <textarea
-                            value={clockOutForm.work_done}
-                            onChange={event => setClockOutForm({...clockOutForm, work_done: event.target.value})}
-                            rows="4"
-                            placeholder={currentLang === 'en' ? 'Describe the work performed today...' : 'આજે પ્લાન્ટ પર કરેલું કામ લખો અથવા માઇકથી બોલો...'}
-                            required
-                        />
+
+                        <div style={{display: 'flex', flexDirection: 'column', gap: '6px'}}>
+                            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                                <label style={{fontSize: '13px', fontWeight: 800, color: '#1e293b'}}>
+                                    💡 {currentLang === 'en' ? 'What did you learn or observe today?' : 'What did you learn today? (આજે નવું શું શીખ્યા / નોંધ્યું?)'}
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => startVoiceInput('learned')}
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        background: listeningField === 'learned' ? '#fee2e2' : '#f1f5f9',
+                                        border: listeningField === 'learned' ? '1px solid #f87171' : '1px solid #cbd5e1',
+                                        borderRadius: '6px',
+                                        padding: '4px 10px',
+                                        fontSize: '11.5px',
+                                        fontWeight: 700,
+                                        color: listeningField === 'learned' ? '#dc2626' : '#0284c7',
+                                        cursor: 'pointer'
+                                    }}
+                                    title="બોલીને લખવા માટે માઇક દબાવો"
+                                >
+                                    {listeningField === 'learned' ? '🔴 Listening…' : `🎙️ ${currentLang === 'en' ? 'Speak' : 'બોલીને લખો'}`}
+                                </button>
+                            </div>
+                            <textarea
+                                value={clockOutForm.learned}
+                                onChange={event => setClockOutForm({...clockOutForm, learned: event.target.value})}
+                                rows="4"
+                                placeholder={currentLang === 'en' ? 'What new skills, observations, or issues did you encounter today...' : 'આજે કોઈ નવી ટેકનિક, નિરીક્ષણ કે સમસ્યા ધ્યાનમાં આવી હોય તે લખો...'}
+                                required
+                            />
+                        </div>
                     </div>
 
-                    <div style={{marginBottom: '14px'}}>
-                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px'}}>
-                            <label style={{fontSize: '13px', fontWeight: 700, color: '#334155'}}>
-                                {currentLang === 'en' ? 'What did you learn today?' : 'What did you learn today? (આજે નવું શું શીખ્યા?)'}
-                            </label>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                                    if (!SpeechRecognition) return alert('તમારા બ્રાઉઝરમાં વૉઇસ રેકોર્ડિંગ સપોર્ટ નથી.');
-                                    const recog = new SpeechRecognition();
-                                    recog.lang = currentLang === 'gu' ? 'gu-IN' : 'hi-IN';
-                                    recog.onresult = (e) => {
-                                        const transcript = e.results[0][0].transcript;
-                                        setClockOutForm(prev => ({...prev, learned: (prev.learned ? prev.learned + ' ' : '') + transcript}));
-                                    };
-                                    recog.start();
-                                }}
-                                style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    background: '#f1f5f9',
-                                    border: '1px solid #cbd5e1',
-                                    borderRadius: '6px',
-                                    padding: '3px 8px',
-                                    fontSize: '11px',
-                                    fontWeight: 700,
-                                    color: '#0284c7',
-                                    cursor: 'pointer'
-                                }}
-                                title="બોલીને લખવા માટે માઇક દબાવો"
-                            >
-                                🎙️ {currentLang === 'en' ? 'Speak' : 'બોલીને લખો'}
-                            </button>
-                        </div>
-                        <textarea
-                            value={clockOutForm.learned}
-                            onChange={event => setClockOutForm({...clockOutForm, learned: event.target.value})}
-                            rows="3"
-                            placeholder={currentLang === 'en' ? 'What new skills or issues did you encounter...' : 'આજે કોઈ નવી ટેકનિક કે બાબત શીખ્યા હોય તે લખો...'}
-                            required
-                        />
-                    </div>
-
-                    <div className="form-actions">
-                        <span>No photo is taken at final Time Out.</span>
-                        <button className="primary" disabled={busy || Boolean(activeBreak) || !isTimeOutUnlocked} title="Confirm Time Out">
+                    <div className="form-actions" style={{borderTop: '1px solid #e2e8f0', paddingTop: '12px'}}>
+                        <span style={{fontSize: '12px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px'}}>
+                            📍 {currentLang === 'en' ? 'GPS location is verified at Time Out (no selfie required).' : 'Final Time Out વખતે માત્ર GPS લોકેશન લેવાશે (ફોટો જરૂરી નથી).'}
+                        </span>
+                        <button className="primary" disabled={busy || Boolean(activeBreak) || !isTimeOutUnlocked} title="Confirm Time Out" style={{padding: '10px 20px', fontSize: '14px'}}>
                             <MapPin size={16}/> Final Time Out
                         </button>
                     </div>
@@ -719,17 +778,25 @@ export default function MyAttendancePage({companyId}) {
                     </div>
                     {leaves.length ? (
                         <div className="simple-list">
-                            {leaves.slice(0, 8).map(leave => (
-                                <div key={leave.id}>
-                                    <span>
-                                        <b>Leave request</b>
-                                        <small>{leave.date_from} to {leave.date_to} · {leave.day_part.replaceAll('_', ' ')}</small>
-                                    </span>
-                                    <i className={`status ${leave.status === 'approved' ? 'on' : leave.status === 'rejected' ? 'danger' : ''}`}>
-                                        {leave.status}
-                                    </i>
-                                </div>
-                            ))}
+                            {leaves.slice(0, 8).map(leave => {
+                                const daysDiff = Math.max(1, Math.round((new Date(leave.date_to) - new Date(leave.date_from)) / 86400000) + 1);
+                                return (
+                                    <div key={leave.id} style={{padding: '12px 4px'}}>
+                                        <span>
+                                            <b style={{fontSize: '13px', color: '#0f172a'}}>
+                                                📅 {leave.date_from === leave.date_to ? leave.date_from : `${leave.date_from} → ${leave.date_to}`}
+                                                <span style={{marginLeft: '6px', fontSize: '11px', color: '#15803d', background: '#f0fdf4', padding: '2px 6px', borderRadius: '6px'}}>
+                                                    {leave.day_part === 'full_day' ? `${daysDiff} Day${daysDiff > 1 ? 's' : ''}` : leave.day_part.replaceAll('_', ' ')}
+                                                </span>
+                                            </b>
+                                            {leave.reason && <small style={{color: '#475569', fontSize: '11.5px'}}>“{leave.reason}”</small>}
+                                        </span>
+                                        <i className={`status ${leave.status === 'approved' ? 'on' : leave.status === 'rejected' ? 'danger' : 'warning'}`} style={{textTransform: 'capitalize', fontWeight: 700}}>
+                                            {leave.status}
+                                        </i>
+                                    </div>
+                                );
+                            })}
                         </div>
                     ) : (
                         <Empty title="No leave requests" detail="Submitted requests and decisions will appear here."/>
@@ -737,50 +804,227 @@ export default function MyAttendancePage({companyId}) {
                 </section>
             </div>
 
-            {/* Recent Attendance Records */}
+            {/* Recent Attendance Records (Enhanced with Summary KPIs + Desktop Table + Mobile Cards) */}
             <section className="panel">
-                <div className="panel-head">
+                <div className="panel-head" style={{marginBottom: '14px'}}>
                     <div>
-                        <h2>Recent attendance</h2>
-                        <p>Your last 45 records</p>
+                        <h2>{currentLang === 'en' ? 'Recent Attendance & Work History' : 'હાજરી અને કામનો રેકોર્ડ (Recent Attendance)'}</h2>
+                        <p>{currentLang === 'en' ? 'Your last 45 attendance records, work hours, and daily summaries' : 'તમારા છેલ્લા ૪૫ દિવસની હાજરી, કામના કલાકો અને બ્રેકની સંપૂર્ણ વિગત'}</p>
                     </div>
+                    <span style={{background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', padding: '5px 12px', borderRadius: '999px', fontSize: '12px', fontWeight: 800}}>
+                        📋 {history.length} Records
+                    </span>
                 </div>
-                {history.length ? (
-                    <div className="table-wrap">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Time In</th>
-                                    <th>Time Out</th>
-                                    <th>Status</th>
-                                    <th>Work hours</th>
-                                    <th>Break hours</th>
-                                    <th>Entry source</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {history.map(row => (
-                                    <tr key={row.id}>
-                                        <td className="strong">{row.attendance_date}</td>
-                                        <td>{formatTime(row.clock_in_at)}</td>
-                                        <td>{row.clock_out_at ? formatTime(row.clock_out_at) : 'Missing'}</td>
-                                        <td>{row.status.replaceAll('_', ' ')}</td>
-                                        <td>{(row.work_minutes / 60).toFixed(2)}</td>
-                                        <td>{(Number(row.break_minutes) / 60).toFixed(2)}</td>
-                                        <td>
-                                            {row.entry_source === 'manager' ? (
-                                                <span className="manual-entry-detail">
-                                                    <i className="status warning">Manager entered</i>
-                                                    <small>{row.recorded_by?.name || 'Authorized user'} · {row.entry_reason}</small>
-                                                </span>
-                                            ) : 'Employee'}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+
+                {/* 4 KPI Summary Cards */}
+                {history.length > 0 && (
+                    <div className="att-kpi-grid">
+                        <div className="att-kpi-card">
+                            <div className="att-kpi-icon" style={{background: '#dcfce7', color: '#15803d'}}>
+                                <CheckCircle2 size={20}/>
+                            </div>
+                            <div className="att-kpi-info">
+                                <small>{currentLang === 'en' ? 'Total Present' : 'કુલ હાજર દિવસ'}</small>
+                                <strong>{totalPresentDays} Days</strong>
+                                <span>{fullDaysCount} Full · {halfDaysCount} Half Day</span>
+                            </div>
+                        </div>
+
+                        <div className="att-kpi-card">
+                            <div className="att-kpi-icon" style={{background: '#dbeafe', color: '#1d4ed8'}}>
+                                <Clock size={20}/>
+                            </div>
+                            <div className="att-kpi-info">
+                                <small>{currentLang === 'en' ? 'Total Work Hours' : 'કુલ કામના કલાકો'}</small>
+                                <strong>{totalWorkHours.toFixed(1)} hrs</strong>
+                                <span>Avg {avgDailyHours.toFixed(1)} hrs / day</span>
+                            </div>
+                        </div>
+
+                        <div className="att-kpi-card">
+                            <div className="att-kpi-icon" style={{background: '#fef3c7', color: '#b45309'}}>
+                                <Sparkles size={20}/>
+                            </div>
+                            <div className="att-kpi-info">
+                                <small>{currentLang === 'en' ? 'This Month' : 'આ મહિનાની હાજરી'}</small>
+                                <strong>{thisMonthCount} Days</strong>
+                                <span>{new Date().toLocaleDateString('en-US', {month: 'long', year: 'numeric'})}</span>
+                            </div>
+                        </div>
+
+                        <div className="att-kpi-card">
+                            <div className="att-kpi-icon" style={{background: totalUrgentOuts > 0 ? '#fee2e2' : '#f1f5f9', color: totalUrgentOuts > 0 ? '#dc2626' : '#475569'}}>
+                                <Coffee size={20}/>
+                            </div>
+                            <div className="att-kpi-info">
+                                <small>{currentLang === 'en' ? 'Breaks & Urgent Out' : 'બ્રેક અને અર્જન્ટ બહાર'}</small>
+                                <strong>{totalBreakHours.toFixed(1)} hrs</strong>
+                                <span>{totalUrgentOuts > 0 ? `${totalUrgentOuts} Urgent Out` : 'Regular breaks'}</span>
+                            </div>
+                        </div>
                     </div>
+                )}
+
+                {history.length ? (
+                    <>
+                        {/* Desktop Table View */}
+                        <div className="table-wrap att-desktop-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>{currentLang === 'en' ? 'Date & Day' : 'તારીખ અને વાર'}</th>
+                                        <th>{currentLang === 'en' ? 'Time In' : 'આવવાનો સમય'}</th>
+                                        <th>{currentLang === 'en' ? 'Time Out' : 'જવાનો સમય'}</th>
+                                        <th>{currentLang === 'en' ? 'Status' : 'સ્ટેટસ'}</th>
+                                        <th>{currentLang === 'en' ? 'Work Hours' : 'કામના કલાકો'}</th>
+                                        <th>{currentLang === 'en' ? 'Breaks' : 'બ્રેક વિગત'}</th>
+                                        <th>{currentLang === 'en' ? 'Work Summary' : 'આજનું કામ / નોંધ'}</th>
+                                        <th>{currentLang === 'en' ? 'Source' : 'એન્ટ્રી'}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {history.map(row => {
+                                        const { main: dateMain, day: dayName } = formatNiceDate(row.attendance_date);
+                                        const urgentBreaks = (row.breaks || []).filter(b => b.break_type === 'urgent_out');
+                                        const workHrs = (Number(row.work_minutes || 0) / 60).toFixed(2);
+                                        const breakHrs = (Number(row.break_minutes || 0) / 60).toFixed(2);
+
+                                        return (
+                                            <tr key={row.id}>
+                                                <td>
+                                                    <div style={{display: 'flex', flexDirection: 'column'}}>
+                                                        <b style={{color: '#0f172a', fontSize: '13px'}}>{dateMain}</b>
+                                                        <small style={{color: '#64748b', fontSize: '11px', fontWeight: 600}}>{dayName}</small>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <span className="att-time-badge in">
+                                                        🟢 {formatTime(row.clock_in_at)}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    {row.clock_out_at ? (
+                                                        <span className="att-time-badge out">
+                                                            🔵 {formatTime(row.clock_out_at)}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="att-time-badge missing">
+                                                            {String(row.attendance_date).slice(0, 10) === localDate() ? '⏳ Working…' : '⚠️ Missing'}
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td>{getStatusBadge(row)}</td>
+                                                <td>
+                                                    <b style={{color: '#0f172a', fontSize: '13px'}}>{workHrs} hrs</b>
+                                                    <small style={{display: 'block', color: '#64748b', fontSize: '10.5px'}}>{row.work_minutes || 0} mins</small>
+                                                </td>
+                                                <td>
+                                                    <span style={{fontWeight: 700, color: '#334155', fontSize: '12.5px'}}>{breakHrs} hrs</span>
+                                                    {urgentBreaks.length > 0 && (
+                                                        <small style={{display: 'block', color: '#dc2626', fontSize: '10.5px', fontWeight: 700}}>
+                                                            🚨 {urgentBreaks.length} Urgent Out {urgentBreaks[0]?.out_reason ? `(${urgentBreaks[0].out_reason})` : ''}
+                                                        </small>
+                                                    )}
+                                                </td>
+                                                <td style={{maxWidth: '240px', whiteSpace: 'normal'}}>
+                                                    {row.work_done ? (
+                                                        <div style={{fontSize: '12px', color: '#1e293b', lineHeight: 1.35}}>
+                                                            <span>{row.work_done}</span>
+                                                            {row.learned && (
+                                                                <small style={{display: 'block', color: '#64748b', marginTop: '2px'}}>
+                                                                    💡 {row.learned}
+                                                                </small>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <span style={{color: '#94a3b8', fontSize: '11.5px'}}>—</span>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    {row.entry_source === 'manager' ? (
+                                                        <span className="manual-entry-detail">
+                                                            <i className="status warning">Manager</i>
+                                                            <small>{row.recorded_by?.name || 'Admin'}</small>
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{fontSize: '11.5px', fontWeight: 700, color: '#15803d', background: '#f0fdf4', padding: '3px 8px', borderRadius: '6px'}}>
+                                                            🤳 Self
+                                                        </span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Mobile Responsive Card View */}
+                        <div className="att-mobile-list">
+                            {history.map(row => {
+                                const { main: dateMain, day: dayName } = formatNiceDate(row.attendance_date);
+                                const urgentBreaks = (row.breaks || []).filter(b => b.break_type === 'urgent_out');
+                                const workHrs = (Number(row.work_minutes || 0) / 60).toFixed(2);
+                                const breakHrs = (Number(row.break_minutes || 0) / 60).toFixed(2);
+
+                                return (
+                                    <div
+                                        key={row.id}
+                                        style={{
+                                            background: '#ffffff',
+                                            border: '1px solid #e2e8f0',
+                                            borderRadius: '12px',
+                                            padding: '12px 14px',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: '8px',
+                                            boxShadow: '0 2px 6px rgba(15, 23, 42, 0.03)'
+                                        }}
+                                    >
+                                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px'}}>
+                                            <div>
+                                                <b style={{fontSize: '14px', color: '#0f172a'}}>{dateMain}</b>
+                                                <span style={{marginLeft: '6px', fontSize: '11.5px', color: '#64748b', fontWeight: 600}}>({dayName})</span>
+                                            </div>
+                                            {getStatusBadge(row)}
+                                        </div>
+
+                                        <div style={{display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center'}}>
+                                            <span className="att-time-badge in">🟢 In: {formatTime(row.clock_in_at)}</span>
+                                            {row.clock_out_at ? (
+                                                <span className="att-time-badge out">🔵 Out: {formatTime(row.clock_out_at)}</span>
+                                            ) : (
+                                                <span className="att-time-badge missing">
+                                                    {String(row.attendance_date).slice(0, 10) === localDate() ? '⏳ Working Now' : '⚠️ Out Missing'}
+                                                </span>
+                                            )}
+                                            <span style={{marginLeft: 'auto', fontSize: '12px', fontWeight: 800, color: '#0f172a', background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px'}}>
+                                                ⏱️ {workHrs} hrs
+                                            </span>
+                                        </div>
+
+                                        {(Number(row.break_minutes) > 0 || urgentBreaks.length > 0) && (
+                                            <div style={{fontSize: '11.5px', color: '#475569', display: 'flex', justifyContent: 'space-between', background: '#f8fafc', padding: '6px 10px', borderRadius: '8px'}}>
+                                                <span>☕ Break: <b>{breakHrs} hrs</b></span>
+                                                {urgentBreaks.length > 0 && (
+                                                    <span style={{color: '#dc2626', fontWeight: 700}}>
+                                                        🚨 Urgent Out: {urgentBreaks[0]?.out_reason || 'Yes'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {row.work_done && (
+                                            <div style={{fontSize: '12px', color: '#334155', background: '#f0fdf4', border: '1px solid #dcfce7', padding: '8px 10px', borderRadius: '8px', lineHeight: 1.4}}>
+                                                <div><b>🛠️ Work:</b> {row.work_done}</div>
+                                                {row.learned && <div style={{marginTop: '3px', color: '#166534'}}><b>💡 Note:</b> {row.learned}</div>}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>
                 ) : (
                     <Empty title="No attendance yet" detail={today.manager_attendance_only ? 'An authorized manager will add your completed attendance.' : 'Your first Time In will create a record.'}/>
                 )}
