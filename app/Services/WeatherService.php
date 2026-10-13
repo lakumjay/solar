@@ -15,7 +15,7 @@ class WeatherService
      */
     public function getWeather(float $latitude = 22.201360, float $longitude = 71.494960, string $locationName = 'Sarva, Botad'): array
     {
-        $cacheKey = "solar_weather_{$latitude}_{$longitude}_v4";
+        $cacheKey = "solar_weather_{$latitude}_{$longitude}_v5";
 
         return Cache::remember($cacheKey, 300, function () use ($latitude, $longitude, $locationName) {
             try {
@@ -39,6 +39,7 @@ class WeatherService
 
                 $weatherCode = (int) ($current['weather_code'] ?? 0);
                 $tempC = round((float) ($current['temperature_2m'] ?? 32.0), 1);
+                $humidity = round((float) ($current['relative_humidity_2m'] ?? 45.0), 0);
                 $windKmh = round((float) ($current['wind_speed_10m'] ?? 10.0), 1);
                 $windGustKmh = round((float) ($current['wind_gusts_10m'] ?? ($windKmh * 1.3)), 1);
                 $precipMm = (float) ($current['precipitation'] ?? 0.0);
@@ -57,6 +58,7 @@ class WeatherService
                 $hourlyCodes = $hourly['weather_code'] ?? [];
                 $hourlyRadiation = $hourly['shortwave_radiation_instant'] ?? [];
                 $hourlyTemps = $hourly['temperature_2m'] ?? [];
+                $hourlyWinds = $hourly['wind_speed_10m'] ?? [];
 
                 if ($isCurrentlyRaining) {
                     $stopHourOffset = null;
@@ -197,18 +199,27 @@ class WeatherService
                     $radiationNext = 0.0;
                 }
 
-                // Cell Temperature Estimate: T_cell = T_amb + (Irradiance / 800) * 28°C
-                $cellTempC = round($tempC + ($radiationNow / 800.0) * 28.0, 1);
-                // Standard STC is 25°C, Temp coefficient ~ -0.38%/°C
-                $heatLossPct = $cellTempC > 25.0 ? round(($cellTempC - 25.0) * 0.38, 1) : 0.0;
+                // Wind-Cooled Cell Temperature Estimate (IEC 61853-2 / Faiman open-rack model):
+                // T_cell = T_amb + Irradiance / (U0 + U1 * wind_m_s), where U0 = 25.0, U1 = 3.8
+                $windMs = max(0.5, $windKmh / 3.6);
+                $noWindRiseC = ($radiationNow / 800.0) * 28.0;
+                $windCooledRiseC = $radiationNow > 10.0 ? ($radiationNow / (25.0 + (3.8 * $windMs))) : 0.0;
+                $windCoolingSavedC = round(max(0.0, $noWindRiseC - $windCooledRiseC), 1);
+                $cellTempC = round($tempC + $windCooledRiseC, 1);
+
+                // Standard STC is 25°C, Mono-PERC/TopCon Temp coefficient ~ -0.35%/°C (only active when Irradiance >= 30 W/m²)
+                $heatLossPct = ($radiationNow >= 30.0 && $cellTempC > 25.0)
+                    ? round(($cellTempC - 25.0) * 0.35, 1)
+                    : 0.0;
 
                 $heatLossAnalysis = [
                     'ambient_temp_c' => $tempC,
                     'cell_temp_c' => $cellTempC,
+                    'wind_cooling_c' => $windCoolingSavedC,
                     'heat_loss_pct' => $heatLossPct,
                     'loss_status' => $heatLossPct > 12.0 ? 'high' : ($heatLossPct > 6.0 ? 'moderate' : 'low'),
                     'title' => "તાપમાન કારણે પાવર લોસ: -{$heatLossPct}%",
-                    'description' => "પેનલ સેલ તાપમાન ~{$cellTempC}°C છે, જેથી ગરમીના લીધે અંદાજે {$heatLossPct}% પાવર લોસ થાય છે.",
+                    'description' => "પેનલ સેલ તાપમાન ~{$cellTempC}°C છે (પવનથી -{$windCoolingSavedC}°C ઠંડક), જેથી ગરમીના લીધે અંદાજે {$heatLossPct}% પાવર લોસ થાય છે.",
                 ];
 
                 // 5. Hourly Daylight Profile for Today (06:00 to 18:00)
@@ -219,16 +230,23 @@ class WeatherService
                         $sunFactor = sin(deg2rad(max(0, min(180, ($h - 6.0) / 12.0 * 180))));
                         $rad = round($sunFactor * 860.0, 0);
                     }
+                    $hTemp = isset($hourlyTemps[$h]) ? round((float) $hourlyTemps[$h], 1) : $tempC;
+                    $hWind = isset($hourlyWinds[$h]) ? round((float) $hourlyWinds[$h], 1) : $windKmh;
                     $hourlyDaylightProfile[$h] = [
                         'hour' => $h,
                         'time_label' => Carbon::createFromTime($h, 0)->format('h A'),
                         'radiation_w_m2' => round(max(0, $rad), 0),
+                        'temp_c' => $hTemp,
+                        'wind_kmh' => $hWind,
                     ];
                 }
 
                 return [
                     'temp' => "{$tempC}°C",
                     'temperature_num' => $tempC,
+                    'temperature' => $tempC,
+                    'humidity' => $humidity,
+                    'weather_code' => $weatherCode,
                     'condition' => $conditionInfo['label'],
                     'type' => $conditionInfo['type'],
                     'icon' => $conditionInfo['icon'],

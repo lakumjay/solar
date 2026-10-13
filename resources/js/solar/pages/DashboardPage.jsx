@@ -1265,7 +1265,10 @@ export default function DashboardPage({companyId, currentUser}) {
                             </div>
                             <div className="prediction-chip-text">
                                 <small>HEAT EFFICIENCY LOSS</small>
-                                <b>Cell Temp: ~{weather.heat_loss?.cell_temp_c || 50}°C</b>
+                                <b>
+                                    Cell Temp: ~{weather.heat_loss?.cell_temp_c || 50}°C
+                                    {weather.heat_loss?.wind_cooling_c > 0 ? ` (💨 -${weather.heat_loss.wind_cooling_c}°C)` : ''}
+                                </b>
                             </div>
                         </div>
                         <div className="prediction-chip-val" style={{color: '#dc2626'}}>

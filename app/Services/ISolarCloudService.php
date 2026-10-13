@@ -548,11 +548,11 @@ class ISolarCloudService
         $activeCurtailments = SolarCurtailment::where('status', 'active')->with(['company', 'user'])->get();
         $curtailmentByCompany = $activeCurtailments->keyBy('company_id');
 
-        // Primary company location for weather
+        // Primary company location for weather (Default: Sarva, Botad Solar Plant)
         $primaryCompany = $companies->first();
-        $lat = (float) ($primaryCompany?->latitude ?? 22.3039);
-        $lon = (float) ($primaryCompany?->longitude ?? 70.8022);
-        $plantLoc = $primaryCompany?->plant_location ?? 'Solar Plant';
+        $lat = (float) ($primaryCompany?->latitude ?: 22.201360);
+        $lon = (float) ($primaryCompany?->longitude ?: 71.494960);
+        $plantLoc = $primaryCompany?->plant_location ?: 'Sarva, Botad';
         $weatherData = $this->weatherService->getWeather($lat, $lon, $plantLoc);
         $irradianceNow = (float) ($weatherData['solar_irradiance'] ?? 700);
 
@@ -858,14 +858,25 @@ class ISolarCloudService
         $isNight = ($currentHourFloat > 18.2 || $currentHourFloat < 6.5 || $totalLiveKw <= 0);
 
         // 1. Next 1 hour generation prediction (kWh):
-        // Physical astronomical sun elevation model (Sunrise ~06:30, Peak ~12:30, Sunset ~18:15)
+        // Physical astronomical sun elevation model (Sunrise ~06:30, Peak ~12:25, Sunset ~18:15)
         $currentSunElevation = max(0.01, sin(deg2rad(max(0, min(180, ($currentHourFloat - 6.5) / 11.75 * 180)))));
-        $nextSunElevation = max(0.0, sin(deg2rad(max(0, min(180, ($currentHourFloat + 1.0 - 6.5) / 11.75 * 180)))));
-        $sunElevationRatio = $currentSunElevation > 0 ? ($nextSunElevation / $currentSunElevation) : 0.0;
-        
-        // Next 1-hour expected output factor is the average power over the upcoming 60 minutes
-        // After peak noon, this naturally drops below 1.0 (smooth afternoon decline without unrealistic spikes)
-        $nextHourPowerRatio = max(0.0, min(1.05, (1.0 + $sunElevationRatio) / 2.0));
+        $midNextHourElevation = max(0.0, sin(deg2rad(max(0, min(180, ($currentHourFloat + 0.5 - 6.5) / 11.75 * 180)))));
+        $endNextHourElevation = max(0.0, sin(deg2rad(max(0, min(180, ($currentHourFloat + 1.0 - 6.5) / 11.75 * 180)))));
+
+        // Average sun elevation over the next 60 minutes (Simpson's rule: (start + 4*mid + end) / 6)
+        $avgNextHourElevation = ($currentSunElevation + (4.0 * $midNextHourElevation) + $endNextHourElevation) / 6.0;
+        $sunElevationRatio = $currentSunElevation > 0.05 ? ($avgNextHourElevation / $currentSunElevation) : 1.0;
+
+        // Also incorporate Open-Meteo next hour radiation change if available
+        $irradianceNext = (float) ($weatherData['solar_irradiance_next'] ?? $irradianceNow);
+        $radNextRatio = ($irradianceNow >= 80.0 && $irradianceNext > 0)
+            ? (($irradianceNow + $irradianceNext) / (2.0 * $irradianceNow))
+            : $sunElevationRatio;
+
+        $blendedNext1hRatio = (0.65 * $sunElevationRatio) + (0.35 * $radNextRatio);
+        // Allow realistic morning ramp-up (up to 1.35x before 11 AM) and smooth afternoon decline
+        $maxNext1hCap = $currentHourFloat < 11.5 ? 1.35 : 1.06;
+        $nextHourPowerRatio = max(0.0, min($maxNext1hCap, $blendedNext1hRatio));
         $predictedNextHourKwh = $isNight ? 0.00 : round($totalLiveKw * $nextHourPowerRatio, 2);
 
         // Company-wise 1-Hour Predictions
@@ -883,27 +894,109 @@ class ISolarCloudService
         }
         unset($cData);
 
-        // 2. Solar Radiation Model for Accurate End-of-Day (EOD) Total Units and Hourly Profile
+        // 2. Hybrid Smart Solar Model (15-Day DB Baseline + Live Telemetry + Open-Meteo Hourly Irradiance)
+        // Solves the morning 1.15x cap bug & temporary passing cloud distortion
         $activeKw = max(0, $totalLiveKw);
         $remainingHoursProfile = [];
         $totalRemainingPredictedKwh = 0.0;
         $daylightProfile = $weatherData['hourly_daylight_profile'] ?? [];
 
+        $plantHistoricalBaseline = Cache::remember('solar_plant_hist_baseline_v2', 1800, function () {
+            try {
+                $dailyTotals = DailyReading::with('outputs')
+                    ->where('reading_date', '<', Carbon::today()->toDateString())
+                    ->orderByDesc('reading_date')
+                    ->limit(60)
+                    ->get()
+                    ->groupBy(fn ($r) => Carbon::parse($r->reading_date)->toDateString())
+                    ->map(function ($dayReadings) {
+                        $sum = 0.0;
+                        foreach ($dayReadings as $rd) {
+                            $outSum = $rd->outputs ? (float) $rd->outputs->sum('generation') : 0.0;
+                            $sum += $outSum > 0 ? $outSum : (float) ($rd->total_generation ?? 0.0);
+                        }
+                        return $sum;
+                    })
+                    ->filter(fn ($total) => $total >= 5000.0)
+                    ->take(15);
+
+                if ($dailyTotals->count() >= 2) {
+                    $vals = $dailyTotals->values()->all();
+                    rsort($vals);
+                    $topSlice = array_slice($vals, 0, max(2, (int) ceil(count($vals) * 0.75)));
+                    $avgDailyKwh = array_sum($topSlice) / count($topSlice);
+                    // Standard Botad solar bell-curve integral is ~7.45 peak sun hours
+                    $estPeakKw = round($avgDailyKwh / 7.45, 1);
+                    return [
+                        'avg_daily_kwh' => round($avgDailyKwh, 1),
+                        'peak_kw' => max(1400.0, min(3200.0, $estPeakKw)),
+                    ];
+                }
+            } catch (\Throwable $e) {
+                // Fallback if DB query fails
+            }
+
+            return [
+                'avg_daily_kwh' => 17500.0,
+                'peak_kw' => 2350.0,
+            ];
+        });
+
         if ($currentHourFloat < 18.25 && $currentHourFloat >= 6.5 && $activeKw > 0) {
+            // Find today's peak irradiance from Open-Meteo hourly profile (typically at 12 PM - 1 PM)
+            $maxDayIrradiance = 860.0;
+            foreach ($daylightProfile as $dpItem) {
+                $rVal = (float) ($dpItem['radiation_w_m2'] ?? 0);
+                if ($rVal > $maxDayIrradiance) {
+                    $maxDayIrradiance = $rVal;
+                }
+            }
+
+            // Scale historical peak kW by proportion of online inverters and today's sky clarity
+            $onlineInvRatio = $totalInverters > 0 ? max(0.25, $totalOnline / $totalInverters) : 1.0;
+            $baseExpectedPeakKw = $plantHistoricalBaseline['peak_kw'] * $onlineInvRatio;
+            $weatherAdjustedPeakKw = $baseExpectedPeakKw * min(1.08, max(0.50, $maxDayIrradiance / 860.0));
+
+            // Calculate current solar curve factor (0.0 to 1.0)
+            $currentRadFactor = $irradianceNow > 20 ? min(1.05, $irradianceNow / max(450.0, $maxDayIrradiance)) : $currentSunElevation;
+            $currentCurveFactor = (0.55 * $currentSunElevation) + (0.45 * $currentRadFactor);
+
+            // Implied noon peak from live kW (clamped within realistic plant bounds to prevent cloud/early-morning distortion)
+            $liveImpliedPeakKw = $currentCurveFactor >= 0.15
+                ? ($activeKw / $currentCurveFactor)
+                : $weatherAdjustedPeakKw;
+            $liveImpliedPeakKw = max($baseExpectedPeakKw * 0.45, min($baseExpectedPeakKw * 1.15, $liveImpliedPeakKw));
+
+            // Dynamic blending weight based on time of day:
+            // Early morning (before 9 AM) relies more on 15-day DB + Weather; midday relies more on Live Power
+            if ($currentHourFloat < 8.75) {
+                $liveWeight = 0.35;
+            } elseif ($currentHourFloat < 10.5) {
+                $liveWeight = 0.60;
+            } elseif ($currentHourFloat <= 16.0) {
+                $liveWeight = 0.72;
+            } else {
+                $liveWeight = 0.45;
+            }
+            $effectiveNoonPeakKw = ($liveWeight * $liveImpliedPeakKw) + ((1.0 - $liveWeight) * $weatherAdjustedPeakKw);
+
             for ($h = $nowHour; $h <= 18; $h++) {
-                $midHour = $h + 0.5;
+                // Midpoint of hour h (for 18:00, sunset is ~18:20 so effective generation fraction is smaller)
+                $midHour = $h === 18 ? 18.10 : ($h + 0.5);
+                $hourDurationFactor = $h === 18 ? 0.35 : 1.0;
                 $hourElevation = max(0.0, sin(deg2rad(max(0, min(180, ($midHour - 6.5) / 11.75 * 180)))));
                 $rad = isset($daylightProfile[$h]['radiation_w_m2']) && (float) $daylightProfile[$h]['radiation_w_m2'] > 10
                     ? (float) $daylightProfile[$h]['radiation_w_m2']
-                    : round($hourElevation * 850, 0);
+                    : round($hourElevation * 860, 0);
 
-                // Smooth physical ratio: hour expected power is scaled by solar elevation relative to current hour
-                $ratioToCurrent = $currentSunElevation > 0 ? ($hourElevation / $currentSunElevation) : 0.0;
-                // Cap to prevent unreasonable spikes
-                $ratioToCurrent = min(1.15, max(0.0, $ratioToCurrent));
-                $estHourKw = round($activeKw * $ratioToCurrent, 1);
+                $hourRadFactor = min(1.05, $rad / max(450.0, $maxDayIrradiance));
+                $hourCurveFactor = (0.55 * $hourElevation) + (0.45 * $hourRadFactor);
+
+                $modelHourKw = $effectiveNoonPeakKw * $hourCurveFactor * $hourDurationFactor;
 
                 if ($h === $nowHour) {
+                    // Blend current live telemetry power with model hour power for the active hour
+                    $estHourKw = round(((0.65 * $activeKw) + (0.35 * $modelHourKw)) * $hourDurationFactor, 1);
                     $minLeft = max(0, 60 - (int) $now->format('i'));
                     $frac = $minLeft / 60.0;
                     $thisHourRemainingKwh = round($estHourKw * $frac, 1);
@@ -916,7 +1009,12 @@ class ISolarCloudService
                         'status' => 'current',
                     ];
                 } else {
-                    $estKwh = $estHourKw;
+                    // For the immediately upcoming hour (nowHour + 1), smoothly bridge live power and model curve
+                    if ($h === $nowHour + 1 && $h < 18) {
+                        $estKwh = round((0.30 * ($activeKw * $nextHourPowerRatio)) + (0.70 * $modelHourKw), 1);
+                    } else {
+                        $estKwh = round($modelHourKw, 1);
+                    }
                     $totalRemainingPredictedKwh += $estKwh;
                     $remainingHoursProfile[] = [
                         'hour' => Carbon::createFromTime($h, 0)->format('h A'),
