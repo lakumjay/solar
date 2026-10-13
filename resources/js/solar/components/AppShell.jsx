@@ -306,6 +306,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
     }, [user?.id]);
 
     const can = permission => user?.role === 'super_admin' || (Array.isArray(user?.permissions) && user.permissions.includes(permission));
+    const isAdminOrOwner = user?.role === 'super_admin' || user?.role === 'company_admin';
     const activeCompany = companies.find(company => String(company.id) === String(companyId));
     const navigation = [
         ['dashboard', `⚡ ${t('liveSolar')}`, Zap],
@@ -313,7 +314,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         can('view_reports') && ['reports', t('reports'), BarChart3],
         ['gallery', t('gallery'), Camera],
         ['reels', t('reels'), Film],
-        ['expenses', t('expenses'), IndianRupee],
+        (isAdminOrOwner || can('view_expenses')) && ['expenses', t('expenses'), IndianRupee],
         user.role === 'super_admin' && ['companies', t('companies'), Building2],
         user.role === 'super_admin' && ['isolarcloud', 'iSolarCloud', CloudSun],
         (user.role === 'super_admin' || can('manage_company_users')) && ['users', t('users'), Users],
@@ -322,9 +323,9 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         can('view_attendance') && ['attendance', t('attendance'), UserCheck],
         can('view_attendance') && ['leave-holidays', t('leaveHoliday'), CalendarCheck2],
         can('view_attendance_reports') && ['attendance-reports', t('attendanceReports'), BarChart3],
-        (user.role === 'super_admin' || user.role === 'company_admin') && ['salaries', t('salaries'), WalletCards],
-        ['stock', t('stock'), Boxes],
-        ['curtailment-loss', t('curtailmentLoss', '૬૬KV પાવર કટ & નુકસાન'), Zap],
+        isAdminOrOwner && ['salaries', t('salaries'), WalletCards],
+        (isAdminOrOwner || can('view_stock') || can('manage_stock')) && ['stock', t('stock'), Boxes],
+        (isAdminOrOwner || can('enter_readings') || can('view_reports')) && ['curtailment-loss', t('curtailmentLoss', '૬૬KV પાવર કટ & નુકસાન'), Zap],
         user.role === 'employee' && ['my-attendance', t('myAttendance'), Clock3],
         user.role === 'employee' && ['my-salary', t('mySalary'), IndianRupee],
     ].filter(Boolean);
@@ -424,19 +425,21 @@ export default function AppShell({user, page, setPage, companies, companyId, set
                         </div>
                         <nav>
                             {navigation.map(([key, label, Icon]) => <button key={key} data-page={key} className={page === key ? 'nav active' : 'nav'} onClick={() => choosePage(key)}><Icon size={18}/><span>{label}</span><ChevronRight size={15}/></button>)}
-                            <button
-                                type="button"
-                                className="nav"
-                                onClick={() => {
-                                    setMenuOpen(false);
-                                    setShowManageCallsModal(true);
-                                }}
-                                style={{ color: '#15803d', fontWeight: 700 }}
-                            >
-                                <Phone size={18} />
-                                <span>{currentLang === 'en' ? 'Manage AI Calls (ON/OFF)' : '📞 AI કૉલ ON / OFF'}</span>
-                                <ChevronRight size={15} />
-                            </button>
+                            {isAdminOrOwner && (
+                                <button
+                                    type="button"
+                                    className="nav"
+                                    onClick={() => {
+                                        setMenuOpen(false);
+                                        setShowManageCallsModal(true);
+                                    }}
+                                    style={{ color: '#86efac', fontWeight: 700 }}
+                                >
+                                    <Phone size={18} />
+                                    <span>{currentLang === 'en' ? 'Manage AI Calls (ON/OFF)' : '📞 AI કૉલ ON / OFF'}</span>
+                                    <ChevronRight size={15} />
+                                </button>
+                            )}
                         </nav>
                         <button className="nav signout" onClick={logout}><LogOut size={18}/><span>Sign out</span></button>
                     </aside>
@@ -445,28 +448,30 @@ export default function AppShell({user, page, setPage, companies, companyId, set
                         <header className="topbar">
                             <button className="mobile-menu" onClick={() => setMenuOpen(true)}><Menu/></button>
                             <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginLeft: 'auto'}}>
-                                {/* Manage Auto AI Calls ON/OFF Pill */}
-                                <button
-                                    type="button"
-                                    onClick={() => setShowManageCallsModal(true)}
-                                    style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        background: '#f0fdf4',
-                                        padding: '6px 12px',
-                                        borderRadius: '20px',
-                                        border: '1.5px solid #86efac',
-                                        fontSize: '12px',
-                                        fontWeight: 800,
-                                        color: '#15803d',
-                                        cursor: 'pointer'
-                                    }}
-                                    title={currentLang === 'en' ? 'Manage Auto AI Voice Calls (ON/OFF)' : 'ઓટો AI એલર્ટ કૉલ ચાલુ/બંધ કરો'}
-                                >
-                                    <Phone size={13} style={{color: '#16a34a'}}/>
-                                    <span>{currentLang === 'en' ? 'Manage Calls (ON/OFF)' : '📞 AI કૉલ ON / OFF'}</span>
-                                </button>
+                                {/* Manage Auto AI Calls ON/OFF Pill (Admin/Owner Only) */}
+                                {isAdminOrOwner && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowManageCallsModal(true)}
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            background: '#f0fdf4',
+                                            padding: '6px 12px',
+                                            borderRadius: '20px',
+                                            border: '1.5px solid #86efac',
+                                            fontSize: '12px',
+                                            fontWeight: 800,
+                                            color: '#15803d',
+                                            cursor: 'pointer'
+                                        }}
+                                        title={currentLang === 'en' ? 'Manage Auto AI Voice Calls (ON/OFF)' : 'ઓટો AI એલર્ટ કૉલ ચાલુ/બંધ કરો'}
+                                    >
+                                        <Phone size={13} style={{color: '#16a34a'}}/>
+                                        <span>{currentLang === 'en' ? 'Manage Calls (ON/OFF)' : '📞 AI કૉલ ON / OFF'}</span>
+                                    </button>
+                                )}
 
                                 {/* Language Switcher Pill */}
                                 <button

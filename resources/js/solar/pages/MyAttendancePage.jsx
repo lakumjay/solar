@@ -109,7 +109,8 @@ function SelfieModal({mode, onClose, onDone}) {
             await api(endpoint, {method: 'POST', body});
             await onDone();
         } catch (failure) {
-            setError(failure.message);
+            const rawMsg = failure?.message || 'Error';
+            setError(rawMsg.includes('SQLSTATE') ? 'સર્વર અપડેટ થઈ રહ્યું છે. કૃપા કરીને પેજ રિફ્રેશ કરીને ફરી પ્રયાસ કરો.' : rawMsg);
         } finally {
             setBusy(false);
         }
@@ -231,7 +232,8 @@ export default function MyAttendancePage({companyId}) {
             setMessage('Break started successfully.');
             await load();
         } catch (error) {
-            setMessage(error.message);
+            const rawMsg = error?.message || '';
+            setMessage(rawMsg.includes('SQLSTATE') ? 'Unable to start break right now. Please try again.' : (rawMsg || 'Unable to start break.'));
         } finally {
             setBusy(false);
         }

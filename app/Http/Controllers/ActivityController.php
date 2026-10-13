@@ -47,12 +47,15 @@ class ActivityController extends Controller
 
         if ($request->filled('search')) {
             $term = '%' . $request->string('search') . '%';
-            $query->where(function ($q) use ($term) {
-                $q->where('description', 'like', $term)
-                  ->orWhere('ip_address', 'like', $term)
-                  ->orWhere('device', 'like', $term)
-                  ->orWhere('browser', 'like', $term)
-                  ->orWhereHas('user', fn($u) => $u->where('name', 'like', $term)->orWhere('email', 'like', $term));
+            $hasIpCol = \Illuminate\Support\Facades\Schema::hasColumn('activity_logs', 'ip_address');
+            $query->where(function ($q) use ($term, $hasIpCol) {
+                $q->where('description', 'like', $term);
+                if ($hasIpCol) {
+                    $q->orWhere('ip_address', 'like', $term)
+                      ->orWhere('device', 'like', $term)
+                      ->orWhere('browser', 'like', $term);
+                }
+                $q->orWhereHas('user', fn($u) => $u->where('name', 'like', $term)->orWhere('email', 'like', $term));
             });
         }
 

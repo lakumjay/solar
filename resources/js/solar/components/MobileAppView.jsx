@@ -926,6 +926,7 @@ export default function MobileAppView({
                                 'my-attendance': currentLang === 'en' ? 'My Attendance' : 'મારી હાજરી',
                                 'reports': currentLang === 'en' ? 'Reports & Analytics' : 'રિપોર્ટ્સ',
                                 'entry': currentLang === 'en' ? 'Daily Readings' : 'દૈનિક રીડિંગ',
+                                'curtailment-loss': currentLang === 'en' ? '66kV Outage & Loss' : '૬૬KV પાવર કટ & નુકસાન',
                                 'isolarcloud': 'iSolarCloud Sync',
                             }[page] || page.replace('-', ' ').toUpperCase()}
                         </h3>
@@ -2733,7 +2734,9 @@ export default function MobileAppView({
                             <div className="drawer-user-info">
                                 <h4>
                                     {user?.name || 'Super Admin'}
-                                    <small style={{fontSize: '11px', color: '#f59e0b', marginLeft: '6px', fontWeight: 800}}>👑 VIP</small>
+                                    {(isSuperAdmin || user?.role === 'company_admin') && (
+                                        <small style={{fontSize: '11px', color: '#f59e0b', marginLeft: '6px', fontWeight: 800}}>👑 VIP</small>
+                                    )}
                                 </h4>
                                 <p>
                                     <span style={{background: '#e0f2fe', color: '#0369a1', padding: '1px 5px', borderRadius: '4px', fontWeight: 700, fontSize: '10.5px'}}>
@@ -2752,32 +2755,34 @@ export default function MobileAppView({
                         </div>
 
                         <div className="drawer-menu-grid">
-                            {/* 0. Manage Auto AI Alert Calls (ON / OFF) */}
-                            <button
-                                type="button"
-                                className="dmenu-card dmenu-card-highlight"
-                                onClick={() => {
-                                    triggerHaptic([35]);
-                                    setMoreMenuOpen(false);
-                                    setShowManageCallsModal(true);
-                                }}
-                                style={{ border: '1.5px solid #86efac', background: '#f0fdf4' }}
-                            >
-                                <div className="dmenu-card-top">
-                                    <div className="dmenu-bubble" style={{ background: '#dcfce7', color: '#16a34a' }}>
-                                        <PhoneCall size={19} />
+                            {/* 0. Manage Auto AI Alert Calls (ON / OFF) - Admin/Owner Only */}
+                            {(isSuperAdmin || user.role === 'company_admin') && (
+                                <button
+                                    type="button"
+                                    className="dmenu-card dmenu-card-highlight"
+                                    onClick={() => {
+                                        triggerHaptic([35]);
+                                        setMoreMenuOpen(false);
+                                        setShowManageCallsModal(true);
+                                    }}
+                                    style={{ border: '1.5px solid #86efac', background: '#f0fdf4' }}
+                                >
+                                    <div className="dmenu-card-top">
+                                        <div className="dmenu-bubble" style={{ background: '#dcfce7', color: '#16a34a' }}>
+                                            <PhoneCall size={19} />
+                                        </div>
+                                        <span className="dmenu-badge" style={{ background: '#16a34a', color: '#ffffff' }}>
+                                            ON / OFF
+                                        </span>
                                     </div>
-                                    <span className="dmenu-badge" style={{ background: '#16a34a', color: '#ffffff' }}>
-                                        ON / OFF
-                                    </span>
-                                </div>
-                                <div className="dmenu-card-title" style={{ color: '#15803d', fontWeight: 800 }}>
-                                    {currentLang === 'en' ? 'Manage AI Calls' : '📞 AI કૉલ ON / OFF'}
-                                </div>
-                                <div className="dmenu-card-sub" style={{ color: '#166534' }}>
-                                    {currentLang === 'en' ? 'Stop / Toggle Auto Calls' : 'પ્લાન્ટ બંધ કરો ત્યારે કૉલ રોકો'}
-                                </div>
-                            </button>
+                                    <div className="dmenu-card-title" style={{ color: '#15803d', fontWeight: 800 }}>
+                                        {currentLang === 'en' ? 'Manage AI Calls' : '📞 AI કૉલ ON / OFF'}
+                                    </div>
+                                    <div className="dmenu-card-sub" style={{ color: '#166534' }}>
+                                        {currentLang === 'en' ? 'Stop / Toggle Auto Calls' : 'પ્લાન્ટ બંધ કરો ત્યારે કૉલ રોકો'}
+                                    </div>
+                                </button>
+                            )}
 
                             {/* 1. Plant Gallery */}
                             <button

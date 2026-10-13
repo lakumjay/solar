@@ -7185,18 +7185,99 @@ button:active, .mqa-btn:active, .bnav-item:active, .bento-card:active {
     margin: 0 0 2px 0;
 }
 
-.panel h2 {
+.panel:not(.attendance-hero) h2 {
     font-size: 16px;
     font-weight: 800;
     color: #0f291e !important;
     margin: 0 0 4px 0;
 }
 
-.panel p {
+.panel:not(.attendance-hero) p {
     font-size: 12px;
     color: #475569 !important;
     margin: 0;
     line-height: 1.45;
+}
+
+.attendance-hero.panel,
+.attendance-hero {
+    background: linear-gradient(125deg, #103d32, #1e6049) !important;
+    color: #ffffff !important;
+}
+
+.attendance-hero.panel h2,
+.attendance-hero h2 {
+    font-size: 24px !important;
+    font-weight: 800 !important;
+    color: #ffffff !important;
+    margin: 4px 0 !important;
+}
+
+.attendance-hero.panel .eyebrow,
+.attendance-hero .eyebrow {
+    color: #86efac !important;
+    font-weight: 800 !important;
+    font-size: 11.5px !important;
+    letter-spacing: 0.06em !important;
+}
+
+.attendance-hero.panel .day-note,
+.attendance-hero .day-note {
+    color: #d1fae5 !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+}
+
+.attendance-hero .attendance-state small {
+    color: #bbf7d0 !important;
+}
+
+.attendance-hero .attendance-state b,
+.attendance-hero .attendance-state svg {
+    color: #ffffff !important;
+}
+
+.camera-modal {
+    width: min(480px, 100%) !important;
+    padding: 16px !important;
+}
+
+.camera-modal .camera-frame {
+    max-height: 290px;
+}
+
+@media (max-width: 768px) {
+    .self-grid {
+        grid-template-columns: 1fr !important;
+        gap: 14px !important;
+    }
+    .break-card {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 12px !important;
+    }
+    .break-card > div:last-child {
+        width: 100% !important;
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px !important;
+    }
+    .break-card > div:last-child > button {
+        width: 100% !important;
+        justify-content: center !important;
+    }
+    .clockout-card .form-actions {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+    }
+    .clockout-card .form-actions button {
+        width: 100% !important;
+        justify-content: center !important;
+    }
+    .camera-modal .camera-frame {
+        max-height: 230px !important;
+    }
 }
 
 /* 4. 🏝️ FLOATING DYNAMIC ISLAND CAPSULE WIDGET */

@@ -162,6 +162,8 @@ class AttendanceService
             $outSelfiePath = $selfie->store('attendance-break-selfies/'.now()->format('Y/m'));
         }
 
+        $this->ensureBreakColumnsExist();
+
         return $record->breaks()->create([
             'break_type' => $type,
             'out_reason' => $reason,
@@ -170,8 +172,42 @@ class AttendanceService
         ]);
     }
 
+    private function ensureBreakColumnsExist(): void
+    {
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('attendance_breaks') && ! \Illuminate\Support\Facades\Schema::hasColumn('attendance_breaks', 'break_type')) {
+                \Illuminate\Support\Facades\Schema::table('attendance_breaks', function (\Illuminate\Database\Schema\Blueprint $table) {
+                    if (! \Illuminate\Support\Facades\Schema::hasColumn('attendance_breaks', 'break_type')) {
+                        $table->string('break_type')->default('regular');
+                    }
+                    if (! \Illuminate\Support\Facades\Schema::hasColumn('attendance_breaks', 'out_reason')) {
+                        $table->string('out_reason')->nullable();
+                    }
+                    if (! \Illuminate\Support\Facades\Schema::hasColumn('attendance_breaks', 'out_selfie_path')) {
+                        $table->string('out_selfie_path')->nullable();
+                    }
+                    if (! \Illuminate\Support\Facades\Schema::hasColumn('attendance_breaks', 'deduction_amount')) {
+                        $table->decimal('deduction_amount', 10, 2)->default(0.00);
+                    }
+                    if (! \Illuminate\Support\Facades\Schema::hasColumn('attendance_breaks', 'is_deducted')) {
+                        $table->boolean('is_deducted')->default(false);
+                    }
+                    if (! \Illuminate\Support\Facades\Schema::hasColumn('attendance_breaks', 'admin_waived')) {
+                        $table->boolean('admin_waived')->default(false);
+                    }
+                    if (! \Illuminate\Support\Facades\Schema::hasColumn('attendance_breaks', 'waive_reason')) {
+                        $table->string('waive_reason')->nullable();
+                    }
+                });
+            }
+        } catch (\Throwable $e) {
+            // Ignore
+        }
+    }
+
     public function endBreak(Employee $employee, UploadedFile $selfie): AttendanceBreak
     {
+        $this->ensureBreakColumnsExist();
         $this->requireSelfClocking($employee);
         $record = AttendanceRecord::where('employee_id', $employee->id)
             ->whereDate('attendance_date', now()->toDateString())->whereNull('clock_out_at')->first();

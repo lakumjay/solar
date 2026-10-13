@@ -8,25 +8,43 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('activity_logs')) {
+            return;
+        }
+
         Schema::table('activity_logs', function (Blueprint $table) {
-            $table->string('ip_address', 45)->nullable()->after('description');
-            $table->text('user_agent')->nullable()->after('ip_address');
-            $table->string('device', 100)->nullable()->after('user_agent');
-            $table->string('platform', 60)->nullable()->after('device');
-            $table->string('browser', 60)->nullable()->after('platform');
-            $table->json('old_values')->nullable()->after('changes');
-            $table->json('new_values')->nullable()->after('old_values');
-            $table->index('ip_address');
-            $table->index('user_id');
+            if (! Schema::hasColumn('activity_logs', 'ip_address')) {
+                $table->string('ip_address', 45)->nullable()->after('description');
+            }
+            if (! Schema::hasColumn('activity_logs', 'user_agent')) {
+                $table->text('user_agent')->nullable();
+            }
+            if (! Schema::hasColumn('activity_logs', 'device')) {
+                $table->string('device', 100)->nullable();
+            }
+            if (! Schema::hasColumn('activity_logs', 'platform')) {
+                $table->string('platform', 60)->nullable();
+            }
+            if (! Schema::hasColumn('activity_logs', 'browser')) {
+                $table->string('browser', 60)->nullable();
+            }
+            if (! Schema::hasColumn('activity_logs', 'old_values')) {
+                $table->json('old_values')->nullable();
+            }
+            if (! Schema::hasColumn('activity_logs', 'new_values')) {
+                $table->json('new_values')->nullable();
+            }
         });
     }
 
     public function down(): void
     {
+        if (! Schema::hasTable('activity_logs')) {
+            return;
+        }
+
         Schema::table('activity_logs', function (Blueprint $table) {
-            $table->dropIndex(['ip_address']);
-            $table->dropIndex(['user_id']);
-            $table->dropColumn([
+            $cols = array_filter([
                 'ip_address',
                 'user_agent',
                 'device',
@@ -34,7 +52,10 @@ return new class extends Migration
                 'browser',
                 'old_values',
                 'new_values',
-            ]);
+            ], fn ($c) => Schema::hasColumn('activity_logs', $c));
+            if (! empty($cols)) {
+                $table->dropColumn($cols);
+            }
         });
     }
 };
