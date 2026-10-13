@@ -48,7 +48,16 @@ export default function ISolarCloudPage({company, companies, user}) {
 
     useEffect(() => {
         loadStatus();
-    }, []);
+        const handleMsg = (e) => {
+            if (e.data?.type === 'ISOLARCLOUD_CONNECTED') {
+                setMessage({type: 'success', text: '✅ iSolarCloud સફળતાપૂર્વક કનેક્ટ થઈ ગયું છે!'});
+                loadStatus();
+                if (selectedCompanyId) fetchLiveTelemetry();
+            }
+        };
+        window.addEventListener('message', handleMsg);
+        return () => window.removeEventListener('message', handleMsg);
+    }, [selectedCompanyId]);
 
     useEffect(() => {
         if (selectedCompanyId) {
@@ -84,9 +93,8 @@ export default function ISolarCloudPage({company, companies, user}) {
     };
 
     const openAuthorization = () => {
-        if (status?.auth_url) {
-            window.open(status.auth_url, '_blank', 'width=800,height=700');
-        }
+        const targetUrl = status?.auth_url || 'https://web3.isolarcloud.in/#/authorized-app?cloudId=9&applicationId=3799&redirectUrl=https%3A%2F%2Fwww.rns.snwebkarma.in%2Fcallback';
+        window.open(targetUrl, '_blank', 'width=800,height=700');
     };
 
     const activeCompanyObj = companies.find(c => String(c.id) === String(selectedCompanyId));

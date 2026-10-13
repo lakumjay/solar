@@ -40,6 +40,7 @@ class ISolarCloudController extends Controller
 
         try {
             $result = $this->solarCloud->exchangeCode($code);
+            \Illuminate\Support\Facades\Cache::forget('dashboard_solar_overview_all');
 
             if ($request->wantsJson()) {
                 return response()->json([
@@ -49,7 +50,43 @@ class ISolarCloudController extends Controller
                 ]);
             }
 
-            return redirect('/?isolarcloud=connected');
+            return response(<<<'HTML'
+<!DOCTYPE html>
+<html lang="gu">
+<head>
+    <meta charset="utf-8">
+    <title>iSolarCloud Connected</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background: #f0fdf4; color: #166534; display: grid; place-items: center; min-height: 95vh; margin: 0; text-align: center; }
+        .card { background: #fff; padding: 32px; border-radius: 16px; box-shadow: 0 10px 30px rgba(22,163,74,0.15); border: 1.5px solid #bbf7d0; max-width: 400px; }
+        h2 { margin: 12px 0 8px; font-size: 20px; }
+        p { color: #475569; font-size: 14px; margin: 0 0 16px; }
+        a { display: inline-block; background: #16a34a; color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div style="font-size:42px;">✅</div>
+        <h2>iSolarCloud કનેક્ટ થઈ ગયું છે!</h2>
+        <p>તમારું નવું Sungrow OAuth ટોકન સફળતાપૂર્વક સેવ થઈ ગયું છે.</p>
+        <a href="/?isolarcloud=connected">ડેશબોર્ડ પર પાછા જાઓ</a>
+    </div>
+    <script>
+        try {
+            if (window.opener && !window.opener.closed) {
+                window.opener.postMessage({ type: 'ISOLARCLOUD_CONNECTED' }, '*');
+                setTimeout(() => window.close(), 1200);
+            } else {
+                setTimeout(() => { window.location.href = '/?isolarcloud=connected'; }, 1200);
+            }
+        } catch (e) {
+            setTimeout(() => { window.location.href = '/?isolarcloud=connected'; }, 1200);
+        }
+    </script>
+</body>
+</html>
+HTML
+            , 200)->header('Content-Type', 'text/html; charset=UTF-8');
         } catch (Exception $e) {
             Log::error('iSolarCloud token exchange failed', ['error' => $e->getMessage()]);
 

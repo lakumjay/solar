@@ -2,5 +2,6 @@
 deployment:
   tasks:
     - export DEPLOYPATH=/home3/snweba2e/rns.snwebkarma.in/
-    - /bin/cp -R * $DEPLOYPATH
-    - /bin/cp -R .env.example $DEPLOYPATH
+    - /bin/cp -Rf * $DEPLOYPATH
+    - /bin/cp -Rf .env.example $DEPLOYPATH
+    - cd $DEPLOYPATH && php artisan optimize:clear || true

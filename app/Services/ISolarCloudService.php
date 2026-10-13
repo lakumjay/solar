@@ -25,6 +25,9 @@ class ISolarCloudService
     public function getAuthUrl(): string
     {
         $authUrl = config('isolarcloud.auth_url', 'https://web3.isolarcloud.in/#/authorized-app');
+        if (! str_contains($authUrl, '#/authorized-app')) {
+            $authUrl = rtrim($authUrl, '/') . '/#/authorized-app';
+        }
         $cloudId = config('isolarcloud.cloud_id', '9');
         $appId = config('isolarcloud.application_id', '3799');
         $redirectUrl = config('isolarcloud.redirect_uri', 'https://www.rns.snwebkarma.in/callback');
@@ -228,7 +231,7 @@ class ISolarCloudService
 
         if (! $response->successful() || ($json['error'] ?? null)) {
             $errorMsg = $json['error_description'] ?? $json['error'] ?? $json['message'] ?? 'Failed to get device real-time data.';
-            if (($json['error'] ?? null) === 'invalid_token') {
+            if (($json['error'] ?? null) === 'invalid_token' || str_contains(strtolower($errorMsg), 'invalid access token')) {
                 // Attempt one token refresh and retry
                 $tokenRecord = ISolarCloudToken::latest()->first();
                 $effectiveRefresh = $tokenRecord?->refresh_token
@@ -241,6 +244,10 @@ class ISolarCloudService
                     if ($retryResponse->successful() && ! ($retryJson['error'] ?? null)) {
                         return $retryJson;
                     }
+                }
+                // Both access_token and refresh_token were rejected by Sungrow (authorization revoked)
+                if ($tokenRecord) {
+                    $tokenRecord->update(['expires_at' => Carbon::now()->subMinute()]);
                 }
             }
             throw new Exception("iSolarCloud RealTimeData Error: {$errorMsg}");
@@ -323,12 +330,25 @@ class ISolarCloudService
     {
         $this->getValidToken();
         $token = ISolarCloudToken::latest()->first();
+
+        if ($token && ! $token->isExpired()) {
+            $firstSn = Inverter::where('active', true)->whereNotNull('serial_number')->value('serial_number');
+            if ($firstSn) {
+                try {
+                    $this->getDeviceRealTimeData([$firstSn], ['1']);
+                } catch (Exception $e) {
+                    // getDeviceRealTimeData marks token expired if invalid_token and refresh failed
+                }
+                $token = ISolarCloudToken::latest()->first();
+            }
+        }
+
         $isConnected = $token && ! $token->isExpired();
 
         $expiresInHuman = null;
         if ($token?->expires_at) {
             $expiresInHuman = $token->expires_at->isPast()
-                ? 'Expired ' . $token->expires_at->diffForHumans()
+                ? 'Expired / Revoked (Please Reconnect)'
                 : 'Expires in ' . $token->expires_at->diffForHumans(null, true);
         }
 
