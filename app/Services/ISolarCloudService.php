@@ -513,10 +513,24 @@ class ISolarCloudService
         $realtimeData = null;
         $isLive = false;
 
+        // Sungrow iSolarCloud Official PV String Current Point ID Mapping (device_type = 1):
+        // p70..p85  = PV1..PV16 (Strings 1 to 16)
+        // p92, p93  = PV17, PV18 (Strings 17 to 18)
+        // p96..p101 = PV19..PV24 (Strings 19 to 24)
+        // Note: p86..p91 are Power Factor, Monthly Wh, Total Wh, Grid Freq, Reactive Power - NOT PV strings!
+        $pvStringPointMap = [
+            1 => 'p70',  2 => 'p71',  3 => 'p72',  4 => 'p73',
+            5 => 'p74',  6 => 'p75',  7 => 'p76',  8 => 'p77',
+            9 => 'p78',  10 => 'p79', 11 => 'p80', 12 => 'p81',
+            13 => 'p82', 14 => 'p83', 15 => 'p84', 16 => 'p85',
+            17 => 'p92', 18 => 'p93', 19 => 'p96', 20 => 'p97',
+            21 => 'p98', 22 => 'p99', 23 => 'p100', 24 => 'p101',
+        ];
+
         if (! empty($serialNumbers) && $this->getValidToken()) {
             try {
-                // Point IDs 70 to 93 correspond to String 1 through String 24 currents
-                $pointIds = array_merge(['1', '3', '14', '24'], array_map('strval', range(70, 93)));
+                $pointIds = array_merge(['1', '3', '14', '24'], range(70, 85), [92, 93], range(96, 101));
+                $pointIds = array_map('strval', $pointIds);
                 $realtimeData = $this->getDeviceRealTimeData($serialNumbers, $pointIds);
                 $isLive = true;
             } catch (Exception $e) {
@@ -598,24 +612,29 @@ class ISolarCloudService
                     }
                     $deviceName = $dp['device_name'] ?? null;
 
-                    // Parse PV String currents dynamically (Point IDs 70 to 93 -> up to 24 strings)
+                    // Parse PV String currents dynamically using verified Sungrow string points
                     $curtPvData = $companyCurtailment ? (array) ($companyCurtailment->pv_strings ?? []) : [];
                     $activeStringCurrents = [];
-                    
-                    // Detect highest available string point in telemetry (at least 16, up to 24)
-                    $maxStrings = 16;
+
+                    // Detect highest active/wired string above 16 (up to 24), rounded to a 4-column row multiple (16, 20, or 24)
+                    $highestExtraString = 16;
                     for ($sCheck = 17; $sCheck <= 24; $sCheck++) {
-                        $checkKey = 'p' . (69 + $sCheck);
-                        if (isset($dp[$checkKey])) {
-                            $maxStrings = $sCheck;
+                        $checkKey = $pvStringPointMap[$sCheck];
+                        $checkVal = isset($dp[$checkKey]) && is_numeric($dp[$checkKey]) ? (float) $dp[$checkKey] : null;
+                        $wasWired = \Illuminate\Support\Facades\Cache::get("solar_str_wired_{$company->id}_{$inv->id}_{$sCheck}", false);
+                        if (($checkVal !== null && $checkVal >= 0.2 && $checkVal <= 45.0) || $wasWired) {
+                            $highestExtraString = $sCheck;
                         }
                     }
+                    $maxStrings = $highestExtraString > 20 ? 24 : ($highestExtraString > 16 ? 20 : 16);
 
                     $pvStrings = [];
                     for ($s = 1; $s <= $maxStrings; $s++) {
-                        $pKey = 'p' . (69 + $s);
-                        $currentA = isset($dp[$pKey]) ? round((float) $dp[$pKey], 2) : 0.0;
-                        
+                        $pKey = $pvStringPointMap[$s] ?? ('p' . (69 + $s));
+                        $rawVal = isset($dp[$pKey]) && is_numeric($dp[$pKey]) ? (float) $dp[$pKey] : 0.0;
+                        // Physical DC String Current Filter: Must be between 0.0A and 45.0A
+                        $currentA = ($rawVal >= 0.0 && $rawVal <= 45.0) ? round($rawVal, 2) : 0.0;
+
                         $isStrCurtailed = $isInverterCurtailed;
                         if (! $isStrCurtailed && $companyCurtailment && ! empty($curtPvData)) {
                             $invKey = (string) $inv->id;
@@ -636,10 +655,10 @@ class ISolarCloudService
                             'is_curtailed' => $isStrCurtailed,
                             'status' => $isStrCurtailed ? 'curtailed' : ($isConnected ? 'normal' : 'offline'),
                         ];
-                        if ($currentA > 0.5 && ! $isStrCurtailed) {
+                        if ($currentA > 0.5 && $currentA <= 45.0 && ! $isStrCurtailed) {
                             $activeStringCurrents[] = $currentA;
                         }
-                        if ($currentA >= 2.0) {
+                        if ($currentA >= 2.0 && $currentA <= 45.0) {
                             \Illuminate\Support\Facades\Cache::put("solar_str_wired_{$company->id}_{$inv->id}_{$s}", true, 86400 * 7);
                         }
                     }

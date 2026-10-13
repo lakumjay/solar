@@ -2189,7 +2189,7 @@ export default function MobileAppView({
                                                                 <div className="isolar-strings-head">
                                                                     <span className="strings-head-title">PV String Live Currents (A)</span>
                                                                     <span className="strings-head-points">
-                                                                        {pvStrings.filter(s => Number(s.current_a) > 0.1).length}/{pvStrings.length} Active (Points 70 - {69 + pvStrings.length})
+                                                                        {pvStrings.filter(s => Number(s.current_a) > 0.1).length}/{pvStrings.length} Active
                                                                     </span>
                                                                 </div>
 

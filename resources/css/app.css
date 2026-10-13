@@ -1025,28 +1025,37 @@
 }
 .pv-strings-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 4px;
+    width: 100%;
+    box-sizing: border-box;
 }
 .pv-string-cell {
     background: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 6px;
-    padding: 4px 6px;
+    padding: 4px 5px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 10.5px;
+    gap: 3px;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: 10px;
     transition: all 0.15s ease;
 }
 .pv-string-cell .pv-lbl {
     font-weight: 700;
     color: #475569;
+    flex-shrink: 0;
 }
 .pv-string-cell .pv-val {
     font-family: monospace;
     font-weight: 700;
     color: #0284c7;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .pv-string-cell.connected {
     background: #f0fdf4;
