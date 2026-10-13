@@ -457,6 +457,7 @@ class VoiceAgentController extends Controller
         return response()->json([
             'active' => ! empty($activeCall),
             'call' => $activeCall,
+            'settings' => $smartCallService->getCallSettings(),
         ]);
     }
 
@@ -472,6 +473,56 @@ class VoiceAgentController extends Controller
             \Illuminate\Support\Facades\Cache::forget('active_emergency_call_super_admin');
         }
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Get current automated AI Voice Call ON/OFF settings & companies list for Manage Calls modal
+     */
+    public function getCallSettings(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $smartCallService = app(\App\Services\SmartVoiceCallAlertService::class);
+        $settings = $smartCallService->getCallSettings();
+        $companies = \App\Models\Company::orderBy('id')->get(['id', 'name', 'owner_name']);
+
+        return response()->json([
+            'success' => true,
+            'settings' => $settings,
+            'companies' => $companies,
+        ]);
+    }
+
+    /**
+     * Save automated AI Voice Call ON/OFF settings (when shutting down plant/inverters for maintenance)
+     */
+    public function updateCallSettings(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $smartCallService = app(\App\Services\SmartVoiceCallAlertService::class);
+        $updated = $smartCallService->saveCallSettings($request->all(), $user->name ?: $user->role);
+
+        try {
+            \App\Services\ActivityLogger::log(
+                'ai_call_settings_updated',
+                'AI Auto Call ON/OFF settings updated by ' . ($user->name ?: 'User'),
+                null,
+                $updated
+            );
+        } catch (\Throwable $e) {}
+
+        return response()->json([
+            'success' => true,
+            'message' => 'AI ઓટો કૉલ સેટિંગ્સ સફળતાપૂર્વક અપડેટ થઈ ગઈ છે.',
+            'settings' => $updated,
+        ]);
     }
 
     /**

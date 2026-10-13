@@ -7,6 +7,7 @@ import AppSplashScreen from './AppSplashScreen';
 import MilestoneCelebrationModal from './MilestoneCelebrationModal';
 import VoiceCallModal, {unlockVoiceCallAudio} from './VoiceCallModal';
 import EmergencyIncomingCallModal from './EmergencyIncomingCallModal';
+import ManageAiCallsModal from './ManageAiCallsModal';
 import {useTranslation} from '../context/LanguageContext';
 
 export default function AppShell({user, page, setPage, companies, companyId, setCompanyId, children}) {
@@ -29,6 +30,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         }
     });
     const [showVoiceCall, setShowVoiceCall] = useState(false);
+    const [showManageCallsModal, setShowManageCallsModal] = useState(false);
     const [emergencyCall, setEmergencyCall] = useState({
         isOpen: false,
         autoAnswer: false,
@@ -420,7 +422,22 @@ export default function AppShell({user, page, setPage, companies, companyId, set
                                 <small>{user?.role?.replaceAll('_', ' ')}{activeCompany?.owner_name ? ` (${t('owner')}: ${activeCompany.owner_name})` : ''}</small>
                             </span>
                         </div>
-                        <nav>{navigation.map(([key, label, Icon]) => <button key={key} data-page={key} className={page === key ? 'nav active' : 'nav'} onClick={() => choosePage(key)}><Icon size={18}/><span>{label}</span><ChevronRight size={15}/></button>)}</nav>
+                        <nav>
+                            {navigation.map(([key, label, Icon]) => <button key={key} data-page={key} className={page === key ? 'nav active' : 'nav'} onClick={() => choosePage(key)}><Icon size={18}/><span>{label}</span><ChevronRight size={15}/></button>)}
+                            <button
+                                type="button"
+                                className="nav"
+                                onClick={() => {
+                                    setMenuOpen(false);
+                                    setShowManageCallsModal(true);
+                                }}
+                                style={{ color: '#15803d', fontWeight: 700 }}
+                            >
+                                <Phone size={18} />
+                                <span>{currentLang === 'en' ? 'Manage AI Calls (ON/OFF)' : '📞 AI કૉલ ON / OFF'}</span>
+                                <ChevronRight size={15} />
+                            </button>
+                        </nav>
                         <button className="nav signout" onClick={logout}><LogOut size={18}/><span>Sign out</span></button>
                     </aside>
                     {menuOpen && <div className="scrim" onClick={() => setMenuOpen(false)}/>} 
@@ -428,6 +445,29 @@ export default function AppShell({user, page, setPage, companies, companyId, set
                         <header className="topbar">
                             <button className="mobile-menu" onClick={() => setMenuOpen(true)}><Menu/></button>
                             <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginLeft: 'auto'}}>
+                                {/* Manage Auto AI Calls ON/OFF Pill */}
+                                <button
+                                    type="button"
+                                    onClick={() => setShowManageCallsModal(true)}
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        background: '#f0fdf4',
+                                        padding: '6px 12px',
+                                        borderRadius: '20px',
+                                        border: '1.5px solid #86efac',
+                                        fontSize: '12px',
+                                        fontWeight: 800,
+                                        color: '#15803d',
+                                        cursor: 'pointer'
+                                    }}
+                                    title={currentLang === 'en' ? 'Manage Auto AI Voice Calls (ON/OFF)' : 'ઓટો AI એલર્ટ કૉલ ચાલુ/બંધ કરો'}
+                                >
+                                    <Phone size={13} style={{color: '#16a34a'}}/>
+                                    <span>{currentLang === 'en' ? 'Manage Calls (ON/OFF)' : '📞 AI કૉલ ON / OFF'}</span>
+                                </button>
+
                                 {/* Language Switcher Pill */}
                                 <button
                                     type="button"
@@ -487,6 +527,13 @@ export default function AppShell({user, page, setPage, companies, companyId, set
                     <NotificationPermissionModal />
                 </div>
             )}
+
+            {/* 📞 Manage Auto AI Voice Calls (ON / OFF) Modal */}
+            <ManageAiCallsModal
+                isOpen={showManageCallsModal}
+                onClose={() => setShowManageCallsModal(false)}
+                companies={companies}
+            />
 
             {/* 🎙️ Real-Time AI Voice Call Modal (Mobile & Desktop) */}
             {showVoiceCall && (

@@ -15,6 +15,147 @@ use Illuminate\Support\Facades\Log;
 
 class SmartVoiceCallAlertService
 {
+    public const SETTINGS_CACHE_KEY = 'ai_call_settings_v1';
+
+    /**
+     * Default ON/OFF configuration for all automated AI Voice Calls.
+     */
+    public function defaultCallSettings(): array
+    {
+        return [
+            'master_enabled' => true,
+            'inverter_shutdown' => true,
+            'grid_66kv_tripping' => true,
+            'employee_missing_clock_in' => true,
+            'attendance_pending_4pm' => true,
+            'employee_logout_630pm' => true,
+            'employee_logout_700pm' => true,
+            'muted_company_ids' => [],
+            'maintenance_note' => '',
+            'updated_at' => null,
+            'updated_by' => null,
+        ];
+    }
+
+    /**
+     * Get current AI Voice Call ON/OFF settings (from fast cache or persistent JSON file).
+     */
+    public function getCallSettings(): array
+    {
+        $defaults = $this->defaultCallSettings();
+        try {
+            $cached = Cache::get(self::SETTINGS_CACHE_KEY);
+            if (is_array($cached)) {
+                return array_merge($defaults, $cached);
+            }
+
+            $filePath = storage_path('app/ai_call_settings.json');
+            if (File::exists($filePath)) {
+                $decoded = json_decode((string) File::get($filePath), true);
+                if (is_array($decoded)) {
+                    $merged = array_merge($defaults, $decoded);
+                    Cache::forever(self::SETTINGS_CACHE_KEY, $merged);
+                    return $merged;
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('SmartVoiceCallAlertService getCallSettings notice: ' . $e->getMessage());
+        }
+
+        return $defaults;
+    }
+
+    /**
+     * Update AI Voice Call ON/OFF settings and immediately cancel any active/queued calls that were turned OFF.
+     */
+    public function saveCallSettings(array $input, ?string $updatedBy = null): array
+    {
+        $current = $this->getCallSettings();
+        $boolKeys = [
+            'master_enabled',
+            'inverter_shutdown',
+            'grid_66kv_tripping',
+            'employee_missing_clock_in',
+            'attendance_pending_4pm',
+            'employee_logout_630pm',
+            'employee_logout_700pm',
+        ];
+
+        foreach ($boolKeys as $key) {
+            if (array_key_exists($key, $input)) {
+                $current[$key] = filter_var($input[$key], FILTER_VALIDATE_BOOLEAN);
+            }
+        }
+
+        if (array_key_exists('muted_company_ids', $input) && is_array($input['muted_company_ids'])) {
+            $current['muted_company_ids'] = array_values(array_unique(array_map('intval', $input['muted_company_ids'])));
+        }
+
+        if (array_key_exists('maintenance_note', $input)) {
+            $current['maintenance_note'] = mb_substr(trim((string) $input['maintenance_note']), 0, 250);
+        }
+
+        $current['updated_at'] = now()->toIso8601String();
+        if ($updatedBy) {
+            $current['updated_by'] = $updatedBy;
+        }
+
+        try {
+            $filePath = storage_path('app/ai_call_settings.json');
+            File::put($filePath, json_encode($current, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+            Cache::forever(self::SETTINGS_CACHE_KEY, $current);
+            Cache::forget('smart_voice_call_rules_evaluated_lock');
+        } catch (\Throwable $e) {
+            Log::error('SmartVoiceCallAlertService saveCallSettings error: ' . $e->getMessage());
+        }
+
+        // Immediately clear any active calls that belong to disabled rules or muted companies
+        $this->purgeDisabledActiveCalls($current);
+
+        return $current;
+    }
+
+    /**
+     * Clear any currently queued/ringing calls that have been toggled OFF.
+     */
+    public function purgeDisabledActiveCalls(?array $settings = null): void
+    {
+        $settings = $settings ?? $this->getCallSettings();
+        $mutedCompanies = array_map('intval', $settings['muted_company_ids'] ?? []);
+
+        try {
+            $users = User::where('active', true)->get(['id', 'role', 'name']);
+            foreach ($users as $u) {
+                $key = $this->userCacheKey($u->id);
+                $call = Cache::get($key);
+                if ($call && ! $this->isCallAllowedBySettings($call, $settings, $mutedCompanies)) {
+                    Cache::forget($key);
+                }
+            }
+
+            $superCall = Cache::get('active_emergency_call_super_admin');
+            if ($superCall && ! $this->isCallAllowedBySettings($superCall, $settings, $mutedCompanies)) {
+                Cache::forget('active_emergency_call_super_admin');
+            }
+        } catch (\Throwable $e) {}
+    }
+
+    private function isCallAllowedBySettings(array $call, array $settings, array $mutedCompanies = []): bool
+    {
+        if (empty($settings['master_enabled'])) {
+            return false;
+        }
+        $faultType = $call['fault_type'] ?? '';
+        if ($faultType !== '' && array_key_exists($faultType, $settings) && empty($settings[$faultType])) {
+            return false;
+        }
+        $compId = isset($call['company_id']) ? (int) $call['company_id'] : 0;
+        if ($compId > 0 && $faultType === 'inverter_shutdown' && in_array($compId, $mutedCompanies, true)) {
+            return false;
+        }
+        return true;
+    }
+
     /**
      * Evaluate all automated AI Voice Call rules (throttled to run at most once every 20s)
      * and return any pending voice call for the specified user.
@@ -22,6 +163,12 @@ class SmartVoiceCallAlertService
     public function evaluateAndGetActiveCallForUser(?User $user, ?array $liveOverview = null): ?array
     {
         if (! $user) {
+            return null;
+        }
+
+        $settings = $this->getCallSettings();
+        if (empty($settings['master_enabled'])) {
+            $this->dismissCallForUser($user);
             return null;
         }
 
@@ -41,6 +188,12 @@ class SmartVoiceCallAlertService
         }
 
         if ($call) {
+            $mutedCompanies = array_map('intval', $settings['muted_company_ids'] ?? []);
+            if (! $this->isCallAllowedBySettings($call, $settings, $mutedCompanies)) {
+                $this->dismissCallForUser($user);
+                return null;
+            }
+
             // Auto-clear attendance/logout call if the employee already completed the action
             $faultType = $call['fault_type'] ?? '';
             $isTelemetryLive = ! empty($liveOverview['live']) || ! empty($liveOverview['is_live']);
@@ -90,6 +243,12 @@ class SmartVoiceCallAlertService
      */
     public function evaluateAllRules(?array $liveOverview = null): void
     {
+        $settings = $this->getCallSettings();
+        if (empty($settings['master_enabled'])) {
+            return;
+        }
+        $mutedCompanies = array_map('intval', $settings['muted_company_ids'] ?? []);
+
         $now = Carbon::now();
         $todayStr = $now->toDateString();
         $hourFloat = (float) $now->format('G') + ((float) $now->format('i') / 60.0);
@@ -109,23 +268,25 @@ class SmartVoiceCallAlertService
                 || ! empty($liveOverview['smart_insights']['grid_downtime']['is_down']);
 
             if ($isGridDown) {
-                $gridLockKey = "ai_voice_call_grid_66kv_{$todayStr}_" . $now->format('H');
-                if (! Cache::has($gridLockKey)) {
-                    Cache::put($gridLockKey, true, now()->addMinutes(45));
-                    $speechGu = 'નમસ્તે! સોલારફ્લો એઆઈ ઇમરજન્સી એલર્ટ છે. ૬૬KV સબસ્ટેશન લાઇન ટ્રીપ થઈ ગઈ છે અથવા પ્લાન્ટમાં કુલ ઉત્પાદન ૦ કિલોવોટ થઈ ગયું છે. કૃપા કરીને તાત્કાલિક સાઇટ ટીમ અથવા ઇજનેરનો સંપર્ક કરો અને ગ્રીડ ચેક કરો.';
+                if (! empty($settings['grid_66kv_tripping'])) {
+                    $gridLockKey = "ai_voice_call_grid_66kv_{$todayStr}_" . $now->format('H');
+                    if (! Cache::has($gridLockKey)) {
+                        Cache::put($gridLockKey, true, now()->addMinutes(45));
+                        $speechGu = 'નમસ્તે! સોલારફ્લો એઆઈ ઇમરજન્સી એલર્ટ છે. ૬૬KV સબસ્ટેશન લાઇન ટ્રીપ થઈ ગઈ છે અથવા પ્લાન્ટમાં કુલ ઉત્પાદન ૦ કિલોવોટ થઈ ગયું છે. કૃપા કરીને તાત્કાલિક સાઇટ ટીમ અથવા ઇજનેરનો સંપર્ક કરો અને ગ્રીડ ચેક કરો.';
 
-                    $superAdmins = User::where('role', 'super_admin')->where('active', true)->get();
-                    foreach ($superAdmins as $admin) {
-                        $this->dispatchCallToUser($admin, [
-                            'caller_name' => '⚡ SolarFlow AI Emergency',
-                            'alert_title' => '🚨 ૬૬KV સબસ્ટેશન લાઇન ટ્રીપ એલર્ટ',
-                            'plant_name' => 'ઓલ સોલાર પ્લાન્ટ્સ (૬૬KV લાઇન)',
-                            'fault_type' => 'grid_66kv_tripping',
-                            'speech_text' => $speechGu,
-                        ]);
+                        $superAdmins = User::where('role', 'super_admin')->where('active', true)->get();
+                        foreach ($superAdmins as $admin) {
+                            $this->dispatchCallToUser($admin, [
+                                'caller_name' => '⚡ SolarFlow AI Emergency',
+                                'alert_title' => '🚨 ૬૬KV સબસ્ટેશન લાઇન ટ્રીપ એલર્ટ',
+                                'plant_name' => 'ઓલ સોલાર પ્લાન્ટ્સ (૬૬KV લાઇન)',
+                                'fault_type' => 'grid_66kv_tripping',
+                                'speech_text' => $speechGu,
+                            ]);
+                        }
                     }
                 }
-            } elseif ($totalPlantOnline > 0) {
+            } elseif ($totalPlantOnline > 0 && ! empty($settings['inverter_shutdown'])) {
                 // Check individual company inverter shutdown (only when at least 1 other inverter in plant is online)
                 foreach ($liveOverview['companies'] ?? [] as $compData) {
                     $compId = $compData['company_id'] ?? null;
@@ -134,6 +295,11 @@ class SmartVoiceCallAlertService
                     $onlineCount = (int) ($compData['online_count'] ?? 0);
 
                     if ($isCompCurtailed) {
+                        continue;
+                    }
+
+                    // Skip company if its calls are muted for maintenance
+                    if ($compId && in_array((int) $compId, $mutedCompanies, true)) {
                         continue;
                     }
 
@@ -169,6 +335,7 @@ class SmartVoiceCallAlertService
                                             'alert_title' => "🚨 {$compName} - {$invName} બંધ છે!",
                                             'plant_name' => "{$compName} ({$invName})",
                                             'fault_type' => 'inverter_shutdown',
+                                            'company_id' => (int) $compId,
                                             'speech_text' => $founderSpeech,
                                         ]);
                                     }
@@ -183,6 +350,7 @@ class SmartVoiceCallAlertService
                                         'alert_title' => "🚨 {$compName} - {$invName} બંધ છે!",
                                         'plant_name' => "{$compName} ({$invName})",
                                         'fault_type' => 'inverter_shutdown',
+                                        'company_id' => (int) $compId,
                                         'speech_text' => $adminSpeech,
                                     ]);
                                 }
@@ -234,34 +402,36 @@ class SmartVoiceCallAlertService
             if ($isWorkingDayForEmp && ! $hasClockedIn) {
                 $missingAttendanceNames[] = $empName;
 
-                $shiftStartStr = $emp->shift_start ?: '09:00';
-                $graceMins = (int) ($emp->grace_minutes ?? 15);
-                try {
-                    $shiftDeadline = Carbon::createFromFormat('H:i', substr($shiftStartStr, 0, 5))->addMinutes($graceMins + 15);
-                } catch (\Throwable $e) {
-                    $shiftDeadline = Carbon::today()->setTime(9, 30);
-                }
+                if (! empty($settings['employee_missing_clock_in'])) {
+                    $shiftStartStr = $emp->shift_start ?: '09:00';
+                    $graceMins = (int) ($emp->grace_minutes ?? 15);
+                    try {
+                        $shiftDeadline = Carbon::createFromFormat('H:i', substr($shiftStartStr, 0, 5))->addMinutes($graceMins + 15);
+                    } catch (\Throwable $e) {
+                        $shiftDeadline = Carbon::today()->setTime(9, 30);
+                    }
 
-                if ($now->greaterThanOrEqualTo($shiftDeadline) && $hourFloat < 16.0) {
-                    $slotBucket = (int) floor($hourFloat / 2); // Remind at most once every 2 hours in morning/afternoon
-                    $morningLockKey = "ai_voice_call_emp_checkin_{$emp->id}_{$todayStr}_{$slotBucket}";
-                    if (! Cache::has($morningLockKey)) {
-                        Cache::put($morningLockKey, true, now()->addHours(2));
-                        $speechGu = "નમસ્તે {$empName}! હું SolarFlow AI બોલું છું. આજે તમારી રજા મંજૂર નથી અને પ્લાન્ટમાં રજા પણ નથી, છતાં તમે હજુ સુધી એપમાં હાજરી (Clock-In) પૂરી નથી. કૃપા કરીને હાલ જ તમારી હાજરી પૂરી લો.";
+                    if ($now->greaterThanOrEqualTo($shiftDeadline) && $hourFloat < 16.0) {
+                        $slotBucket = (int) floor($hourFloat / 2); // Remind at most once every 2 hours in morning/afternoon
+                        $morningLockKey = "ai_voice_call_emp_checkin_{$emp->id}_{$todayStr}_{$slotBucket}";
+                        if (! Cache::has($morningLockKey)) {
+                            Cache::put($morningLockKey, true, now()->addHours(2));
+                            $speechGu = "નમસ્તે {$empName}! હું SolarFlow AI બોલું છું. આજે તમારી રજા મંજૂર નથી અને પ્લાન્ટમાં રજા પણ નથી, છતાં તમે હજુ સુધી એપમાં હાજરી (Clock-In) પૂરી નથી. કૃપા કરીને હાલ જ તમારી હાજરી પૂરી લો.";
 
-                        $this->dispatchCallToUser($emp->user, [
-                            'caller_name' => '⏰ SolarFlow AI Attendance',
-                            'alert_title' => '📋 હાજરી (Clock-In) બાકી છે!',
-                            'plant_name' => 'SolarFlow Attendance Reminder',
-                            'fault_type' => 'employee_missing_clock_in',
-                            'speech_text' => $speechGu,
-                        ]);
+                            $this->dispatchCallToUser($emp->user, [
+                                'caller_name' => '⏰ SolarFlow AI Attendance',
+                                'alert_title' => '📋 હાજરી (Clock-In) બાકી છે!',
+                                'plant_name' => 'SolarFlow Attendance Reminder',
+                                'fault_type' => 'employee_missing_clock_in',
+                                'speech_text' => $speechGu,
+                            ]);
+                        }
                     }
                 }
             }
 
             // ── 4 (Part A): 4:00 PM Employee Attendance Reminder (16:00 to 17:45) ──
-            if ($isWorkingDayForEmp && ! $hasClockedIn && $hourFloat >= 16.0 && $hourFloat <= 17.75) {
+            if (! empty($settings['attendance_pending_4pm']) && $isWorkingDayForEmp && ! $hasClockedIn && $hourFloat >= 16.0 && $hourFloat <= 17.75) {
                 $emp4pmLock = "ai_voice_call_4pm_emp_{$emp->id}_{$todayStr}";
                 if (! Cache::has($emp4pmLock)) {
                     Cache::put($emp4pmLock, true, now()->addHours(6));
@@ -278,7 +448,7 @@ class SmartVoiceCallAlertService
             }
 
             // ── 5 (Part A): 6:30 PM Logout (Clock-Out) First Call (18:30 to 18:59) ──
-            if ($hasClockedIn && ! $hasClockedOut && $hourFloat >= 18.5 && $hourFloat < 19.0) {
+            if (! empty($settings['employee_logout_630pm']) && $hasClockedIn && ! $hasClockedOut && $hourFloat >= 18.5 && $hourFloat < 19.0) {
                 $logout630Lock = "ai_voice_call_logout_630_{$emp->id}_{$todayStr}";
                 if (! Cache::has($logout630Lock)) {
                     Cache::put($logout630Lock, true, now()->addHours(5));
@@ -295,7 +465,7 @@ class SmartVoiceCallAlertService
             }
 
             // ── 5 (Part B): 7:00 PM (30 Mins After 6:30 PM) Urgent Logout Call (19:00 to 21:30) ──
-            if ($hasClockedIn && ! $hasClockedOut && $hourFloat >= 19.0 && $hourFloat <= 21.5) {
+            if (! empty($settings['employee_logout_700pm']) && $hasClockedIn && ! $hasClockedOut && $hourFloat >= 19.0 && $hourFloat <= 21.5) {
                 $logout700Lock = "ai_voice_call_logout_700_{$emp->id}_{$todayStr}";
                 if (! Cache::has($logout700Lock)) {
                     Cache::put($logout700Lock, true, now()->addHours(5));
@@ -313,7 +483,7 @@ class SmartVoiceCallAlertService
         }
 
         // ── 4 (Part B): 4:00 PM Attendance Reminder Call to Super Admin & Company Admins / Managers ──
-        if (! empty($missingAttendanceNames) && $hourFloat >= 16.0 && $hourFloat <= 17.75) {
+        if (! empty($settings['attendance_pending_4pm']) && ! empty($missingAttendanceNames) && $hourFloat >= 16.0 && $hourFloat <= 17.75) {
             $admin4pmLock = "ai_voice_call_4pm_admins_{$todayStr}";
             if (! Cache::has($admin4pmLock)) {
                 Cache::put($admin4pmLock, true, now()->addHours(6));
@@ -355,6 +525,7 @@ class SmartVoiceCallAlertService
             'voice_name' => $voiceName,
             'plant_name' => $data['plant_name'] ?? 'SolarFlow Plant',
             'fault_type' => $data['fault_type'] ?? 'general_alert',
+            'company_id' => $data['company_id'] ?? null,
             'engineer_phone' => env('EMERGENCY_ENGINEER_PHONE', '+919909900066'),
             'target_user_id' => $user->id,
             'timestamp' => now()->toIso8601String(),

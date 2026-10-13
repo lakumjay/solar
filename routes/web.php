@@ -52,6 +52,8 @@ Route::prefix('api')->group(function () {
         Route::post('voice-agent/test-emergency-call', [\App\Http\Controllers\Api\VoiceAgentController::class, 'testEmergencyCall']);
         Route::get('voice-agent/emergency-status', [\App\Http\Controllers\Api\VoiceAgentController::class, 'emergencyStatus']);
         Route::post('voice-agent/dismiss-emergency', [\App\Http\Controllers\Api\VoiceAgentController::class, 'dismissEmergency']);
+        Route::get('voice-agent/call-settings', [\App\Http\Controllers\Api\VoiceAgentController::class, 'getCallSettings']);
+        Route::post('voice-agent/call-settings', [\App\Http\Controllers\Api\VoiceAgentController::class, 'updateCallSettings']);
         Route::get('me', [AuthController::class, 'me']);
         Route::post('logout', [AuthController::class, 'logout']);
         Route::get('dashboard/live-solar', [ISolarCloudController::class, 'liveDashboard']);

@@ -56,6 +56,7 @@ import {api, logout} from '../api';
 import ISolarCloudVisualizer from './ISolarCloudVisualizer';
 import NotificationPermissionModal from './NotificationPermissionModal';
 import VoiceCallModal, { unlockVoiceCallAudio } from './VoiceCallModal';
+import ManageAiCallsModal from './ManageAiCallsModal';
 import { useTranslation } from '../context/LanguageContext';
 import {getPanchangDetails, getTomorrowBankHolidayAlert, getViRechargeAlert, GUJARATI_WEEKDAYS, GUJARATI_MONTHS} from '../utils/panchang';
 
@@ -119,6 +120,7 @@ export default function MobileAppView({
     const [islandExpanded, setIslandExpanded] = useState(false);
     const [radialHubOpen, setRadialHubOpen] = useState(false);
     const [showVoiceCall, setShowVoiceCall] = useState(false);
+    const [showManageCallsModal, setShowManageCallsModal] = useState(false);
     const { t, lang: currentLang, setLang } = useTranslation();
 
     // Subtle tactile haptic vibration for mobile buttons
@@ -2750,6 +2752,33 @@ export default function MobileAppView({
                         </div>
 
                         <div className="drawer-menu-grid">
+                            {/* 0. Manage Auto AI Alert Calls (ON / OFF) */}
+                            <button
+                                type="button"
+                                className="dmenu-card dmenu-card-highlight"
+                                onClick={() => {
+                                    triggerHaptic([35]);
+                                    setMoreMenuOpen(false);
+                                    setShowManageCallsModal(true);
+                                }}
+                                style={{ border: '1.5px solid #86efac', background: '#f0fdf4' }}
+                            >
+                                <div className="dmenu-card-top">
+                                    <div className="dmenu-bubble" style={{ background: '#dcfce7', color: '#16a34a' }}>
+                                        <PhoneCall size={19} />
+                                    </div>
+                                    <span className="dmenu-badge" style={{ background: '#16a34a', color: '#ffffff' }}>
+                                        ON / OFF
+                                    </span>
+                                </div>
+                                <div className="dmenu-card-title" style={{ color: '#15803d', fontWeight: 800 }}>
+                                    {currentLang === 'en' ? 'Manage AI Calls' : '📞 AI કૉલ ON / OFF'}
+                                </div>
+                                <div className="dmenu-card-sub" style={{ color: '#166534' }}>
+                                    {currentLang === 'en' ? 'Stop / Toggle Auto Calls' : 'પ્લાન્ટ બંધ કરો ત્યારે કૉલ રોકો'}
+                                </div>
+                            </button>
+
                             {/* 1. Plant Gallery */}
                             <button
                                 type="button"
@@ -3950,6 +3979,13 @@ export default function MobileAppView({
                     liveSolarData={liveData}
                 />
             )}
+
+            {/* 📞 Manage Auto AI Voice Calls (ON / OFF) Modal */}
+            <ManageAiCallsModal
+                isOpen={showManageCallsModal}
+                onClose={() => setShowManageCallsModal(false)}
+                companies={companies}
+            />
         </div>
     );
 }
