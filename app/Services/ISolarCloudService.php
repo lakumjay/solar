@@ -939,7 +939,7 @@ class ISolarCloudService
         $isNight = ($currentHourFloat > 18.2 || $currentHourFloat < 6.5 || $totalLiveKw <= 0);
         $isDaytimeGenerationActive = (!$isNight && $currentHourFloat >= 10.5 && $currentHourFloat <= 18.0 && $totalLiveKw > 0);
 
-        // ── 1. Inverter Underperformance Analysis (Daytime Active Hours only) ──
+        // ── 1. Inverter Underperformance Analysis (3-Layer Smart Self-Baseline + Active String Normalization) ──
         $allOnlineInvertersList = [];
         foreach ($companiesData as $c) {
             $isCompanyCurtailed = !empty($c['is_curtailed']);
@@ -957,36 +957,139 @@ class ISolarCloudService
                         'device_name' => $inv['device_name'],
                         'today_kwh' => (float) $inv['today_kwh'],
                         'live_kw' => (float) $inv['live_kw'],
+                        'active_strings_count' => (int) ($inv['active_strings_count'] ?? 0),
+                        'has_string_alerts' => !empty($inv['cleaning_alerts']),
                     ];
                 }
             }
         }
+
+        // Layer 1: Compute each inverter's 15-day historical capacity ratio from DailyInverterOutput
+        // so an inverter with fewer solar panels (e.g. naturally 9-10% lower every day) uses its OWN baseline!
+        $historicalRatios = Cache::remember('inverter_historical_ratios_v1', 3600, function () {
+            $ratiosByInverter = [];
+            try {
+                $recentDates = DailyReading::query()
+                    ->whereDate('reading_date', '<', Carbon::today()->toDateString())
+                    ->orderByDesc('reading_date')
+                    ->limit(45)
+                    ->pluck('reading_date')
+                    ->map(fn ($d) => Carbon::parse($d)->toDateString())
+                    ->unique()
+                    ->take(15);
+
+                foreach ($recentDates as $dateStr) {
+                    $dayReadings = DailyReading::whereDate('reading_date', $dateStr)->with('outputs')->get();
+                    $dayInvGen = [];
+                    foreach ($dayReadings as $dr) {
+                        foreach ($dr->outputs as $out) {
+                            $gen = (float) $out->generation;
+                            if ($gen >= 50.0) {
+                                $dayInvGen[$out->inverter_id] = $gen;
+                            }
+                        }
+                    }
+
+                    if (count($dayInvGen) >= 3) {
+                        $vals = array_values($dayInvGen);
+                        rsort($vals);
+                        $topCount = max(1, (int) ceil(count($vals) * 0.5));
+                        $dayBenchmark = array_sum(array_slice($vals, 0, $topCount)) / $topCount;
+                        if ($dayBenchmark >= 100.0) {
+                            foreach ($dayInvGen as $invId => $genVal) {
+                                $r = $genVal / $dayBenchmark;
+                                if ($r >= 0.55 && $r <= 1.05) {
+                                    $ratiosByInverter[$invId][] = $r;
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {}
+
+            $finalRatios = [];
+            foreach ($ratiosByInverter as $invId => $rList) {
+                if (count($rList) >= 2) {
+                    sort($rList);
+                    // Use upper-median historical ratio so past fault days don't skew baseline
+                    $idx = (int) floor((count($rList) - 1) * 0.6);
+                    $finalRatios[$invId] = round(min(1.0, max(0.65, $rList[$idx])), 4);
+                }
+            }
+            return $finalRatios;
+        });
 
         $underperformingInverters = [];
         // Only run live discrepancy analysis when generation is active during daytime
         if ($isDaytimeGenerationActive && count($allOnlineInvertersList) >= 2) {
             $kwhValues = array_column($allOnlineInvertersList, 'today_kwh');
             rsort($kwhValues);
-            // Top 50% healthy average
+            // Top 50% healthy average across plant
             $topHalfCount = max(1, (int) ceil(count($kwhValues) * 0.5));
             $healthyBenchmarkKwh = array_sum(array_slice($kwhValues, 0, $topHalfCount)) / $topHalfCount;
 
-            if ($healthyBenchmarkKwh >= 25.0) {
+            // Layer 2: Determine top active PV strings count across the plant
+            $strCounts = array_column($allOnlineInvertersList, 'active_strings_count');
+            rsort($strCounts);
+            $topStringsBenchmark = !empty($strCounts) && $strCounts[0] > 0 ? (float) $strCounts[0] : 16.0;
+
+            if ($healthyBenchmarkKwh >= 50.0) {
                 foreach ($allOnlineInvertersList as $inv) {
-                    $dropDiffKwh = $healthyBenchmarkKwh - $inv['today_kwh'];
-                    $dropDiffPct = round(($dropDiffKwh / $healthyBenchmarkKwh) * 100, 1);
-                    if ($dropDiffPct >= 8.5 && $dropDiffKwh >= 15.0) {
+                    $invId = $inv['id'];
+                    $rawRatioToday = $inv['today_kwh'] / $healthyBenchmarkKwh;
+
+                    // Determine expected capacity factor for this specific inverter:
+                    // 1. Historical DB baseline ratio (if available)
+                    $histRatio = $historicalRatios[$invId] ?? null;
+
+                    // 2. Physical connected PV strings ratio (e.g. 14 strings vs 16 strings = 0.875)
+                    $invStrCount = (float) ($inv['active_strings_count'] ?? 0);
+                    $stringRatio = ($invStrCount >= 6 && $topStringsBenchmark >= 8)
+                        ? min(1.0, max(0.65, $invStrCount / $topStringsBenchmark))
+                        : 1.0;
+
+                    // 3. Rolling healthy ratio learned when all wired strings on this inverter have zero faults
+                    $rollingKey = "solar_inv_healthy_ratio_v2_{$invId}";
+                    $rollingRatio = Cache::get($rollingKey);
+                    if (!$inv['has_string_alerts'] && $rawRatioToday >= 0.85 && $rawRatioToday <= 1.0) {
+                        // When all wired PV strings on this inverter are balanced & healthy (no 0.0A wired string and no 50% string drop),
+                        // a 1% to 14% difference is purely structural (fewer solar plates installed on this inverter).
+                        $learnedRatio = $rollingRatio ? round(($rollingRatio * 0.7) + ($rawRatioToday * 0.3), 4) : round($rawRatioToday, 4);
+                        Cache::put($rollingKey, $learnedRatio, 86400 * 14);
+                        $rollingRatio = $learnedRatio;
+                    }
+
+                    $candidateRatios = array_filter([$histRatio, $stringRatio, $rollingRatio], fn ($v) => $v !== null);
+                    $expectedCapacityRatio = !empty($candidateRatios) ? min($candidateRatios) : 1.0;
+                    $expectedCapacityRatio = min(1.0, max(0.65, $expectedCapacityRatio));
+
+                    // Personal expected benchmark for THIS inverter based on its own panel/string count
+                    $personalBenchmarkKwh = round($healthyBenchmarkKwh * $expectedCapacityRatio, 1);
+                    if ($personalBenchmarkKwh < 25.0) {
+                        continue;
+                    }
+
+                    $dropDiffKwh = round($personalBenchmarkKwh - $inv['today_kwh'], 1);
+                    $dropDiffPct = round(($dropDiffKwh / $personalBenchmarkKwh) * 100, 1);
+
+                    // Layer 3: Trigger warning ONLY when there is a real fault:
+                    // - Either >= 15% (and >= 25 kWh) drop below its OWN personal benchmark, OR
+                    // - >= 10% (and >= 20 kWh) drop below its own benchmark combined with an active PV string fault
+                    $isRealFaultDrop = ($dropDiffPct >= 15.0 && $dropDiffKwh >= 25.0)
+                        || ($inv['has_string_alerts'] && $dropDiffPct >= 10.0 && $dropDiffKwh >= 20.0);
+
+                    if ($isRealFaultDrop) {
                         $lossRs = round($dropDiffKwh * $unitRate, 2);
                         $underperformingInverters[] = [
                             'company_name' => $inv['company_name'],
                             'inverter_name' => $inv['name'],
                             'device_name' => $inv['device_name'],
                             'today_kwh' => $inv['today_kwh'],
-                            'benchmark_kwh' => round($healthyBenchmarkKwh, 1),
-                            'diff_kwh' => round($dropDiffKwh, 1),
+                            'benchmark_kwh' => $personalBenchmarkKwh,
+                            'diff_kwh' => $dropDiffKwh,
                             'diff_pct' => $dropDiffPct,
                             'loss_rs' => $lossRs,
-                            'title' => "{$inv['company_name']} - {$inv['name']}: બીજા ઇન્વર્ટર કરતા ~{$dropDiffKwh} યુનિટ્સ ({$dropDiffPct}%) ઓછા આપે છે",
+                            'title' => "{$inv['company_name']} - {$inv['name']}: તેની સામાન્ય ક્ષમતા ({$personalBenchmarkKwh} kWh) કરતા ~{$dropDiffKwh} યુનિટ્સ ({$dropDiffPct}%) ઓછા આપે છે",
                             'advice' => 'આ ઇન્વર્ટરના MC4 કનેક્ટર, ડીસી ફ્યુઝ, સ્ટ્રિંગ વોલ્ટેજ અથવા ટ્રીપિંગ તાત્કાલિક સાઈટ પર ચેક કરો.',
                         ];
                     }
