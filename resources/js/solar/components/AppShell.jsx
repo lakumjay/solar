@@ -326,6 +326,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         isAdminOrOwner && ['salaries', t('salaries'), WalletCards],
         (isAdminOrOwner || can('view_stock') || can('manage_stock')) && ['stock', t('stock'), Boxes],
         (isAdminOrOwner || can('enter_readings') || can('view_reports')) && ['curtailment-loss', t('curtailmentLoss', '૬૬KV પાવર કટ & નુકસાન'), Zap],
+        user.role === 'super_admin' && ['ai-help-center', '🤖 AI Help Center', Sparkles],
         user.role === 'employee' && ['my-attendance', t('myAttendance'), Clock3],
         user.role === 'employee' && ['my-salary', t('mySalary'), IndianRupee],
     ].filter(Boolean);
@@ -348,6 +349,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         salaries: ['Monthly salary', 'Confidential payroll calculation and adjustments'],
         stock: ['Stock management', 'Common inventory and borrowing register'],
         'curtailment-loss': [t('gridPowerTripTitle', '૬૬KV સબસ્ટેશન પાવર કટ & નુકસાન'), t('gridPowerTripSubtitle', 'બપોરે પાવર બંધ રહેવાથી કઈ કંપનીને કેટલા યુનિટ્સ અને રૂપિયાનું નુકસાન થયું તેનો હિસાબ')],
+        'ai-help-center': ['🤖 Antigravity AI Help Center & Auto-Coder', '24×7 Auto-Doctor, Multi-Screenshot Debugger, Cloud Git Push & cPanel Auto-Deploy'],
         'my-attendance': ['My attendance', 'Time in, time out and leave'],
         'my-salary': ['My salary', 'Private salary statements and attendance details'],
     };

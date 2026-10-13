@@ -1,0 +1,54 @@
+name: SolarFlow Cloud Auto-Build & cPanel Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'resources/js/**'
+      - 'resources/css/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cloud-build-and-deploy:
+    # Only run cloud build when triggered by AI Help Center on live server (when PC is off) or manual dispatch
+    if: contains(github.event.head_commit.message, '[cloud-build]') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies & build frontend assets
+        run: |
+          npm install --legacy-peer-deps
+          npm run build
+
+      - name: Commit & push compiled public/build to main
+        run: |
+          git config user.name "SolarFlow Antigravity AI"
+          git config user.email "130662329+lakumjay@users.noreply.github.com"
+          git add public/build
+          if ! git diff --staged --quiet; then
+            git commit -m "build(cloud): auto-compiled frontend assets [skip ci]"
+            git pull --rebase origin main
+            git push origin main
+          fi
+
+      - name: Trigger cPanel Live Auto-Deploy Webhook
+        if: always()
+        run: |
+          curl -s -X POST "https://www.rns.snwebkarma.in/api/ai-help-center/webhook-deploy?secret=solarflow_auto_deploy_2026" \
+            -H "Content-Type: application/json" \
+            -d '{"source":"github_actions","status":"built"}' || true

@@ -3049,6 +3049,31 @@ export default function MobileAppView({
                                     </div>
                                 </button>
                             )}
+
+                            {/* 13. AI Help Center & Auto-Coder (Super Admin Only) */}
+                            {isSuperAdmin && (
+                                <button
+                                    type="button"
+                                    className="dmenu-card"
+                                    onClick={() => { setPage('ai-help-center'); setMoreMenuOpen(false); }}
+                                    style={{background: 'linear-gradient(135deg, #0f172a 0%, #14532d 100%)', border: '1.5px solid #4ade80'}}
+                                >
+                                    <div className="dmenu-card-top">
+                                        <div className="dmenu-bubble" style={{background: 'rgba(74, 222, 128, 0.2)', color: '#86efac'}}>
+                                            <Sparkles size={19}/>
+                                        </div>
+                                        <span className="dmenu-badge" style={{background: '#16a34a', color: '#ffffff'}}>
+                                            24×7 AI
+                                        </span>
+                                    </div>
+                                    <div className="dmenu-card-title" style={{color: '#ffffff'}}>
+                                        🤖 AI Help Center
+                                    </div>
+                                    <div className="dmenu-card-sub" style={{color: '#bbf7d0'}}>
+                                        {currentLang === 'en' ? 'Auto-Code & Git Deploy' : 'સ્ક્રીનશોટ સોલ્વર & ઓટો-કોડ'}
+                                    </div>
+                                </button>
+                            )}
                         </div>
 
                         <div className="drawer-footer-actions">

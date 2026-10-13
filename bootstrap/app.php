@@ -20,10 +20,18 @@ $application = Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'api/voice-agent/*',
             'api/isolarcloud/callback',
+            'api/ai-help-center/webhook-deploy',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->reportable(function (\Throwable $e) {
+            if ($e instanceof \Illuminate\Database\QueryException) {
+                try {
+                    app(\App\Services\SystemAutoDoctorService::class)->healDatabaseAndSystem(false);
+                } catch (\Throwable $_) {
+                }
+            }
+        });
     })->create();
 
 if ($storagePath = env('APP_STORAGE_PATH')) {

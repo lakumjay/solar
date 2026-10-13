@@ -29,6 +29,7 @@ const ISolarCloudPage = lazy(() => import('./pages/ISolarCloudPage'));
 const GalleryPage = lazy(() => import('./pages/GalleryPage'));
 const ReelsPage = lazy(() => import('./pages/ReelsPage'));
 const CurtailmentLossPage = lazy(() => import('./pages/CurtailmentLossPage'));
+const AiHelpCenterPage = lazy(() => import('./pages/AiHelpCenterPage'));
 
 const PageLoader = () => (
     <div className="app-loading" style={{minHeight: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: '#16a34a', fontWeight: 600}}>
@@ -216,6 +217,31 @@ function AppContent() {
         return () => document.removeEventListener('keydown', handler);
     }, []);
 
+    // Automatic Frontend Error Reporter & Database Auto-Healer Trigger
+    useEffect(() => {
+        if (!user) return;
+        const reportRuntimeError = (msg, sourceComp = 'window') => {
+            if (!msg || typeof msg !== 'string') return;
+            api('ai-help-center/auto-report', {
+                method: 'POST',
+                body: JSON.stringify({ message: msg.slice(0, 500), component: sourceComp })
+            }).catch(() => {});
+        };
+        const onErr = (event) => {
+            if (event?.message) reportRuntimeError(event.message, event?.filename || 'window.onerror');
+        };
+        const onRej = (event) => {
+            const msg = event?.reason?.message || String(event?.reason || '');
+            if (msg && msg.includes('SQLSTATE')) reportRuntimeError(msg, 'api.sql');
+        };
+        window.addEventListener('error', onErr);
+        window.addEventListener('unhandledrejection', onRej);
+        return () => {
+            window.removeEventListener('error', onErr);
+            window.removeEventListener('unhandledrejection', onRej);
+        };
+    }, [user?.id]);
+
     if (user === undefined) return <div className="app-loading"><Sun className="spin"/> Loading SolarFlow…</div>;
     if (!user) return (
         <ErrorBoundary>
@@ -247,6 +273,7 @@ function AppContent() {
                     {page === 'salaries' && <SalaryPage/>}
                     {page === 'stock' && <StockPage can={can} currentUser={user}/>}
                     {page === 'curtailment-loss' && <CurtailmentLossPage companyId={companyId} companies={companies} currentUser={user}/>}
+                    {page === 'ai-help-center' && user.role === 'super_admin' && <AiHelpCenterPage user={user}/>}
                     {page === 'my-attendance' && <MyAttendancePage companyId={companyId}/>}
                     {page === 'my-salary' && <MySalaryPage/>}
                 </Suspense>
