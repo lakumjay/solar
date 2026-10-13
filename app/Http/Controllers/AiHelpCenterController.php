@@ -277,18 +277,38 @@ SYS;
                 $payload['generationConfig']['responseMimeType'] = 'application/json';
             }
 
-            $response = Http::timeout(45)->withHeaders([
-                'Content-Type' => 'application/json',
-            ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={$apiKey}", $payload);
+            $modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemma-4-31b-it'];
+            $response = null;
+            foreach ($modelsToTry as $modelName) {
+                $response = Http::timeout(45)->withHeaders([
+                    'Content-Type' => 'application/json',
+                ])->post("https://generativelanguage.googleapis.com/v1beta/models/{$modelName}:generateContent?key={$apiKey}", $payload);
 
-            if (! $response->successful()) {
+                if ($response->successful()) {
+                    break;
+                }
+            }
+
+            if (! $response || ! $response->successful()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'AI Engine Error: '.$response->body(),
+                    'message' => 'AI Engine Error: '.($response ? $response->body() : 'No response'),
                 ], 500);
             }
 
-            $rawText = trim((string) ($response->json('candidates.0.content.parts.0.text') ?? ''));
+            // Extract non-thought text parts (Gemini 3.8 Flash includes a thought part first)
+            $resParts = $response->json('candidates.0.content.parts') ?? [];
+            $textChunks = [];
+            foreach ($resParts as $part) {
+                if (empty($part['thought']) && isset($part['text'])) {
+                    $textChunks[] = $part['text'];
+                }
+            }
+            if (empty($textChunks) && ! empty($resParts)) {
+                $lastPart = end($resParts);
+                $textChunks[] = $lastPart['text'] ?? '';
+            }
+            $rawText = trim(implode("\n", $textChunks));
             $modifiedFiles = [];
             $commitHash = null;
             $cloudBuildTriggered = false;

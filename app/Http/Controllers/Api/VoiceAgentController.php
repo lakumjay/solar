@@ -776,10 +776,10 @@ class VoiceAgentController extends Controller
 
             $tools = $this->getToolsDeclaration();
 
-            // Use gemini-2.5-flash for fast, ultra-reliable AI response
-            $response = Http::timeout(6)->withHeaders([
+            // Use gemini-3.8-flash for fast, ultra-reliable AI response
+            $response = Http::timeout(8)->withHeaders([
                 'Content-Type' => 'application/json',
-            ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={$apiKey}", [
+            ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={$apiKey}", [
                 'system_instruction' => [
                     'parts' => [['text' => $systemPrompt]]
                 ],
@@ -817,15 +817,23 @@ class VoiceAgentController extends Controller
                             ]]
                         ];
 
-                        $resFollowup = Http::timeout(6)->withHeaders(['Content-Type' => 'application/json'])
-                            ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={$apiKey}", [
+                        $resFollowup = Http::timeout(8)->withHeaders(['Content-Type' => 'application/json'])
+                            ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={$apiKey}", [
                                 'system_instruction' => ['parts' => [['text' => $systemPrompt]]],
                                 'contents' => $contents,
                             ]);
 
                         if ($resFollowup->successful()) {
-                            $followupJson = $resFollowup->json();
-                            $replyText = $followupJson['candidates'][0]['content']['parts'][0]['text'] ?? 'માહિતી મળી ગઈ છે.';
+                            $followupParts = $resFollowup->json('candidates.0.content.parts') ?? [];
+                            $replyText = '';
+                            foreach ($followupParts as $fp) {
+                                if (empty($fp['thought']) && isset($fp['text'])) {
+                                    $replyText .= $fp['text'];
+                                }
+                            }
+                            if ($replyText === '') {
+                                $replyText = 'માહિતી મળી ગઈ છે.';
+                            }
                             return response()->json([
                                 'reply' => $replyText,
                                 'tool_data' => $toolResult,
@@ -837,7 +845,15 @@ class VoiceAgentController extends Controller
                     }
                 }
 
-                $replyText = $parts[0]['text'] ?? $this->generateLocalResponse($user, $message, $language);
+                $replyText = '';
+                foreach ($parts as $p) {
+                    if (empty($p['thought']) && isset($p['text'])) {
+                        $replyText .= $p['text'];
+                    }
+                }
+                if ($replyText === '') {
+                    $replyText = $this->generateLocalResponse($user, $message, $language);
+                }
                 return response()->json([
                     'reply' => $replyText,
                     'language' => $language,
