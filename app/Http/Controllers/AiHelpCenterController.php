@@ -277,22 +277,29 @@ SYS;
                 $payload['generationConfig']['responseMimeType'] = 'application/json';
             }
 
-            $modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemma-4-31b-it'];
+            $modelsToTry = ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-3.8-flash'];
             $response = null;
             foreach ($modelsToTry as $modelName) {
-                $response = Http::timeout(45)->withHeaders([
-                    'Content-Type' => 'application/json',
-                ])->post("https://generativelanguage.googleapis.com/v1beta/models/{$modelName}:generateContent?key={$apiKey}", $payload);
+                try {
+                    $response = Http::withOptions([
+                        'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
+                    ])->timeout(60)->withHeaders([
+                        'Content-Type' => 'application/json',
+                    ])->post("https://generativelanguage.googleapis.com/v1beta/models/{$modelName}:generateContent?key={$apiKey}", $payload);
 
-                if ($response->successful()) {
-                    break;
+                    if ($response->successful()) {
+                        break;
+                    }
+                } catch (\Throwable $err) {
+                    // Try next model
                 }
             }
 
             if (! $response || ! $response->successful()) {
+                $errBody = $response ? preg_replace('/key=[a-zA-Z0-9_\-]+/i', 'key=***', $response->body()) : 'Timeout connecting to AI server';
                 return response()->json([
                     'success' => false,
-                    'message' => 'AI Engine Error: '.($response ? $response->body() : 'No response'),
+                    'message' => 'AI Engine Error: '.$errBody,
                 ], 500);
             }
 
@@ -417,9 +424,10 @@ SYS;
             ]);
         } catch (\Throwable $e) {
             Log::error('AI Help Center error: '.$e->getMessage());
+            $cleanMsg = preg_replace('/key=[a-zA-Z0-9_\-]+/i', 'key=***', $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'AI Help Center સમસ્યા: '.$e->getMessage(),
+                'message' => 'AI Help Center સમસ્યા: '.$cleanMsg,
             ], 500);
         }
     }

@@ -80,10 +80,43 @@ export default function AiHelpCenterPage({ user }) {
         return () => window.removeEventListener('paste', handlePaste);
     }, [screenshots]);
 
-    const addScreenshots = (fileList) => {
+    const compressImage = (file) => new Promise((resolve) => {
+        if (!file.type.startsWith('image/')) return resolve(file);
+        const img = new Image();
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            img.onload = () => {
+                const maxDim = 1200;
+                let { width, height } = img;
+                if (width > maxDim || height > maxDim) {
+                    const ratio = Math.min(maxDim / width, maxDim / height);
+                    width = Math.round(width * ratio);
+                    height = Math.round(height * ratio);
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                canvas.toBlob((blob) => {
+                    if (blob) {
+                        const optimized = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
+                        resolve(optimized);
+                    } else {
+                        resolve(file);
+                    }
+                }, 'image/jpeg', 0.82);
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    const addScreenshots = async (fileList) => {
         const incoming = Array.from(fileList || []).slice(0, 6 - screenshots.length);
         if (!incoming.length) return;
-        const nextFiles = [...screenshots, ...incoming];
+        const compressed = await Promise.all(incoming.map(f => compressImage(f)));
+        const nextFiles = [...screenshots, ...compressed];
         setScreenshots(nextFiles);
         const nextPreviews = nextFiles.map(f => URL.createObjectURL(f));
         setPreviews(prev => {
@@ -228,7 +261,7 @@ export default function AiHelpCenterPage({ user }) {
         <div className="employee-self" style={{ display: 'grid', gap: '16px' }}>
             {/* Top Hero Banner */}
             <section
-                className="panel"
+                className="panel ai-hero-banner"
                 style={{
                     background: 'linear-gradient(135deg, #0f172a 0%, #14532d 100%)',
                     color: '#ffffff',
@@ -242,10 +275,10 @@ export default function AiHelpCenterPage({ user }) {
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(134, 239, 172, 0.18)', border: '1px solid rgba(134, 239, 172, 0.4)', color: '#86efac', padding: '4px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 800, marginBottom: '8px' }}>
                             <Sparkles size={13} /> 24×7 CLOUD AUTO-DOCTOR & AI DEVELOPER (PC-OFF READY)
                         </div>
-                        <h2 style={{ color: '#ffffff !important', fontSize: '22px', fontWeight: 800, margin: '0 0 6px 0' }}>
+                        <h2 style={{ color: '#ffffff', fontSize: '22px', fontWeight: 800, margin: '0 0 6px 0' }}>
                             🤖 Antigravity AI Help Center & Auto-Coder
                         </h2>
-                        <p style={{ color: '#d1fae5 !important', fontSize: '13px', margin: 0, maxWidth: '680px', lineHeight: 1.5 }}>
+                        <p style={{ color: '#d1fae5', fontSize: '13px', margin: 0, maxWidth: '680px', lineHeight: 1.5 }}>
                             તમારું PC બંધ હોય ત્યારે પણ અહીંથી સ્ક્રીનશોટ મૂકીને એરરનું કારણ પૂછો, જાતે કોડ ફિક્સ કરાવો, ડેટાબેઝ ઓટો-હીલ કરો અને સીધું GitHub તથા cPanel પર ઓટો-ડિપ્લોય કરો.
                         </p>
                     </div>
@@ -559,8 +592,8 @@ export default function AiHelpCenterPage({ user }) {
                 <section className="panel" style={{ background: '#f0fdf4', border: '1.5px solid #86efac' }}>
                     <div className="panel-head" style={{ marginBottom: '10px' }}>
                         <div>
-                            <h2 style={{ color: '#14532d !important' }}>🤖 Antigravity AI નો જવાબ અને રિપોર્ટ</h2>
-                            <p style={{ color: '#166534 !important' }}>
+                            <h2 style={{ color: '#14532d' }}>🤖 Antigravity AI નો જવાબ અને રિપોર્ટ</h2>
+                            <p style={{ color: '#166534' }}>
                                 {latestReply.mode === 'auto_code' ? 'કોડ અપડેટ અને ડિપ્લોયમેન્ટ પૂર્ણ' : 'ડાયગ્નોસિસ અને સોલ્યુશન પ્લાન'}
                             </p>
                         </div>
