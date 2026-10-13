@@ -5,3 +5,4 @@ deployment:
     - /bin/cp -Rf * $DEPLOYPATH
     - /bin/cp -Rf .env.example $DEPLOYPATH
     - cd $DEPLOYPATH && php artisan optimize:clear || true
+    - (crontab -l 2>/dev/null | grep -v "rns.snwebkarma.in/artisan"; echo "* * * * * /usr/local/bin/php /home3/snweba2e/rns.snwebkarma.in/artisan schedule:run >> /dev/null 2>&1") | crontab - || true
