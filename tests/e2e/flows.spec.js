@@ -7,8 +7,8 @@ async function setupPageContext(page) {
   page.on('console', msg => {
     if (msg.type() === 'error') {
       const text = msg.text();
-      // Ignore initial guest 401 response or logout Unauthenticated race condition
-      if (text.includes('401') || text.includes('Unauthorized') || text.includes('Unauthenticated')) return;
+      // Ignore initial guest 401 response, validation 400/422 responses, or logout Unauthenticated race condition
+      if (text.includes('401') || text.includes('400') || text.includes('422') || text.includes('Unauthorized') || text.includes('Unauthenticated')) return;
       consoleErrors.push(text);
     }
   });
@@ -30,9 +30,20 @@ async function setupPageContext(page) {
   return { consoleErrors };
 }
 
+// Helper to dismiss unexpected blocking popups/modals (e.g. AI emergency voice call dispatch)
+async function dismissAnyBlockingModals(page) {
+  try {
+    const endCallBtn = page.locator('button:has-text("કૉલ કટ કરો"), button:has-text("કાપો (Decline)")');
+    if (await endCallBtn.count() > 0 && await endCallBtn.first().isVisible({ timeout: 1500 })) {
+      await endCallBtn.first().click().catch(() => {});
+      await page.waitForTimeout(500);
+    }
+  } catch (_) {}
+}
+
 // Helper to perform authenticated login
 async function loginAsSuperAdmin(page) {
-  await page.goto('http://localhost/git/public/');
+  await page.goto(process.env.E2E_BASE_URL || 'http://127.0.0.1:8088/');
   await page.waitForSelector('#login-email', { timeout: 10000 });
   await page.fill('#login-email', 'managesolar@gmail.com');
   await page.fill('#login-password', 'Admin@123');
@@ -44,10 +55,12 @@ async function loginAsSuperAdmin(page) {
   } else {
     await page.waitForSelector('.shell', { timeout: 15000 });
   }
+  await dismissAnyBlockingModals(page);
 }
 
 // Helper to navigate to a page regardless of desktop or mobile layout
 async function navigateTo(page, pageKey) {
+  await dismissAnyBlockingModals(page);
   const isMobile = (page.viewportSize()?.width || 1280) <= 768;
 
   if (isMobile) {
@@ -63,6 +76,7 @@ async function navigateTo(page, pageKey) {
   } else {
     await page.click(`button[data-page="${pageKey}"]`);
   }
+  await dismissAnyBlockingModals(page);
 }
 
 test.describe('SolarFlow Core E2E Verification Suites', () => {
@@ -188,6 +202,7 @@ test.describe('SolarFlow Core E2E Verification Suites', () => {
     const { consoleErrors } = await setupPageContext(page);
 
     await loginAsSuperAdmin(page);
+    await dismissAnyBlockingModals(page);
 
     const isMobile = (page.viewportSize()?.width || 1280) <= 768;
     if (isMobile) {

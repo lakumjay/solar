@@ -11,7 +11,7 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   use: {
-    baseURL: 'http://localhost/git/public',
+    baseURL: process.env.E2E_BASE_URL || 'http://127.0.0.1:8088',
     channel: 'chrome',
     headless: true,
   },
