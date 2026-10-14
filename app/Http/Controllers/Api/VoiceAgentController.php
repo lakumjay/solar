@@ -534,7 +534,7 @@ class VoiceAgentController extends Controller
         $language = $request->input('language', 'gu');
         $voiceName = trim((string)$request->input('voice', 'Aoede')) ?: 'Aoede';
         if (empty($text)) {
-            return response()->json(['error' => 'No text provided'], 400);
+            $text = 'નમસ્તે';
         }
 
         $cleanText = preg_replace('/[*_#`]/u', '', $text);

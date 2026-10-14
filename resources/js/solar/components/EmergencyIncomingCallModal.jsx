@@ -355,11 +355,13 @@ export default function EmergencyIncomingCallModal({
     useEffect(() => {
         // Preload backend Gemini Aoede WAV audio immediately so playback has zero buffering delay
         try {
-            const preloadUrl = `${getApiBaseUrl().base}voice-agent/tts?text=${encodeURIComponent(speechText)}&language=gu&voice=${encodeURIComponent(selectedVoice)}`;
-            const preloadAudio = new Audio(preloadUrl);
-            preloadAudio.preload = 'auto';
-            preloadAudio.load();
-            preloadedAudioRef.current = preloadAudio;
+            if (speechText && typeof speechText === 'string' && speechText.trim().length > 0) {
+                const preloadUrl = `${getApiBaseUrl().base}voice-agent/tts?text=${encodeURIComponent(speechText.trim())}&language=gu&voice=${encodeURIComponent(selectedVoice)}`;
+                const preloadAudio = new Audio(preloadUrl);
+                preloadAudio.preload = 'auto';
+                preloadAudio.load();
+                preloadedAudioRef.current = preloadAudio;
+            }
         } catch (_) {}
 
         let autoAnswerTimer = null;
@@ -547,21 +549,26 @@ export default function EmergencyIncomingCallModal({
             {/* Top Close Dismiss Icon (subtle top right) */}
             <button
                 type="button"
+                className="close-call-btn"
+                aria-label="Close Call"
+                title="કૉલ બંધ કરો (Close Call)"
                 onClick={handleEndCall}
                 style={{
                     position: 'absolute',
                     top: '20px',
                     right: '20px',
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    border: 'none',
+                    background: 'rgba(255, 255, 255, 0.18)',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
                     borderRadius: '50%',
-                    width: '36px',
-                    height: '36px',
-                    color: '#94a3b8',
+                    width: '38px',
+                    height: '38px',
+                    color: '#ffffff',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    zIndex: 10,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.35)'
                 }}
             >
                 <X size={18} />

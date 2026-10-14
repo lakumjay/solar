@@ -194,6 +194,27 @@ export default function DailyEntryPage({company: initialCompany, companies = [],
             });
             return;
         }
+
+        // Client-side validation: Ensure at least one meter reading or inverter generation is entered
+        const hasAnyMeter = METERS.some(([key]) => {
+            const val = readings[`${key}_reading`];
+            return val !== undefined && val !== '' && !isNaN(val) && parseFloat(val) > 0;
+        });
+        const hasAnyOutput = activeInverters.some(inverter => {
+            const val = outputs[inverter.id];
+            return val !== undefined && val !== '' && !isNaN(val) && parseFloat(val) > 0;
+        });
+
+        if (!hasAnyMeter && !hasAnyOutput && !existing?.id) {
+            setMessage({
+                type: 'error',
+                text: currentLang === 'en' 
+                    ? 'Please enter at least one meter reading or inverter generation.' 
+                    : 'કૃપા કરીને સેવ કરતા પહેલા ઓછામાં ઓછું એક મીટર રીડિંગ અથવા ઇન્વર્ટર જનરેશન દાખલ કરો.'
+            });
+            return;
+        }
+
         triggerHaptic([45]);
         setBusy(true);
         setMessage(null);

@@ -172,6 +172,10 @@ class SmartVoiceCallAlertService
             return null;
         }
 
+        if (Cache::has("call_dismissed_until_{$user->id}")) {
+            return null;
+        }
+
         try {
             // Run global rule evaluation at most once every 20 seconds
             if (! Cache::has('smart_voice_call_rules_evaluated_lock')) {
@@ -231,6 +235,8 @@ class SmartVoiceCallAlertService
         if ($user->role === 'super_admin' || $user->name === 'Super Admin' || $user->id === 4) {
             Cache::forget('active_emergency_call_super_admin');
         }
+        // Set cooldown so dismissed calls do not instantly re-trigger and block the user's screen
+        Cache::put("call_dismissed_until_{$user->id}", true, now()->addMinutes(30));
     }
 
     /**
