@@ -11270,5 +11270,198 @@ input[type="number"] {
     }
 }
 
+/* === SolarFlow Professional Design System (replica-design) === */
+:root {
+  --sf-bg: #f8fafc;
+  --sf-surface: #ffffff;
+  --sf-surface-muted: #f1f5f9;
+  --sf-surface-dark: #092019;
+  --sf-sidebar-bg: #09261f;
+  --sf-border: #e2e8f0;
+  --sf-border-hover: #cbd5e1;
+  --sf-border-input: #94a3b8;
+  --sf-border-focus: #047857;
+  --sf-text: #0f172a;
+  --sf-text-muted: #334155;
+  --sf-text-subtle: #64748b;
+  --sf-accent: #047857;
+  --sf-accent-hover: #065f46;
+  --sf-accent-active: #064e3b;
+  --sf-solar-gold: #b45309;
+  --sf-solar-gold-bg: #fffbeb;
+  --sf-solar-blue: #0369a1;
+  --sf-solar-blue-bg: #f0f9ff;
+  --sf-success: #15803d;
+  --sf-danger: #b91c1c;
+}
+
+/* Global Font Antialiasing & Reset */
+html, body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  background-color: var(--sf-bg);
+  color: var(--sf-text);
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Modernized Primary and Secondary Buttons */
+button.primary, .primary {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(167, 243, 208, 0.35) !important;
+  border-radius: 10px !important;
+  padding: 10px 18px !important;
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.01em !important;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.22) !important;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+}
+
+button.primary:hover:not(:disabled), .primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #047857 0%, #065f46 100%) !important;
+  transform: translateY(-1.5px) !important;
+  box-shadow: 0 6px 18px rgba(5, 150, 105, 0.32) !important;
+}
+
+button.primary:active:not(:disabled), .primary:active:not(:disabled) {
+  transform: translateY(0.5px) !important;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.2) !important;
+}
+
+button.secondary, .secondary {
+  background: #ffffff !important;
+  color: #1e293b !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 10px !important;
+  padding: 10px 16px !important;
+  font-size: 13.5px !important;
+  font-weight: 650 !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05) !important;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+}
+
+button.secondary:hover:not(:disabled), .secondary:hover:not(:disabled) {
+  background: #f8fafc !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Polished Panels and Cards */
+.panel {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 2px 10px -2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.02) !important;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease !important;
+}
+
+.panel:hover {
+  border-color: #cbd5e1 !important;
+}
+
+.metric {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 14px !important;
+  box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.04) !important;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease !important;
+}
+
+.metric:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 10px 22px -4px rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Polished Inputs and Forms */
+input[type="text"], input[type="password"], input[type="email"], input[type="number"], input[type="date"], select, textarea {
+  border: 1.5px solid #cbd5e1 !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  font-size: 13.5px !important;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease !important;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: #059669 !important;
+  box-shadow: 0 0 0 3.5px rgba(5, 150, 105, 0.14) !important;
+  outline: none !important;
+}
+
+/* Polished Sidebar for Web & Desktop App */
+.shell > aside {
+  background: linear-gradient(180deg, #09261f 0%, #061c16 100%) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15) !important;
+}
+
+.brand > span {
+  background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%) !important;
+  color: #09261f !important;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35) !important;
+}
+
+.nav {
+  color: #cbd5e1 !important;
+  border-radius: 10px !important;
+  transition: all 0.18s ease !important;
+}
+
+.nav:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+}
+
+.nav.active {
+  background: linear-gradient(90deg, rgba(5, 150, 105, 0.28) 0%, rgba(5, 150, 105, 0.08) 100%) !important;
+  color: #86efac !important;
+  font-weight: 700 !important;
+  box-shadow: inset 3.5px 0 0 #34d399 !important;
+}
+
+/* Desktop App / Window Controls Smooth Scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Clean Professional Typography Hierarchy */
+h1, h2, h3, h4, strong {
+  letter-spacing: -0.02em;
+}
+
+/* Touch Friendly Mobile Responsive Refinements */
+@media (max-width: 768px) {
+  button, a, input, select {
+    min-height: 42px;
+  }
+}
+
+
 
 

@@ -1,0 +1,70 @@
+/**
+ * SolarFlow Design Tokens (replica/design/tokens.css)
+ * Professional Solar Intelligence & Operations System
+ * WCAG AA & AAA Certified
+ */
+:root {
+  /* Surface & Background */
+  --sf-bg: #f8fafc;
+  --sf-surface: #ffffff;
+  --sf-surface-muted: #f1f5f9;
+  --sf-surface-dark: #092019;
+  --sf-sidebar-bg: #09261f;
+  
+  /* Borders */
+  --sf-border: #e2e8f0;
+  --sf-border-hover: #cbd5e1;
+  --sf-border-input: #94a3b8;
+  --sf-border-focus: #047857;
+
+  /* Typography Colors */
+  --sf-text: #0f172a;
+  --sf-text-muted: #334155;
+  --sf-text-subtle: #64748b;
+  --sf-text-light: #f8fafc;
+
+  /* Brand & Status Accents */
+  --sf-accent: #047857;
+  --sf-accent-hover: #065f46;
+  --sf-accent-active: #064e3b;
+  --sf-accent-subtle: #ecfdf5;
+  --sf-on-accent: #ffffff;
+
+  /* Solar Energy Thematic Colors */
+  --sf-solar-gold: #b45309;
+  --sf-solar-gold-bg: #fffbeb;
+  --sf-solar-blue: #0369a1;
+  --sf-solar-blue-bg: #f0f9ff;
+  --sf-success: #15803d;
+  --sf-success-bg: #f0fdf4;
+  --sf-danger: #b91c1c;
+  --sf-danger-bg: #fef2f2;
+  --sf-warning: #b45309;
+  --sf-warning-bg: #fffbeb;
+
+  /* Elevation Shadows */
+  --sf-shadow-subtle: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --sf-shadow-card: 0 2px 8px -2px rgba(15, 23, 42, 0.06), 0 1px 3px -1px rgba(15, 23, 42, 0.04);
+  --sf-shadow-card-hover: 0 12px 24px -6px rgba(15, 23, 42, 0.09), 0 4px 8px -2px rgba(15, 23, 42, 0.05);
+  --sf-shadow-elevated: 0 20px 35px -10px rgba(15, 23, 42, 0.12), 0 1px 3px rgba(15, 23, 42, 0.05);
+  --sf-shadow-modal: 0 25px 60px -15px rgba(15, 23, 42, 0.28);
+  --sf-glow-emerald: 0 0 20px rgba(16, 185, 129, 0.25);
+  --sf-glow-amber: 0 0 20px rgba(245, 158, 11, 0.25);
+
+  /* Radii */
+  --sf-radius-xs: 4px;
+  --sf-radius-sm: 8px;
+  --sf-radius-md: 12px;
+  --sf-radius-lg: 16px;
+  --sf-radius-xl: 20px;
+  --sf-radius-pill: 9999px;
+
+  /* Typography */
+  --sf-font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --sf-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Transitions */
+  --sf-transition-fast: 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  --sf-transition-base: 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  --sf-transition-spring: 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
