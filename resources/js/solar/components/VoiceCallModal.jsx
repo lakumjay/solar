@@ -82,6 +82,8 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
     const isAiSpeakingRef = useRef(false);
     const closingRef = useRef(false);
     const transcriptEndRef = useRef(null);
+    const transcriptContainerRef = useRef(null);
+    const analysisTimerRef = useRef(null);
     const wakeLockRef = useRef(null);
     const heartbeatRef = useRef(null);
     const hasConnectedRef = useRef(false);
@@ -275,21 +277,34 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         return () => clearInterval(timer);
     }, [callState]);
 
-    // Auto-scroll Transcript
+    // Instant Auto-scroll Transcript (Zero lag during high-frequency speech streaming)
     useEffect(() => {
-        transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (transcriptContainerRef.current) {
+            transcriptContainerRef.current.scrollTop = transcriptContainerRef.current.scrollHeight;
+        }
     }, [transcriptHistory, currentAiText, lastToolEvent, activeComparison]);
 
     const handleTranscript = useCallback((sender, text) => {
         setTranscriptHistory(prev => {
             const last = prev[prev.length - 1];
+            let combined = text;
+            let nextHistory;
             if (last && last.sender === sender) {
-                const combined = last.text + text;
-                setTimeout(() => analyzeSpeechForVisualsAndActions(sender, combined), 0);
-                return [...prev.slice(0, -1), { ...last, text: combined }];
+                combined = last.text + text;
+                nextHistory = [...prev.slice(0, -1), { ...last, text: combined }];
+            } else {
+                nextHistory = [...prev, { sender, text }];
             }
-            setTimeout(() => analyzeSpeechForVisualsAndActions(sender, text), 0);
-            return [...prev, { sender, text }];
+
+            // Debounce regex speech keyword analysis to 250ms to keep main thread completely unblocked
+            if (analysisTimerRef.current) {
+                clearTimeout(analysisTimerRef.current);
+            }
+            analysisTimerRef.current = setTimeout(() => {
+                analyzeSpeechForVisualsAndActions(sender, combined);
+            }, 250);
+
+            return nextHistory;
         });
     }, [analyzeSpeechForVisualsAndActions]);
 
@@ -305,6 +320,11 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         if (heartbeatRef.current) {
             clearInterval(heartbeatRef.current);
             heartbeatRef.current = null;
+        }
+
+        if (analysisTimerRef.current) {
+            clearTimeout(analysisTimerRef.current);
+            analysisTimerRef.current = null;
         }
 
         try {
@@ -1089,8 +1109,8 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                     </div>
 
                     {/* Caller Name & Active User */}
-                    <h2 className="text-lg font-bold tracking-tight text-white">
-                        SolarFlow AI <span className="text-amber-400 font-semibold text-xs">PRO</span>
+                    <h2 className="voice-modal-title text-xl font-bold tracking-tight" style={{color: '#ffffff', margin: '4px 0 2px', letterSpacing: '-0.02em'}}>
+                        <span className="brand-solar" style={{color: '#ffffff'}}>Solar</span><span className="brand-flow" style={{color: '#4ade80'}}>Flow</span> <span style={{color: '#ffffff'}}>AI</span> <span className="text-amber-400 font-semibold text-xs ml-1 bg-amber-400/20 px-2 py-0.5 rounded-full border border-amber-400/40">PRO</span>
                     </h2>
                     <p className="text-[11px] text-slate-400">
                         Instant Solar & HR Brain • <span className="text-amber-300 font-semibold">{displayName}</span>
@@ -1275,7 +1295,10 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                 )}
 
                 {/* Modern Chat-Bubble Live Transcript Window */}
-                <div className="mx-4 my-1.5 p-3 bg-slate-900/75 border border-slate-800/90 rounded-2xl flex-1 overflow-y-auto space-y-2 text-xs font-sans shadow-inner max-h-[175px]">
+                <div 
+                    ref={transcriptContainerRef}
+                    className="mx-4 my-1.5 p-3.5 bg-gradient-to-b from-slate-900/95 to-slate-950/95 backdrop-blur-xl border border-slate-800/90 rounded-2xl flex-1 overflow-y-auto space-y-2.5 text-xs font-sans shadow-[inset_0_2px_12px_rgba(0,0,0,0.6)] max-h-[185px]"
+                >
                     {transcriptHistory.map((item, idx) => (
                         <div 
                             key={idx} 
@@ -1284,26 +1307,28 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                             }`}
                         >
                             <div
-                                className={`max-w-[90%] rounded-2xl px-3 py-2 leading-relaxed ${
+                                className={`max-w-[90%] rounded-2xl px-3.5 py-2.5 leading-relaxed text-[12px] shadow-sm ${
                                     item.sender === 'user'
-                                        ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-200 rounded-br-sm'
-                                        : 'bg-slate-800/90 border border-slate-700/70 text-slate-100 rounded-bl-sm'
+                                        ? 'bg-emerald-950/70 border border-emerald-500/50 text-emerald-100 rounded-br-sm'
+                                        : 'bg-slate-800/95 border border-slate-700/80 text-white rounded-bl-sm'
                                 }`}
                             >
-                                <span className="block font-bold text-[10px] uppercase tracking-wider opacity-75 mb-0.5 text-amber-300">
+                                <span className={`block font-bold text-[10px] uppercase tracking-wider mb-1 ${
+                                    item.sender === 'user' ? 'text-emerald-300' : 'text-amber-300'
+                                }`}>
                                     {item.sender === 'user' ? displayName : 'SolarFlow AI'}
                                 </span>
-                                <span>{item.text}</span>
+                                <span style={{lineHeight: 1.45, letterSpacing: '0.01em'}}>{item.text}</span>
                             </div>
                         </div>
                     ))}
                     {currentAiText && (
                         <div className="flex items-start">
-                            <div className="max-w-[90%] rounded-2xl rounded-bl-sm px-3 py-2 bg-amber-500/15 border border-amber-500/30 text-amber-200 animate-pulse">
-                                <span className="block font-bold text-[10px] uppercase tracking-wider text-amber-300 mb-0.5">
+                            <div className="max-w-[90%] rounded-2xl rounded-bl-sm px-3.5 py-2.5 bg-amber-950/50 border border-amber-400/50 text-amber-100 animate-pulse text-[12px] shadow-lg shadow-amber-500/10">
+                                <span className="block font-bold text-[10px] uppercase tracking-wider text-amber-300 mb-1">
                                     SolarFlow AI
                                 </span>
-                                <span>{currentAiText}</span>
+                                <span style={{lineHeight: 1.45}}>{currentAiText}</span>
                             </div>
                         </div>
                     )}

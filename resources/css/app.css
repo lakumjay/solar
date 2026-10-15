@@ -1533,6 +1533,23 @@
     animation: isolarLaserPulse 2.2s linear infinite;
 }
 
+@keyframes laserDashFlow {
+    from {
+        stroke-dashoffset: 24;
+    }
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+.isolar-laser-track-fast {
+    animation: laserDashFlow 1.2s linear infinite;
+}
+
+.isolar-laser-track-reverse {
+    animation: laserDashFlow 1.2s linear infinite reverse;
+}
+
 /* Rain Weather Animated Streaks */
 .rain-streak {
     animation: rainStreakFall 0.8s linear infinite;
@@ -2979,22 +2996,23 @@
 /* 8. Fixed Modern Floating Bottom Navigation Bar */
 .mobile-bottom-navbar {
     position: fixed;
-    bottom: 0;
+    bottom: 12px;
     left: 50%;
     transform: translateX(-50%);
-    width: 100%;
-    max-width: 480px;
+    width: calc(100% - 24px);
+    max-width: 440px;
     height: 60px;
-    background: rgba(255, 255, 255, 0.96);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border-top: 1px solid #e2e8f0;
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    border-radius: 30px;
     display: flex;
     align-items: center;
     justify-content: space-around;
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding: 0 6px;
     z-index: 999;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .bnav-item {
@@ -3006,36 +3024,37 @@
     justify-content: center;
     gap: 3px;
     color: #64748b;
-    font-size: 10.5px;
-    font-weight: 500;
-    padding: 4px 2px;
-    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 20px;
     cursor: pointer;
-    transition: all 0.15s ease;
-    flex: 1;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     min-width: 0;
     white-space: nowrap;
 }
 
 .bnav-item span {
-    font-size: 10.5px;
+    font-size: 10px;
     line-height: 1;
     letter-spacing: -0.2px;
 }
 
 .bnav-item svg {
     color: #64748b;
-    transition: color 0.15s ease;
+    transition: all 0.2s ease;
     flex-shrink: 0;
 }
 
 .bnav-item.active {
+    background: #dcfce7;
     color: #15803d;
-    font-weight: 600;
+    font-weight: 800;
 }
 
 .bnav-item.active svg {
-    color: #15803d;
+    color: #16a34a;
+    transform: scale(1.1);
 }
 
 /* 9. Slide-up Drawers & Modals */
@@ -7170,10 +7189,29 @@ button:active, .mqa-btn:active, .bnav-item:active, .bento-card:active {
 
 .sky-theme-night .bento-card strong,
 .sky-theme-night .company-title-text,
-.sky-theme-night h2,
-.sky-theme-night h3,
-.sky-theme-night h4 {
+.sky-theme-night .mobile-subpage-wrap h2,
+.sky-theme-night .mobile-subpage-wrap h3,
+.sky-theme-night .mobile-subpage-wrap h4,
+.sky-theme-night .panel-head h2 {
     color: #0f291e !important;
+}
+
+/* SolarFlow Brand & Voice Call Modal ALWAYS Pure White */
+.mobile-app-header h2,
+.mobile-logo-text h2,
+.brand,
+.brand-title,
+.voice-modal-title,
+.voice-modal-title span.brand-solar,
+.voice-call-frame h2 {
+    color: #ffffff !important;
+}
+
+.brand-flow,
+.brand .brand-flow,
+.mobile-logo-text .brand-flow,
+.voice-modal-title span.brand-flow {
+    color: #4ade80 !important;
 }
 
 .panel .step {
@@ -11634,10 +11672,55 @@ input[type="file"] {
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15) !important;
 }
 
-.brand > span {
+.brand > span:first-child,
+.brand > .brand-icon {
   background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%) !important;
   color: #09261f !important;
   box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35) !important;
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 10px !important;
+  display: grid !important;
+  place-items: center !important;
+  flex-shrink: 0 !important;
+}
+
+.brand > span:last-child,
+.brand > .brand-text,
+.brand .brand-text,
+.brand {
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+}
+
+.brand .brand-text,
+.brand > .brand-text {
+  width: auto !important;
+  height: auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  white-space: nowrap !important;
+  flex-direction: row !important;
+}
+
+.brand .brand-solar {
+  color: #ffffff !important;
+  white-space: nowrap !important;
+  display: inline !important;
+}
+
+.brand .brand-flow,
+.mobile-logo-text .brand-flow {
+  color: #4ade80 !important;
+  white-space: nowrap !important;
+  display: inline !important;
+}
+
+.mobile-logo-text h2 {
+  color: #ffffff !important;
 }
 
 .nav {

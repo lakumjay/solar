@@ -316,7 +316,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         ['reels', t('reels'), Film],
         (isAdminOrOwner || can('view_expenses')) && ['expenses', t('expenses'), IndianRupee],
         user.role === 'super_admin' && ['companies', t('companies'), Building2],
-        user.role === 'super_admin' && ['isolarcloud', 'iSolarCloud', CloudSun],
+        /* Hidden as requested: user.role === 'super_admin' && ['isolarcloud', 'iSolarCloud', CloudSun], */
         (user.role === 'super_admin' || can('manage_company_users')) && ['users', t('users'), Users],
         (user.role === 'super_admin' || can('manage_company_users')) && ['activity', t('activityLog'), Activity],
         can('view_employees') && ['employees', t('employees'), Users],
@@ -326,7 +326,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         isAdminOrOwner && ['salaries', t('salaries'), WalletCards],
         (isAdminOrOwner || can('view_stock') || can('manage_stock')) && ['stock', t('stock'), Boxes],
         (isAdminOrOwner || can('enter_readings') || can('view_reports')) && ['curtailment-loss', t('curtailmentLoss', '૬૬KV પાવર કટ & નુકસાન'), Zap],
-        user.role === 'super_admin' && ['ai-help-center', '🤖 AI Help Center', Sparkles],
+        /* Hidden as requested: user.role === 'super_admin' && ['ai-help-center', '🤖 AI Help Center', Sparkles], */
         user.role === 'employee' && ['my-attendance', t('myAttendance'), Clock3],
         user.role === 'employee' && ['my-salary', t('mySalary'), IndianRupee],
     ].filter(Boolean);
@@ -410,7 +410,13 @@ export default function AppShell({user, page, setPage, companies, companyId, set
                 /* 💻 Desktop Layout */
                 <div className="shell">
                     <aside className={menuOpen ? 'open' : ''}>
-                        <div className="brand"><span><Sun size={25}/></span> SolarFlow <button className="mobile-close" onClick={() => setMenuOpen(false)}><X/></button></div>
+                        <div className="brand" style={{color: '#ffffff', display: 'flex', alignItems: 'center', gap: '10px', width: 'auto'}}>
+                            <span className="brand-icon"><Sun size={24}/></span>
+                            <div className="brand-text" style={{fontSize: '18px', fontWeight: 800, letterSpacing: '-0.02em', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', width: 'auto', height: 'auto', background: 'transparent'}}>
+                                <span className="brand-solar" style={{color: '#ffffff', whiteSpace: 'nowrap'}}>Solar</span><span className="brand-flow" style={{color: '#4ade80', whiteSpace: 'nowrap'}}>Flow</span>
+                            </div>
+                            <button className="mobile-close" onClick={() => setMenuOpen(false)}><X/></button>
+                        </div>
                         <div className="account">
                             <div className="account-avatar" style={{border: activeCompany?.owner_photo_url ? '2px solid #f59e0b' : 'none', overflow: 'hidden'}}>
                                 {activeCompany?.owner_photo_url ? (

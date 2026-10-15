@@ -50,7 +50,8 @@ import {
     Check,
     Phone,
     PhoneCall,
-    Globe
+    Globe,
+    Languages
 } from 'lucide-react';
 import {api, logout} from '../api';
 import ISolarCloudVisualizer from './ISolarCloudVisualizer';
@@ -758,13 +759,15 @@ export default function MobileAppView({
                         <Sun size={18} className="sun-glow-icon spin-slow"/>
                     </div>
                     <div className="mobile-logo-text">
-                        <h2 style={{fontSize: '15px', lineHeight: 1}}>Solar<span className="brand-flow" style={{color: '#4ade80'}}>Flow</span></h2>
-                        <p style={{fontSize: '9px', margin: '1px 0 0'}}>Live Monitor</p>
+                        <h2 style={{fontSize: '16px', lineHeight: 1.1, color: '#ffffff', margin: 0, fontWeight: 800, letterSpacing: '-0.02em'}}>
+                            Solar<span className="brand-flow" style={{color: '#4ade80'}}>Flow</span>
+                        </h2>
+                        <p style={{fontSize: '9.5px', margin: '2px 0 0', color: 'rgba(255, 255, 255, 0.85)', fontWeight: 600}}>Live Monitor</p>
                     </div>
                 </div>
 
                 <div className="mobile-header-actions" style={{display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0}}>
-                    {/* Ultra-compact Language Switcher Badge */}
+                    {/* Sleek 34px Circular Glass Language Toggle */}
                     <button
                         type="button"
                         onClick={() => {
@@ -772,28 +775,42 @@ export default function MobileAppView({
                             const nextLang = currentLang === 'gu' ? 'en' : 'gu';
                             setLang(nextLang);
                         }}
+                        className="mobile-icon-btn lang-toggle-btn"
                         style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '3px',
-                            background: 'rgba(255, 255, 255, 0.16)',
-                            backdropFilter: 'blur(8px)',
-                            padding: '4px 8px',
-                            borderRadius: '16px',
+                            width: '34px',
+                            height: '34px',
+                            borderRadius: '50%',
+                            background: 'rgba(255, 255, 255, 0.15)',
+                            backdropFilter: 'blur(10px)',
                             border: '1px solid rgba(255, 255, 255, 0.28)',
                             color: '#ffffff',
-                            fontSize: '11px',
-                            fontWeight: 800,
+                            display: 'grid',
+                            placeItems: 'center',
                             cursor: 'pointer',
-                            lineHeight: 1
+                            position: 'relative',
+                            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.15)'
                         }}
                         title={currentLang === 'gu' ? 'Switch to English' : 'ગુજરાતી કરો'}
                     >
-                        <Globe size={12} style={{color: '#86efac'}}/>
-                        <span>{currentLang === 'gu' ? 'ગુજ' : 'EN'}</span>
+                        <Languages size={17} style={{color: '#ffffff'}}/>
+                        <span style={{
+                            position: 'absolute',
+                            bottom: '-2px',
+                            right: '-2px',
+                            fontSize: '7.5px',
+                            fontWeight: 900,
+                            color: '#064e3b',
+                            background: '#86efac',
+                            padding: '1px 3.5px',
+                            borderRadius: '5px',
+                            border: '1.5px solid #09261f',
+                            lineHeight: 1
+                        }}>
+                            {currentLang === 'gu' ? 'GU' : 'EN'}
+                        </span>
                     </button>
 
-                    {/* Compact Pure Call Icon Button (📞 Call Icon Only) */}
+                    {/* Premium AI Phone Call Button with Radiant Glow */}
                     <button
                         type="button"
                         onClick={() => {
@@ -806,17 +823,17 @@ export default function MobileAppView({
                             width: '34px',
                             height: '34px',
                             borderRadius: '50%',
-                            background: 'linear-gradient(135deg, #16a34a, #15803d)',
+                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                             color: '#ffffff',
-                            border: '1.5px solid rgba(255, 255, 255, 0.4)',
+                            border: '1.5px solid rgba(255, 255, 255, 0.5)',
                             display: 'grid',
                             placeItems: 'center',
-                            boxShadow: '0 2px 10px rgba(22, 163, 74, 0.5)',
+                            boxShadow: '0 0 14px rgba(16, 185, 129, 0.6), 0 2px 5px rgba(0, 0, 0, 0.25)',
                             cursor: 'pointer'
                         }}
                         title={t('callAi')}
                     >
-                        <Phone size={16} className="animate-pulse" />
+                        <PhoneCall size={17} />
                     </button>
 
                     <button
@@ -2759,27 +2776,24 @@ export default function MobileAppView({
                             {(isSuperAdmin || user.role === 'company_admin') && (
                                 <button
                                     type="button"
-                                    className="dmenu-card dmenu-card-highlight"
+                                    className="dmenu-card"
                                     onClick={() => {
                                         triggerHaptic([35]);
                                         setMoreMenuOpen(false);
                                         setShowManageCallsModal(true);
                                     }}
-                                    style={{ border: '1.5px solid #86efac', background: '#f0fdf4' }}
                                 >
                                     <div className="dmenu-card-top">
-                                        <div className="dmenu-bubble" style={{ background: '#dcfce7', color: '#16a34a' }}>
+                                        <div className="dmenu-bubble" style={{ background: '#ecfdf5', color: '#16a34a' }}>
                                             <PhoneCall size={19} />
                                         </div>
-                                        <span className="dmenu-badge" style={{ background: '#16a34a', color: '#ffffff' }}>
-                                            ON / OFF
-                                        </span>
+                                        <ChevronRight size={14} className="dmenu-chevron"/>
                                     </div>
-                                    <div className="dmenu-card-title" style={{ color: '#15803d', fontWeight: 800 }}>
-                                        {currentLang === 'en' ? 'Manage AI Calls' : '📞 AI કૉલ ON / OFF'}
+                                    <div className="dmenu-card-title">
+                                        {currentLang === 'en' ? 'Manage AI Calls' : 'AI કૉલ કંટ્રોલ'}
                                     </div>
-                                    <div className="dmenu-card-sub" style={{ color: '#166534' }}>
-                                        {currentLang === 'en' ? 'Stop / Toggle Auto Calls' : 'પ્લાન્ટ બંધ કરો ત્યારે કૉલ રોકો'}
+                                    <div className="dmenu-card-sub">
+                                        {currentLang === 'en' ? 'Stop / Toggle Auto Calls' : 'પ્લાન્ટ બંધ વખતે ઓટો કૉલ'}
                                     </div>
                                 </button>
                             )}
@@ -2807,18 +2821,16 @@ export default function MobileAppView({
                             {/* 2. Reels Hub */}
                             <button
                                 type="button"
-                                className="dmenu-card dmenu-card-highlight"
+                                className="dmenu-card"
                                 onClick={() => { setPage('reels'); setMoreMenuOpen(false); }}
                             >
                                 <div className="dmenu-card-top">
-                                    <div className="dmenu-bubble" style={{background: '#ecfdf5', color: '#059669'}}>
+                                    <div className="dmenu-bubble" style={{background: '#f0fdfa', color: '#0d9488'}}>
                                         <Film size={19}/>
                                     </div>
-                                    <span className="dmenu-badge" style={{background: '#dcfce7', color: '#15803d'}}>
-                                        🎬 NEW
-                                    </span>
+                                    <ChevronRight size={14} className="dmenu-chevron"/>
                                 </div>
-                                <div className="dmenu-card-title" style={{color: '#15803d'}}>
+                                <div className="dmenu-card-title">
                                     {currentLang === 'en' ? 'Reels Hub' : 'રીલ્સ હબ'}
                                 </div>
                                 <div className="dmenu-card-sub">
@@ -3026,8 +3038,8 @@ export default function MobileAppView({
                                 </div>
                             </button>
 
-                            {/* 12. iSolarCloud Live OAuth Connection (Super Admin) */}
-                            {isSuperAdmin && (
+                            {/* 12. iSolarCloud Live OAuth Connection (Hidden as requested) */}
+                            {false && isSuperAdmin && (
                                 <button
                                     type="button"
                                     className="dmenu-card"
@@ -3050,8 +3062,8 @@ export default function MobileAppView({
                                 </button>
                             )}
 
-                            {/* 13. AI Help Center & Auto-Coder (Super Admin Only) */}
-                            {isSuperAdmin && (
+                            {/* 13. AI Help Center & Auto-Coder (Hidden as requested) */}
+                            {false && isSuperAdmin && (
                                 <button
                                     type="button"
                                     className="dmenu-card"
