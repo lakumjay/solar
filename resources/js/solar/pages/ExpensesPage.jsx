@@ -525,8 +525,8 @@ export default function ExpensesPage({currentUser}) {
             {/* TAB 1: Daily Expense Ledger */}
             {activeTab === 'ledger' && (
                 <section className="panel">
-                    <div className="panel-head" style={{alignItems: 'center', flexWrap: 'wrap', gap: '12px'}}>
-                        <div style={{flex: '1 1 240px'}}>
+                    <div className="panel-head" style={{alignItems: 'center', marginBottom: '14px'}}>
+                        <div>
                             <div style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
                                 <h2 style={{margin: 0}}>Daily expense ledger</h2>
                                 {searchQuery.trim() && (
@@ -544,72 +544,83 @@ export default function ExpensesPage({currentUser}) {
                             </div>
                             <p style={{margin: '4px 0 0'}}>Expenses, multi-payer allocations, reversals, and settlement payments from {shortDate(from)} to {shortDate(to)}.</p>
                         </div>
-                        <div style={{display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end'}}>
-                            {/* 🔍 Auto-Search Input Box */}
-                            <div style={{
-                                position: 'relative',
-                                display: 'flex',
-                                alignItems: 'center',
-                                minWidth: '220px',
-                                maxWidth: '360px',
-                                flex: '1 1 auto'
-                            }}>
-                                <Search size={15} style={{
-                                    position: 'absolute',
-                                    left: '10px',
-                                    color: '#64748b',
-                                    pointerEvents: 'none'
-                                }}/>
-                                <input
-                                    type="text"
-                                    value={searchQuery}
-                                    onChange={e => setSearchQuery(e.target.value)}
-                                    placeholder={currentLang === 'en' ? 'Search name, company, amount (e.g. 10,000)...' : 'નામ, કંપની, રકમ (દા.ત. 10,000) શોધો...'}
+                    </div>
+
+                    {/* 🔍 Search & Controls Toolbar (Responsive for Mobile & Desktop) */}
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '10px',
+                        marginBottom: '16px',
+                        flexWrap: 'wrap'
+                    }}>
+                        {/* 🔍 Auto-Search Input Box (Flex layout prevents icon/text overlap) */}
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            flex: '1 1 240px',
+                            minWidth: '200px',
+                            background: '#ffffff',
+                            border: '1.5px solid #cbd5e1',
+                            borderRadius: '8px',
+                            padding: '6px 10px',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                            transition: 'border-color 0.15s ease'
+                        }}>
+                            <Search size={15} style={{color: '#64748b', flexShrink: 0}}/>
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                placeholder={currentLang === 'en' ? 'Search name, company, amount (e.g. 10,000)...' : 'નામ, કંપની, રકમ (દા.ત. 10,000) શોધો...'}
+                                style={{
+                                    flex: 1,
+                                    minWidth: 0,
+                                    border: 'none',
+                                    outline: 'none',
+                                    background: 'transparent',
+                                    padding: '0 2px',
+                                    margin: 0,
+                                    fontSize: '12.5px',
+                                    color: '#0f172a',
+                                    boxShadow: 'none'
+                                }}
+                            />
+                            {searchQuery && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSearchQuery('')}
+                                    title="Clear search"
                                     style={{
-                                        width: '100%',
-                                        padding: '7px 30px 7px 32px',
-                                        fontSize: '12px',
-                                        borderRadius: '8px',
-                                        border: '1.5px solid #cbd5e1',
-                                        background: '#ffffff',
-                                        color: '#0f172a',
-                                        outline: 'none',
-                                        boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+                                        border: 'none',
+                                        background: 'transparent',
+                                        padding: '2px 4px',
+                                        cursor: 'pointer',
+                                        color: '#94a3b8',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        flexShrink: 0
                                     }}
-                                />
-                                {searchQuery && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setSearchQuery('')}
-                                        title="Clear search"
-                                        style={{
-                                            position: 'absolute',
-                                            right: '6px',
-                                            background: 'transparent',
-                                            border: 'none',
-                                            padding: '4px',
-                                            cursor: 'pointer',
-                                            color: '#94a3b8',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center'
-                                        }}
-                                    >
-                                        <X size={14}/>
-                                    </button>
-                                )}
-                            </div>
-                            <button
-                                type="button"
-                                className="secondary view-toggle-btn"
-                                onClick={() => setLedgerViewMode(v => v === 'cards' ? 'table' : 'cards')}
-                                style={{fontSize: '11px', padding: '6px 11px', height: '34px'}}
-                                title="Toggle between Card view and Table view"
-                            >
-                                {ledgerViewMode === 'cards' ? <Table size={14}/> : <LayoutGrid size={14}/>}
-                                <span>{ledgerViewMode === 'cards' ? 'Table View' : 'Card View'}</span>
-                            </button>
+                                >
+                                    <X size={14}/>
+                                </button>
+                            )}
                         </div>
+
+                        {/* View Mode Toggle Button */}
+                        <button
+                            type="button"
+                            className="secondary view-toggle-btn"
+                            onClick={() => setLedgerViewMode(v => v === 'cards' ? 'table' : 'cards')}
+                            style={{fontSize: '11px', padding: '6px 11px', height: '34px', flexShrink: 0}}
+                            title="Toggle between Card view and Table view"
+                        >
+                            {ledgerViewMode === 'cards' ? <Table size={14}/> : <LayoutGrid size={14}/>}
+                            <span>{ledgerViewMode === 'cards' ? 'Table View' : 'Card View'}</span>
+                        </button>
                     </div>
                     {groupedEntries.length ? (
                         <>
