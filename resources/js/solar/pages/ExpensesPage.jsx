@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {ArrowRight, Calendar, CheckCircle2, Clock, FileSpreadsheet, FileText, HandCoins, History, IndianRupee, Layers, LayoutGrid, PencilLine, Plus, ReceiptIndianRupee, RotateCcw, Scale, Sparkles, Split, Table, X, Zap} from 'lucide-react';
+import {ArrowRight, Calendar, CheckCircle2, Clock, FileSpreadsheet, FileText, HandCoins, History, IndianRupee, Layers, LayoutGrid, PencilLine, Plus, ReceiptIndianRupee, RotateCcw, Scale, Search, Sparkles, Split, Table, X, Zap} from 'lucide-react';
 import {api, getApiBaseUrl} from '../api';
 import {Empty, Field, Loading, Metric} from '../components/Common';
 import {monthStart, today} from '../config';
@@ -19,7 +19,12 @@ export default function ExpensesPage({currentUser}) {
     const [to, setTo] = useState(today());
     const [selectedCompany, setSelectedCompany] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
+    const [searchQuery, setSearchQuery] = useState('');
     const PAGE_SIZE = 5;
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery]);
     const [data, setData] = useState(null);
     const [expenseForm, setExpenseForm] = useState(null);
     const [settlement, setSettlement] = useState(null);
@@ -88,13 +93,84 @@ export default function ExpensesPage({currentUser}) {
         });
     }, [data?.entries, selectedCompany]);
 
-    const totalPages = Math.max(1, Math.ceil(allEntries.length / PAGE_SIZE));
+    const filteredEntries = useMemo(() => {
+        if (!searchQuery.trim()) return allEntries;
+        const rawQ = searchQuery.trim().toLowerCase();
+        // Clean query for numeric comparison (remove commas, currency symbols, and spaces)
+        const cleanNumQ = rawQ.replace(/,/g, '').replace(/[₹rs\.]/gi, '').trim();
+        const isNumeric = cleanNumQ.length > 0 && !isNaN(Number(cleanNumQ));
+
+        return allEntries.filter(entry => {
+            // 1. Amount matching (exact, rounded, or formatted with commas)
+            if (isNumeric) {
+                const rawAmt = String(entry.amount || '');
+                const roundAmt = String(Math.round(Number(entry.amount) || 0));
+                if (rawAmt.includes(cleanNumQ) || roundAmt.includes(cleanNumQ)) return true;
+
+                // Formatted amount with Indian commas (e.g. 10,000)
+                const formatted = indianAmount(entry.amount || 0).toLowerCase();
+                if (formatted.includes(rawQ) || formatted.replace(/,/g, '').includes(cleanNumQ)) return true;
+
+                // Multi-payer amounts
+                if ((entry.payers || []).some(p => {
+                    const pRaw = String(p.amount || '');
+                    const pRound = String(Math.round(Number(p.amount) || 0));
+                    return pRaw.includes(cleanNumQ) || pRound.includes(cleanNumQ);
+                })) return true;
+
+                // Allocation amounts
+                if ((entry.allocations || []).some(a => {
+                    const aRaw = String(a.amount || '');
+                    const aRound = String(Math.round(Number(a.amount) || 0));
+                    const aPaidRaw = String(a.amount_paid || '');
+                    return aRaw.includes(cleanNumQ) || aRound.includes(cleanNumQ) || aPaidRaw.includes(cleanNumQ);
+                })) return true;
+            }
+
+            // 2. Text matching across name, description, category, notes, and companies
+            const title = (entry.title || '').toLowerCase();
+            const desc = (entry.description || '').toLowerCase();
+            const notes = (entry.notes || '').toLowerCase();
+            const category = (entry.category || '').toLowerCase();
+            const entryType = (entry.type || '').toLowerCase();
+            const dateStr = (entry.date || '').toLowerCase();
+            const shortDateStr = shortDate(entry.date || '').toLowerCase();
+
+            // Direct company names
+            const payerName = (entry.payer_company?.name || '').toLowerCase();
+            const payerCode = (entry.payer_company?.code || '').toLowerCase();
+            const fromName = (entry.from_company?.name || '').toLowerCase();
+            const toName = (entry.to_company?.name || '').toLowerCase();
+
+            // Multi-payers company names & codes
+            const payersText = (entry.payers || []).map(p => `${p.company?.name || ''} ${p.company?.code || ''}`).join(' ').toLowerCase();
+
+            // Allocation company names & codes
+            const allocsText = (entry.allocations || []).map(a => `${a.company?.name || ''} ${a.company?.code || ''}`).join(' ').toLowerCase();
+
+            return title.includes(rawQ) ||
+                desc.includes(rawQ) ||
+                notes.includes(rawQ) ||
+                category.includes(rawQ) ||
+                entryType.includes(rawQ) ||
+                dateStr.includes(rawQ) ||
+                shortDateStr.includes(rawQ) ||
+                payerName.includes(rawQ) ||
+                payerCode.includes(rawQ) ||
+                fromName.includes(rawQ) ||
+                toName.includes(rawQ) ||
+                payersText.includes(rawQ) ||
+                allocsText.includes(rawQ);
+        });
+    }, [allEntries, searchQuery]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredEntries.length / PAGE_SIZE));
     const safePage = Math.min(Math.max(1, currentPage), totalPages);
 
     const paginatedEntries = useMemo(() => {
         const start = (safePage - 1) * PAGE_SIZE;
-        return allEntries.slice(start, start + PAGE_SIZE);
-    }, [allEntries, safePage]);
+        return filteredEntries.slice(start, start + PAGE_SIZE);
+    }, [filteredEntries, safePage]);
 
     const groupedEntries = useMemo(() => {
         return Object.entries(
@@ -449,21 +525,91 @@ export default function ExpensesPage({currentUser}) {
             {/* TAB 1: Daily Expense Ledger */}
             {activeTab === 'ledger' && (
                 <section className="panel">
-                    <div className="panel-head" style={{alignItems: 'center'}}>
-                        <div>
-                            <h2>Daily expense ledger</h2>
-                            <p>Expenses, multi-payer allocations, reversals, and settlement payments from {shortDate(from)} to {shortDate(to)}.</p>
+                    <div className="panel-head" style={{alignItems: 'center', flexWrap: 'wrap', gap: '12px'}}>
+                        <div style={{flex: '1 1 240px'}}>
+                            <div style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
+                                <h2 style={{margin: 0}}>Daily expense ledger</h2>
+                                {searchQuery.trim() && (
+                                    <span style={{
+                                        fontSize: '11px',
+                                        fontWeight: 700,
+                                        padding: '2px 8px',
+                                        borderRadius: '12px',
+                                        background: filteredEntries.length > 0 ? '#e0f2fe' : '#fee2e2',
+                                        color: filteredEntries.length > 0 ? '#0369a1' : '#b91c1c'
+                                    }}>
+                                        {filteredEntries.length} {currentLang === 'en' ? 'found' : 'પરિણામ'}
+                                    </span>
+                                )}
+                            </div>
+                            <p style={{margin: '4px 0 0'}}>Expenses, multi-payer allocations, reversals, and settlement payments from {shortDate(from)} to {shortDate(to)}.</p>
                         </div>
-                        <button
-                            type="button"
-                            className="secondary view-toggle-btn"
-                            onClick={() => setLedgerViewMode(v => v === 'cards' ? 'table' : 'cards')}
-                            style={{fontSize: '11px', padding: '5px 10px'}}
-                            title="Toggle between Card view and Table view"
-                        >
-                            {ledgerViewMode === 'cards' ? <Table size={14}/> : <LayoutGrid size={14}/>}
-                            <span>{ledgerViewMode === 'cards' ? 'Table View' : 'Card View'}</span>
-                        </button>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end'}}>
+                            {/* 🔍 Auto-Search Input Box */}
+                            <div style={{
+                                position: 'relative',
+                                display: 'flex',
+                                alignItems: 'center',
+                                minWidth: '220px',
+                                maxWidth: '360px',
+                                flex: '1 1 auto'
+                            }}>
+                                <Search size={15} style={{
+                                    position: 'absolute',
+                                    left: '10px',
+                                    color: '#64748b',
+                                    pointerEvents: 'none'
+                                }}/>
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                    placeholder={currentLang === 'en' ? 'Search name, company, amount (e.g. 10,000)...' : 'નામ, કંપની, રકમ (દા.ત. 10,000) શોધો...'}
+                                    style={{
+                                        width: '100%',
+                                        padding: '7px 30px 7px 32px',
+                                        fontSize: '12px',
+                                        borderRadius: '8px',
+                                        border: '1.5px solid #cbd5e1',
+                                        background: '#ffffff',
+                                        color: '#0f172a',
+                                        outline: 'none',
+                                        boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+                                    }}
+                                />
+                                {searchQuery && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchQuery('')}
+                                        title="Clear search"
+                                        style={{
+                                            position: 'absolute',
+                                            right: '6px',
+                                            background: 'transparent',
+                                            border: 'none',
+                                            padding: '4px',
+                                            cursor: 'pointer',
+                                            color: '#94a3b8',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                    >
+                                        <X size={14}/>
+                                    </button>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                className="secondary view-toggle-btn"
+                                onClick={() => setLedgerViewMode(v => v === 'cards' ? 'table' : 'cards')}
+                                style={{fontSize: '11px', padding: '6px 11px', height: '34px'}}
+                                title="Toggle between Card view and Table view"
+                            >
+                                {ledgerViewMode === 'cards' ? <Table size={14}/> : <LayoutGrid size={14}/>}
+                                <span>{ledgerViewMode === 'cards' ? 'Table View' : 'Card View'}</span>
+                            </button>
+                        </div>
                     </div>
                     {groupedEntries.length ? (
                         <>
@@ -520,8 +666,8 @@ export default function ExpensesPage({currentUser}) {
                                 <div className="expense-pagination-bar">
                                     <div className="pagination-info">
                                         {currentLang === 'en'
-                                            ? `Showing ${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, allEntries.length)} of ${allEntries.length} entries`
-                                            : `${allEntries.length} માંથી ${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, allEntries.length)} એન્ટ્રી`}
+                                            ? `Showing ${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, filteredEntries.length)} of ${filteredEntries.length} entries`
+                                            : `${filteredEntries.length} માંથી ${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, filteredEntries.length)} એન્ટ્રી`}
                                     </div>
                                     <div className="pagination-pages">
                                         <button
@@ -555,7 +701,22 @@ export default function ExpensesPage({currentUser}) {
                             )}
                         </>
                     ) : (
-                        <Empty title="No expense entries" detail="No expenses or settlements were recorded in this date range."/>
+                        <div style={{padding: '24px 16px', textAlign: 'center'}}>
+                            <Empty
+                                title={searchQuery ? (currentLang === 'en' ? "No matching entries found" : "કોઈ મેળ ખાતી એન્ટ્રી મળી નથી") : "No expense entries"}
+                                detail={searchQuery ? (currentLang === 'en' ? `No expenses or settlements match "${searchQuery}". Try a different name or amount.` : `"${searchQuery}" માટે કોઈ ખર્ચ કે હિસાબ મળ્યો નથી. કૃપા કરીને નામ અથવા રકમ બદલીને પ્રયાસ કરો.`) : "No expenses or settlements were recorded in this date range."}
+                            />
+                            {searchQuery && (
+                                <button
+                                    type="button"
+                                    className="secondary"
+                                    onClick={() => setSearchQuery('')}
+                                    style={{marginTop: '12px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px'}}
+                                >
+                                    <RotateCcw size={13}/> {currentLang === 'en' ? 'Clear search' : 'શોધ સાફ કરો (Clear Search)'}
+                                </button>
+                            )}
+                        </div>
                     )}
                 </section>
             )}
