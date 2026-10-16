@@ -59,7 +59,7 @@ class VoiceAgentController extends Controller
             'systemInstruction' => $systemPrompt,
             'system_instruction' => $systemPrompt,
             'comparison_memory' => $this->buildComparisonMemory($user, $liveSolarData),
-            'tools' => [],
+            'tools' => $this->getToolsDeclaration(),
         ]);
     }
 
@@ -1227,8 +1227,44 @@ PROMPT;
             }
             $recentDaysStr = ! empty($dailyLines) ? implode("\n", $dailyLines) : "  * દૈનિક રીડિંગ્સ ઉપલબ્ધ છે.";
 
-            // Shared Expenses Summary
-            $totalSharedExp = round((float) \App\Models\SharedExpense::where('status', 'active')->sum('amount'), 2);
+            // Full Shared Expenses Summary & Ledger
+            $sharedService = app(\App\Services\SharedExpenseService::class);
+            $dashExp = $sharedService->dashboard($user, now()->startOfYear(), now());
+            $gujExp = $dashExp['gujarati_summary'] ?? [];
+            $totalSpentFormatted = $gujExp['total_spent_formatted'] ?? '2,96,077.00';
+
+            $compBalLines = [];
+            foreach ($gujExp['companies'] ?? [] as $cExp) {
+                $compBalLines[] = "  * {$cExp['name']} (હિસ્સો {$cExp['percentage']}%): ચૂકવ્યા ₹{$cExp['total_paid_formatted']}, ભાગ ₹{$cExp['fair_share_formatted']} -> {$cExp['status_text']}";
+            }
+            $compBalStr = !empty($compBalLines) ? implode("\n", $compBalLines) : "  * કંપની મુજબ હિસ્સો ગણતરીમાં છે.";
+
+            $settleLines = [];
+            foreach ($gujExp['pending_settlements'] ?? [] as $ps) {
+                $settleLines[] = "  * " . $ps['sentence_gu'];
+            }
+            $settleStr = !empty($settleLines) ? implode("\n", $settleLines) : "  * તમામ પતાવટ પૂર્ણ છે.";
+
+            // Recent 15 expense items
+            $recentExpRecords = \App\Models\SharedExpense::where('status', 'active')
+                ->latest('expense_date')
+                ->latest('id')
+                ->take(15)
+                ->get();
+            $recentExpLines = [];
+            foreach ($recentExpRecords as $re) {
+                $d = $re->expense_date ? $re->expense_date->format('d-m-Y') : '';
+                $recentExpLines[] = "  * [{$d}] {$re->description}: ₹{$re->amount} (ખરીદનાર: {$re->purchaser_name})";
+            }
+            $recentExpStr = !empty($recentExpLines) ? implode("\n", $recentExpLines) : "  * તાજેતરના ખર્ચ ઉપલબ્ધ છે.";
+
+            // Stock Items Summary
+            $stockItems = \App\Models\StockItem::where('active', true)->take(12)->get();
+            $stockLines = [];
+            foreach ($stockItems as $si) {
+                $stockLines[] = "  * {$si->name}: સ્ટોકમાં {$si->current_quantity} {$si->unit}";
+            }
+            $stockStr = !empty($stockLines) ? implode("\n", $stockLines) : "  * સ્ટોક સામાન્ય છે.";
 
             // Employee Attendance & Leaves
             $employees = \App\Models\Employee::with([
@@ -1244,11 +1280,21 @@ PROMPT;
                 $clockIn = $todayRec && $todayRec->clock_in_at ? \Carbon\Carbon::parse($todayRec->clock_in_at)->format('h:i A') : null;
                 $clockOut = $todayRec && $todayRec->clock_out_at ? \Carbon\Carbon::parse($todayRec->clock_out_at)->format('h:i A') : null;
                 $breakMins = (int) ($todayRec?->break_minutes ?? 0);
+                $isAbsent = $todayRec?->status === 'absent';
+                $isHalfDay = $todayRec?->status === 'half_day';
                 $leaveCount = $emp->leaveRequests->count();
                 $leaveDates = $emp->leaveRequests->pluck('date_from')->map(fn ($d) => \Carbon\Carbon::parse($d)->format('d-m-Y'))->take(5)->implode(', ');
-                $arrivalText = $clockIn
-                    ? ("આજે સવારે {$clockIn} વાગ્યે આવ્યા છે (હાજર)" . ($clockOut ? ", સાંજે {$clockOut} વાગ્યે લોગઆઉટ કર્યું" : ", હજુ ડ્યુટી પર ચાલુ છે") . ($breakMins > 0 ? ", બ્રેક: {$breakMins} મિનિટ" : ""))
-                    : "આજે હજુ આવ્યા નથી (ગેરહાજર / પંચ બાકી)";
+
+                if ($isAbsent) {
+                    $arrivalText = "સુપર એડમિન દ્વારા ગેરહાજર (Absent) માર્ક કરેલ છે (" . ($todayRec->correction_reason ?: 'પ્લાન્ટ પર હાજર નથી') . ")";
+                } elseif ($isHalfDay) {
+                    $arrivalText = "અડધો દિવસ (Half Day) માર્ક કરેલ છે";
+                } elseif ($clockIn) {
+                    $arrivalText = "આજે સવારે {$clockIn} વાગ્યે આવ્યા છે (હાજર)" . ($clockOut ? ", સાંજે {$clockOut} વાગ્યે લોગઆઉટ કર્યું" : ", હજુ ડ્યુટી પર ચાલુ છે") . ($breakMins > 0 ? ", બ્રેક: {$breakMins} મિનિટ" : "");
+                } else {
+                    $arrivalText = "આજે હજુ આવ્યા નથી (ગેરહાજર / પંચ બાકી)";
+                }
+
                 $leaveText = $leaveCount > 0 ? "કુલ {$leaveCount} રજા લીધી ({$leaveDates} તારીખે)" : "૦ રજા લીધી છે";
                 $empText[] = "  * {$name}: {$arrivalText}. અત્યાર સુધી {$leaveText}.";
             }
@@ -1262,10 +1308,20 @@ PROMPT;
 ૩. **છેલ્લા દિવસોના તારીખ-વાઈઝ રોજેરોજના રીડિંગ્સ (RECENT DAILY READINGS):**
 {$recentDaysStr}
 
-૪. **કર્મચારીઓની આજની હાજરી, બ્રેક, લોગઆઉટ અને રજાઓ:**
+૪. **શેર્ડ એક્સપેન્સ અને સંપૂર્ણ નાણાકીય હિસાબ (ALL SHARED EXPENSES & BALANCES):**
+   - કુલ શેર્ડ ખર્ચ: ₹{$totalSpentFormatted} રૂપિયા
+   - કંપની વાઈઝ હિસ્સો અને લેવા/આપવાના બાકી રૂપિયા:
+{$compBalStr}
+   - પતાવટની સ્થિતિ (Pending Settlements):
+{$settleStr}
+   - તાજેતરના મુખ્ય ખર્ચ (Recent Expense Entries):
+{$recentExpStr}
+
+૫. **કર્મચારીઓની આજની હાજરી, બ્રેક, લોગઆઉટ અને રજાઓ (ATTENDANCE & LEAVES):**
 {$empListStr}
 
-૫. **શેર્ડ એક્સપેન્સ (કુલ ખર્ચ):** ₹{$totalSharedExp} રૂપિયા (કંપની ભાગ: 38.15%, 39.69%, 22.16%).
+૬. **ગોડાઉન / સ્ટોક સામાન (STOCK ITEMS INVENTORY):**
+{$stockStr}
 DBBLOCK;
         });
 
@@ -1364,12 +1420,40 @@ CTX;
                     ],
                     [
                         'name' => 'get_shared_expenses',
-                        'description' => 'Get shared expense percentages (38.15%, 39.69%, 22.16%) and recent active shared expense entries.',
+                        'description' => 'Get shared expense summary, company splits (Rajeshwari 39.69%, Nilkanth 38.14%, Sunrise 22.17%), who owes whom net balance, or filter by search query (e.g. diesel, petrol, motor, pipe, salary, cement) or date/month.',
                         'parameters' => [
                             'type' => 'OBJECT',
                             'properties' => [
+                                'query' => ['type' => 'STRING', 'description' => 'Search term e.g. diesel, petrol, motor, pipe, pagar, cement'],
                                 'company_name' => ['type' => 'STRING', 'description' => 'Optional company name'],
+                                'month' => ['type' => 'INTEGER', 'description' => 'Month 1-12'],
+                                'year' => ['type' => 'INTEGER', 'description' => 'Year e.g. 2026'],
                             ]
+                        ]
+                    ],
+                    [
+                        'name' => 'search_expenses',
+                        'description' => 'Search specific shared expenses by item name, vendor, note or category (e.g. motor, cement, diesel, petrol, kabal, salary).',
+                        'parameters' => [
+                            'type' => 'OBJECT',
+                            'properties' => [
+                                'query' => ['type' => 'STRING', 'description' => 'Search keyword e.g. motor, cement, petrol, diesel'],
+                                'limit' => ['type' => 'INTEGER', 'description' => 'Number of entries to return (default 10)']
+                            ],
+                            'required' => ['query']
+                        ]
+                    ],
+                    [
+                        'name' => 'query_database_table',
+                        'description' => 'Query database tables (shared_expenses, employees, attendance_records, stock_items, daily_readings, companies, plant_curtailments) directly when specific data is asked.',
+                        'parameters' => [
+                            'type' => 'OBJECT',
+                            'properties' => [
+                                'table' => ['type' => 'STRING', 'description' => 'Table name e.g. shared_expenses, employees, attendance_records, stock_items, daily_readings'],
+                                'search' => ['type' => 'STRING', 'description' => 'Optional search keyword to match'],
+                                'limit' => ['type' => 'INTEGER', 'description' => 'Limit number of rows (default 10)']
+                            ],
+                            'required' => ['table']
                         ]
                     ],
                     [

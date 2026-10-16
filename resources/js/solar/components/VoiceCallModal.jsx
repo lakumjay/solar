@@ -9,7 +9,8 @@ import {
     Sun,
     Radio,
     Zap,
-    Lock
+    Lock,
+    Send
 } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import { PcmPlayer, ToneGenerator, arrayBufferToBase64, base64ToInt16 } from '../lib/audio';
@@ -67,6 +68,8 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
     const [comparisonMemory, setComparisonMemory] = useState(null);
     const [activeComparison, setActiveComparison] = useState(null);
     const [voiceActionBanner, setVoiceActionBanner] = useState(null);
+    const [textInput, setTextInput] = useState('');
+    const [isSendingText, setIsSendingText] = useState(false);
 
     // Refs
     const sessionRef = useRef(null);
@@ -1041,18 +1044,66 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
     const liveTodayKwh = Number(liveSolarData?.totals?.today_energy_kwh ?? 0);
     const liveTodayRev = Math.round(liveTodayKwh * 3.8);
 
+    const handleSendText = async (e) => {
+        if (e) e.preventDefault();
+        const query = textInput.trim();
+        if (!query || isSendingText) return;
+
+        setTextInput('');
+        setIsSendingText(true);
+
+        // Append user question to transcript immediately
+        setTranscriptHistory(prev => [...prev, { sender: 'user', text: query }]);
+
+        try {
+            if (sessionRef.current) {
+                // Send directly to Gemini Live WebSocket session
+                sessionRef.current.sendClientContent({
+                    turns: [{ role: 'user', parts: [{ text: query }] }],
+                    turnComplete: true
+                });
+            } else {
+                // Backend fallback endpoint
+                setLastToolEvent('⏳ પ્રશ્નનો જવાબ મેળવી રહ્યો છું...');
+                const res = await api('voice-agent/chat', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        message: query,
+                        language: 'gu'
+                    })
+                });
+                const reply = res?.reply || res?.text || 'માહિતી મળી શકી નથી.';
+                setTranscriptHistory(prev => [...prev, { sender: 'ai', text: reply }]);
+                setLastToolEvent(null);
+                await speakFallbackTts(reply, res?.language || 'gu');
+            }
+        } catch (err) {
+            console.error('Failed to send question:', err);
+            setTranscriptHistory(prev => [...prev, { sender: 'ai', text: 'માફ કરશો, પ્રશ્ન મોકલવામાં કોઈ ખામી સર્જાઈ છે.' }]);
+        } finally {
+            setIsSendingText(false);
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/95 backdrop-blur-2xl animate-fadeIn">
             {/* Premium Call Frame Container */}
-            <div className="relative w-full h-full sm:h-[852px] sm:max-w-[400px] bg-gradient-to-b from-slate-950 via-[#090d16] to-black sm:rounded-[52px] sm:border-[7px] sm:border-slate-800/90 shadow-[0_0_80px_rgba(245,158,11,0.15)] flex flex-col justify-between overflow-hidden text-white font-sans select-none sm:ring-1 sm:ring-amber-500/20">
+            <div 
+                className="relative w-full h-full sm:h-[860px] sm:max-w-[420px] sm:rounded-[50px] sm:border-[6px] sm:border-slate-800/90 shadow-[0_0_80px_rgba(245,158,11,0.25)] flex flex-col justify-between overflow-hidden text-white font-sans select-none sm:ring-1 sm:ring-amber-500/30"
+                style={{
+                    backgroundImage: "linear-gradient(to bottom, rgba(5, 8, 16, 0.82), rgba(9, 13, 22, 0.90), rgba(3, 7, 18, 0.96)), url('/images/solar-ai-bg.jpg')",
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                }}
+            >
                 
                 {/* Ambient Background Glow */}
-                <div className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-80 h-80 rounded-full bg-amber-500/10 blur-3xl" />
-                <div className="pointer-events-none absolute bottom-20 left-1/2 -translate-x-1/2 w-72 h-72 rounded-full bg-emerald-500/5 blur-3xl" />
+                <div className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-80 h-80 rounded-full bg-amber-500/15 blur-3xl" />
+                <div className="pointer-events-none absolute bottom-24 left-1/2 -translate-x-1/2 w-72 h-72 rounded-full bg-emerald-500/10 blur-3xl" />
 
                 {/* Dynamic Island / Top Status Pill */}
-                <div className="w-full pt-3 pb-1.5 flex flex-col items-center z-20">
-                    <div className="px-4 h-7 bg-black/90 rounded-full flex items-center space-x-2.5 border border-slate-800 shadow-lg">
+                <div className="w-full pt-3 pb-1 flex flex-col items-center z-20">
+                    <div className="px-4 h-7 bg-black/90 rounded-full flex items-center space-x-2.5 border border-slate-800/80 shadow-lg backdrop-blur-md">
                         <div className={`w-2 h-2 rounded-full ${callState === 'connected' ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
                         <span className="text-[10px] text-amber-300 font-bold tracking-wider uppercase">
                             ⚡ Zero-Wait 12M Memory
@@ -1085,56 +1136,63 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
 
                 {/* Contact Profile & Visualizer Header */}
                 <div className="flex flex-col items-center text-center mt-1 px-4 z-10">
-                    {/* Animated Avatar with Dual Aura Ring */}
+                    {/* Animated Solar Avatar with Multi-Layer Glow */}
                     <div className="relative flex items-center justify-center my-1.5">
                         <div 
-                            className={`absolute rounded-full transition-all duration-150 ${
+                            className={`absolute rounded-full transition-all duration-300 ${
                                 isAiSpeaking 
-                                    ? 'w-32 h-32 bg-gradient-to-tr from-amber-500 via-orange-500 to-yellow-400 opacity-45 blur-xl animate-pulse'
+                                    ? 'w-36 h-36 bg-gradient-to-tr from-amber-500 via-orange-500 to-yellow-400 opacity-60 blur-2xl animate-pulse'
                                     : callState === 'connected' && !isMuted
-                                    ? 'w-28 h-28 bg-emerald-500 opacity-25 blur-lg'
-                                    : 'w-24 h-24 bg-slate-700 opacity-10'
+                                    ? 'w-32 h-32 bg-cyan-500/30 blur-xl animate-pulse'
+                                    : 'w-24 h-24 bg-slate-700/20 blur-lg'
                             }`}
                             style={{
-                                transform: isAiSpeaking ? 'scale(1.18)' : `scale(${1 + (audioLevel / 100) * 0.5})`
+                                transform: isAiSpeaking ? 'scale(1.2)' : `scale(${1 + (audioLevel / 100) * 0.4})`
                             }}
                         />
 
-                        {/* SolarFlow Brand Sun Logo Circle */}
-                        <div className={`relative w-20 h-20 rounded-full p-1 bg-gradient-to-b from-amber-500/40 via-slate-900 to-slate-950 border-2 ${isAiSpeaking ? 'border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.45)]' : 'border-amber-500/40'} shadow-2xl flex items-center justify-center`}>
-                            <div className="w-full h-full rounded-full bg-gradient-to-tr from-amber-950 via-slate-900 to-yellow-950 flex items-center justify-center overflow-hidden border border-amber-500/20 shadow-inner">
-                                <Sun className={`w-10 h-10 text-amber-400 filter drop-shadow transition-transform duration-700 ${isAiSpeaking ? 'animate-spin-slow scale-110' : ''}`} />
+                        {/* Outer Neon Ring */}
+                        <div className={`relative w-22 h-22 rounded-full p-1 bg-gradient-to-tr ${
+                            isAiSpeaking 
+                                ? 'from-amber-400 via-yellow-300 to-orange-500 animate-spin-slow shadow-[0_0_35px_rgba(251,191,36,0.6)]' 
+                                : 'from-cyan-400 via-emerald-400 to-amber-400 shadow-[0_0_25px_rgba(34,211,238,0.4)]'
+                        } flex items-center justify-center`}>
+                            {/* Inner Glass Sun Core */}
+                            <div className="w-full h-full rounded-full bg-slate-950/90 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-inner">
+                                <Sun className={`w-11 h-11 text-amber-400 filter drop-shadow-[0_0_12px_rgba(251,191,36,0.8)] transition-transform duration-700 ${
+                                    isAiSpeaking ? 'scale-110' : ''
+                                }`} />
                             </div>
                         </div>
                     </div>
 
                     {/* Caller Name & Active User */}
-                    <h2 className="voice-modal-title text-xl font-bold tracking-tight" style={{color: '#ffffff', margin: '4px 0 2px', letterSpacing: '-0.02em'}}>
+                    <h2 className="voice-modal-title text-xl font-bold tracking-tight" style={{color: '#ffffff', margin: '3px 0 1px', letterSpacing: '-0.02em'}}>
                         <span className="brand-solar" style={{color: '#ffffff'}}>Solar</span><span className="brand-flow" style={{color: '#4ade80'}}>Flow</span> <span style={{color: '#ffffff'}}>AI</span> <span className="text-amber-400 font-semibold text-xs ml-1 bg-amber-400/20 px-2 py-0.5 rounded-full border border-amber-400/40">PRO</span>
                     </h2>
                     <p className="text-[11px] text-slate-400">
-                        Instant Solar & HR Brain • <span className="text-amber-300 font-semibold">{displayName}</span>
+                        Instant Solar & Accounts Brain • <span className="text-amber-300 font-semibold">{displayName}</span>
                     </p>
 
                     {/* Live Solar Quick Telemetry Strip */}
                     {liveSolarData?.totals && (
                         <div className="mt-2 grid grid-cols-3 gap-1.5 w-full max-w-[340px] px-1">
-                            <div className="bg-slate-900/90 border border-slate-800 rounded-xl py-1 px-2 flex flex-col items-center">
+                            <div className="bg-slate-900/90 backdrop-blur-md border border-slate-800/80 rounded-xl py-1 px-2 flex flex-col items-center">
                                 <span className="text-[9px] uppercase tracking-wider text-slate-400">Live Power</span>
                                 <span className="text-xs font-extrabold text-amber-400">{livePowerKw.toFixed(1)} kW</span>
                             </div>
-                            <div className="bg-slate-900/90 border border-slate-800 rounded-xl py-1 px-2 flex flex-col items-center">
+                            <div className="bg-slate-900/90 backdrop-blur-md border border-slate-800/80 rounded-xl py-1 px-2 flex flex-col items-center">
                                 <span className="text-[9px] uppercase tracking-wider text-slate-400">Today Units</span>
                                 <span className="text-xs font-extrabold text-emerald-400">{liveTodayKwh.toFixed(0)} kWh</span>
                             </div>
-                            <div className="bg-slate-900/90 border border-slate-800 rounded-xl py-1 px-2 flex flex-col items-center">
+                            <div className="bg-slate-900/90 backdrop-blur-md border border-slate-800/80 rounded-xl py-1 px-2 flex flex-col items-center">
                                 <span className="text-[9px] uppercase tracking-wider text-slate-400">Today Rev</span>
                                 <span className="text-xs font-extrabold text-cyan-300">₹{liveTodayRev.toLocaleString('en-IN')}</span>
                             </div>
                         </div>
                     )}
 
-                    {/* Quick Month Comparison Pills (User can speak "May મહિના અને આ મહિનાની સરખામણી બતાવ" OR tap any month) */}
+                    {/* Quick Month Comparison Pills */}
                     {comparisonMemory?.months?.length > 0 && (
                         <div className="mt-2 w-full max-w-[350px] flex items-center space-x-1 overflow-x-auto pb-1 no-scrollbar">
                             <span className="text-[9px] font-bold text-slate-400 whitespace-nowrap mr-1">📊 સરખામણી:</span>
@@ -1158,7 +1216,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                         </div>
                     )}
 
-                    {/* Live Speaking Status Pill & Multi-Bar Equalizer */}
+                    {/* Live Speaking Status Pill */}
                     <div className="mt-1.5 flex items-center space-x-2">
                         {isAiSpeaking ? (
                             <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm">
@@ -1173,7 +1231,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                         ) : !isMuted && callState === 'connected' ? (
                             <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                                 <Mic className="w-3 h-3 mr-1.5 animate-pulse" />
-                                સાંભળી રહ્યું છે (ગમે તે મહિનાના યુનિટ પૂછો)...
+                                સાંભળી રહ્યું છે (બોલો અથવા નીચે ટાઈપ કરો)...
                             </span>
                         ) : isMuted ? (
                             <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-slate-800 text-slate-400">
@@ -1186,17 +1244,21 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                     </div>
 
                     {/* Multi-bar Audio Waveform Equalizer */}
-                    {callState === 'connected' && !isMuted && (
-                        <div className="mt-1.5 flex items-end justify-center space-x-1 h-3.5">
-                            {[0.45, 0.85, 1.0, 0.7, 0.95, 0.6, 0.8, 0.5].map((mult, i) => {
+                    {callState === 'connected' && (
+                        <div className="mt-2 flex items-end justify-center space-x-1 h-4">
+                            {[0.4, 0.75, 1.0, 0.65, 0.95, 0.8, 1.0, 0.55, 0.85, 0.6].map((mult, i) => {
                                 const activeHeight = isAiSpeaking
-                                    ? Math.max(4, Math.min(14, Math.round(5 + ((i % 3) + 1) * 3)))
-                                    : Math.max(3, Math.min(14, Math.round((audioLevel / 100) * 14 * mult)));
+                                    ? Math.max(4, Math.min(16, Math.round(5 + ((i % 4) + 1) * 3)))
+                                    : isMuted
+                                    ? 3
+                                    : Math.max(3, Math.min(16, Math.round((audioLevel / 100) * 16 * mult)));
                                 return (
                                     <span
                                         key={i}
-                                        className={`w-1 rounded-full transition-all duration-75 ${
-                                            isAiSpeaking ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'
+                                        className={`w-1 rounded-full transition-all duration-100 ${
+                                            isAiSpeaking 
+                                                ? 'bg-gradient-to-t from-amber-500 to-yellow-300 shadow-[0_0_8px_rgba(251,191,36,0.6)] animate-pulse' 
+                                                : 'bg-gradient-to-t from-emerald-500 to-cyan-300 shadow-[0_0_8px_rgba(52,211,153,0.5)]'
                                         }`}
                                         style={{ height: `${activeHeight}px` }}
                                     />
@@ -1220,9 +1282,9 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                     </div>
                 )}
 
-                {/* LIVE MINI COMPARISON CHART CARD (Appears automatically when user asks e.g. "May મહિના અને આ મહિનાની સરખામણી બતાવ") */}
+                {/* LIVE MINI COMPARISON CHART CARD */}
                 {activeComparison && (
-                    <div className="mx-4 mt-1.5 p-3 bg-gradient-to-br from-slate-900 via-indigo-950/80 to-slate-950 border border-amber-500/50 rounded-2xl shadow-xl z-20">
+                    <div className="mx-4 mt-1.5 p-3 bg-slate-900/90 backdrop-blur-md border border-amber-500/50 rounded-2xl shadow-xl z-20">
                         <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center space-x-1.5">
                                 <span className="text-xs font-extrabold text-amber-300">
@@ -1297,7 +1359,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                 {/* Modern Chat-Bubble Live Transcript Window */}
                 <div 
                     ref={transcriptContainerRef}
-                    className="mx-4 my-1.5 p-3.5 bg-gradient-to-b from-slate-900/95 to-slate-950/95 backdrop-blur-xl border border-slate-800/90 rounded-2xl flex-1 overflow-y-auto space-y-2.5 text-xs font-sans shadow-[inset_0_2px_12px_rgba(0,0,0,0.6)] max-h-[185px]"
+                    className="mx-4 my-1.5 p-3.5 bg-slate-950/85 backdrop-blur-xl border border-slate-800/80 rounded-2xl flex-1 overflow-y-auto space-y-2.5 text-xs font-sans shadow-[inset_0_2px_12px_rgba(0,0,0,0.6)] min-h-[110px] max-h-[160px]"
                 >
                     {transcriptHistory.map((item, idx) => (
                         <div 
@@ -1307,13 +1369,13 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                             }`}
                         >
                             <div
-                                className={`max-w-[90%] rounded-2xl px-3.5 py-2.5 leading-relaxed text-[12px] shadow-sm ${
+                                className={`max-w-[90%] rounded-2xl px-3.5 py-2 leading-relaxed text-[12px] shadow-sm ${
                                     item.sender === 'user'
                                         ? 'bg-emerald-950/70 border border-emerald-500/50 text-emerald-100 rounded-br-sm'
-                                        : 'bg-slate-800/95 border border-slate-700/80 text-white rounded-bl-sm'
+                                        : 'bg-slate-800/90 border border-slate-700/80 text-white rounded-bl-sm'
                                 }`}
                             >
-                                <span className={`block font-bold text-[10px] uppercase tracking-wider mb-1 ${
+                                <span className={`block font-bold text-[10px] uppercase tracking-wider mb-0.5 ${
                                     item.sender === 'user' ? 'text-emerald-300' : 'text-amber-300'
                                 }`}>
                                     {item.sender === 'user' ? displayName : 'SolarFlow AI'}
@@ -1324,8 +1386,8 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                     ))}
                     {currentAiText && (
                         <div className="flex items-start">
-                            <div className="max-w-[90%] rounded-2xl rounded-bl-sm px-3.5 py-2.5 bg-amber-950/50 border border-amber-400/50 text-amber-100 animate-pulse text-[12px] shadow-lg shadow-amber-500/10">
-                                <span className="block font-bold text-[10px] uppercase tracking-wider text-amber-300 mb-1">
+                            <div className="max-w-[90%] rounded-2xl rounded-bl-sm px-3.5 py-2 bg-amber-950/50 border border-amber-400/50 text-amber-100 animate-pulse text-[12px] shadow-lg shadow-amber-500/10">
+                                <span className="block font-bold text-[10px] uppercase tracking-wider text-amber-300 mb-0.5">
                                     SolarFlow AI
                                 </span>
                                 <span style={{lineHeight: 1.45}}>{currentAiText}</span>
@@ -1335,21 +1397,43 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                     <div ref={transcriptEndRef} />
                 </div>
 
+                {/* Bottom Text Question Input - Allows user to type questions anytime */}
+                <form onSubmit={handleSendText} className="mx-4 mb-2 z-20">
+                    <div className="relative flex items-center bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-2xl shadow-lg focus-within:border-amber-400/80 transition-all">
+                        <input
+                            type="text"
+                            value={textInput}
+                            onChange={(e) => setTextInput(e.target.value)}
+                            placeholder="Type question... (દા.ત. આ મહિને કેટલો ખર્ચ થયો?)"
+                            className="w-full bg-transparent px-3.5 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none pr-10"
+                            disabled={callState !== 'connected'}
+                        />
+                        <button
+                            type="submit"
+                            disabled={!textInput.trim() || isSendingText || callState !== 'connected'}
+                            className="absolute right-1.5 p-1.5 bg-gradient-to-r from-amber-500 to-yellow-400 disabled:opacity-30 disabled:cursor-not-allowed hover:brightness-110 active:scale-95 text-slate-950 rounded-xl transition cursor-pointer shadow-md"
+                            title="Send Question"
+                        >
+                            <Send className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                </form>
+
                 {/* In-Call Controls Grid */}
-                <div className="px-7 pb-6 pt-1 z-10 flex flex-col items-center">
-                    <div className="grid grid-cols-3 gap-x-7 gap-y-3 mb-4 w-full max-w-[270px]">
+                <div className="px-7 pb-4 pt-0 z-10 flex flex-col items-center">
+                    <div className="grid grid-cols-3 gap-x-7 gap-y-2 mb-3 w-full max-w-[270px]">
                         
                         {/* 1. Mute Button */}
                         <div className="flex flex-col items-center">
                             <button
                                 onClick={toggleMute}
-                                className={`w-14 h-14 rounded-full flex items-center justify-center transition active:scale-95 cursor-pointer border ${
+                                className={`w-13 h-13 rounded-full flex items-center justify-center transition active:scale-95 cursor-pointer border ${
                                     isMuted 
                                         ? 'bg-white text-black border-white shadow-lg shadow-white/20' 
                                         : 'bg-slate-800/90 text-white border-slate-700 hover:bg-slate-700'
                                     }`}
                             >
-                                {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+                                {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                             </button>
                             <span className="text-[10px] font-medium text-slate-300 mt-1">
                                 {isMuted ? 'Unmute' : 'Mute'}
@@ -1362,9 +1446,9 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                                 type="button"
                                 onClick={cycleVoice}
                                 title="Change AI Voice"
-                                className="w-14 h-14 rounded-full bg-slate-800/90 hover:bg-slate-700 active:scale-95 border border-emerald-500/40 text-white flex items-center justify-center transition cursor-pointer"
+                                className="w-13 h-13 rounded-full bg-slate-800/90 hover:bg-slate-700 active:scale-95 border border-emerald-500/40 text-white flex items-center justify-center transition cursor-pointer"
                             >
-                                <Volume2 className="w-6 h-6 text-emerald-400" />
+                                <Volume2 className="w-5 h-5 text-emerald-400" />
                             </button>
                             <span className="text-[10px] font-semibold text-emerald-300 mt-1">
                                 Voice: {selectedVoice}
@@ -1373,8 +1457,8 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
 
                         {/* 3. Instant Speed Indicator */}
                         <div className="flex flex-col items-center">
-                            <div className="w-14 h-14 rounded-full bg-amber-500/15 border border-amber-500/40 text-white flex items-center justify-center">
-                                <Zap className="w-6 h-6 text-amber-400" />
+                            <div className="w-13 h-13 rounded-full bg-amber-500/15 border border-amber-500/40 text-white flex items-center justify-center">
+                                <Zap className="w-5 h-5 text-amber-400" />
                             </div>
                             <span className="text-[10px] font-semibold text-amber-300 mt-1">0.3s Fast</span>
                         </div>
@@ -1386,10 +1470,10 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                         {callState !== 'ended' ? (
                             <button
                                 onClick={endCall}
-                                className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 active:scale-90 text-white flex items-center justify-center shadow-2xl shadow-red-600/50 transition cursor-pointer"
+                                className="w-15 h-15 rounded-full bg-red-600 hover:bg-red-500 active:scale-90 text-white flex items-center justify-center shadow-2xl shadow-red-600/50 transition cursor-pointer"
                                 title="End Call"
                             >
-                                <PhoneOff className="w-8 h-8" />
+                                <PhoneOff className="w-7 h-7" />
                             </button>
                         ) : (
                             <button
