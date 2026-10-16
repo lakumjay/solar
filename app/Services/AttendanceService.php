@@ -101,32 +101,73 @@ class AttendanceService
     public function clockOut(Employee $employee, array $data): AttendanceRecord
     {
         $this->requireSelfClocking($employee);
-        $record = AttendanceRecord::where('employee_id', $employee->id)
-            ->whereDate('attendance_date', now()->toDateString())->first();
+
+        $record = null;
+        if (! empty($data['record_id'])) {
+            $record = AttendanceRecord::where('employee_id', $employee->id)
+                ->where('id', $data['record_id'])
+                ->whereNull('clock_out_at')
+                ->first();
+        } elseif (! empty($data['attendance_date'])) {
+            $record = AttendanceRecord::where('employee_id', $employee->id)
+                ->whereDate('attendance_date', $data['attendance_date'])
+                ->whereNull('clock_out_at')
+                ->first();
+        } else {
+            // First look for today's record
+            $record = AttendanceRecord::where('employee_id', $employee->id)
+                ->whereDate('attendance_date', now()->toDateString())
+                ->whereNull('clock_out_at')
+                ->first();
+
+            // If not found, look for an unclosed previous record (forgot logout yesterday)
+            if (! $record) {
+                $record = AttendanceRecord::where('employee_id', $employee->id)
+                    ->whereDate('attendance_date', '<', now()->toDateString())
+                    ->whereNull('clock_out_at')
+                    ->where('status', '!=', 'absent')
+                    ->latest('attendance_date')
+                    ->first();
+            }
+        }
+
         if (! $record) {
-            throw ValidationException::withMessages(['attendance' => 'Use Time In before Time Out.']);
+            throw ValidationException::withMessages(['attendance' => 'No open attendance record found to Time Out.']);
         }
         if ($record->clock_out_at) {
-            throw ValidationException::withMessages(['attendance' => 'You have already completed Time Out today.']);
+            throw ValidationException::withMessages(['attendance' => 'You have already completed Time Out for this record.']);
         }
-        if ($record->breaks()->whereNull('ended_at')->exists()) {
-            throw ValidationException::withMessages(['attendance' => 'End your active break before Time Out.']);
-        }
+
+        // Close any active breaks on that record
+        $record->breaks()->whereNull('ended_at')->each(function ($break) use ($record) {
+            $endTime = Carbon::parse($record->attendance_date->toDateString().' 14:00:00');
+            $start = $break->started_at ?: $endTime->copy()->subMinutes(30);
+            $duration = max(15, (int) round($start->diffInMinutes($endTime)));
+            $break->update(['ended_at' => $endTime, 'duration_minutes' => $duration]);
+        });
 
         $now = now();
-        $todayDate = $now->toDateString();
-        $currentTime = $now->format('H:i:s');
+        $isPreviousDay = $record->attendance_date->isBefore($now->startOfDay());
 
-        // Require at least 30 minutes of work before Time Out can be recorded
-        $elapsedMinutes = (int) floor($record->clock_in_at->diffInMinutes($now));
-        if ($elapsedMinutes < 30) {
-            throw ValidationException::withMessages(['attendance' => 'ટાઈમ-ઇન કર્યાના ઓછામાં ઓછા ૩૦ મિનિટ પછી જ ટાઈમ-આઉટ કરી શકાય છે.']);
+        if ($isPreviousDay) {
+            // Employee forgot to logout yesterday; set clock_out_at to yesterday's scheduled shift end
+            $shiftEndStr = substr((string) ($employee->shift_end ?: '18:00:00'), 0, 8);
+            $clockOutTime = Carbon::parse($record->attendance_date->toDateString().' '.$shiftEndStr);
+            if ($clockOutTime->lessThanOrEqualTo($record->clock_in_at)) {
+                $clockOutTime = $record->clock_in_at->copy()->addHours(8);
+            }
+        } else {
+            $elapsedMinutes = (int) floor($record->clock_in_at->diffInMinutes($now));
+            if ($elapsedMinutes < 30) {
+                throw ValidationException::withMessages(['attendance' => 'ટાઈમ-ઇન કર્યાના ઓછામાં ઓછા ૩૦ મિનિટ પછી જ ટાઈમ-આઉટ કરી શકાય છે.']);
+            }
+            $clockOutTime = $now;
         }
 
         $record->fill([
-            'clock_out_at' => $now,
-            'clock_out_latitude' => $data['latitude'],
-            'clock_out_longitude' => $data['longitude'],
+            'clock_out_at' => $clockOutTime,
+            'clock_out_latitude' => $data['latitude'] ?? null,
+            'clock_out_longitude' => $data['longitude'] ?? null,
             'clock_out_accuracy' => $data['accuracy'] ?? null,
             'work_done' => $data['work_done'],
             'learned' => $data['learned'],
@@ -508,6 +549,17 @@ class AttendanceService
         $context = $this->dayContext($employee, $today);
         $record = AttendanceRecord::with('breaks')->where('employee_id', $employee->id)->whereDate('attendance_date', $today)->first();
 
+        // Check if employee has an unclosed attendance from a previous day (forgot logout yesterday)
+        $unclosedPreviousRecord = AttendanceRecord::with('breaks')
+            ->where('employee_id', $employee->id)
+            ->whereDate('attendance_date', '<', $todayDate)
+            ->whereNull('clock_out_at')
+            ->where('status', '!=', 'absent')
+            ->latest('attendance_date')
+            ->first();
+
+        $hasUnclosedPreviousDay = (bool) $unclosedPreviousRecord;
+
         // Check if employee has an approved half-day leave for today
         $hasApprovedHalfDay = LeaveRequest::where('employee_id', $employee->id)
             ->where('status', 'approved')
@@ -526,6 +578,8 @@ class AttendanceService
             'date' => $today->toDateString(),
             'employee' => $employee->loadMissing('user:id,name,email'),
             'record' => $record,
+            'unclosed_previous_record' => $unclosedPreviousRecord,
+            'has_unclosed_previous_day' => $hasUnclosedPreviousDay,
             'holiday' => $context['holiday'],
             'leave' => $context['leave'],
             'weekly_off' => $context['weeklyOff'],
@@ -534,9 +588,9 @@ class AttendanceService
             'earliest_clock_out_time' => $earliestTime,
             'earliest_clock_out_human' => $humanTime,
             'is_clock_out_time_reached' => $isTimeReached,
-            'can_clock_in' => ! $employee->manager_attendance_only && ! $record && ! $context['weeklyOff'] && $context['holiday']?->type !== 'full_day' && $context['leave']?->day_part !== 'full_day',
-            'can_clock_out' => ! $employee->manager_attendance_only && (bool) ($record && ! $record->clock_out_at && $hasWorkedMin),
-            'is_clocked_in_waiting' => ! $employee->manager_attendance_only && (bool) ($record && ! $record->clock_out_at && ! $hasWorkedMin),
+            'can_clock_in' => ! $employee->manager_attendance_only && ! $hasUnclosedPreviousDay && ! $record && ! $context['weeklyOff'] && $context['holiday']?->type !== 'full_day' && $context['leave']?->day_part !== 'full_day',
+            'can_clock_out' => ! $employee->manager_attendance_only && (bool) ($record && ! $record->clock_out_at && $record->status !== 'absent' && $hasWorkedMin),
+            'is_clocked_in_waiting' => ! $employee->manager_attendance_only && (bool) ($record && ! $record->clock_out_at && $record->status !== 'absent' && ! $hasWorkedMin),
         ];
     }
 

@@ -315,6 +315,67 @@ HTML
             }
         } catch (\Throwable $e) {}
 
+        try {
+            $todayDate = now()->toDateString();
+            $activeEmployees = \App\Models\Employee::with('user:id,name')->where('active', true)->get();
+            $todayRecords = \App\Models\AttendanceRecord::whereDate('attendance_date', $todayDate)->get()->keyBy('employee_id');
+            $todayApprovedLeaves = \App\Models\LeaveRequest::where('status', 'approved')
+                ->whereDate('date_from', '<=', $todayDate)
+                ->whereDate('date_to', '>=', $todayDate)
+                ->pluck('employee_id')
+                ->flip();
+
+            $presentList = [];
+            $absentList = [];
+            $halfDayList = [];
+            $leaveList = [];
+
+            foreach ($activeEmployees as $emp) {
+                $rec = $todayRecords->get($emp->id);
+                $empName = $emp->user?->name ?: $emp->name;
+                $info = [
+                    'id' => $emp->id,
+                    'name' => $empName,
+                    'code' => $emp->employee_code,
+                    'designation' => $emp->designation,
+                    'clock_in' => $rec?->clock_in_at?->format('h:i A'),
+                    'clock_out' => $rec?->clock_out_at?->format('h:i A'),
+                    'status' => $rec?->status,
+                    'reason' => $rec?->correction_reason ?: $rec?->entry_reason,
+                ];
+
+                if ($rec && $rec->status === 'absent') {
+                    $info['absent_type'] = 'superadmin_marked_absent';
+                    $info['display_reason'] = $rec->correction_reason ?: 'Superadmin marked absent (પ્લાન્ટ પર ગેરહાજર)';
+                    $absentList[] = $info;
+                } elseif ($rec && ($rec->status === 'half_day' || $rec->status === 'short_day')) {
+                    $halfDayList[] = $info;
+                } elseif ($rec && ($rec->status === 'present' || $rec->status === 'open')) {
+                    $presentList[] = $info;
+                } elseif (isset($todayApprovedLeaves[$emp->id])) {
+                    $leaveList[] = $info;
+                } else {
+                    $info['absent_type'] = 'not_clocked_in';
+                    $info['display_reason'] = 'હાજરી પુરેલ નથી (Not clocked in)';
+                    $absentList[] = $info;
+                }
+            }
+
+            if (is_array($overview)) {
+                $overview['attendance_summary'] = [
+                    'total_employees' => $activeEmployees->count(),
+                    'present_count' => count($presentList),
+                    'absent_count' => count($absentList),
+                    'half_day_count' => count($halfDayList),
+                    'leave_count' => count($leaveList),
+                    'present_employees' => $presentList,
+                    'absent_employees' => $absentList,
+                    'half_day_employees' => $halfDayList,
+                    'leave_employees' => $leaveList,
+                ];
+            }
+        } catch (\Throwable $e) {}
+
         return response()->json($overview);
     }
 

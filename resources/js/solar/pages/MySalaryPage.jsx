@@ -46,7 +46,7 @@ export default function MySalaryPage() {
                         <Metric icon={IndianRupee} title="Monthly salary" value={row.monthly_salary} unit="INR"/>
                         <Metric icon={CircleDollarSign} title="Prorated gross" value={row.prorated_gross} unit="INR"/>
                         <Metric icon={PlusCircle} title="Extra work (+)" value={row.additions} unit="INR" color="emerald"/>
-                        <Metric icon={ReceiptIndianRupee} title="Leave deduction" value={row.leave_deduction} unit="INR" color="amber"/>
+                        <Metric icon={ReceiptIndianRupee} title="Attendance & Leave Cut (કુલ કપાત)" value={row.total_attendance_deduction ?? row.leave_deduction} unit="INR" color="amber"/>
                         <Metric icon={ShieldCheck} title="Final payable" value={row.final_payable} unit="INR"/>
                     </div>
 
@@ -54,7 +54,7 @@ export default function MySalaryPage() {
                         <div className="panel-head">
                             <div>
                                 <h2>Salary calculation breakdown</h2>
-                                <p>Monthly Base Salary + Extra Work Additions − Leave Deductions = Final Payable</p>
+                                <p>Monthly Base Salary + Extra Work Additions − Attendance & Leave Deductions = Final Payable</p>
                             </div>
                         </div>
                         <div className="salary-statement-lines">
@@ -67,16 +67,40 @@ export default function MySalaryPage() {
                                     <b>+ {rupees(row.additions)}</b>
                                 </span>
                             )}
-                            <span className="deduction">
-                                <small>Approved leave deduction ({number(row.leave_units)} units)</small>
-                                <b>− {rupees(row.leave_deduction)}</b>
-                            </span>
+                            {row.absent_deduction > 0 && (
+                                <span className="deduction" style={{color: '#dc2626'}}>
+                                    <small>Absent કપાત ({number(row.absent_days)} દિવસ)</small>
+                                    <b>− {rupees(row.absent_deduction)}</b>
+                                </span>
+                            )}
+                            {row.half_day_deduction > 0 && (
+                                <span className="deduction" style={{color: '#d97706'}}>
+                                    <small>Half Day કપાત ({number(row.half_days_count)} દિવસ)</small>
+                                    <b>− {rupees(row.half_day_deduction)}</b>
+                                </span>
+                            )}
+                            {row.leave_deduction > 0 && (
+                                <span className="deduction">
+                                    <small>Approved leave deduction ({number(row.leave_units)} units)</small>
+                                    <b>− {rupees(row.leave_deduction)}</b>
+                                </span>
+                            )}
+                            {row.attendance?.urgent_out_deduction > 0 && (
+                                <span className="deduction" style={{color: '#dc2626'}}>
+                                    <small>Urgent Out (અર્જન્ટ બહાર) કપાત</small>
+                                    <b>− {rupees(row.attendance.urgent_out_deduction)}</b>
+                                </span>
+                            )}
                             {row.deductions > 0 && (
                                 <span className="deduction">
                                     <small>Manual deductions</small>
                                     <b>− {rupees(row.deductions)}</b>
                                 </span>
                             )}
+                            <span className="deduction" style={{fontWeight: 700}}>
+                                <small>કુલ કપાત (Total Cut)</small>
+                                <b>− {rupees(row.total_attendance_deduction ?? row.leave_deduction)}</b>
+                            </span>
                             <strong style={{background: 'rgba(37, 99, 235, 0.08)', padding: '12px 16px', borderRadius: '8px', border: '1px solid rgba(37, 99, 235, 0.2)'}}>
                                 <span>Final payable salary</span>
                                 <b style={{fontSize: '1.25rem', color: '#1e40af'}}>{rupees(row.final_payable)}</b>

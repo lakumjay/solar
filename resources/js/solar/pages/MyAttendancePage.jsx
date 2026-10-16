@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {Camera, CheckCircle2, Clock, Clock3, Coffee, ExternalLink, Lock, LogIn, LogOut, MapPin, RefreshCw, Send, Sparkles, X} from 'lucide-react';
+import {AlertTriangle, Camera, CheckCircle2, Clock, Clock3, Coffee, ExternalLink, Lock, LogIn, LogOut, MapPin, RefreshCw, Send, Sparkles, X} from 'lucide-react';
 import {api} from '../api';
 import {Empty, Field} from '../components/Common';
 import LiveBackCameraModal from '../components/LiveBackCameraModal';
@@ -150,6 +150,7 @@ export default function MyAttendancePage({companyId}) {
     const [cameraModalOpen, setCameraModalOpen] = useState(false);
     const [selectedTaskForPhoto, setSelectedTaskForPhoto] = useState(null);
     const [clockOutForm, setClockOutForm] = useState({work_done: '', learned: ''});
+    const [prevClockOutForm, setPrevClockOutForm] = useState({work_done: '', learned: ''});
     const [leaveForm, setLeaveForm] = useState({date_from: localDate(), date_to: localDate(), day_part: 'full_day', reason: '', leave_type_id: ''});
     const [message, setMessage] = useState('');
     const [busy, setBusy] = useState(false);
@@ -206,6 +207,36 @@ export default function MyAttendancePage({companyId}) {
         }
     };
 
+    const submitPreviousClockOut = async event => {
+        event.preventDefault();
+        if (!prevClockOutForm.work_done.trim()) {
+            alert(currentLang === 'en' ? 'Please describe what work was done yesterday.' : 'ગઈકાલે શું કામ કર્યું હતું તે વિગત લખવી જરૂરી છે.');
+            return;
+        }
+        setBusy(true);
+        setMessage('Submitting yesterday\'s work summary…');
+        try {
+            const coordinates = await location().catch(() => ({}));
+            await api('attendance/clock-out', {
+                method: 'POST',
+                body: JSON.stringify({
+                    record_id: today.unclosed_previous_record?.id,
+                    attendance_date: today.unclosed_previous_record?.attendance_date,
+                    work_done: prevClockOutForm.work_done,
+                    learned: prevClockOutForm.learned,
+                    ...coordinates
+                })
+            });
+            setMessage(currentLang === 'en' ? 'Yesterday\'s Time Out completed successfully! Today\'s Time In is now unlocked.' : 'ગઈકાલનું Time Out સફળતાપૂર્વક પૂર્ણ થયું! હવે તમે આજનું Time In કરી શકો છો.');
+            setPrevClockOutForm({work_done: '', learned: ''});
+            await load();
+        } catch (error) {
+            setMessage(error.message);
+        } finally {
+            setBusy(false);
+        }
+    };
+
     const requestLeave = async event => {
         event.preventDefault();
         setBusy(true);
@@ -248,7 +279,12 @@ export default function MyAttendancePage({companyId}) {
         setListeningField(field);
         recog.onresult = (e) => {
             const transcript = e.results[0][0].transcript;
-            setClockOutForm(prev => ({...prev, [field]: (prev[field] ? prev[field] + ' ' : '') + transcript}));
+            if (field.startsWith('prev_')) {
+                const sub = field.replace('prev_', '');
+                setPrevClockOutForm(prev => ({...prev, [sub]: (prev[sub] ? prev[sub] + ' ' : '') + transcript}));
+            } else {
+                setClockOutForm(prev => ({...prev, [field]: (prev[field] ? prev[field] + ' ' : '') + transcript}));
+            }
         };
         recog.onerror = () => setListeningField(null);
         recog.onend = () => setListeningField(null);
@@ -334,17 +370,19 @@ export default function MyAttendancePage({companyId}) {
                     <span>
                         <small>Today’s status</small>
                         <b>
-                            {today.record?.clock_out_at
-                                ? today.record.status.replaceAll('_', ' ')
-                                : today.record
-                                    ? 'Timed in'
-                                    : today.holiday?.type === 'full_day'
-                                        ? 'Holiday'
-                                        : today.leave?.day_part === 'full_day'
-                                            ? 'On leave'
-                                            : today.manager_attendance_only
-                                                ? 'Awaiting manager'
-                                                : 'Not started'}
+                            {today.record?.status === 'absent'
+                                ? (currentLang === 'en' ? 'Absent' : 'ગેરહાજર (Absent)')
+                                : today.record?.clock_out_at
+                                    ? today.record.status.replaceAll('_', ' ')
+                                    : today.record
+                                        ? (today.record.status === 'half_day' ? (currentLang === 'en' ? 'Half Day' : 'અડધો દિવસ (Half Day)') : 'Timed in')
+                                        : today.holiday?.type === 'full_day'
+                                            ? 'Holiday'
+                                            : today.leave?.day_part === 'full_day'
+                                                ? 'On leave'
+                                                : today.manager_attendance_only
+                                                    ? 'Awaiting manager'
+                                                    : 'Not started'}
                         </b>
                     </span>
                 </div>
@@ -454,12 +492,161 @@ export default function MyAttendancePage({companyId}) {
                 </div>
             )}
 
+            {/* ⚠️ Forgotten Previous Day Logout Card (Must complete before today's Time In unlocks) */}
+            {!today.manager_attendance_only && today.has_unclosed_previous_day && today.unclosed_previous_record && (
+                <section className="panel" style={{
+                    background: '#fffbeb',
+                    border: '2px solid #f59e0b',
+                    borderRadius: '14px',
+                    padding: '18px 20px',
+                    boxShadow: '0 4px 14px rgba(245, 158, 11, 0.15)',
+                    marginBottom: '16px'
+                }}>
+                    <div style={{display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '14px'}}>
+                        <div style={{background: '#fef3c7', color: '#b45309', padding: '10px', borderRadius: '10px', fontSize: '24px'}}>
+                            ⚠️
+                        </div>
+                        <div style={{flex: 1}}>
+                            <h2 style={{margin: 0, color: '#92400e', fontSize: '16px', fontWeight: 800}}>
+                                {currentLang === 'en' ? 'Previous Day Logout Pending!' : 'ગઈકાલનું Time Out (Logout) બાકી રહી ગયેલ છે!'}
+                            </h2>
+                            <p style={{margin: '4px 0 0', color: '#b45309', fontSize: '13px', lineHeight: '1.45'}}>
+                                {currentLang === 'en'
+                                    ? `You forgot to Time Out on ${today.unclosed_previous_record.attendance_date} (In: ${today.unclosed_previous_record.clock_in_formatted}). Please fill yesterday's work summary first. Once submitted, today's Time In will unlock.`
+                                    : `તમે તારીખ ${today.unclosed_previous_record.attendance_date} (${today.unclosed_previous_record.clock_in_formatted}) ના રોજ પ્લાન્ટ પરથી છૂટતી વખતે Time Out કરવાનું ભૂલી ગયા હતા. કૃપા કરીને પહેલા ગઈકાલના કામની વિગત ભરીને Time Out પૂર્ણ કરો, ત્યારબાદ આજનું નવું Time In ખુલશે.`}
+                            </p>
+                        </div>
+                    </div>
+
+                    <form onSubmit={submitPreviousClockOut} style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
+                        <div>
+                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px'}}>
+                                <label style={{fontSize: '12.5px', fontWeight: 700, color: '#78350f'}}>
+                                    📝 {currentLang === 'en' ? 'Yesterday\'s Work Done:' : 'ગઈકાલે શું કામ કર્યું હતું? (Work Summary):'}
+                                </label>
+                                <button
+                                    type="button"
+                                    className="voice-input-btn"
+                                    onClick={() => startVoiceInput('prev_work_done')}
+                                    style={{fontSize: '11px', padding: '2px 8px'}}
+                                >
+                                    🎤 {listeningField === 'prev_work_done' ? 'Listening…' : 'Speak / બોલો'}
+                                </button>
+                            </div>
+                            <textarea
+                                rows="3"
+                                value={prevClockOutForm.work_done}
+                                onChange={e => setPrevClockOutForm(p => ({...p, work_done: e.target.value}))}
+                                placeholder={currentLang === 'en' ? 'Describe solar cleaning, inverter checks, maintenance...' : 'સોલાર પ્લેટ સફાઈ, ઇન્વર્ટર ચેકિંગ, વાયરીંગ કામ...'}
+                                style={{
+                                    width: '100%',
+                                    padding: '8px 10px',
+                                    borderRadius: '8px',
+                                    border: '1.5px solid #fcd34d',
+                                    fontSize: '13px',
+                                    background: '#ffffff'
+                                }}
+                                required
+                            />
+                        </div>
+
+                        <div>
+                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px'}}>
+                                <label style={{fontSize: '12.5px', fontWeight: 700, color: '#78350f'}}>
+                                    💡 {currentLang === 'en' ? 'What was learned yesterday?' : 'ગઈકાલે નવું શું શીખવા મળ્યું? (Learnings):'}
+                                </label>
+                                <button
+                                    type="button"
+                                    className="voice-input-btn"
+                                    onClick={() => startVoiceInput('prev_learned')}
+                                    style={{fontSize: '11px', padding: '2px 8px'}}
+                                >
+                                    🎤 {listeningField === 'prev_learned' ? 'Listening…' : 'Speak / બોલો'}
+                                </button>
+                            </div>
+                            <textarea
+                                rows="2"
+                                value={prevClockOutForm.learned}
+                                onChange={e => setPrevClockOutForm(p => ({...p, learned: e.target.value}))}
+                                placeholder={currentLang === 'en' ? 'What new skill or observation did you learn?' : 'દા.ત. નવી ટેકનિક, ફોલ્ટ પકડવાની રીત, સેફ્ટી નિયમ...'}
+                                style={{
+                                    width: '100%',
+                                    padding: '8px 10px',
+                                    borderRadius: '8px',
+                                    border: '1.5px solid #fcd34d',
+                                    fontSize: '13px',
+                                    background: '#ffffff'
+                                }}
+                            />
+                        </div>
+
+                        <div style={{display: 'flex', justifyContent: 'flex-end', marginTop: '4px'}}>
+                            <button
+                                type="submit"
+                                disabled={busy || !prevClockOutForm.work_done.trim()}
+                                style={{
+                                    background: '#d97706',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    padding: '10px 18px',
+                                    borderRadius: '8px',
+                                    fontWeight: 700,
+                                    fontSize: '13.5px',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                }}
+                            >
+                                <LogOut size={16}/>
+                                <span>{currentLang === 'en' ? 'Submit Yesterday\'s Time Out & Unlock Today' : 'ગઈકાલનું Time Out પૂર્ણ કરો અને આજનું શરૂ કરો'}</span>
+                            </button>
+                        </div>
+                    </form>
+                </section>
+            )}
+
+            {/* ❌ Marked Absent by Super Admin Notice */}
+            {!today.manager_attendance_only && today.record?.status === 'absent' && (
+                <section className="panel" style={{
+                    background: '#fef2f2',
+                    border: '2px solid #ef4444',
+                    borderRadius: '14px',
+                    padding: '18px 20px',
+                    boxShadow: '0 4px 14px rgba(239, 68, 68, 0.12)',
+                    marginBottom: '16px'
+                }}>
+                    <div style={{display: 'flex', alignItems: 'flex-start', gap: '12px'}}>
+                        <div style={{background: '#fee2e2', color: '#dc2626', padding: '10px', borderRadius: '10px', fontSize: '24px'}}>
+                            ❌
+                        </div>
+                        <div>
+                            <h2 style={{margin: 0, color: '#991b1b', fontSize: '16px', fontWeight: 800}}>
+                                {currentLang === 'en' ? 'Marked Absent by Super Admin' : 'સુપર એડમિન દ્વારા ગેરહાજર (Absent) માર્ક કરવામાં આવેલ છે'}
+                            </h2>
+                            <p style={{margin: '6px 0 0', color: '#b91c1c', fontSize: '13.5px', lineHeight: '1.45'}}>
+                                {currentLang === 'en'
+                                    ? `Reason: ${today.record.correction_reason || 'Employee was not present at the solar plant.'}`
+                                    : `કારણ: ${today.record.correction_reason || 'કર્મચારી સોલાર પ્લાન્ટ પર હાજર ન હોવાથી ગેરહાજર માર્ક કરેલ છે.'}`}
+                            </p>
+                            <small style={{display: 'block', marginTop: '6px', color: '#7f1d1d', fontSize: '11.5px'}}>
+                                {currentLang === 'en' ? 'Today\'s shift is closed as Absent.' : 'આજના દિવસ માટે હાજરી ગેરહાજર તરીકે બંધ થયેલ છે.'}
+                            </small>
+                        </div>
+                    </div>
+                </section>
+            )}
+
             {!today.manager_attendance_only && !today.record && (
                 <section className="panel clock-card">
                     <div className="clock-icon"><LogIn/></div>
                     <div>
                         <h2>Ready to start your day?</h2>
-                        <p>Your Time In is recorded with a front-camera selfie.</p>
+                        <p>
+                            {today.has_unclosed_previous_day
+                                ? (currentLang === 'en' ? '⚠️ Complete yesterday\'s pending Time Out above to unlock.' : '⚠️ ગઈકાલનું બાકી Time Out ઉપર ભરો એટલે Time In ખુલશે.')
+                                : 'Your Time In is recorded with a front-camera selfie.'}
+                        </p>
                     </div>
                     <button className="primary" disabled={!today.can_clock_in} onClick={() => setTimeInOpen(true)}>
                         Time In
@@ -468,7 +655,7 @@ export default function MyAttendancePage({companyId}) {
             )}
 
             {/* Break & Urgent Out Card */}
-            {!today.manager_attendance_only && today.record && !today.record.clock_out_at && (
+            {!today.manager_attendance_only && today.record && today.record.status !== 'absent' && !today.record.clock_out_at && (
                 <section className={`panel break-card ${activeBreak ? 'active' : ''}`} style={{
                     borderColor: activeBreak?.break_type === 'urgent_out' ? '#f87171' : undefined,
                     background: activeBreak?.break_type === 'urgent_out' ? '#fff5f5' : undefined,
@@ -539,7 +726,7 @@ export default function MyAttendancePage({companyId}) {
             )}
 
             {/* Clock Out / Complete Day Form with Time Lock rules */}
-            {!today.manager_attendance_only && today.record && !today.record.clock_out_at && (
+            {!today.manager_attendance_only && today.record && today.record.status !== 'absent' && !today.record.clock_out_at && (
                 <form className="panel clockout-card" onSubmit={clockOut}>
                     <div className="panel-head" style={{marginBottom: '12px'}}>
                         <div>

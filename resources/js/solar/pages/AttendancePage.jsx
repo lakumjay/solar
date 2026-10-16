@@ -44,8 +44,11 @@ export default function AttendancePage({canCorrect, canRecord}) {
     const [selectedMapEmployee, setSelectedMapEmployee] = useState(null);
     const [mapMode, setMapMode] = useState('satellite'); // 'satellite' | 'roadmap'
     const [zoomLevel, setZoomLevel] = useState(20); // 20 is ultra close-up satellite level
-    const [pendingLeaves, setPendingLeaves] = useState([]);
+    const [allLeaves, setAllLeaves] = useState([]);
+    const [leaveFilter, setLeaveFilter] = useState('all');
     const [reviewingLeaveId, setReviewingLeaveId] = useState(null);
+
+    const pendingLeaves = useMemo(() => allLeaves.filter(l => l.status === 'pending'), [allLeaves]);
 
     const loadLiveLocations = async () => {
         try {
@@ -107,11 +110,11 @@ export default function AttendancePage({canCorrect, canRecord}) {
         const [attendanceRes, peopleRes, leavesRes] = await Promise.allSettled([
             api(`attendance?${query}`),
             api('employees'),
-            api('leaves?status=pending')
+            api('leaves')
         ]);
         if (attendanceRes.status === 'fulfilled') setRows(attendanceRes.value || []);
         if (peopleRes.status === 'fulfilled') setEmployees(peopleRes.value || []);
-        if (leavesRes.status === 'fulfilled') setPendingLeaves(leavesRes.value || []);
+        if (leavesRes.status === 'fulfilled') setAllLeaves(leavesRes.value || []);
         if (attendanceRes.status === 'rejected') setMessage(attendanceRes.reason?.message || 'Failed to load attendance.');
     };
 
@@ -933,106 +936,202 @@ export default function AttendancePage({canCorrect, canRecord}) {
                 </div>
             )}
 
-            {/* 🌴 Pending Employee Leave Requests Alert Banner for Superadmin */}
-            {pendingLeaves.length > 0 && (
+            {/* 🌴 Employee Leaves Management (All, Pending, Approved, Rejected) */}
+            {allLeaves.length > 0 && (
                 <div style={{
                     margin: '0 0 16px 0',
                     padding: '14px 16px',
-                    background: '#fffbeb',
-                    border: '1.5px solid #f59e0b',
+                    background: '#ffffff',
+                    border: '1.5px solid #e2e8f0',
                     borderRadius: '14px',
-                    boxShadow: '0 4px 12px rgba(245, 158, 11, 0.12)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '10px'
+                    gap: '12px'
                 }}>
                     <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px'}}>
                         <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                            <span style={{fontSize: '18px'}}>🌴</span>
-                            <b style={{fontSize: '13.5px', color: '#92400e'}}>
-                                {currentLang === 'en' ? `Pending Leave Requests (${pendingLeaves.length})` : `કર્મચારી રજાની પેન્ડિંગ અરજીઓ (${pendingLeaves.length})`}
-                            </b>
-                        </div>
-                        <span style={{fontSize: '10.5px', background: '#fde68a', color: '#854d0e', padding: '2px 8px', borderRadius: '12px', fontWeight: 800}}>
-                            {currentLang === 'en' ? 'Action Required' : 'નિર્ણય જરૂરી'}
-                        </span>
-                    </div>
-                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '10px'}}>
-                        {pendingLeaves.map(leave => (
-                            <div key={leave.id} style={{
-                                background: '#ffffff',
-                                border: '1px solid #fde68a',
-                                borderRadius: '10px',
-                                padding: '10px 12px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '6px'
-                            }}>
-                                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
-                                    <b style={{fontSize: '13px', color: '#0f172a'}}>
-                                        {leave.employee?.user?.name || leave.employee?.name || 'Employee'}
-                                    </b>
-                                    <span style={{fontSize: '10.5px', background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '4px', fontWeight: 700}}>
-                                        {leave.day_part?.replace('_', ' ') || 'Full Day'}
-                                    </span>
-                                </div>
-                                <div style={{fontSize: '11.5px', color: '#475569'}}>
-                                    📅 <b>{leave.date_from}</b> {leave.date_from !== leave.date_to ? ` થી ${leave.date_to}` : ''}
-                                </div>
-                                {leave.reason && (
-                                    <div style={{fontSize: '11.5px', color: '#334155', fontStyle: 'italic', background: '#f8fafc', padding: '4px 8px', borderRadius: '4px'}}>
-                                        "{leave.reason}"
-                                    </div>
-                                )}
-                                <div style={{display: 'flex', gap: '6px', marginTop: '4px'}}>
-                                    <button
-                                        type="button"
-                                        disabled={reviewingLeaveId === leave.id}
-                                        onClick={() => handleReviewLeave(leave, 'approved')}
-                                        style={{
-                                            flex: 1,
-                                            padding: '6px 10px',
-                                            borderRadius: '6px',
-                                            border: 'none',
-                                            background: '#16a34a',
-                                            color: '#ffffff',
-                                            fontSize: '11.5px',
-                                            fontWeight: 700,
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '4px'
-                                        }}
-                                    >
-                                        ✓ {currentLang === 'en' ? 'Approve' : 'મંજૂર કરો'}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        disabled={reviewingLeaveId === leave.id}
-                                        onClick={() => handleReviewLeave(leave, 'rejected')}
-                                        style={{
-                                            flex: 1,
-                                            padding: '6px 10px',
-                                            borderRadius: '6px',
-                                            border: '1px solid #ef4444',
-                                            background: '#fef2f2',
-                                            color: '#b91c1c',
-                                            fontSize: '11.5px',
-                                            fontWeight: 700,
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '4px'
-                                        }}
-                                    >
-                                        ✕ {currentLang === 'en' ? 'Reject' : 'નામંજૂર'}
-                                    </button>
-                                </div>
+                            <span style={{fontSize: '20px'}}>🌴</span>
+                            <div>
+                                <b style={{fontSize: '14px', color: '#0f172a'}}>
+                                    {currentLang === 'en' ? 'Employee Leaves Records' : 'કર્મચારીઓની રજાઓ (Employee Leaves)'}
+                                </b>
+                                <span style={{display: 'block', fontSize: '11.5px', color: '#64748b'}}>
+                                    {currentLang === 'en' ? `Total ${allLeaves.length} records recorded` : `કુલ ${allLeaves.length} રજાઓ નોંધાયેલ છે`}
+                                </span>
                             </div>
-                        ))}
+                        </div>
+
+                        {/* Filter Tabs: All, Pending, Approved, Rejected */}
+                        <div style={{display: 'flex', gap: '4px', background: '#f1f5f9', padding: '3px', borderRadius: '8px', flexWrap: 'wrap'}}>
+                            {[
+                                { key: 'all', label: currentLang === 'en' ? 'All' : 'બધી', count: allLeaves.length },
+                                { key: 'pending', label: currentLang === 'en' ? 'Pending' : 'પેન્ડિંગ', count: allLeaves.filter(l => l.status === 'pending').length, color: '#d97706' },
+                                { key: 'approved', label: currentLang === 'en' ? 'Approved' : 'મંજૂર', count: allLeaves.filter(l => l.status === 'approved').length, color: '#16a34a' },
+                                { key: 'rejected', label: currentLang === 'en' ? 'Rejected' : 'નામંજૂર', count: allLeaves.filter(l => l.status === 'rejected').length, color: '#dc2626' },
+                            ].map(tab => (
+                                <button
+                                    key={tab.key}
+                                    type="button"
+                                    onClick={() => setLeaveFilter(tab.key)}
+                                    style={{
+                                        border: 'none',
+                                        background: leaveFilter === tab.key ? '#ffffff' : 'transparent',
+                                        color: leaveFilter === tab.key ? (tab.color || '#0f172a') : '#64748b',
+                                        fontWeight: leaveFilter === tab.key ? 700 : 500,
+                                        fontSize: '12px',
+                                        padding: '4px 10px',
+                                        borderRadius: '6px',
+                                        boxShadow: leaveFilter === tab.key ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '5px'
+                                    }}
+                                >
+                                    <span>{tab.label}</span>
+                                    <span style={{
+                                        background: leaveFilter === tab.key ? '#f1f5f9' : '#e2e8f0',
+                                        padding: '1px 5px',
+                                        borderRadius: '999px',
+                                        fontSize: '10.5px'
+                                    }}>
+                                        {tab.count}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
                     </div>
+
+                    {/* Filtered Leaves Grid */}
+                    {(() => {
+                        const filtered = allLeaves.filter(l => leaveFilter === 'all' || l.status === leaveFilter);
+                        if (filtered.length === 0) {
+                            return (
+                                <div style={{textAlign: 'center', padding: '20px', color: '#94a3b8', fontSize: '12.5px'}}>
+                                    {currentLang === 'en' ? 'No leaves found for this filter.' : 'આ ફિલ્ટરમાં કોઈ રજા મળી નથી.'}
+                                </div>
+                            );
+                        }
+                        return (
+                            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '10px'}}>
+                                {filtered.map(leave => {
+                                    const isPending = leave.status === 'pending';
+                                    const isApproved = leave.status === 'approved';
+                                    const isRejected = leave.status === 'rejected';
+
+                                    return (
+                                        <div key={leave.id} style={{
+                                            background: isPending ? '#fffbeb' : isApproved ? '#f0fdf4' : '#fef2f2',
+                                            border: isPending ? '1.5px solid #fde68a' : isApproved ? '1px solid #bbf7d0' : '1px solid #fecaca',
+                                            borderRadius: '10px',
+                                            padding: '10px 12px',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: '6px'
+                                        }}>
+                                            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                                                <b style={{fontSize: '13px', color: '#0f172a'}}>
+                                                    {leave.employee?.user?.name || leave.employee?.name || 'Employee'}
+                                                </b>
+                                                <div style={{display: 'flex', gap: '4px', alignItems: 'center'}}>
+                                                    <span style={{
+                                                        fontSize: '10px',
+                                                        background: '#e0f2fe',
+                                                        color: '#0369a1',
+                                                        padding: '2px 6px',
+                                                        borderRadius: '4px',
+                                                        fontWeight: 700
+                                                    }}>
+                                                        {leave.day_part?.replace('_', ' ') || 'Full Day'}
+                                                    </span>
+                                                    <span style={{
+                                                        fontSize: '10px',
+                                                        background: isPending ? '#fef3c7' : isApproved ? '#dcfce7' : '#fee2e2',
+                                                        color: isPending ? '#b45309' : isApproved ? '#15803d' : '#b91c1c',
+                                                        padding: '2px 6px',
+                                                        borderRadius: '4px',
+                                                        fontWeight: 800
+                                                    }}>
+                                                        {isPending ? (currentLang === 'en' ? '⏳ Pending' : '⏳ પેન્ડિંગ') : isApproved ? (currentLang === 'en' ? '✓ Approved' : '✓ મંજૂર') : (currentLang === 'en' ? '✕ Rejected' : '✕ નામંજૂર')}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div style={{fontSize: '11.5px', color: '#475569', display: 'flex', justifyContent: 'space-between'}}>
+                                                <span>📅 <b>{leave.date_from}</b> {leave.date_from !== leave.date_to ? ` થી ${leave.date_to}` : ''}</span>
+                                                {leave.leave_type?.name && (
+                                                    <span style={{color: '#64748b'}}>({leave.leave_type.name})</span>
+                                                )}
+                                            </div>
+
+                                            {leave.reason && (
+                                                <div style={{fontSize: '11.5px', color: '#334155', fontStyle: 'italic', background: 'rgba(255,255,255,0.7)', padding: '5px 8px', borderRadius: '4px', border: '1px solid rgba(0,0,0,0.05)'}}>
+                                                    "{leave.reason}"
+                                                </div>
+                                            )}
+
+                                            {leave.review_remarks && (
+                                                <div style={{fontSize: '11px', color: isApproved ? '#166534' : '#991b1b', background: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '4px'}}>
+                                                    <b>{currentLang === 'en' ? 'Admin note: ' : 'એડમિન નોંધ: '}</b>{leave.review_remarks}
+                                                    {leave.reviewer?.name && ` (${leave.reviewer.name})`}
+                                                </div>
+                                            )}
+
+                                            {isPending && (
+                                                <div style={{display: 'flex', gap: '6px', marginTop: '4px'}}>
+                                                    <button
+                                                        type="button"
+                                                        disabled={reviewingLeaveId === leave.id}
+                                                        onClick={() => handleReviewLeave(leave, 'approved')}
+                                                        style={{
+                                                            flex: 1,
+                                                            padding: '6px 10px',
+                                                            borderRadius: '6px',
+                                                            border: 'none',
+                                                            background: '#16a34a',
+                                                            color: '#ffffff',
+                                                            fontSize: '11.5px',
+                                                            fontWeight: 700,
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            gap: '4px'
+                                                        }}
+                                                    >
+                                                        ✓ {currentLang === 'en' ? 'Approve' : 'મંજૂર કરો'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        disabled={reviewingLeaveId === leave.id}
+                                                        onClick={() => handleReviewLeave(leave, 'rejected')}
+                                                        style={{
+                                                            flex: 1,
+                                                            padding: '6px 10px',
+                                                            borderRadius: '6px',
+                                                            border: '1px solid #ef4444',
+                                                            background: '#fef2f2',
+                                                            color: '#b91c1c',
+                                                            fontSize: '11.5px',
+                                                            fontWeight: 700,
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            gap: '4px'
+                                                        }}
+                                                    >
+                                                        ✕ {currentLang === 'en' ? 'Reject' : 'નામંજૂર'}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        );
+                    })()}
                 </div>
             )}
 

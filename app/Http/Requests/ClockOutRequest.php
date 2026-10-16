@@ -14,6 +14,8 @@ class ClockOutRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'record_id' => ['nullable', 'integer', 'exists:attendance_records,id'],
+            'attendance_date' => ['nullable', 'date_format:Y-m-d'],
             'latitude' => ['required', 'numeric', 'between:-90,90'],
             'longitude' => ['required', 'numeric', 'between:-180,180'],
             'accuracy' => ['nullable', 'numeric', 'min:0', 'max:100000'],

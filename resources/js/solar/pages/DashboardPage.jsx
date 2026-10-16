@@ -382,6 +382,7 @@ export default function DashboardPage({companyId, currentUser}) {
     const pastReadingMissing = systemAlerts.past_reading_missing;
     const fanCleaningStatus = systemAlerts.fan_cleaning;
     const overheatAlerts = systemAlerts.overheat_alerts || [];
+    const attendanceSummary = data.attendance_summary;
 
     return (
         <div className="live-solar-container">
@@ -635,6 +636,112 @@ export default function DashboardPage({companyId, currentUser}) {
                         </button>
                     </div>
                 </div>
+
+                {/* 👥 Today Plant Staff Attendance & Today Absent Alert */}
+                {attendanceSummary && !isEmployee && (
+                    <div style={{
+                        marginBottom: '14px',
+                        background: '#ffffff',
+                        border: attendanceSummary.absent_count > 0 ? '1.5px solid #fca5a5' : '1px solid #e2e8f0',
+                        borderRadius: '12px',
+                        padding: '12px 16px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                    }}>
+                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '8px'}}>
+                            <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                                <span style={{fontSize: '18px'}}>👥</span>
+                                <div>
+                                    <b style={{fontSize: '13.5px', color: '#0f172a'}}>
+                                        {currentLang === 'en' ? 'Today Plant Staff Attendance' : 'આજના સ્ટાફની હાજરી & ગેરહાજર (Today Attendance)'}
+                                    </b>
+                                    <span style={{fontSize: '11.5px', color: '#64748b', display: 'block'}}>
+                                        {currentLang === 'en'
+                                            ? `Total ${attendanceSummary.total_employees} Employees`
+                                            : `કુલ ${attendanceSummary.total_employees} કર્મચારીઓ`}
+                                    </span>
+                                </div>
+                            </div>
+                            <div style={{display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap'}}>
+                                <span style={{background: '#dcfce7', color: '#15803d', padding: '3px 8px', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700}}>
+                                    ✓ {attendanceSummary.present_count} {currentLang === 'en' ? 'Present' : 'હાજર'}
+                                </span>
+                                {attendanceSummary.half_day_count > 0 && (
+                                    <span style={{background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700}}>
+                                        🌗 {attendanceSummary.half_day_count} {currentLang === 'en' ? 'Half Day' : 'અડધો દિવસ'}
+                                    </span>
+                                )}
+                                {attendanceSummary.leave_count > 0 && (
+                                    <span style={{background: '#e0e7ff', color: '#4338ca', padding: '3px 8px', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700}}>
+                                        🏖️ {attendanceSummary.leave_count} {currentLang === 'en' ? 'Leave' : 'રજા પર'}
+                                    </span>
+                                )}
+                                <span style={{
+                                    background: attendanceSummary.absent_count > 0 ? '#fee2e2' : '#f1f5f9',
+                                    color: attendanceSummary.absent_count > 0 ? '#b91c1c' : '#64748b',
+                                    padding: '3px 8px',
+                                    borderRadius: '6px',
+                                    fontSize: '11.5px',
+                                    fontWeight: 700
+                                }}>
+                                    ✕ {attendanceSummary.absent_count} {currentLang === 'en' ? 'Absent' : 'ગેરહાજર'}
+                                </span>
+                                <a
+                                    href="/attendance"
+                                    style={{
+                                        marginLeft: '4px',
+                                        background: '#2563eb',
+                                        color: '#ffffff',
+                                        padding: '4px 10px',
+                                        borderRadius: '6px',
+                                        fontSize: '11px',
+                                        fontWeight: 700,
+                                        textDecoration: 'none'
+                                    }}
+                                >
+                                    {currentLang === 'en' ? 'View Attendance →' : 'હાજરી જુઓ →'}
+                                </a>
+                            </div>
+                        </div>
+
+                        {/* Today Absent Employees highlight (especially marked absent by Superadmin) */}
+                        {attendanceSummary.absent_employees && attendanceSummary.absent_employees.length > 0 && (
+                            <div style={{
+                                marginTop: '8px',
+                                paddingTop: '8px',
+                                borderTop: '1px dashed #fca5a5',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '6px'
+                            }}>
+                                <div style={{fontSize: '12px', fontWeight: 700, color: '#dc2626'}}>
+                                    🔴 {currentLang === 'en' ? 'Today Absent Employees:' : 'આજે ગેરહાજર કર્મચારીઓ (Today Absent):'}
+                                </div>
+                                <div style={{display: 'flex', flexWrap: 'wrap', gap: '6px'}}>
+                                    {attendanceSummary.absent_employees.map((emp, eIdx) => (
+                                        <div
+                                            key={eIdx}
+                                            style={{
+                                                background: emp.absent_type === 'superadmin_marked_absent' ? '#fee2e2' : '#fef2f2',
+                                                border: emp.absent_type === 'superadmin_marked_absent' ? '1px solid #ef4444' : '1px solid #fecaca',
+                                                borderRadius: '6px',
+                                                padding: '4px 8px',
+                                                fontSize: '11.5px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px'
+                                            }}
+                                        >
+                                            <b style={{color: '#991b1b'}}>{emp.name} ({emp.emp_code})</b>
+                                            <span style={{color: emp.absent_type === 'superadmin_marked_absent' ? '#b91c1c' : '#7f1d1d', fontSize: '11px'}}>
+                                                — {emp.display_reason}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* ⏰ Daily Reading Status (Confirmation when saved OR Reminder / Missing Meter Alert) */}
                 {dailyReadingStatus && dailyReadingStatus.active && (
