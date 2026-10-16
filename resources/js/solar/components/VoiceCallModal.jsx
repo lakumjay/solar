@@ -1016,7 +1016,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
             const authToken = cfg?.auth_token || cfg?.apiKey;
             const systemInstruction = cfg?.system_instruction || cfg?.systemInstruction;
             const voiceName = cfg?.voice_name || activeVoice || 'Aoede';
-            const liveModel = cfg?.live_model || cfg?.liveModel || 'gemini-2.5-flash-native-audio-latest';
+            const liveModel = cfg?.live_model || cfg?.liveModel || 'gemini-3.1-flash-live-preview';
             const rawTools = cfg?.tools || [];
 
             // Ensure proper camelCase functionDeclarations for @google/genai SDK
@@ -1030,15 +1030,10 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                 return;
             }
 
-            // Use gemini-2.5-flash-native-audio-latest which supports bidiGenerateContent + tools + live audio transcription
-            let targetModel = (liveModel || 'gemini-2.5-flash-native-audio-latest').replace(/^models\//, '');
-            if (
-                !targetModel ||
-                targetModel.includes('2.0-flash-exp') ||
-                targetModel.includes('gemini-3.1-flash-live-preview') ||
-                targetModel.includes('gemini-3.8-live')
-            ) {
-                targetModel = 'gemini-2.5-flash-native-audio-latest';
+            // Use gemini-3.1-flash-live-preview which is the official Gemini Live WebSocket model
+            let targetModel = (liveModel || 'gemini-3.1-flash-live-preview').replace(/^models\//, '');
+            if (!targetModel || targetModel.includes('2.0-flash-exp') || targetModel.includes('gemini-2.5-flash')) {
+                targetModel = 'gemini-3.1-flash-live-preview';
             }
 
             liveCfgRef.current = {

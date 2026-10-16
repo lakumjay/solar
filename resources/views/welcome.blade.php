@@ -17,7 +17,7 @@
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                const swPath = window.location.pathname.includes('/git/public') ? '/git/public/sw.js?v=65' : '/sw.js?v=65';
+                const swPath = window.location.pathname.includes('/git/public') ? '/git/public/sw.js?v=66' : '/sw.js?v=66';
                 navigator.serviceWorker.register(swPath).then(reg => {
                     reg.update();
                 }).catch(err => console.log('SW registration failed', err));

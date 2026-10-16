@@ -195,6 +195,19 @@ class SystemAutoDoctorService
             } catch (\Throwable $e) {
                 // Ignore
             }
+
+            // Clear any stale voice cache audio files
+            try {
+                $vCache = storage_path('app/public/voice_cache');
+                if (File::exists($vCache)) {
+                    foreach (File::files($vCache) as $f) {
+                        @unlink($f->getRealPath());
+                    }
+                    $fixes[] = 'Purged stale voice audio cache';
+                }
+            } catch (\Throwable $e) {
+                // Ignore
+            }
         }
 
         return [

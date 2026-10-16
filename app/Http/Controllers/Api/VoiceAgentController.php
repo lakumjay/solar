@@ -35,9 +35,9 @@ class VoiceAgentController extends Controller
         // Fetch user permissions and allowed companies
         $systemPrompt = $this->buildSystemPrompt($user, 'gu', $liveSolarData);
 
-        $liveModel = env('GEMINI_LIVE_MODEL', 'gemini-2.5-flash-native-audio-latest');
-        if (empty($liveModel) || str_contains($liveModel, '2.0-flash-exp')) {
-            $liveModel = 'gemini-2.5-flash-native-audio-latest';
+        $liveModel = env('GEMINI_LIVE_MODEL', 'gemini-3.1-flash-live-preview');
+        if (empty($liveModel) || str_contains($liveModel, '2.0-flash-exp') || str_contains($liveModel, 'gemini-2.5-flash-native-audio-latest')) {
+            $liveModel = 'gemini-3.1-flash-live-preview';
         }
 
         $voiceName = trim((string) $request->input('voice_name', 'Aoede')) ?: 'Aoede';
@@ -46,7 +46,7 @@ class VoiceAgentController extends Controller
             'auth_token' => $apiKey,
             'apiKey' => $apiKey ?: 'solarflow_ready',
             'hasGeminiKey' => !empty($apiKey),
-            'model' => 'gemini-2.5-flash',
+            'model' => 'gemini-3.8-flash',
             'liveModel' => $liveModel,
             'live_model' => $liveModel,
             'voice_name' => $voiceName,
@@ -554,6 +554,11 @@ class VoiceAgentController extends Controller
         $cacheHash = md5($cleanText . '_' . $language . '_' . $voiceName);
         $cachedWavFile = $cacheDir . '/aoede_' . $cacheHash . '.wav';
         $cachedMp3File = $cacheDir . '/' . $cacheHash . '.mp3';
+
+        if ($request->has('purge') || $request->has('nocache')) {
+            @unlink($cachedWavFile);
+            @unlink($cachedMp3File);
+        }
 
         // 1. Instant Cache Hit for Gemini Aoede WAV (0.005s!)
         if (file_exists($cachedWavFile) && filesize($cachedWavFile) > 800) {
