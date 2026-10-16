@@ -64,12 +64,8 @@ class VoiceAgentDataService
             case 'get_financials_revenue':
                 return $this->getFinancialsRevenue($user, $targetCompanyId, $params);
 
-            case 'search_expenses':
             case 'get_shared_expenses':
                 return $this->getSharedExpenses($user, $params);
-
-            case 'query_database_table':
-                return $this->queryDatabaseTable($user, (string)($params['table_name'] ?? 'shared_expenses'), $params);
 
             case 'get_live_plant_status':
                 return $this->getLivePlantStatus($targetCompanyId, $params);
@@ -534,119 +530,28 @@ class VoiceAgentDataService
         ];
     }
 
-    private function getSharedExpenses(?User $user, array $params = []): array
+    private function getSharedExpenses(?User $user, array $params): array
     {
         $role = $user?->role ?? 'super_admin';
         if (!in_array($role, ['super_admin', 'company_admin', 'manager'], true)) {
             return ['authorized' => false, 'message' => 'સોરી, તમને શેર્ડ એક્સપેન્સ જોવાની પરવાનગી નથી.'];
         }
 
-        $query = SharedExpense::with(['payerCompany:id,name', 'allocations.company:id,name'])
-            ->where('status', 'active');
+        $activePercentages = Company::where('active', true)->pluck('expense_percentage', 'name')->all();
 
-        // Search by keyword e.g. "petrol", "diesel", "cement", "pagar", "moter", "dava", "pipe"
-        $searchTerm = trim((string)($params['search_query'] ?? $params['query'] ?? $params['category'] ?? ''));
-        if (!empty($searchTerm)) {
-            $query->where(function ($q) use ($searchTerm) {
-                $q->where('description', 'LIKE', "%{$searchTerm}%")
-                  ->orWhere('notes', 'LIKE', "%{$searchTerm}%")
-                  ->orWhere('purchaser_name', 'LIKE', "%{$searchTerm}%");
-            });
-        }
-
-        if (!empty($params['month'])) {
-            $m = (int)$params['month'];
-            $y = (int)($params['year'] ?? date('Y'));
-            $query->whereYear('expense_date', $y)->whereMonth('expense_date', $m);
-        }
-
-        if (!empty($params['company_name'])) {
-            $cName = trim($params['company_name']);
-            $query->whereHas('payerCompany', fn($q) => $q->where('name', 'LIKE', "%{$cName}%"));
-        }
-
-        $filteredExpenses = $query->orderByDesc('expense_date')->orderByDesc('id')->take(25)->get();
-        $totalQueriedAmount = round((float)$query->sum('amount'), 2);
-
-        // Compute overall company balances
-        $sharedService = app(SharedExpenseService::class);
-        $dash = $sharedService->dashboard($user, now()->startOfYear(), now());
-        $gujSummary = $dash['gujarati_summary'] ?? [];
-
-        $companyBreakdown = [];
-        foreach ($gujSummary['companies'] ?? [] as $comp) {
-            $companyBreakdown[] = "{$comp['name']} ({$comp['percentage']}%): ચૂકવ્યા ₹{$comp['total_paid_formatted']}, ભાગ ₹{$comp['fair_share_formatted']} -> {$comp['status_text']}";
-        }
-
-        $pendingList = [];
-        foreach ($gujSummary['pending_settlements'] ?? [] as $ps) {
-            $pendingList[] = $ps['sentence_gu'];
-        }
-
-        $recentItems = $filteredExpenses->map(function ($e) {
-            return [
-                'id' => $e->id,
-                'description' => $e->description,
-                'amount' => (float)$e->amount,
-                'payer' => $e->payerCompany?->name ?? 'સંયુક્ત',
-                'purchaser' => $e->purchaser_name,
-                'date' => $e->expense_date?->toDateString(),
-            ];
-        })->all();
-
-        $summaryText = !empty($searchTerm)
-            ? "'{$searchTerm}' સંબંધિત કુલ ખર્ચ ₹{$totalQueriedAmount} છે (મળેલ એન્ટ્રીઓ: {$filteredExpenses->count()})."
-            : "કુલ શેર્ડ ખર્ચ ₹" . ($gujSummary['total_spent_formatted'] ?? $totalQueriedAmount) . " છે. " . implode(' ', $pendingList);
+        $totalExpenses = SharedExpense::where('status', 'active')->sum('amount');
+        $recentExpenses = SharedExpense::where('status', 'active')->with(['allocations.company', 'paidByCompany'])->latest('id')->take(5)->get();
 
         return [
             'authorized' => true,
-            'summary' => $summaryText,
-            'total_spent' => (float)($gujSummary['total_spent'] ?? $totalQueriedAmount),
-            'queried_total_amount' => $totalQueriedAmount,
-            'search_query' => $searchTerm,
-            'company_balances' => $companyBreakdown,
-            'pending_settlements' => $pendingList,
-            'recent_expenses' => $recentItems,
-        ];
-    }
-
-    private function queryDatabaseTable(?User $user, string $tableName, array $params = []): array
-    {
-        $role = $user?->role ?? 'super_admin';
-        $allowedTables = [
-            'shared_expenses', 'shared_expense_allocations', 'expense_settlements',
-            'daily_readings', 'daily_inverter_outputs', 'inverters',
-            'employees', 'attendance_records', 'leave_requests',
-            'stock_items', 'stock_movements', 'solar_curtailments', 'companies'
-        ];
-
-        if (!in_array($tableName, $allowedTables, true)) {
-            return ['error' => "ટેબલ {$tableName} ની ઍક્સેસ ઉપલબ્ધ નથી."];
-        }
-
-        $query = DB::table($tableName);
-        $search = trim((string)($params['search'] ?? ''));
-
-        if (!empty($search)) {
-            if ($tableName === 'shared_expenses') {
-                $query->where(fn($q) => $q->where('description', 'LIKE', "%{$search}%")->orWhere('notes', 'LIKE', "%{$search}%"));
-            } elseif ($tableName === 'employees') {
-                $query->where(fn($q) => $q->where('name', 'LIKE', "%{$search}%")->orWhere('designation', 'LIKE', "%{$search}%"));
-            } elseif ($tableName === 'stock_items') {
-                $query->where(fn($q) => $q->where('name', 'LIKE', "%{$search}%")->orWhere('category', 'LIKE', "%{$search}%"));
-            } elseif ($tableName === 'inverters') {
-                $query->where('name', 'LIKE', "%{$search}%");
-            }
-        }
-
-        $count = $query->count();
-        $sample = $query->latest('id')->take(10)->get();
-
-        return [
-            'table' => $tableName,
-            'total_count' => $count,
-            'sample_records' => $sample,
-            'summary' => "ટેબલ {$tableName} માં કુલ {$count} રેકોર્ડ્સ ઉપલબ્ધ છે.",
+            'active_percentage_split' => $activePercentages, // 38.15%, 39.69%, 22.16%
+            'total_active_expenses_amount' => round((float)$totalExpenses, 2),
+            'recent_entries' => $recentExpenses->map(fn($e) => [
+                'title' => $e->title,
+                'amount' => (float)$e->amount,
+                'paid_by' => $e->paidByCompany?->name,
+                'date' => $e->expense_date?->toDateString(),
+            ]),
         ];
     }
 

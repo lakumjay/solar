@@ -41,8 +41,8 @@ Route::match(['get', 'post'], '/callback', [ISolarCloudController::class, 'callb
 
 Route::prefix('api')->group(function () {
     Route::get('csrf-token', fn () => response()->json(['csrf_token' => csrf_token()]));
+    Route::match(['get', 'post'], 'isolarcloud/callback', [ISolarCloudController::class, 'callback']);
     Route::match(['get', 'post'], 'ai-help-center/webhook-deploy', [\App\Http\Controllers\AiHelpCenterController::class, 'webhookDeploy']);
-    Route::match(['get', 'post'], 'voice-agent/tts', [\App\Http\Controllers\Api\VoiceAgentController::class, 'tts']);
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
     Route::middleware('auth')->group(function () {
         Route::get('ai-help-center/status', [\App\Http\Controllers\AiHelpCenterController::class, 'status']);
@@ -51,6 +51,7 @@ Route::prefix('api')->group(function () {
         Route::post('ai-help-center/rollback', [\App\Http\Controllers\AiHelpCenterController::class, 'rollback']);
         Route::post('ai-help-center/chat', [\App\Http\Controllers\AiHelpCenterController::class, 'chat']);
         Route::post('ai-help-center/auto-report', [\App\Http\Controllers\AiHelpCenterController::class, 'autoReportError']);
+        Route::match(['get', 'post'], 'voice-agent/tts', [\App\Http\Controllers\Api\VoiceAgentController::class, 'tts']);
         Route::post('voice-agent/chat', [\App\Http\Controllers\Api\VoiceAgentController::class, 'chat']);
         Route::match(['get', 'post'], 'voice-agent/config', [\App\Http\Controllers\Api\VoiceAgentController::class, 'config']);
         Route::post('voice-agent/execute-tool', [\App\Http\Controllers\Api\VoiceAgentController::class, 'executeTool']);
