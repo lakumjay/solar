@@ -44,6 +44,8 @@ export default function AttendancePage({canCorrect, canRecord}) {
     const [selectedMapEmployee, setSelectedMapEmployee] = useState(null);
     const [mapMode, setMapMode] = useState('satellite'); // 'satellite' | 'roadmap'
     const [zoomLevel, setZoomLevel] = useState(20); // 20 is ultra close-up satellite level
+    const [pendingLeaves, setPendingLeaves] = useState([]);
+    const [reviewingLeaveId, setReviewingLeaveId] = useState(null);
 
     const loadLiveLocations = async () => {
         try {
@@ -102,10 +104,41 @@ export default function AttendancePage({canCorrect, canRecord}) {
     const load = async () => {
         const query = new URLSearchParams({date});
         if (employeeId) query.set('employee_id', employeeId);
-        const [attendanceRes, peopleRes] = await Promise.allSettled([api(`attendance?${query}`), api('employees')]);
+        const [attendanceRes, peopleRes, leavesRes] = await Promise.allSettled([
+            api(`attendance?${query}`),
+            api('employees'),
+            api('leaves?status=pending')
+        ]);
         if (attendanceRes.status === 'fulfilled') setRows(attendanceRes.value || []);
         if (peopleRes.status === 'fulfilled') setEmployees(peopleRes.value || []);
+        if (leavesRes.status === 'fulfilled') setPendingLeaves(leavesRes.value || []);
         if (attendanceRes.status === 'rejected') setMessage(attendanceRes.reason?.message || 'Failed to load attendance.');
+    };
+
+    const handleReviewLeave = async (leave, decision) => {
+        const remarks = window.prompt(
+            decision === 'approved'
+                ? (currentLang === 'en' ? 'Approval remarks (optional):' : 'મંજૂરી નોંધ / રીમાર્ક્સ (ઓપ્શનલ):')
+                : (currentLang === 'en' ? 'Rejection reason:' : 'નામંજૂર કરવાનું કારણ:')
+        );
+        if (remarks === null) return;
+        setReviewingLeaveId(leave.id);
+        try {
+            await api(`leaves/${leave.id}/review`, {
+                method: 'POST',
+                body: JSON.stringify({status: decision, remarks})
+            });
+            setMessage(
+                currentLang === 'en'
+                    ? `Leave request ${decision} successfully.`
+                    : `રજાની અરજી સફળતાપૂર્વક ${decision === 'approved' ? 'મંજૂર (Approved)' : 'નામંજૂર (Rejected)'} કરવામાં આવી.`
+            );
+            await load();
+        } catch (err) {
+            setMessage(err.message || 'Error reviewing leave request.');
+        } finally {
+            setReviewingLeaveId(null);
+        }
     };
 
     useEffect(() => {
@@ -235,16 +268,18 @@ export default function AttendancePage({canCorrect, canRecord}) {
                     employee_id: Number(emp.id),
                     attendance_date: targetDate,
                     day_type: chosenDayType,
-                    entry_reason: chosenDayType === 'half_day'
-                        ? 'Half Day confirmed via Quick Attendance Checklist'
-                        : 'Full Day confirmed via Quick Attendance Checklist'
+                    entry_reason: chosenDayType === 'absent'
+                        ? 'Superadmin marked absent (પ્લાન્ટ પર ગેરહાજર)'
+                        : (chosenDayType === 'half_day'
+                            ? 'Half Day confirmed via Quick Attendance Checklist'
+                            : 'Full Day confirmed via Quick Attendance Checklist')
                 })
             });
             setQuickSelectEmpId(null);
             setMessage(
                 currentLang === 'en'
-                    ? `Attendance saved (${chosenDayType === 'half_day' ? 'Half Day' : 'Full Day'}) for ${emp.name}.`
-                    : `${emp.name} ની હાજરી (${chosenDayType === 'half_day' ? 'Half Day - અડધો દિવસ' : 'Full Day - આખો દિવસ'}) સફળતાપૂર્વક સેવ થઈ ગઈ છે.`
+                    ? `Attendance saved (${chosenDayType === 'absent' ? '❌ Absent (Full day pay cut)' : (chosenDayType === 'half_day' ? '🌗 Half Day (Half day pay cut)' : '☀️ Full Day')}) for ${emp.name}.`
+                    : `${emp.name} ની હાજરી (${chosenDayType === 'absent' ? '❌ Absent - ગેરહાજર (પૂરો દિવસ કપાત)' : (chosenDayType === 'half_day' ? '🌗 Half Day - અડધો દિવસ (અડધો દિવસ કપાત)' : '☀️ Full Day - આખો દિવસ')}) સફળતાપૂર્વક સેવ થઈ ગઈ છે.`
             );
             await load();
         } catch (error) {
@@ -898,7 +933,110 @@ export default function AttendancePage({canCorrect, canRecord}) {
                 </div>
             )}
 
-            {/* ✅/⬜ Quick Manual Attendance Checklist UI (Full Day / Half Day Confirm) */}
+            {/* 🌴 Pending Employee Leave Requests Alert Banner for Superadmin */}
+            {pendingLeaves.length > 0 && (
+                <div style={{
+                    margin: '0 0 16px 0',
+                    padding: '14px 16px',
+                    background: '#fffbeb',
+                    border: '1.5px solid #f59e0b',
+                    borderRadius: '14px',
+                    boxShadow: '0 4px 12px rgba(245, 158, 11, 0.12)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                }}>
+                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px'}}>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                            <span style={{fontSize: '18px'}}>🌴</span>
+                            <b style={{fontSize: '13.5px', color: '#92400e'}}>
+                                {currentLang === 'en' ? `Pending Leave Requests (${pendingLeaves.length})` : `કર્મચારી રજાની પેન્ડિંગ અરજીઓ (${pendingLeaves.length})`}
+                            </b>
+                        </div>
+                        <span style={{fontSize: '10.5px', background: '#fde68a', color: '#854d0e', padding: '2px 8px', borderRadius: '12px', fontWeight: 800}}>
+                            {currentLang === 'en' ? 'Action Required' : 'નિર્ણય જરૂરી'}
+                        </span>
+                    </div>
+                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '10px'}}>
+                        {pendingLeaves.map(leave => (
+                            <div key={leave.id} style={{
+                                background: '#ffffff',
+                                border: '1px solid #fde68a',
+                                borderRadius: '10px',
+                                padding: '10px 12px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '6px'
+                            }}>
+                                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                                    <b style={{fontSize: '13px', color: '#0f172a'}}>
+                                        {leave.employee?.user?.name || leave.employee?.name || 'Employee'}
+                                    </b>
+                                    <span style={{fontSize: '10.5px', background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '4px', fontWeight: 700}}>
+                                        {leave.day_part?.replace('_', ' ') || 'Full Day'}
+                                    </span>
+                                </div>
+                                <div style={{fontSize: '11.5px', color: '#475569'}}>
+                                    📅 <b>{leave.date_from}</b> {leave.date_from !== leave.date_to ? ` થી ${leave.date_to}` : ''}
+                                </div>
+                                {leave.reason && (
+                                    <div style={{fontSize: '11.5px', color: '#334155', fontStyle: 'italic', background: '#f8fafc', padding: '4px 8px', borderRadius: '4px'}}>
+                                        "{leave.reason}"
+                                    </div>
+                                )}
+                                <div style={{display: 'flex', gap: '6px', marginTop: '4px'}}>
+                                    <button
+                                        type="button"
+                                        disabled={reviewingLeaveId === leave.id}
+                                        onClick={() => handleReviewLeave(leave, 'approved')}
+                                        style={{
+                                            flex: 1,
+                                            padding: '6px 10px',
+                                            borderRadius: '6px',
+                                            border: 'none',
+                                            background: '#16a34a',
+                                            color: '#ffffff',
+                                            fontSize: '11.5px',
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '4px'
+                                        }}
+                                    >
+                                        ✓ {currentLang === 'en' ? 'Approve' : 'મંજૂર કરો'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={reviewingLeaveId === leave.id}
+                                        onClick={() => handleReviewLeave(leave, 'rejected')}
+                                        style={{
+                                            flex: 1,
+                                            padding: '6px 10px',
+                                            borderRadius: '6px',
+                                            border: '1px solid #ef4444',
+                                            background: '#fef2f2',
+                                            color: '#b91c1c',
+                                            fontSize: '11.5px',
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '4px'
+                                        }}
+                                    >
+                                        ✕ {currentLang === 'en' ? 'Reject' : 'નામંજૂર'}
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* ✅/⬜ Quick Manual Attendance Checklist UI (Full Day / Half Day / Absent Confirm) */}
             {(canRecord || canCorrect) && checklistEmployees.length > 0 && (
                 <div style={{
                     margin: '0 0 18px 0',
@@ -914,12 +1052,12 @@ export default function AttendancePage({canCorrect, canRecord}) {
                     <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px'}}>
                         <div>
                             <b style={{fontSize: '13.5px', color: '#065f46', display: 'flex', alignItems: 'center', gap: '6px'}}>
-                                ☑️ {currentLang === 'en' ? 'Quick Attendance Checklist (Full Day / Half Day)' : 'ઝડપી હાજરી ચેકલિસ્ટ (Full Day / Half Day કન્ફર્મ કરો)'}
+                                ☑️ {currentLang === 'en' ? 'Quick Attendance Checklist (Full Day / Half Day / Absent)' : 'ઝડપી હાજરી ચેકલિસ્ટ (Full Day / Half Day / ગેરહાજર)'}
                             </b>
                             <small style={{display: 'block', fontSize: '11px', color: '#475569', marginTop: '2px'}}>
                                 {currentLang === 'en'
-                                    ? `Date: ${date} • Checked (✅) = Attendance Completed • Unchecked (⬜) = Attendance Pending (Click box to confirm Full Day or Half Day)`
-                                    : `તારીખ: ${date} • ખરાની નિશાની (✅) = હાજરી પૂરી થઈ ગઈ છે • ખાલી બોક્સ (⬜) = હાજરી બાકી છે (બોક્સ સિલેક્ટ કરી Full Day કે Half Day કન્ફર્મ કરો)`}
+                                    ? `Date: ${date} • (✅) = Full Day • (🌗) = Half Day • (❌) = Absent (Click box to select status & confirm)`
+                                    : `તારીખ: ${date} • (✅) = Full Day • (🌗) = Half Day • (❌) = ગેરહાજર (બોક્સ પર ક્લિક કરી Full Day, Half Day અથવા Absent કન્ફર્મ કરો)`}
                             </small>
                         </div>
                         <span style={{
@@ -942,19 +1080,23 @@ export default function AttendancePage({canCorrect, canRecord}) {
                     }}>
                         {checklistEmployees.map(emp => {
                             const attRow = (rows || []).find(r => String(r.employee_id) === String(emp.id) || String(r.employee?.id) === String(emp.id));
+                            const isAbsent = attRow?.status === 'absent';
+                            const isHalfDay = !isAbsent && (attRow?.status === 'half_day' || (attRow?.clock_out_at && Number(attRow?.work_minutes || 0) > 0 && Number(attRow?.work_minutes || 0) <= 270));
                             const isCompleted = Boolean(attRow);
-                            const isHalfDay = attRow?.status === 'half_day' || (attRow?.clock_out_at && Number(attRow?.work_minutes || 0) > 0 && Number(attRow?.work_minutes || 0) <= 270);
                             const isSelectedForConfirm = String(quickSelectEmpId) === String(emp.id);
                             const isSavingThis = String(savingQuickEmpId) === String(emp.id);
+                            const empPendingLeave = pendingLeaves.find(l => String(l.employee_id) === String(emp.id));
 
                             return (
                                 <div
                                     key={emp.id}
                                     style={{
-                                        background: isCompleted ? '#ffffff' : (isSelectedForConfirm ? '#fffbeb' : '#ffffff'),
-                                        border: isCompleted
-                                            ? '1.5px solid #4ade80'
-                                            : (isSelectedForConfirm ? '1.5px solid #f59e0b' : '1.5px dashed #cbd5e1'),
+                                        background: isAbsent ? '#fff5f5' : (isCompleted ? '#ffffff' : (isSelectedForConfirm ? '#fffbeb' : '#ffffff')),
+                                        border: isAbsent
+                                            ? '1.5px solid #f87171'
+                                            : (isCompleted
+                                                ? '1.5px solid #4ade80'
+                                                : (isSelectedForConfirm ? '1.5px solid #f59e0b' : '1.5px dashed #cbd5e1')),
                                         borderRadius: '12px',
                                         padding: '10px 12px',
                                         display: 'flex',
@@ -970,7 +1112,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                                     setQuickSelectEmpId(null);
                                                 } else {
                                                     setQuickSelectEmpId(emp.id);
-                                                    setQuickDayType(isHalfDay ? 'half_day' : 'full_day');
+                                                    setQuickDayType(isAbsent ? 'absent' : (isHalfDay ? 'half_day' : 'full_day'));
                                                 }
                                             }}
                                             style={{
@@ -983,31 +1125,37 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                                 margin: 0
                                             }}
                                         >
-                                            {/* Custom Visual Checkbox: Green Checkmark if completed, Empty Box if pending */}
+                                            {/* Custom Visual Checkbox: Red X if absent, Green Checkmark if completed, Empty Box if pending */}
                                             <div
                                                 role="checkbox"
                                                 aria-checked={isCompleted}
-                                                title={isCompleted ? 'હાજરી પૂર્ણ છે (Click to edit Full/Half day)' : 'હાજરી બાકી છે (Click to mark Full/Half day)'}
+                                                title={isAbsent ? 'ગેરહાજર નોંધાયેલ છે (Click to edit)' : (isCompleted ? 'હાજરી પૂર્ણ છે (Click to edit)' : 'હાજરી બાકી છે (Click to mark)')}
                                                 style={{
                                                     width: '24px',
                                                     height: '24px',
                                                     borderRadius: '7px',
-                                                    border: isCompleted
-                                                        ? '2px solid #16a34a'
-                                                        : (isSelectedForConfirm ? '2px solid #f59e0b' : '2px solid #94a3b8'),
-                                                    background: isCompleted
-                                                        ? '#16a34a'
-                                                        : (isSelectedForConfirm ? '#fef3c7' : '#f8fafc'),
-                                                    color: isCompleted ? '#ffffff' : '#0f172a',
+                                                    border: isAbsent
+                                                        ? '2px solid #dc2626'
+                                                        : (isCompleted
+                                                            ? '2px solid #16a34a'
+                                                            : (isSelectedForConfirm ? '2px solid #f59e0b' : '2px solid #94a3b8')),
+                                                    background: isAbsent
+                                                        ? '#dc2626'
+                                                        : (isCompleted
+                                                            ? '#16a34a'
+                                                            : (isSelectedForConfirm ? '#fef3c7' : '#f8fafc')),
+                                                    color: isAbsent || isCompleted ? '#ffffff' : '#0f172a',
                                                     display: 'grid',
                                                     placeItems: 'center',
                                                     fontWeight: 900,
-                                                    fontSize: '14px',
+                                                    fontSize: '13px',
                                                     flexShrink: 0,
-                                                    boxShadow: isCompleted ? '0 2px 6px rgba(22, 163, 74, 0.25)' : 'none'
+                                                    boxShadow: isAbsent
+                                                        ? '0 2px 6px rgba(220, 38, 38, 0.25)'
+                                                        : (isCompleted ? '0 2px 6px rgba(22, 163, 74, 0.25)' : 'none')
                                                 }}
                                             >
-                                                {isCompleted ? '✓' : ''}
+                                                {isAbsent ? '✕' : (isCompleted ? '✓' : '')}
                                             </div>
                                             <div style={{minWidth: 0, flex: 1}}>
                                                 <div style={{display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap'}}>
@@ -1030,6 +1178,20 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                                 <small style={{display: 'block', fontSize: '10.5px', color: '#64748b'}}>
                                                     {emp.employee_code} · {emp.designation || 'Staff'}
                                                 </small>
+                                                {empPendingLeave && (
+                                                    <span style={{
+                                                        display: 'inline-block',
+                                                        fontSize: '9.5px',
+                                                        padding: '1px 6px',
+                                                        borderRadius: '4px',
+                                                        background: '#fef3c7',
+                                                        color: '#b45309',
+                                                        fontWeight: 700,
+                                                        marginTop: '2px'
+                                                    }}>
+                                                        ⏳ રજા અરજી પેન્ડિંગ ({empPendingLeave.day_part?.replace('_', ' ')})
+                                                    </span>
+                                                )}
                                             </div>
                                         </label>
 
@@ -1038,24 +1200,26 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                             <span
                                                 onClick={() => {
                                                     setQuickSelectEmpId(isSelectedForConfirm ? null : emp.id);
-                                                    setQuickDayType(isHalfDay ? 'half_day' : 'full_day');
+                                                    setQuickDayType(isAbsent ? 'absent' : (isHalfDay ? 'half_day' : 'full_day'));
                                                 }}
                                                 style={{
                                                     fontSize: '10.5px',
                                                     fontWeight: 800,
                                                     padding: '3px 8px',
                                                     borderRadius: '6px',
-                                                    background: isHalfDay ? '#fef3c7' : '#dcfce7',
-                                                    color: isHalfDay ? '#92400e' : '#166534',
-                                                    border: isHalfDay ? '1px solid #fde68a' : '1px solid #86efac',
+                                                    background: isAbsent ? '#fee2e2' : (isHalfDay ? '#fef3c7' : '#dcfce7'),
+                                                    color: isAbsent ? '#991b1b' : (isHalfDay ? '#92400e' : '#166534'),
+                                                    border: isAbsent ? '1px solid #fca5a5' : (isHalfDay ? '1px solid #fde68a' : '1px solid #86efac'),
                                                     cursor: 'pointer',
                                                     whiteSpace: 'nowrap'
                                                 }}
-                                                title="Click to switch Full Day / Half Day"
+                                                title="Click to switch Full Day / Half Day / Absent"
                                             >
-                                                {isHalfDay
-                                                    ? (currentLang === 'en' ? '✅ Half Day' : '✅ Half Day (અડધો દિવસ)')
-                                                    : (currentLang === 'en' ? '✅ Full Day' : '✅ Full Day (આખો દિવસ)')}
+                                                {isAbsent
+                                                    ? (currentLang === 'en' ? '❌ Absent' : '❌ Absent (ગેરહાજર)')
+                                                    : (isHalfDay
+                                                        ? (currentLang === 'en' ? '🌗 Half Day' : '🌗 Half Day (અડધો દિવસ)')
+                                                        : (currentLang === 'en' ? '✅ Full Day' : '✅ Full Day (આખો દિવસ)'))}
                                             </span>
                                         ) : (
                                             <button
@@ -1081,7 +1245,7 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                         )}
                                     </div>
 
-                                    {/* Inline Full Day / Half Day Confirmation Box when checkbox is clicked */}
+                                    {/* Inline Full Day / Half Day / Absent Confirmation Box when checkbox is clicked */}
                                     {isSelectedForConfirm && (
                                         <div style={{
                                             marginTop: '4px',
@@ -1093,15 +1257,15 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                             gap: '6px',
                                             flexWrap: 'wrap'
                                         }}>
-                                            <div style={{display: 'flex', gap: '6px', flex: 1}}>
+                                            <div style={{display: 'flex', gap: '5px', flex: 1, minWidth: '200px'}}>
                                                 <button
                                                     type="button"
                                                     onClick={() => setQuickDayType('full_day')}
                                                     style={{
                                                         flex: 1,
-                                                        padding: '6px 8px',
+                                                        padding: '6px 4px',
                                                         borderRadius: '8px',
-                                                        fontSize: '11px',
+                                                        fontSize: '10.5px',
                                                         fontWeight: 800,
                                                         cursor: 'pointer',
                                                         border: quickDayType === 'full_day' ? '1.5px solid #16a34a' : '1px solid #cbd5e1',
@@ -1109,16 +1273,16 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                                         color: quickDayType === 'full_day' ? '#166534' : '#475569'
                                                     }}
                                                 >
-                                                    ☀️ {currentLang === 'en' ? 'Full Day' : 'Full Day (આખો)'}
+                                                    ☀️ {currentLang === 'en' ? 'Full' : 'Full (આખો)'}
                                                 </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => setQuickDayType('half_day')}
                                                     style={{
                                                         flex: 1,
-                                                        padding: '6px 8px',
+                                                        padding: '6px 4px',
                                                         borderRadius: '8px',
-                                                        fontSize: '11px',
+                                                        fontSize: '10.5px',
                                                         fontWeight: 800,
                                                         cursor: 'pointer',
                                                         border: quickDayType === 'half_day' ? '1.5px solid #d97706' : '1px solid #cbd5e1',
@@ -1126,7 +1290,24 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                                         color: quickDayType === 'half_day' ? '#92400e' : '#475569'
                                                     }}
                                                 >
-                                                    🌗 {currentLang === 'en' ? 'Half Day' : 'Half Day (અડધો)'}
+                                                    🌗 {currentLang === 'en' ? 'Half' : 'Half (અડધો)'}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setQuickDayType('absent')}
+                                                    style={{
+                                                        flex: 1,
+                                                        padding: '6px 4px',
+                                                        borderRadius: '8px',
+                                                        fontSize: '10.5px',
+                                                        fontWeight: 800,
+                                                        cursor: 'pointer',
+                                                        border: quickDayType === 'absent' ? '1.5px solid #dc2626' : '1px solid #cbd5e1',
+                                                        background: quickDayType === 'absent' ? '#fee2e2' : '#f8fafc',
+                                                        color: quickDayType === 'absent' ? '#991b1b' : '#475569'
+                                                    }}
+                                                >
+                                                    ❌ {currentLang === 'en' ? 'Absent' : 'Absent (ગેરહાજર)'}
                                                 </button>
                                             </div>
                                             <button
@@ -1136,13 +1317,17 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                                 style={{
                                                     padding: '6px 12px',
                                                     borderRadius: '8px',
-                                                    fontSize: '11.5px',
+                                                    fontSize: '11px',
                                                     fontWeight: 800,
                                                     cursor: isSavingThis ? 'wait' : 'pointer',
                                                     border: 'none',
-                                                    background: '#16a34a',
+                                                    background: quickDayType === 'absent' ? '#dc2626' : (quickDayType === 'half_day' ? '#d97706' : '#16a34a'),
                                                     color: '#ffffff',
-                                                    boxShadow: '0 2px 6px rgba(22, 163, 74, 0.3)'
+                                                    boxShadow: quickDayType === 'absent'
+                                                        ? '0 2px 6px rgba(220, 38, 38, 0.3)'
+                                                        : (quickDayType === 'half_day'
+                                                            ? '0 2px 6px rgba(217, 119, 6, 0.3)'
+                                                            : '0 2px 6px rgba(22, 163, 74, 0.3)')
                                                 }}
                                             >
                                                 {isSavingThis

@@ -53,6 +53,9 @@ class SalaryCalculationService
             'base_salary' => $this->sumMoney($rows, 'monthly_salary'),
             'prorated_gross' => $this->sumMoney($rows, 'prorated_gross'),
             'leave_deduction' => $this->sumMoney($rows, 'leave_deduction'),
+            'absent_deduction' => $this->sumMoney($rows, 'absent_deduction'),
+            'half_day_deduction' => $this->sumMoney($rows, 'half_day_deduction'),
+            'total_attendance_deduction' => $this->sumMoney($rows, 'total_attendance_deduction'),
             'additions' => $this->sumMoney($rows, 'additions'),
             'deductions' => $this->sumMoney($rows, 'deductions'),
             'final_payable' => $this->sumMoney($rows, 'final_payable'),
@@ -109,6 +112,8 @@ class SalaryCalculationService
         $scheduledHalfUnits = 0;
         $eligibleHalfUnits = 0;
         $leaveHalfUnits = 0;
+        $absentHalfUnits = 0;
+        $halfDayDeductionHalfUnits = 0;
         $joiningDate = $employee->joining_date?->copy()->startOfDay();
         $attendanceDays = collect($attendance['days'] ?? [])->keyBy('date');
         $daily = [];
@@ -123,12 +128,27 @@ class SalaryCalculationService
             $deductibleUnits = $eligible ? $this->deductibleLeaveUnits($leave, $holiday, $scheduleUnits) : 0;
 
             $attendanceDay = $attendanceDays->get($dateString, []);
-            $dayStatus = $attendanceDay['status'] ?? ($eligible ? ($date->isPast() ? 'absent' : 'pending') : 'before_joining');
+            $isPastOrToday = $date->lte(now()->startOfDay());
+            $dayStatus = $attendanceDay['status'] ?? ($eligible ? ($isPastOrToday ? 'absent' : 'pending') : 'before_joining');
 
             $scheduledHalfUnits += $scheduleUnits;
+            $dayAbsentUnits = 0;
+            $dayHalfCutUnits = 0;
+
             if ($eligible) {
                 $eligibleHalfUnits += $scheduleUnits;
-                $leaveHalfUnits += $deductibleUnits;
+
+                if ($isPastOrToday && $scheduleUnits > 0) {
+                    if ($deductibleUnits > 0) {
+                        $leaveHalfUnits += $deductibleUnits;
+                    } elseif ($dayStatus === 'absent' || $dayStatus === 'missing_clock_out') {
+                        $absentHalfUnits += $scheduleUnits;
+                        $dayAbsentUnits = $scheduleUnits / 2;
+                    } elseif ($dayStatus === 'half_day' || $dayStatus === 'short_day') {
+                        $halfDayDeductionHalfUnits += 1;
+                        $dayHalfCutUnits = 0.5;
+                    }
+                }
             }
 
             $daily[] = [
@@ -136,6 +156,8 @@ class SalaryCalculationService
                 'status' => $dayStatus,
                 'scheduled_units' => $scheduleUnits / 2,
                 'leave_units' => $deductibleUnits / 2,
+                'absent_units' => $dayAbsentUnits,
+                'half_day_cut_units' => $dayHalfCutUnits,
                 'leave_part' => $leave?->day_part,
                 'holiday' => $holiday?->name,
                 'holiday_type' => $holiday?->type,
@@ -157,10 +179,18 @@ class SalaryCalculationService
         $leaveCents = $rate && $scheduledHalfUnits > 0
             ? (int) round($monthlyCents * $leaveHalfUnits / $scheduledHalfUnits, 0, PHP_ROUND_HALF_UP)
             : 0;
+        $absentCents = $rate && $scheduledHalfUnits > 0
+            ? (int) round($monthlyCents * $absentHalfUnits / $scheduledHalfUnits, 0, PHP_ROUND_HALF_UP)
+            : 0;
+        $halfDayCents = $rate && $scheduledHalfUnits > 0
+            ? (int) round($monthlyCents * $halfDayDeductionHalfUnits / $scheduledHalfUnits, 0, PHP_ROUND_HALF_UP)
+            : 0;
+        $totalAttendanceDeductionCents = $leaveCents + $absentCents + $halfDayCents;
+
         $activeAdjustments = $adjustments->whereNull('cancelled_at');
         $additionCents = $activeAdjustments->where('type', 'addition')->sum(fn (SalaryAdjustment $item) => $this->toCents($item->amount));
         $deductionCents = $activeAdjustments->where('type', 'deduction')->sum(fn (SalaryAdjustment $item) => $this->toCents($item->amount)) + $urgentBreakDeductionCents;
-        $finalCents = max(0, $grossCents - $leaveCents + $additionCents - $deductionCents);
+        $finalCents = max(0, $grossCents - $totalAttendanceDeductionCents + $additionCents - $deductionCents);
 
         return [
             'employee' => [
@@ -184,6 +214,11 @@ class SalaryCalculationService
             'daily_rate' => $scheduledHalfUnits ? $this->money((int) round($monthlyCents * 2 / $scheduledHalfUnits)) : 0.00,
             'prorated_gross' => $this->money($grossCents),
             'leave_deduction' => $this->money($leaveCents),
+            'absent_deduction' => $this->money($absentCents),
+            'half_day_deduction' => $this->money($halfDayCents),
+            'total_attendance_deduction' => $this->money($totalAttendanceDeductionCents),
+            'absent_days' => $absentHalfUnits / 2,
+            'half_days_count' => $halfDayDeductionHalfUnits,
             'additions' => $this->money($additionCents),
             'deductions' => $this->money($deductionCents),
             'final_payable' => $this->money($finalCents),

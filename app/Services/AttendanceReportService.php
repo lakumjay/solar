@@ -39,22 +39,27 @@ class AttendanceReportService
                 $dayBreaks = [];
 
                 if ($record) {
-                    $dayStatus = $record->clock_out_at ? $record->status : 'missing_clock_out';
-                    $halfLeave = $leave && $leave->day_part !== 'full_day';
-                    $halfHoliday = $holiday && $holiday->type !== 'full_day';
-                    if (! $record->clock_out_at) {
-                        $summary['missing_clock_out']++;
-                    } elseif ($record->status === 'half_day') {
-                        $summary['half_days']++;
-                    } elseif ($record->status === 'short_day') {
-                        $summary['short_days']++;
+                    if ($record->status === 'absent') {
+                        $dayStatus = 'absent';
+                        $summary['absent']++;
                     } else {
-                        $summary['present'] += ($halfLeave || $halfHoliday) ? .5 : 1;
-                    }
-                    if ($halfLeave) {
-                        $summary['leave'] += .5;
-                    } elseif ($halfHoliday) {
-                        $summary['holidays'] += .5;
+                        $dayStatus = $record->clock_out_at ? $record->status : 'missing_clock_out';
+                        $halfLeave = $leave && $leave->day_part !== 'full_day';
+                        $halfHoliday = $holiday && $holiday->type !== 'full_day';
+                        if (! $record->clock_out_at) {
+                            $summary['missing_clock_out']++;
+                        } elseif ($record->status === 'half_day') {
+                            $summary['half_days']++;
+                        } elseif ($record->status === 'short_day') {
+                            $summary['short_days']++;
+                        } else {
+                            $summary['present'] += ($halfLeave || $halfHoliday) ? .5 : 1;
+                        }
+                        if ($halfLeave) {
+                            $summary['leave'] += .5;
+                        } elseif ($halfHoliday) {
+                            $summary['holidays'] += .5;
+                        }
                     }
                     if ($record->is_late) {
                         $summary['late']++;

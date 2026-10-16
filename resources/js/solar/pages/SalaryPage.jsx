@@ -108,7 +108,7 @@ export default function SalaryPage() {
                     <div className="cards salary-summary-cards">
                         <Metric icon={IndianRupee} title="Base salary" value={data.totals.base_salary} unit="INR"/>
                         <Metric icon={CircleDollarSign} title="Prorated gross" value={data.totals.prorated_gross} unit="INR"/>
-                        <Metric icon={ReceiptIndianRupee} title="Leave deduction" value={data.totals.leave_deduction} unit="INR" color="amber"/>
+                        <Metric icon={ReceiptIndianRupee} title="Attendance & Leave Cut (કપાત)" value={data.totals.total_attendance_deduction ?? data.totals.leave_deduction} unit="INR" color="amber"/>
                         <Metric icon={Plus} title="Extra Work / Additions" value={data.totals.additions} unit="INR" color="emerald"/>
                         <Metric icon={IndianRupee} title="Final payable" value={data.totals.final_payable} unit="INR"/>
                     </div>
@@ -181,8 +181,8 @@ export default function SalaryPage() {
                                                 <b>{rupees(row.prorated_gross)}</b>
                                             </div>
                                             <div className="salary-chip danger">
-                                                <small>Leave Cut</small>
-                                                <b>− {rupees(row.leave_deduction)}</b>
+                                                <small>Attendance / Leave Cut</small>
+                                                <b>− {rupees(row.total_attendance_deduction ?? row.leave_deduction)}</b>
                                             </div>
                                             <div className="salary-chip positive">
                                                 <small>Extra Work (+)</small>
@@ -245,9 +245,9 @@ export default function SalaryPage() {
                                             <th>Monthly salary</th>
                                             <th>Work units</th>
                                             <th>Attendance</th>
-                                            <th>Leave</th>
+                                            <th>Leave / Absent</th>
                                             <th>Prorated gross</th>
-                                            <th>Leave deduction</th>
+                                            <th>Attendance Cut</th>
                                             <th>Extra / Adjustments</th>
                                             <th>Final payable</th>
                                             <th/>
@@ -279,10 +279,10 @@ export default function SalaryPage() {
                                                 </td>
                                                 <td>
                                                     {number(row.leave_units)} unit
-                                                    <small>{number(row.attendance.approved_leave)} approved</small>
+                                                    <small>{number(row.attendance.approved_leave)} app / {number(row.absent_days || 0)} abs</small>
                                                 </td>
                                                 <td>{rupees(row.prorated_gross)}</td>
-                                                <td className="danger-text">− {rupees(row.leave_deduction)}</td>
+                                                <td className="danger-text">− {rupees(row.total_attendance_deduction ?? row.leave_deduction)}</td>
                                                 <td>
                                                     <span className="salary-mini-stats positive">
                                                         + {rupees(row.additions)}
@@ -373,7 +373,7 @@ function SalaryDetails({row, onClose, onCorrect, onWaiveBreak}) {
                 <div>
                     <h2>{row.employee.name} · Calculation details</h2>
                     <p style={{fontSize: '12.5px', lineHeight: '1.4'}}>
-                        Base Prorated (₹{number(row.prorated_gross)}) + Extra (+₹{number(row.additions)}) − Leave (−₹{number(row.leave_deduction)})
+                        Base Prorated (₹{number(row.prorated_gross)}) + Extra (+₹{number(row.additions)}) − Attendance & Leave Cut (−₹{number(row.total_attendance_deduction ?? row.leave_deduction)})
                         {row.attendance?.urgent_out_deduction > 0 ? ` − Urgent Out (−₹${number(row.attendance.urgent_out_deduction)})` : ''} = Final (₹{number(row.final_payable)})
                     </p>
                 </div>
@@ -384,7 +384,16 @@ function SalaryDetails({row, onClose, onCorrect, onWaiveBreak}) {
                 <span><small>Monthly base salary</small><b>{rupees(row.monthly_salary)}</b></span>
                 <span><small>Daily rate</small><b>{rupees(row.daily_rate)}</b></span>
                 <span><small>Extra work / Additions</small><b style={{color: '#059669'}}>+ {rupees(row.additions)}</b></span>
-                <span><small>Leave deduction</small><b style={{color: '#b91c1c'}}>− {rupees(row.leave_deduction)}</b></span>
+                {row.absent_deduction > 0 && (
+                    <span><small>Absent કપાત ({number(row.absent_days)} દિવસ)</small><b style={{color: '#dc2626'}}>− {rupees(row.absent_deduction)}</b></span>
+                )}
+                {row.half_day_deduction > 0 && (
+                    <span><small>Half Day કપાત ({number(row.half_days_count)} વાર)</small><b style={{color: '#d97706'}}>− {rupees(row.half_day_deduction)}</b></span>
+                )}
+                {row.leave_deduction > 0 && (
+                    <span><small>Approved Leave કપાત</small><b style={{color: '#b91c1c'}}>− {rupees(row.leave_deduction)}</b></span>
+                )}
+                <span><small>કુલ કપાત (Total Cut)</small><b style={{color: '#b91c1c'}}>− {rupees(row.total_attendance_deduction ?? row.leave_deduction)}</b></span>
                 {row.attendance?.urgent_out_deduction > 0 && (
                     <span><small>Urgent Out કપાત</small><b style={{color: '#dc2626'}}>− {rupees(row.attendance.urgent_out_deduction)}</b></span>
                 )}
@@ -557,10 +566,22 @@ function SalaryDetails({row, onClose, onCorrect, onWaiveBreak}) {
                                         <b>{day.urgent_out_count} વાર ({rupees(day.urgent_deduction)})</b>
                                     </div>
                                 )}
+                                {day.absent_units > 0 && (
+                                    <div className="sd-chip danger">
+                                        <small>Absent Cut</small>
+                                        <b>− {number(day.absent_units)} unit (ગેરહાજર)</b>
+                                    </div>
+                                )}
+                                {day.half_day_cut_units > 0 && (
+                                    <div className="sd-chip danger">
+                                        <small>Half Day Cut</small>
+                                        <b>− {number(day.half_day_cut_units)} unit (અડધો દિવસ)</b>
+                                    </div>
+                                )}
                                 {day.leave_units > 0 && (
                                     <div className="sd-chip danger">
                                         <small>Leave Cut</small>
-                                        <b>{number(day.leave_units)} unit</b>
+                                        <b>− {number(day.leave_units)} unit (રજા)</b>
                                     </div>
                                 )}
                             </div>
@@ -576,7 +597,7 @@ function SalaryDetails({row, onClose, onCorrect, onWaiveBreak}) {
                                 <th>Status</th>
                                 <th>Urgent Out</th>
                                 <th>Scheduled</th>
-                                <th>Leave deduction</th>
+                                <th>Absent / Leave Cut</th>
                                 <th>Time In</th>
                                 <th>Time Out</th>
                                 <th>Calendar</th>
@@ -595,7 +616,15 @@ function SalaryDetails({row, onClose, onCorrect, onWaiveBreak}) {
                                         ) : '—'}
                                     </td>
                                     <td>{number(day.scheduled_units)}</td>
-                                    <td>{day.leave_units ? `${number(day.leave_units)} unit` : '—'}</td>
+                                    <td>
+                                        {day.absent_units > 0 ? (
+                                            <span style={{color: '#dc2626', fontWeight: 700}}>− {number(day.absent_units)} unit (ગેરહાજર)</span>
+                                        ) : (day.half_day_cut_units > 0 ? (
+                                            <span style={{color: '#d97706', fontWeight: 700}}>− {number(day.half_day_cut_units)} unit (અડધો દિવસ)</span>
+                                        ) : (day.leave_units > 0 ? (
+                                            <span style={{color: '#b91c1c', fontWeight: 700}}>− {number(day.leave_units)} unit (રજા)</span>
+                                        ) : '—'))}
+                                    </td>
                                     <td>{day.clock_in || '—'}</td>
                                     <td>{day.clock_out || '—'}</td>
                                     <td>{day.holiday || (day.weekly_off ? 'Weekly off' : 'Working day')}</td>

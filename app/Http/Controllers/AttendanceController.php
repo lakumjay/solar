@@ -97,7 +97,7 @@ class AttendanceController extends Controller
         $data = $request->validate([
             'employee_id' => ['required', 'integer', 'exists:employees,id'],
             'attendance_date' => ['required', 'date_format:Y-m-d'],
-            'day_type' => ['required', 'string', 'in:full_day,half_day'],
+            'day_type' => ['required', 'string', 'in:full_day,half_day,absent'],
             'entry_reason' => ['nullable', 'string', 'max:500'],
         ]);
 

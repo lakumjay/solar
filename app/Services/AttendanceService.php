@@ -349,7 +349,8 @@ class AttendanceService
                 throw ValidationException::withMessages(['attendance_date' => 'Future attendance dates are not allowed.']);
             }
 
-            $dayType = ($data['day_type'] ?? 'full_day') === 'half_day' ? 'half_day' : 'full_day';
+            $rawDayType = $data['day_type'] ?? 'full_day';
+            $dayType = in_array($rawDayType, ['full_day', 'half_day', 'absent'], true) ? $rawDayType : 'full_day';
             $shiftStartStr = substr((string) ($employee->shift_start ?: '09:00:00'), 0, 5);
             $shiftEndStr = $dayType === 'half_day'
                 ? '13:30'
@@ -361,12 +362,26 @@ class AttendanceService
                 $clockOut = $clockIn->copy()->addMinutes($dayType === 'half_day' ? 270 : 540);
             }
 
-            $breakMinutes = $dayType === 'half_day' ? 0 : 60;
-            $workMinutes = $dayType === 'half_day'
-                ? ($employee->half_day_minutes ?: 240)
-                : ($employee->working_minutes ?: 480);
-            $status = $dayType === 'half_day' ? 'half_day' : 'present';
-            $reason = trim((string) ($data['entry_reason'] ?? '')) ?: ($dayType === 'half_day' ? 'Quick Checklist: Half Day (અડધો દિવસ)' : 'Quick Checklist: Full Day (આખો દિવસ)');
+            if ($dayType === 'absent') {
+                $breakMinutes = 0;
+                $workMinutes = 0;
+                $status = 'absent';
+                $clockOut = null;
+                $reason = trim((string) ($data['entry_reason'] ?? '')) ?: 'Quick Checklist: Marked Absent by Superadmin (પ્લાન્ટ પર ગેરહાજર)';
+                $workDone = 'Marked Absent by Superadmin (પ્લાન્ટ પર ગેરહાજર)';
+            } elseif ($dayType === 'half_day') {
+                $breakMinutes = 0;
+                $workMinutes = $employee->half_day_minutes ?: 240;
+                $status = 'half_day';
+                $reason = trim((string) ($data['entry_reason'] ?? '')) ?: 'Quick Checklist: Half Day (અડધો દિવસ)';
+                $workDone = 'Half Day Solar Plant Duty';
+            } else {
+                $breakMinutes = 60;
+                $workMinutes = $employee->working_minutes ?: 480;
+                $status = 'present';
+                $reason = trim((string) ($data['entry_reason'] ?? '')) ?: 'Quick Checklist: Full Day (આખો દિવસ)';
+                $workDone = 'Full Day Solar Plant Duty';
+            }
 
             $existing = AttendanceRecord::where('employee_id', $employee->id)
                 ->whereDate('attendance_date', $date)
@@ -376,15 +391,16 @@ class AttendanceService
             if ($existing) {
                 $existing->fill([
                     'clock_in_at' => $existing->clock_in_at ?: $clockIn,
-                    'clock_out_at' => $clockOut,
+                    'clock_out_at' => $dayType === 'absent' ? null : $clockOut,
                     'entry_source' => $existing->entry_source ?: 'manager',
                     'recorded_by' => $actor->id,
                     'entry_reason' => $reason,
-                    'work_done' => $existing->work_done ?: ($dayType === 'half_day' ? 'Half Day Solar Plant Duty' : 'Full Day Solar Plant Duty'),
-                    'learned' => $existing->learned ?: 'Completed plant inspection and operations',
+                    'work_done' => $dayType === 'absent' ? $workDone : ($existing->work_done ?: $workDone),
+                    'learned' => $dayType === 'absent' ? '' : ($existing->learned ?: 'Completed plant inspection and operations'),
                     'work_minutes' => $workMinutes,
                     'break_minutes' => $breakMinutes,
                     'status' => $status,
+                    'is_late' => false,
                     'is_early_out' => false,
                     'manual_correction' => true,
                     'correction_reason' => $reason,
@@ -405,18 +421,22 @@ class AttendanceService
                     'entry_source' => 'manager',
                     'recorded_by' => $actor->id,
                     'entry_reason' => $reason,
-                    'clock_out_at' => $clockOut,
+                    'clock_out_at' => $dayType === 'absent' ? null : $clockOut,
                     'clock_out_latitude' => null,
                     'clock_out_longitude' => null,
                     'clock_out_accuracy' => null,
-                    'work_done' => $dayType === 'half_day' ? 'Half Day Solar Plant Duty' : 'Full Day Solar Plant Duty',
-                    'learned' => 'Completed plant inspection and operations',
+                    'work_done' => $workDone,
+                    'learned' => $dayType === 'absent' ? '' : 'Completed plant inspection and operations',
                     'is_late' => false,
                     'work_minutes' => $workMinutes,
                     'break_minutes' => $breakMinutes,
                     'status' => $status,
                     'is_early_out' => false,
                     'overtime_minutes' => 0,
+                    'manual_correction' => true,
+                    'correction_reason' => $reason,
+                    'corrected_by' => $actor->id,
+                    'corrected_at' => now(),
                 ]);
             }
 

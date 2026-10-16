@@ -16,6 +16,7 @@ class SalaryExcelExporter
         $summary->fromArray([
             'Employee Code', 'Employee', 'Monthly Salary', 'Scheduled Units', 'Eligible Units', 'Present', 'Half Days',
             'Short Days', 'Absent', 'Approved Leave', 'Holidays', 'Weekly Offs', 'Prorated Gross', 'Leave Deduction',
+            'Absent Deduction', 'Half Day Deduction', 'Total Attendance Deduction',
             'Additions', 'Deductions', 'Final Payable', 'Status',
         ], null, 'A1');
         $row = 2;
@@ -25,11 +26,13 @@ class SalaryExcelExporter
                 $item['employee']['employee_code'], $item['employee']['name'], $item['configured'] ? $item['monthly_salary'] : 'Not configured',
                 $item['scheduled_units'], $item['eligible_units'], $attendance['present'], $attendance['half_days'], $attendance['short_days'],
                 $attendance['absent'], $attendance['approved_leave'], $attendance['holidays'], $attendance['weekly_offs'],
-                $item['prorated_gross'], $item['leave_deduction'], $item['additions'], $item['deductions'], $item['final_payable'],
+                $item['prorated_gross'], $item['leave_deduction'],
+                $item['absent_deduction'] ?? 0, $item['half_day_deduction'] ?? 0, $item['total_attendance_deduction'] ?? $item['leave_deduction'],
+                $item['additions'], $item['deductions'], $item['final_payable'],
                 str_replace('_', ' ', $report['period_status']),
             ], null, 'A'.$row++);
         }
-        $this->prepare($summary, 'A1:R1', 'R');
+        $this->prepare($summary, 'A1:U1', 'U');
 
         $daily = $book->createSheet();
         $daily->setTitle('Attendance and Leave');
