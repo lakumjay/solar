@@ -9,8 +9,7 @@ import {
     Sun,
     Radio,
     Zap,
-    Lock,
-    Send
+    Lock
 } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import { PcmPlayer, ToneGenerator, arrayBufferToBase64, base64ToInt16 } from '../lib/audio';
@@ -76,8 +75,6 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
     const [comparisonMemory, setComparisonMemory] = useState(null);
     const [activeComparison, setActiveComparison] = useState(null);
     const [voiceActionBanner, setVoiceActionBanner] = useState(null);
-    const [textInput, setTextInput] = useState('');
-    const [isSendingText, setIsSendingText] = useState(false);
 
     // Refs
     const sessionRef = useRef(null);
@@ -1148,54 +1145,6 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
     const liveTodayKwh = Number(liveSolarData?.totals?.today_energy_kwh ?? 0);
     const liveTodayRev = Math.round(liveTodayKwh * 3.8);
 
-    const handleSendText = async (e) => {
-        if (e) e.preventDefault();
-        const query = textInput.trim();
-        if (!query || isSendingText) return;
-
-        setTextInput('');
-        setIsSendingText(true);
-
-        // Append user question to transcript immediately
-        setTranscriptHistory(prev => [...prev, { sender: 'user', text: query }]);
-
-        try {
-            if (sessionRef.current) {
-                // Send directly to Gemini Live WebSocket session
-                try {
-                    sessionRef.current.sendClientContent({
-                        turns: query,
-                        turnComplete: true
-                    });
-                } catch (_) {
-                    sessionRef.current.sendClientContent({
-                        turns: [{ role: 'user', parts: [{ text: query }] }],
-                        turnComplete: true
-                    });
-                }
-            } else {
-                // Backend fallback endpoint
-                setLastToolEvent('⏳ પ્રશ્નનો જવાબ મેળવી રહ્યો છું...');
-                const res = await api('voice-agent/chat', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        message: query,
-                        language: 'gu'
-                    })
-                });
-                const reply = res?.reply || res?.text || 'માહિતી મળી શકી નથી.';
-                setTranscriptHistory(prev => [...prev, { sender: 'ai', text: reply }]);
-                setLastToolEvent(null);
-                await speakFallbackTts(reply, res?.language || 'gu');
-            }
-        } catch (err) {
-            console.error('Failed to send question:', err);
-            setTranscriptHistory(prev => [...prev, { sender: 'ai', text: 'માફ કરશો, પ્રશ્ન મોકલવામાં કોઈ ખામી સર્જાઈ છે.' }]);
-        } finally {
-            setIsSendingText(false);
-        }
-    };
-
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/95 backdrop-blur-2xl animate-fadeIn">
             {/* Premium Call Frame Container */}
@@ -1342,7 +1291,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                         ) : !isMuted && callState === 'connected' ? (
                             <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                                 <Mic className="w-3 h-3 mr-1.5 animate-pulse" />
-                                સાંભળી રહ્યું છે (બોલો અથવા નીચે ટાઈપ કરો)...
+                                સાંભળી રહ્યું છે (તમારો પ્રશ્ન બોલો)...
                             </span>
                         ) : isMuted ? (
                             <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-slate-800 text-slate-400">
@@ -1470,7 +1419,7 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                 {/* Modern Chat-Bubble Live Transcript Window */}
                 <div 
                     ref={transcriptContainerRef}
-                    className="mx-4 my-1.5 p-3.5 bg-slate-950/85 backdrop-blur-xl border border-slate-800/80 rounded-2xl flex-1 overflow-y-auto space-y-2.5 text-xs font-sans shadow-[inset_0_2px_12px_rgba(0,0,0,0.6)] min-h-[110px] max-h-[160px]"
+                    className="mx-4 mt-1 mb-2 p-3.5 bg-slate-950/85 backdrop-blur-xl border border-slate-800/80 rounded-2xl flex-1 overflow-y-auto space-y-2.5 text-xs font-sans shadow-[inset_0_2px_12px_rgba(0,0,0,0.6)] min-h-[120px] max-h-[240px]"
                 >
                     {transcriptHistory.map((item, idx) => (
                         <div 
@@ -1508,30 +1457,8 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                     <div ref={transcriptEndRef} />
                 </div>
 
-                {/* Bottom Text Question Input - Allows user to type questions anytime */}
-                <form onSubmit={handleSendText} className="mx-4 mb-2 z-20">
-                    <div className="relative flex items-center bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-2xl shadow-lg focus-within:border-amber-400/80 transition-all">
-                        <input
-                            type="text"
-                            value={textInput}
-                            onChange={(e) => setTextInput(e.target.value)}
-                            placeholder="Type question... (દા.ત. આ મહિને કેટલો ખર્ચ થયો?)"
-                            className="w-full bg-transparent px-3.5 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none pr-10"
-                            disabled={callState !== 'connected'}
-                        />
-                        <button
-                            type="submit"
-                            disabled={!textInput.trim() || isSendingText || callState !== 'connected'}
-                            className="absolute right-1.5 p-1.5 bg-gradient-to-r from-amber-500 to-yellow-400 disabled:opacity-30 disabled:cursor-not-allowed hover:brightness-110 active:scale-95 text-slate-950 rounded-xl transition cursor-pointer shadow-md"
-                            title="Send Question"
-                        >
-                            <Send className="w-3.5 h-3.5" />
-                        </button>
-                    </div>
-                </form>
-
                 {/* In-Call Controls Grid */}
-                <div className="px-7 pb-4 pt-0 z-10 flex flex-col items-center">
+                <div className="px-7 pb-4 pt-1 z-10 flex flex-col items-center">
                     <div className="grid grid-cols-3 gap-x-7 gap-y-2 mb-3 w-full max-w-[270px]">
                         
                         {/* 1. Mute Button */}
