@@ -19,7 +19,7 @@ import { api, getApiBaseUrl } from '../api';
 // Persistent audio stream cache across calls so user is asked permission only ONCE
 let globalMicStream = null;
 
-// Helper to unlock Web Audio immediately on user click gesture
+// Helper to unlock Web Audio immediately on user click gesture (WebAudio + HTML5 Audio prime)
 export function unlockVoiceCallAudio() {
     try {
         if (typeof window !== 'undefined') {
@@ -28,6 +28,14 @@ export function unlockVoiceCallAudio() {
                 const ctx = new AudioCtx();
                 ctx.resume().then(() => ctx.close()).catch(() => {});
             }
+            // Prime HTML5 Audio playback for iOS Safari and mobile browsers
+            try {
+                const silent = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
+                silent.volume = 0.01;
+                silent.play().then(() => {
+                    silent.pause();
+                }).catch(() => {});
+            } catch (_) {}
         }
     } catch (_) {}
 }
@@ -731,30 +739,93 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         scriptNode.connect(micCtx.destination);
     };
 
-    // Speak text via backend Gemini Aoede / selected voice WAV (used in Fallback Voice Mode)
+    // Speak text via backend TTS (Google / Gemini Aoede) with automatic Web Speech API safety net
     const speakFallbackTts = useCallback(async (text, lang = 'gu') => {
         if (!text || closingRef.current) return;
         setIsAiSpeaking(true);
+
+        const tryWebSpeech = (speechText, langCode) => {
+            return new Promise((resolve) => {
+                if (typeof window === 'undefined' || !window.speechSynthesis) {
+                    setIsAiSpeaking(false);
+                    return resolve();
+                }
+                try {
+                    window.speechSynthesis.cancel();
+                    const clean = speechText.replace(/[*_#`]/g, '').trim();
+                    const utterance = new SpeechSynthesisUtterance(clean);
+                    utterance.lang = langCode === 'gu' ? 'gu-IN' : (langCode === 'hi' ? 'hi-IN' : 'en-IN');
+                    utterance.rate = 0.95;
+                    utterance.pitch = 1.0;
+
+                    const voices = window.speechSynthesis.getVoices() || [];
+                    const voice = voices.find(v => v.lang.startsWith(utterance.lang) || v.lang.includes('gu'))
+                        || voices.find(v => v.lang.includes('hi') || v.lang.includes('IN'))
+                        || null;
+                    if (voice) {
+                        utterance.voice = voice;
+                    }
+
+                    utterance.onend = () => {
+                        setIsAiSpeaking(false);
+                        resolve();
+                    };
+                    utterance.onerror = () => {
+                        setIsAiSpeaking(false);
+                        resolve();
+                    };
+
+                    window.speechSynthesis.speak(utterance);
+                } catch (_) {
+                    setIsAiSpeaking(false);
+                    resolve();
+                }
+            });
+        };
+
         try {
             const voiceParam = encodeURIComponent(selectedVoice || 'Aoede');
             const ttsUrl = `${getApiBaseUrl().base}voice-agent/tts?text=${encodeURIComponent(text)}&language=${encodeURIComponent(lang)}&voice=${voiceParam}`;
+            
             await new Promise((resolve) => {
-                const audio = new Audio(ttsUrl);
+                let resolved = false;
+                const finish = () => {
+                    if (!resolved) {
+                        resolved = true;
+                        setIsAiSpeaking(false);
+                        resolve();
+                    }
+                };
+
+                const fallbackToWebSpeech = () => {
+                    if (!resolved) {
+                        resolved = true;
+                        tryWebSpeech(text, lang).then(resolve);
+                    }
+                };
+
+                const audio = new Audio();
                 fallbackAudioRef.current = audio;
-                audio.onended = () => {
-                    setIsAiSpeaking(false);
-                    resolve();
-                };
+                audio.crossOrigin = 'anonymous';
+                audio.src = ttsUrl;
+                
+                audio.onended = finish;
                 audio.onerror = () => {
-                    setIsAiSpeaking(false);
-                    resolve();
+                    console.warn('[VoiceAgent] Remote TTS audio failed to load, triggering browser SpeechSynthesis');
+                    fallbackToWebSpeech();
                 };
-                audio.play().catch(() => {
-                    setIsAiSpeaking(false);
-                    resolve();
-                });
+
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch((err) => {
+                        console.warn('[VoiceAgent] Remote TTS audio playback failed:', err);
+                        fallbackToWebSpeech();
+                    });
+                }
             });
         } catch (_) {
+            await tryWebSpeech(text, lang);
+        } finally {
             setIsAiSpeaking(false);
         }
     }, [selectedVoice]);
