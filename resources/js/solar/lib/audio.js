@@ -33,6 +33,9 @@ export class PcmPlayer {
 
   enqueue(int16) {
     if (!this.ctx || this.ctx.state === "closed") return;
+    if (this.ctx.state === "suspended") {
+      this.ctx.resume().catch(() => {});
+    }
 
     const float = new Float32Array(int16.length);
     for (let i = 0; i < int16.length; i++) float[i] = int16[i] / 0x8000;
@@ -44,7 +47,8 @@ export class PcmPlayer {
     src.buffer = buf;
     src.connect(this.ctx.destination);
 
-    const startAt = Math.max(this.ctx.currentTime + 0.02, this.nextTime);
+    const now = this.ctx.currentTime;
+    const startAt = Math.max(now + 0.02, this.nextTime);
     src.start(startAt);
     this.nextTime = startAt + buf.duration;
 

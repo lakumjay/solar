@@ -59,7 +59,7 @@ class VoiceAgentController extends Controller
             'systemInstruction' => $systemPrompt,
             'system_instruction' => $systemPrompt,
             'comparison_memory' => $this->buildComparisonMemory($user, $liveSolarData),
-            'tools' => $this->getToolsDeclaration(),
+            'tools' => [],
         ]);
     }
 

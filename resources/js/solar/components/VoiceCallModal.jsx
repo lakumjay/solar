@@ -113,6 +113,25 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         comparisonMemoryRef.current = comparisonMemory;
     }, [comparisonMemory]);
 
+    // Automatically unlock Web Audio API on any user interaction (resolves autoplay restrictions)
+    useEffect(() => {
+        const unlockAudio = () => {
+            try {
+                if (playerRef.current?.ctx && playerRef.current.ctx.state === 'suspended') {
+                    playerRef.current.ctx.resume().catch(() => {});
+                }
+                if (toneGenRef.current?.ctx && toneGenRef.current.ctx.state === 'suspended') {
+                    toneGenRef.current.ctx.resume().catch(() => {});
+                }
+            } catch (_) {}
+        };
+        const events = ['click', 'touchstart', 'touchend', 'keydown'];
+        events.forEach(evt => window.addEventListener(evt, unlockAudio, { passive: true }));
+        return () => {
+            events.forEach(evt => window.removeEventListener(evt, unlockAudio));
+        };
+    }, []);
+
     // Build comparison card between a selected month and current month (or two months)
     const selectMonthComparison = useCallback((monthNumA, monthNumB = null) => {
         const mem = comparisonMemoryRef.current;
@@ -521,12 +540,13 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                 setCurrentAiText('');
             }
 
-            // AI Audio chunks (ignore internal modelTurn.parts[].text which contains English chain-of-thought)
+            // AI Audio chunks (both camelCase and snake_case support)
             const parts = sc.modelTurn?.parts || [];
             for (const part of parts) {
-                if (part.inlineData?.data) {
+                const b64 = part.inlineData?.data || part.inline_data?.data;
+                if (b64) {
                     setIsAiSpeaking(true);
-                    playerRef.current?.enqueue(base64ToInt16(part.inlineData.data));
+                    playerRef.current?.enqueue(base64ToInt16(b64));
                 }
             }
 
@@ -668,11 +688,10 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
 
                     const base64Audio = arrayBufferToBase64(event.data);
                     try {
+                        const blobObj = { data: base64Audio, mimeType: 'audio/pcm;rate=16000' };
                         sessionRef.current.sendRealtimeInput({
-                            audio: {
-                                data: base64Audio,
-                                mimeType: 'audio/pcm;rate=16000'
-                            }
+                            media: blobObj,
+                            audio: blobObj
                         });
                     } catch (_) {}
                 };
@@ -700,11 +719,10 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
             }
             const base64Audio = arrayBufferToBase64(pcm16.buffer);
             try {
+                const blobObj = { data: base64Audio, mimeType: 'audio/pcm;rate=16000' };
                 sessionRef.current.sendRealtimeInput({
-                    audio: {
-                        data: base64Audio,
-                        mimeType: 'audio/pcm;rate=16000'
-                    }
+                    media: blobObj,
+                    audio: blobObj
                 });
             } catch (_) {}
         };
@@ -895,10 +913,25 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
             // Trigger initial greeting so SolarFlow AI speaks immediately when call connects
             try {
                 session.sendClientContent({
-                    turns: [{ role: 'user', parts: [{ text: 'નમસ્તે' }] }],
+                    turns: 'નમસ્તે',
                     turnComplete: true
                 });
-            } catch (_) {}
+            } catch (_) {
+                try {
+                    session.sendClientContent({
+                        turns: [{ role: 'user', parts: [{ text: 'નમસ્તે' }] }],
+                        turnComplete: true
+                    });
+                } catch (_) {}
+            }
+
+            // Guaranteed Voice Greeting: If Live audio stream does not start speaking within 2.5s, speak greeting directly via TTS
+            setTimeout(() => {
+                if (!closingRef.current && !isAiSpeakingRef.current && hasConnectedRef.current) {
+                    console.log('[VoiceAgent] Ensuring voice output via direct greeting TTS');
+                    speakFallbackTts(defaultGreeting, 'gu');
+                }
+            }, 2500);
         }
     };
 
@@ -1058,10 +1091,17 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         try {
             if (sessionRef.current) {
                 // Send directly to Gemini Live WebSocket session
-                sessionRef.current.sendClientContent({
-                    turns: [{ role: 'user', parts: [{ text: query }] }],
-                    turnComplete: true
-                });
+                try {
+                    sessionRef.current.sendClientContent({
+                        turns: query,
+                        turnComplete: true
+                    });
+                } catch (_) {
+                    sessionRef.current.sendClientContent({
+                        turns: [{ role: 'user', parts: [{ text: query }] }],
+                        turnComplete: true
+                    });
+                }
             } else {
                 // Backend fallback endpoint
                 setLastToolEvent('⏳ પ્રશ્નનો જવાબ મેળવી રહ્યો છું...');
