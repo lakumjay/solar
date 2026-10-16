@@ -427,6 +427,21 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
             playerRef.current = null;
         }
 
+        if (fallbackAudioRef.current) {
+            try {
+                fallbackAudioRef.current.pause();
+                fallbackAudioRef.current.currentTime = 0;
+                fallbackAudioRef.current.src = '';
+            } catch (_) {}
+            fallbackAudioRef.current = null;
+        }
+
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+            try {
+                window.speechSynthesis.cancel();
+            } catch (_) {}
+        }
+
         if (animFrameRef.current) {
             cancelAnimationFrame(animFrameRef.current);
             animFrameRef.current = null;
@@ -439,6 +454,22 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
     const endCall = useCallback(async () => {
         closingRef.current = true;
         setCallState('ended');
+
+        // Immediately silence any playing audio
+        if (playerRef.current) {
+            try { playerRef.current.interrupt(); } catch (_) {}
+        }
+        if (fallbackAudioRef.current) {
+            try {
+                fallbackAudioRef.current.pause();
+                fallbackAudioRef.current.currentTime = 0;
+                fallbackAudioRef.current.src = '';
+            } catch (_) {}
+            fallbackAudioRef.current = null;
+        }
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+            try { window.speechSynthesis.cancel(); } catch (_) {}
+        }
 
         // Play phone disconnect tone & vibration
         try {
@@ -736,93 +767,34 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
         scriptNode.connect(micCtx.destination);
     };
 
-    // Speak text via backend TTS (Google / Gemini Aoede) with automatic Web Speech API safety net
+    // Speak text via backend Gemini Aoede / selected voice WAV (used in Fallback Voice Mode)
     const speakFallbackTts = useCallback(async (text, lang = 'gu') => {
         if (!text || closingRef.current) return;
         setIsAiSpeaking(true);
-
-        const tryWebSpeech = (speechText, langCode) => {
-            return new Promise((resolve) => {
-                if (typeof window === 'undefined' || !window.speechSynthesis) {
-                    setIsAiSpeaking(false);
-                    return resolve();
-                }
-                try {
-                    window.speechSynthesis.cancel();
-                    const clean = speechText.replace(/[*_#`]/g, '').trim();
-                    const utterance = new SpeechSynthesisUtterance(clean);
-                    utterance.lang = langCode === 'gu' ? 'gu-IN' : (langCode === 'hi' ? 'hi-IN' : 'en-IN');
-                    utterance.rate = 0.95;
-                    utterance.pitch = 1.0;
-
-                    const voices = window.speechSynthesis.getVoices() || [];
-                    const voice = voices.find(v => v.lang.startsWith(utterance.lang) || v.lang.includes('gu'))
-                        || voices.find(v => v.lang.includes('hi') || v.lang.includes('IN'))
-                        || null;
-                    if (voice) {
-                        utterance.voice = voice;
-                    }
-
-                    utterance.onend = () => {
-                        setIsAiSpeaking(false);
-                        resolve();
-                    };
-                    utterance.onerror = () => {
-                        setIsAiSpeaking(false);
-                        resolve();
-                    };
-
-                    window.speechSynthesis.speak(utterance);
-                } catch (_) {
-                    setIsAiSpeaking(false);
-                    resolve();
-                }
-            });
-        };
-
         try {
             const voiceParam = encodeURIComponent(selectedVoice || 'Aoede');
             const ttsUrl = `${getApiBaseUrl().base}voice-agent/tts?text=${encodeURIComponent(text)}&language=${encodeURIComponent(lang)}&voice=${voiceParam}`;
-            
             await new Promise((resolve) => {
-                let resolved = false;
-                const finish = () => {
-                    if (!resolved) {
-                        resolved = true;
-                        setIsAiSpeaking(false);
-                        resolve();
-                    }
-                };
-
-                const fallbackToWebSpeech = () => {
-                    if (!resolved) {
-                        resolved = true;
-                        tryWebSpeech(text, lang).then(resolve);
-                    }
-                };
-
-                const audio = new Audio();
-                fallbackAudioRef.current = audio;
-                audio.crossOrigin = 'anonymous';
-                audio.src = ttsUrl;
-                
-                audio.onended = finish;
-                audio.onerror = () => {
-                    console.warn('[VoiceAgent] Remote TTS audio failed to load, triggering browser SpeechSynthesis');
-                    fallbackToWebSpeech();
-                };
-
-                const playPromise = audio.play();
-                if (playPromise !== undefined) {
-                    playPromise.catch((err) => {
-                        console.warn('[VoiceAgent] Remote TTS audio playback failed:', err);
-                        fallbackToWebSpeech();
-                    });
+                if (closingRef.current) {
+                    setIsAiSpeaking(false);
+                    return resolve();
                 }
+                const audio = new Audio(ttsUrl);
+                fallbackAudioRef.current = audio;
+                audio.onended = () => {
+                    setIsAiSpeaking(false);
+                    resolve();
+                };
+                audio.onerror = () => {
+                    setIsAiSpeaking(false);
+                    resolve();
+                };
+                audio.play().catch(() => {
+                    setIsAiSpeaking(false);
+                    resolve();
+                });
             });
         } catch (_) {
-            await tryWebSpeech(text, lang);
-        } finally {
             setIsAiSpeaking(false);
         }
     }, [selectedVoice]);
@@ -992,14 +964,6 @@ export default function VoiceCallModal({ isOpen, onClose, user, activeCompany, l
                     });
                 } catch (_) {}
             }
-
-            // Guaranteed Voice Greeting: If Live audio stream does not start speaking within 2.5s, speak greeting directly via TTS
-            setTimeout(() => {
-                if (!closingRef.current && !isAiSpeakingRef.current && hasConnectedRef.current) {
-                    console.log('[VoiceAgent] Ensuring voice output via direct greeting TTS');
-                    speakFallbackTts(defaultGreeting, 'gu');
-                }
-            }, 2500);
         }
     };
 

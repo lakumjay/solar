@@ -585,19 +585,7 @@ class VoiceAgentController extends Controller
             ]);
         }
 
-        // 4. Fallback: Google Public Audio Engine with sentence chunking (100% reliable Gujarati audio, no quota limits)
-        $googleMp3Bytes = $this->synthesizeGoogleTtsMp3($cleanText, $language);
-        if ($googleMp3Bytes !== null && strlen($googleMp3Bytes) > 500) {
-            @file_put_contents($cachedMp3File, $googleMp3Bytes);
-            return response($googleMp3Bytes, 200, [
-                'Content-Type' => 'audio/mpeg',
-                'Content-Disposition' => 'inline; filename="solar_voice.mp3"',
-                'Cache-Control' => 'public, max-age=86400',
-                'Access-Control-Allow-Origin' => '*',
-            ]);
-        }
-
-        // 5. Secondary Neural Studio Female Voice via sneha_tts.py (Edge Neural Dhwani / Swara)
+        // 4. Secondary Neural Studio Female Voice via sneha_tts.py (Edge Neural Dhwani / Swara)
         $scriptPath = base_path('scripts/sneha_tts.py');
         if (file_exists($scriptPath)) {
             $escapedText = escapeshellarg($cleanText);
@@ -617,82 +605,6 @@ class VoiceAgentController extends Controller
         }
 
         return response()->json(['error' => 'TTS synthesis unavailable'], 503);
-    }
-
-    /**
-     * Resilient high-quality Gujarati/Hindi TTS via Google Public Audio Engine with sentence chunking
-     */
-    public function synthesizeGoogleTtsMp3(string $text, string $language = 'gu'): ?string
-    {
-        $tl = in_array(strtolower($language), ['gu', 'hi', 'en', 'mr', 'ta']) ? strtolower($language) : 'gu';
-        $clean = trim(preg_replace('/[\r\n\t]+/', ' ', strip_tags($text)));
-        if (empty($clean)) {
-            $clean = 'નમસ્તે';
-        }
-
-        // Split text into chunks of at most 130 chars at punctuation or spaces to stay within URL safety
-        $chunks = [];
-        $sentences = preg_split('/(?<=[.!?,;।\n])\s+/u', $clean, -1, PREG_SPLIT_NO_EMPTY);
-        if (empty($sentences)) {
-            $sentences = [$clean];
-        }
-
-        $current = '';
-        foreach ($sentences as $s) {
-            $s = trim($s);
-            if (empty($s)) continue;
-            if (mb_strlen($current . ' ' . $s) < 130) {
-                $current = empty($current) ? $s : ($current . ' ' . $s);
-            } else {
-                if (!empty($current)) {
-                    $chunks[] = $current;
-                }
-                if (mb_strlen($s) >= 130) {
-                    $words = explode(' ', $s);
-                    $wChunk = '';
-                    foreach ($words as $w) {
-                        if (mb_strlen($wChunk . ' ' . $w) < 130) {
-                            $wChunk = empty($wChunk) ? $w : ($wChunk . ' ' . $w);
-                        } else {
-                            if (!empty($wChunk)) $chunks[] = $wChunk;
-                            $wChunk = $w;
-                        }
-                    }
-                    if (!empty($wChunk)) $chunks[] = $wChunk;
-                    $current = '';
-                } else {
-                    $current = $s;
-                }
-            }
-        }
-        if (!empty($current)) {
-            $chunks[] = $current;
-        }
-
-        if (empty($chunks)) {
-            $chunks = [$clean];
-        }
-
-        $combinedMp3 = '';
-        foreach ($chunks as $chunk) {
-            $chunk = trim($chunk);
-            if (empty($chunk)) continue;
-            $url = 'https://translate.google.com/translate_tts?ie=UTF-8&tl=' . urlencode($tl) . '&client=tw-ob&q=' . urlencode($chunk);
-            try {
-                $res = Http::timeout(6)->withHeaders([
-                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Referer' => 'https://translate.google.com/',
-                ])->get($url);
-
-                if ($res->successful() && strlen($res->body()) > 300) {
-                    $combinedMp3 .= $res->body();
-                }
-            } catch (\Throwable $e) {
-                Log::warning('Google TTS chunk failed: ' . $e->getMessage());
-            }
-        }
-
-        return strlen($combinedMp3) > 500 ? $combinedMp3 : null;
     }
 
     /**
