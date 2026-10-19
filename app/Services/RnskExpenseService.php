@@ -108,7 +108,7 @@ class RnskExpenseService
                 ]);
 
                 $percentages = $this->resolveExpensePercentages($data, $companies);
-                $this->replaceAllocations($expense, (float) $data['amount'], $percentages, $data['payers'] ?? []);
+                $this->replaceAllocations($expense, (float) $data['amount'], $percentages, $data['payers'] ?? [], $data['payer_mode'] ?? '');
                 $this->activity->log($actor, null, 'created', 'rnsk_expense', $expense->id, "RNSK expense {$expense->description} created", ['amount' => (float) $expense->amount]);
 
                 return $expense->load(['payerCompany:id,name', 'allocations.company:id,name', 'creator:id,name']);
@@ -148,7 +148,7 @@ class RnskExpenseService
                         'company_id' => $allocation->rnsk_company_id,
                         'percentage' => (float) $allocation->percentage,
                     ]);
-                $this->replaceAllocations($expense, (float) $expense->amount, $percentages, $data['payers'] ?? []);
+                $this->replaceAllocations($expense, (float) $expense->amount, $percentages, $data['payers'] ?? [], $data['payer_mode'] ?? '');
                 $this->activity->log($actor, null, 'updated', 'rnsk_expense', $expense->id, "RNSK expense {$expense->description} updated", ['amount' => (float) $expense->amount]);
 
                 return $expense->fresh()->load(['payerCompany:id,name', 'allocations.company:id,name', 'creator:id,name']);
@@ -309,16 +309,24 @@ class RnskExpenseService
         ];
     }
 
-    private function replaceAllocations(RnskExpense $expense, float $amount, Collection $percentages, array $payers = []): void
+    private function replaceAllocations(RnskExpense $expense, float $amount, Collection $percentages, array $payers = [], string $payerMode = ''): void
     {
         $expense->allocations()->delete();
         $payerMap = collect($payers)->pluck('amount_paid', 'company_id')->all();
         $allocated = $this->allocate($amount, $percentages);
 
+        $isAllShares = $payerMode === 'all_shares' || (
+            ! empty($payerMap)
+            && count($payerMap) === count($allocated)
+            && collect($allocated)->every(fn ($row) => abs((float) ($payerMap[$row['company_id']] ?? 0) - (float) $row['share_amount']) < 0.05)
+        );
+
         foreach ($allocated as $row) {
             $companyId = (int) $row['company_id'];
             $amountPaid = 0.0;
-            if (! empty($payerMap)) {
+            if ($isAllShares) {
+                $amountPaid = (float) $row['share_amount'];
+            } elseif (! empty($payerMap)) {
                 $amountPaid = (float) ($payerMap[$companyId] ?? 0);
             } else {
                 $amountPaid = $companyId === (int) $expense->payer_company_id ? $amount : 0.0;
@@ -334,7 +342,7 @@ class RnskExpenseService
         }
 
         // Also ensure any paying company that paid money is recorded
-        if (! empty($payerMap)) {
+        if (! $isAllShares && ! empty($payerMap)) {
             foreach ($payerMap as $cid => $paid) {
                 if ((float) $paid > 0 && ! collect($allocated)->contains('company_id', (int) $cid)) {
                     RnskExpenseAllocation::create([
@@ -346,7 +354,7 @@ class RnskExpenseService
                     ]);
                 }
             }
-        } elseif ((int) $expense->payer_company_id && ! collect($allocated)->contains('company_id', (int) $expense->payer_company_id)) {
+        } elseif (! $isAllShares && (int) $expense->payer_company_id && ! collect($allocated)->contains('company_id', (int) $expense->payer_company_id)) {
             RnskExpenseAllocation::create([
                 'rnsk_expense_id' => $expense->id,
                 'rnsk_company_id' => (int) $expense->payer_company_id,
@@ -370,21 +378,25 @@ class RnskExpenseService
         }
 
         if ($scope === 'two' && $beneficiaryIds->count() >= 2) {
-            $selected = $companies->whereIn('id', $beneficiaryIds->take(2)->all());
+            $selected = $companies->whereIn('id', $beneficiaryIds->all());
             $sumMaster = (float) $selected->sum('expense_percentage');
             if ($sumMaster > 0) {
-                $pct1 = round(((float) $selected->first()->expense_percentage / $sumMaster) * 100, 2);
-                $pct2 = round(100 - $pct1, 2);
-
-                return collect([
-                    ['company_id' => $selected->first()->id, 'percentage' => $pct1],
-                    ['company_id' => $selected->last()->id, 'percentage' => $pct2],
-                ]);
+                $runningSum = 0;
+                $count = $selected->count();
+                return $selected->values()->map(function (RnskCompany $c, int $idx) use ($sumMaster, &$runningSum, $count) {
+                    if ($idx === $count - 1) {
+                        return ['company_id' => $c->id, 'percentage' => round(100 - $runningSum, 2)];
+                    }
+                    $pct = round(((float) $c->expense_percentage / $sumMaster) * 100, 2);
+                    $runningSum += $pct;
+                    return ['company_id' => $c->id, 'percentage' => $pct];
+                });
             }
 
-            return collect([
-                ['company_id' => $selected->first()->id, 'percentage' => 50.0],
-                ['company_id' => $selected->last()->id, 'percentage' => 50.0],
+            $splitPct = round(100 / $selected->count(), 2);
+            return $selected->values()->map(fn (RnskCompany $c, int $idx) => [
+                'company_id' => $c->id,
+                'percentage' => $idx === $selected->count() - 1 ? round(100 - ($splitPct * ($selected->count() - 1)), 2) : $splitPct,
             ]);
         }
 
@@ -444,14 +456,46 @@ class RnskExpenseService
     {
         $companies = RnskCompany::all(['id', 'name'])->keyBy('id');
         $balances = [];
+
         foreach ($expenses as $expense) {
+            $debtors = [];
+            $creditors = [];
+
+            $totalPaid = (float) $expense->allocations->sum('amount_paid');
+            $legacySinglePayer = $totalPaid <= 0.001 && (float) $expense->amount > 0;
+
             foreach ($expense->allocations as $allocation) {
-                if ($allocation->rnsk_company_id === $expense->payer_company_id || abs((float) $allocation->share_amount) < 0.0001) {
-                    continue;
+                $paidCents = $legacySinglePayer
+                    ? (($allocation->rnsk_company_id === (int) $expense->payer_company_id) ? $this->moneyCents($expense->amount) : 0)
+                    : $this->moneyCents($allocation->amount_paid ?? 0);
+
+                $shareCents = $this->moneyCents($allocation->share_amount ?? 0);
+                $netCents = $paidCents - $shareCents;
+
+                if ($netCents < 0) {
+                    $debtors[$allocation->rnsk_company_id] = abs($netCents);
+                } elseif ($netCents > 0) {
+                    $creditors[$allocation->rnsk_company_id] = $netCents;
                 }
-                $this->applyPairAmount($balances, $allocation->rnsk_company_id, $expense->payer_company_id, $this->moneyCents($allocation->share_amount));
+            }
+
+            foreach ($debtors as $debtorId => &$debtorOwes) {
+                foreach ($creditors as $creditorId => &$creditorGets) {
+                    if ($debtorOwes <= 0) {
+                        break;
+                    }
+                    if ($creditorGets <= 0) {
+                        continue;
+                    }
+
+                    $matchCents = min($debtorOwes, $creditorGets);
+                    $this->applyPairAmount($balances, $debtorId, $creditorId, $matchCents);
+                    $debtorOwes -= $matchCents;
+                    $creditorGets -= $matchCents;
+                }
             }
         }
+
         foreach ($settlements as $settlement) {
             $this->applyPairAmount($balances, $settlement->from_company_id, $settlement->to_company_id, -$this->moneyCents($settlement->amount));
         }
@@ -493,17 +537,44 @@ class RnskExpenseService
     {
         $events = collect();
         foreach ($expenses as $expense) {
+            $debtors = [];
+            $creditors = [];
+
+            $totalPaid = (float) $expense->allocations->sum('amount_paid');
+            $legacySinglePayer = $totalPaid <= 0.001 && (float) $expense->amount > 0;
+
             foreach ($expense->allocations as $allocation) {
-                if ($allocation->rnsk_company_id !== $expense->payer_company_id && abs((float) $allocation->share_amount) > 0.0001) {
+                $paidCents = $legacySinglePayer
+                    ? (($allocation->rnsk_company_id === (int) $expense->payer_company_id) ? $this->moneyCents($expense->amount) : 0)
+                    : $this->moneyCents($allocation->amount_paid ?? 0);
+
+                $shareCents = $this->moneyCents($allocation->share_amount ?? 0);
+                $netCents = $paidCents - $shareCents;
+
+                if ($netCents < 0) {
+                    $debtors[$allocation->rnsk_company_id] = abs($netCents);
+                } elseif ($netCents > 0) {
+                    $creditors[$allocation->rnsk_company_id] = $netCents;
+                }
+            }
+
+            foreach ($debtors as $debtorId => &$debtorOwes) {
+                foreach ($creditors as $creditorId => &$creditorGets) {
+                    if ($debtorOwes <= 0) break;
+                    if ($creditorGets <= 0) continue;
+
+                    $matchCents = min($debtorOwes, $creditorGets);
                     $events->push([
                         'date' => $expense->expense_date->toDateString(),
                         'created_at' => $expense->created_at?->format('Y-m-d H:i:s.u') ?? '',
                         'type' => 'expense',
                         'id' => $expense->id,
-                        'from' => $allocation->rnsk_company_id,
-                        'to' => $expense->payer_company_id,
-                        'cents' => $this->moneyCents($allocation->share_amount),
+                        'from' => $debtorId,
+                        'to' => $creditorId,
+                        'cents' => $matchCents,
                     ]);
+                    $debtorOwes -= $matchCents;
+                    $creditorGets -= $matchCents;
                 }
             }
         }
@@ -543,6 +614,11 @@ class RnskExpenseService
 
     private function expensePayload(RnskExpense $expense, User $user): array
     {
+        $hasPaidAmounts = $expense->allocations->contains(fn ($a) => (float) $a->amount_paid > 0);
+        $isAllSettled = $expense->allocations->isNotEmpty()
+            && $hasPaidAmounts
+            && $expense->allocations->every(fn ($a) => abs((float) $a->amount_paid - (float) $a->share_amount) < 0.01);
+
         return [
             'type' => 'expense',
             'id' => $expense->id,
@@ -554,12 +630,14 @@ class RnskExpenseService
             'status' => $expense->status,
             'entry_type' => $expense->entry_type,
             'payer_company' => $expense->payerCompany,
+            'is_all_settled' => $isAllSettled,
             'allocations' => $expense->allocations->map(fn (RnskExpenseAllocation $allocation) => [
                 'id' => $allocation->id,
                 'company' => $allocation->company,
                 'percentage' => (float) $allocation->percentage,
                 'amount' => (float) $allocation->share_amount,
                 'amount_paid' => (float) $allocation->amount_paid,
+                'net_effect' => round((float) $allocation->amount_paid - (float) $allocation->share_amount, 2),
             ])->values()->all(),
             'has_receipt' => (bool) $expense->receipt_path,
             'can_view_receipt' => true,
@@ -664,9 +742,17 @@ class RnskExpenseService
     {
         $activeCompanies = RnskCompany::where('active', true)->orderBy('id')->get();
         $totalSpent = (float) $expenses->sum('amount');
-
         $companyBreakdown = $activeCompanies->map(function (RnskCompany $company) use ($expenses, $pairs, $totalSpent, $userCompanyId) {
-            $paid = (float) $expenses->where('payer_company_id', $company->id)->sum('amount');
+            $paid = (float) $expenses->sum(function (RnskExpense $exp) use ($company) {
+                $alloc = $exp->allocations->firstWhere('rnsk_company_id', $company->id);
+                if ($alloc && (float) $alloc->amount_paid > 0) {
+                    return (float) $alloc->amount_paid;
+                }
+                if ($exp->allocations->sum('amount_paid') <= 0 && (int) $exp->payer_company_id === (int) $company->id) {
+                    return (float) $exp->amount;
+                }
+                return 0.0;
+            });
             $pct = (float) $company->expense_percentage;
             $fairShare = round($totalSpent * ($pct / 100.0), 2);
             $receivable = (float) $pairs->where('creditor_company_id', $company->id)->where('status', 'open')->sum('amount');

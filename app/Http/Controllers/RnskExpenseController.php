@@ -69,6 +69,7 @@ class RnskExpenseController extends Controller
             'payers' => ['nullable', 'array'],
             'payers.*.company_id' => ['required_with:payers', 'integer'],
             'payers.*.amount_paid' => ['required_with:payers', 'numeric', 'min:0'],
+            'payer_mode' => ['nullable', 'string', 'in:all_shares,single,multiple'],
         ]);
 
         $expense = $this->expenses->createExpense(
@@ -98,6 +99,7 @@ class RnskExpenseController extends Controller
             'payers' => ['nullable', 'array'],
             'payers.*.company_id' => ['required_with:payers', 'integer'],
             'payers.*.amount_paid' => ['required_with:payers', 'numeric', 'min:0'],
+            'payer_mode' => ['nullable', 'string', 'in:all_shares,single,multiple'],
         ]);
 
         $updated = $this->expenses->updateExpense(

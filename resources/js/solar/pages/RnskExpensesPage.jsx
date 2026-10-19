@@ -808,13 +808,25 @@ function RnskExpenseCard({entry, canManage, onEdit, onCancel, onReverse, current
         );
     }
 
+    const isAllSettled = entry.is_all_settled || (
+        (entry.allocations?.length || 0) > 1 &&
+        entry.allocations.every(a => {
+            const net = a.net_effect ?? ((a.amount_paid || 0) - a.amount);
+            return Math.abs(net) < 0.01 && (a.amount_paid || 0) > 0;
+        })
+    );
+
+    const paidByText = isAllSettled
+        ? (currentLang === 'en' ? 'All Companies (Paid % Share - Settled)' : 'બધી કંપનીઓએ પોતપોતાનો % ચૂકવ્યો (સરભર)')
+        : (entry.payer_company?.name || '—');
+
     return (
         <div className="expense-entry-card">
             <div className="eec-header">
                 <div>
                     <b className="eec-title">{entry.description}</b>
                     <small className="eec-sub">
-                        {entry.purchaser_name} · <span style={{color: '#0f766e', fontWeight: 600}}>Paid by: {entry.payer_company?.name || '—'}</span>
+                        {entry.purchaser_name} · <span style={{color: isAllSettled ? '#047857' : '#0f766e', fontWeight: 700}}>Paid by: {paidByText}</span>
                     </small>
                 </div>
                 <div className="eec-amount">₹{number(entry.amount)}</div>
@@ -824,17 +836,18 @@ function RnskExpenseCard({entry, canManage, onEdit, onCancel, onReverse, current
             <div className="eec-allocations-grid">
                 {(entry.allocations || []).map(row => {
                     const net = row.net_effect ?? ((row.amount_paid || 0) - row.amount);
-                    const netText = net > 0.001
-                        ? (currentLang === 'en' ? `+₹${number(net)} Rec` : `+₹${number(net)} લેવાના`)
-                        : net < -0.001
-                            ? (currentLang === 'en' ? `-₹${number(Math.abs(net))} Pay` : `-₹${number(Math.abs(net))} દેવાના`)
-                            : (currentLang === 'en' ? 'Settled' : 'સરભર');
-                    const netColor = net > 0.001 ? '#15803d' : net < -0.001 ? '#b91c1c' : '#64748b';
+                    const isZeroNet = Math.abs(net) < 0.01;
+                    const netText = isZeroNet
+                        ? (currentLang === 'en' ? '✓ Settled (0 Due)' : '✓ સરભર (0 બાકી)')
+                        : net > 0.001
+                            ? (currentLang === 'en' ? `+₹${number(net)} Rec` : `+₹${number(net)} લેવાના`)
+                            : (currentLang === 'en' ? `-₹${number(Math.abs(net))} Pay` : `-₹${number(Math.abs(net))} દેવાના`);
+                    const netColor = isZeroNet ? '#059669' : net > 0.001 ? '#15803d' : '#b91c1c';
 
                     return (
-                        <div key={row.company?.id || row.company_id} className="eec-alloc-chip">
+                        <div key={row.company?.id || row.company_id} className="eec-alloc-chip" style={isZeroNet ? {background: '#f0fdf4', borderColor: '#bbf7d0'} : {}}>
                             <span><b>{row.company?.name || row.company_name}</b> {number(row.percentage)}%</span>
-                            <small style={{color: netColor, fontWeight: 700}}>₹{number(row.amount)} ({netText})</small>
+                            <small style={{color: netColor, fontWeight: 750}}>₹{number(row.amount)} ({netText})</small>
                         </div>
                     );
                 })}
@@ -896,12 +909,24 @@ function RnskLedgerRow({entry, canManage, onEdit, onCancel, onReverse, currentLa
         );
     }
 
+    const isAllSettled = entry.is_all_settled || (
+        (entry.allocations?.length || 0) > 1 &&
+        entry.allocations.every(a => {
+            const net = a.net_effect ?? ((a.amount_paid || 0) - a.amount);
+            return Math.abs(net) < 0.01 && (a.amount_paid || 0) > 0;
+        })
+    );
+
+    const paidByText = isAllSettled
+        ? (currentLang === 'en' ? 'All Companies (Paid % Share - Settled)' : 'બધી કંપનીઓએ પોતપોતાનો % ચૂકવ્યો (સરભર)')
+        : (entry.payer_company?.name || '—');
+
     return (
         <tr>
             <td>
                 <b>{entry.description}</b>
                 <small>
-                    {entry.purchaser_name} · <span style={{color: '#0f766e', fontWeight: 600}}>Paid by: {entry.payer_company?.name || '—'}</span>
+                    {entry.purchaser_name} · <span style={{color: isAllSettled ? '#047857' : '#0f766e', fontWeight: 700}}>Paid by: {paidByText}</span>
                     {entry.notes ? ` · ${entry.notes}` : ''}
                 </small>
             </td>
@@ -909,12 +934,13 @@ function RnskLedgerRow({entry, canManage, onEdit, onCancel, onReverse, currentLa
                 <div className="allocation-list">
                     {(entry.allocations || []).map(row => {
                         const net = row.net_effect ?? ((row.amount_paid || 0) - row.amount);
-                        const netText = net > 0.001
-                            ? (currentLang === 'en' ? `(+₹${number(net)} Receivable)` : `(+₹${number(net)} લેવાના)`)
-                            : net < -0.001
-                                ? (currentLang === 'en' ? `(-₹${number(Math.abs(net))} Payable)` : `(-₹${number(Math.abs(net))} દેવાના)`)
-                                : (currentLang === 'en' ? '(Settled)' : '(સરભર)');
-                        const netColor = net > 0.001 ? '#15803d' : net < -0.001 ? '#b91c1c' : '#64748b';
+                        const isZeroNet = Math.abs(net) < 0.01;
+                        const netText = isZeroNet
+                            ? (currentLang === 'en' ? '(✓ Settled - 0 Due)' : '(✓ સરભર - 0 બાકી)')
+                            : net > 0.001
+                                ? (currentLang === 'en' ? `(+₹${number(net)} Receivable)` : `(+₹${number(net)} લેવાના)`)
+                                : (currentLang === 'en' ? `(-₹${number(Math.abs(net))} Payable)` : `(-₹${number(Math.abs(net))} દેવાના)`);
+                        const netColor = isZeroNet ? '#059669' : net > 0.001 ? '#15803d' : '#b91c1c';
 
                         return (
                             <span key={row.company?.id || row.company_id}>
@@ -997,9 +1023,18 @@ function RnskExpenseModal({entry, companies, onClose, onSaved, currentLang}) {
         return String(activeCompanies[0]?.id || '');
     });
 
-    // Payer mode: 'single' | 'multiple'
+    // Payer mode: 'all_shares' (default & clear) | 'single' | 'multiple'
     const [payerMode, setPayerMode] = useState(() => {
-        return (entry?.payers && entry.payers.length > 1) ? 'multiple' : 'single';
+        if (!entry) return 'all_shares';
+        if (entry.is_all_settled) return 'all_shares';
+        if (entry.payers && entry.payers.length > 1) {
+            const allMatch = entry.payers.every(p => {
+                const a = entry.allocations?.find(x => (x.company?.id || x.company_id) === (p.company_id || p.company?.id));
+                return a && Math.abs((Number(p.amount_paid) || 0) - (Number(a.amount) || 0)) < 0.05;
+            });
+            return allMatch ? 'all_shares' : 'multiple';
+        }
+        return entry.payer_company ? 'single' : 'all_shares';
     });
 
     const [singlePayerId, setSinglePayerId] = useState(() => {
@@ -1019,7 +1054,7 @@ function RnskExpenseModal({entry, companies, onClose, onSaved, currentLang}) {
         if (entry?.payers && entry.payers.length > 0) {
             return entry.payers.map(p => p.company_id || p.company?.id);
         }
-        return [activeCompanies[0]?.id].filter(Boolean);
+        return activeCompanies.map(c => c.id);
     });
 
     const [busy, setBusy] = useState(false);
@@ -1066,6 +1101,17 @@ function RnskExpenseModal({entry, companies, onClose, onSaved, currentLang}) {
         });
     };
 
+    const handleFillOwnShares = (allocationsList) => {
+        setSelectedPayers(activeCompanies.map(c => c.id));
+        setPayerAmounts(() => {
+            const next = {};
+            (allocationsList || []).forEach(r => {
+                next[r.id] = String(r.shareAmount);
+            });
+            return next;
+        });
+    };
+
     // Live preview of dynamic % split
     const previewAllocations = useMemo(() => {
         if (allocationScope === 'single') {
@@ -1099,7 +1145,12 @@ function RnskExpenseModal({entry, companies, onClose, onSaved, currentLang}) {
 
     const previewPaidMap = useMemo(() => {
         const map = {};
-        if (payerMode === 'single') {
+        if (payerMode === 'all_shares') {
+            activeCompanies.forEach(c => {
+                const alloc = previewAllocations.find(r => r.id === c.id);
+                map[c.id] = alloc ? alloc.shareAmount : 0;
+            });
+        } else if (payerMode === 'single') {
             const pid = Number(singlePayerId);
             activeCompanies.forEach(c => { map[c.id] = c.id === pid ? parsedAmount : 0; });
         } else {
@@ -1108,7 +1159,7 @@ function RnskExpenseModal({entry, companies, onClose, onSaved, currentLang}) {
             });
         }
         return map;
-    }, [payerMode, singlePayerId, payerAmounts, selectedPayers, activeCompanies, parsedAmount]);
+    }, [payerMode, singlePayerId, payerAmounts, selectedPayers, activeCompanies, parsedAmount, previewAllocations]);
 
     const totalPaidSum = Object.values(previewPaidMap).reduce((s, v) => s + v, 0);
     const paidDiff = Number((parsedAmount - totalPaidSum).toFixed(2));
@@ -1117,7 +1168,7 @@ function RnskExpenseModal({entry, companies, onClose, onSaved, currentLang}) {
     // Step validations
     const step1Valid = expenseDate && purchaserName.trim() && description.trim() && parsedAmount > 0;
     const step2Valid = allocationScope === 'single' ? Boolean(singleBeneficiaryId) : allocationScope === 'two' ? selectedBeneficiaries.length >= 2 : true;
-    const step3Valid = payerMode === 'single' ? Boolean(singlePayerId) : isPaidValid;
+    const step3Valid = payerMode === 'all_shares' ? true : payerMode === 'single' ? Boolean(singlePayerId) : isPaidValid;
 
     const scopeLabel = allocationScope === 'single'
         ? (currentLang === 'en' ? '1 Company (100% Direct)' : '૧ કંપની (100% Direct)')
@@ -1125,9 +1176,11 @@ function RnskExpenseModal({entry, companies, onClose, onSaved, currentLang}) {
             ? (currentLang === 'en' ? `${selectedBeneficiaries.length} Companies Selected` : `${selectedBeneficiaries.length} પસંદ કરેલ કંપનીઓ`)
             : (currentLang === 'en' ? `All ${activeCompanies.length} Companies (Master %)` : `બધી ${activeCompanies.length} કંપનીઓ (ડાયનેમિક %)`);
 
-    const payerLabel = payerMode === 'single'
-        ? activeCompanies.find(c => String(c.id) === String(singlePayerId))?.name || '—'
-        : (currentLang === 'en' ? `${selectedPayers.length} Companies Split` : `${selectedPayers.length} કંપનીઓ વચ્ચે ચૂકવણી`);
+    const payerLabel = payerMode === 'all_shares'
+        ? (currentLang === 'en' ? 'All Companies (% Paid Own Share - Settled)' : 'બધી કંપનીઓએ પોતપોતાનો % ચૂકવ્યો (સરભર)')
+        : payerMode === 'single'
+            ? activeCompanies.find(c => String(c.id) === String(singlePayerId))?.name || '—'
+            : (currentLang === 'en' ? `${selectedPayers.length} Companies Split` : `${selectedPayers.length} કંપનીઓ વચ્ચે ચૂકવણી`);
 
     const handleReceiptChange = async (e) => {
         const file = e.target.files?.[0];
@@ -1170,8 +1223,16 @@ function RnskExpenseModal({entry, companies, onClose, onSaved, currentLang}) {
             activeCompanies.forEach(c => fd.append('beneficiary_company_ids[]', String(c.id)));
         }
 
+        fd.append('payer_mode', payerMode);
         if (payerMode === 'single') {
             fd.append('payer_company_id', singlePayerId);
+        } else if (payerMode === 'all_shares') {
+            fd.append('payer_company_id', String(activeCompanies[0]?.id || 1));
+            const activeShareRows = previewAllocations.filter(r => r.shareAmount > 0);
+            activeShareRows.forEach((row, index) => {
+                fd.append(`payers[${index}][company_id]`, String(row.id));
+                fd.append(`payers[${index}][amount_paid]`, String(row.shareAmount));
+            });
         } else {
             fd.append('payer_company_id', String(selectedPayers[0] || singlePayerId));
             selectedPayers.forEach((cid, index) => {
@@ -1257,7 +1318,7 @@ function RnskExpenseModal({entry, companies, onClose, onSaved, currentLang}) {
                             <Field label={currentLang === 'en' ? 'Purchased By' : 'ખર્ચ કરનાર વ્યક્તિ (Purchased By)'}>
                                 <input
                                     type="text"
-                                    placeholder="e.g. Rahul Patel / Jayeshbhai"
+                                    placeholder={currentLang === 'en' ? 'Purchaser name' : 'ખર્ચ કરનારનું નામ'}
                                     value={purchaserName}
                                     maxLength="150"
                                     onChange={e => setPurchaserName(e.target.value)}
@@ -1268,7 +1329,7 @@ function RnskExpenseModal({entry, companies, onClose, onSaved, currentLang}) {
                             <Field label={currentLang === 'en' ? 'Expense Description' : 'ખર્ચ વિગત (Description)'}>
                                 <input
                                     type="text"
-                                    placeholder="e.g. Structure material, Cable wire, Site breakfast..."
+                                    placeholder={currentLang === 'en' ? 'Expense description' : 'ખર્ચની વિગત'}
                                     value={description}
                                     maxLength="255"
                                     onChange={e => setDescription(e.target.value)}
@@ -1279,7 +1340,7 @@ function RnskExpenseModal({entry, companies, onClose, onSaved, currentLang}) {
                             <Field label={currentLang === 'en' ? 'Notes / Remarks (Optional)' : 'નોંધ / રીમાર્કસ (વિકલ્પિક)'}>
                                 <input
                                     type="text"
-                                    placeholder="e.g. Bill #402, paid via UPI reference..."
+                                    placeholder={currentLang === 'en' ? 'Notes / remarks' : 'નોંધ / રીમાર્કસ'}
                                     value={notes}
                                     onChange={e => setNotes(e.target.value)}
                                 />
@@ -1383,18 +1444,57 @@ function RnskExpenseModal({entry, companies, onClose, onSaved, currentLang}) {
                                 <b>{currentLang === 'en' ? 'Who Paid the Bill?' : 'પૈસા કોણે ચૂકવ્યા? (Who Paid the Bill?)'}</b>
                             </div>
 
-                            <div className="payer-mode-switch-group">
-                                <label className={`payer-mode-pill ${payerMode === 'single' ? 'active' : ''}`}>
-                                    <input type="radio" name="rnsk_payer_mode" checked={payerMode === 'single'} onChange={() => setPayerMode('single')}/>
-                                    <span>{currentLang === 'en' ? '1 Company' : '૧ કંપનીએ પૂરા આપ્યા'}</span>
+                            <div className="payer-mode-switch-group" style={{display: 'flex', width: '100%', marginBottom: '10px'}}>
+                                <label className={`payer-mode-pill ${payerMode === 'all_shares' ? 'active' : ''}`} style={{flex: 1, textAlign: 'center'}}>
+                                    <input type="radio" name="rnsk_payer_mode" checked={payerMode === 'all_shares'} onChange={() => setPayerMode('all_shares')}/>
+                                    <span>{currentLang === 'en' ? '⚡ All Paid % (Settled)' : '⚡ બધાએ પોતપોતાનો % ચૂકવ્યો (સરભર)'}</span>
                                 </label>
-                                <label className={`payer-mode-pill ${payerMode === 'multiple' ? 'active' : ''}`}>
-                                    <input type="radio" name="rnsk_payer_mode" checked={payerMode === 'multiple'} onChange={() => setPayerMode('multiple')}/>
-                                    <span>{currentLang === 'en' ? 'Two or more companies' : 'બે કે વધુ કંપનીઓએ વહેંચીને'}</span>
+                                <label className={`payer-mode-pill ${payerMode === 'single' ? 'active' : ''}`} style={{flex: 1, textAlign: 'center'}}>
+                                    <input type="radio" name="rnsk_payer_mode" checked={payerMode === 'single'} onChange={() => setPayerMode('single')}/>
+                                    <span>{currentLang === 'en' ? '1 Company Paid' : '૧ કંપનીએ પૂરા આપ્યા'}</span>
+                                </label>
+                                <label className={`payer-mode-pill ${payerMode === 'multiple' ? 'active' : ''}`} style={{flex: 1, textAlign: 'center'}}>
+                                    <input type="radio" name="rnsk_payer_mode" checked={payerMode === 'multiple'} onChange={() => {
+                                        setPayerMode('multiple');
+                                        handleFillOwnShares(previewAllocations);
+                                    }}/>
+                                    <span>{currentLang === 'en' ? 'Custom Split' : 'કસ્ટમ રકમ વહેંચો'}</span>
                                 </label>
                             </div>
 
-                            {payerMode === 'single' ? (
+                            {payerMode === 'all_shares' ? (
+                                <div className="all-shares-settled-panel" style={{background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: '10px', padding: '12px 14px'}}>
+                                    <div style={{display: 'flex', alignItems: 'center', gap: '8px', color: '#15803d', fontWeight: 800, fontSize: '13px', marginBottom: '6px'}}>
+                                        <CheckCircle2 size={17} style={{color: '#16a34a', flexShrink: 0}}/>
+                                        <span>{currentLang === 'en' ? 'All Companies Paid Their Respective Share Upfront' : 'બધી કંપનીઓએ પોતપોતાનો % હિસ્સો ચૂકવી દીધો'}</span>
+                                    </div>
+                                    <p style={{fontSize: '11px', color: '#166534', margin: '0 0 10px 0', lineHeight: 1.45}}>
+                                        {currentLang === 'en'
+                                            ? 'Every partner company pays their exact percentage share. All accounts are 100% settled with zero pending balance or debts between companies.'
+                                            : 'દરેક ભાગીદાર કંપનીએ નક્કી થયેલ ટકાવારી (% Share) મુજબ પોતાનો પૂરો હિસ્સો ચૂકવી દીધો છે. કોઈ પણ કંપની વચ્ચે કોઈ ઉધાર કે બાકી રકમ (0 Due / સરભર) રહેશે નહીં.'}
+                                    </p>
+
+                                    <div style={{display: 'flex', flexDirection: 'column', gap: '5px'}}>
+                                        {previewAllocations.filter(r => r.shareAmount > 0).map(r => (
+                                            <div key={r.id} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff', border: '1px solid #bbf7d0', borderRadius: '7px', padding: '6px 10px'}}>
+                                                <div>
+                                                    <b style={{color: '#0f172a', fontSize: '12px'}}>{r.name}</b>
+                                                    <span style={{fontSize: '11px', color: '#64748b', marginLeft: '6px'}}>({number(r.percentage)}%)</span>
+                                                </div>
+                                                <div style={{textAlign: 'right'}}>
+                                                    <b style={{color: '#15803d', fontSize: '12.5px'}}>₹{number(r.shareAmount)}</b>
+                                                    <small style={{display: 'block', fontSize: '10px', color: '#059669', fontWeight: 700}}>✓ સરભર (0 બાકી)</small>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div style={{marginTop: '10px', padding: '6px 10px', background: '#dcfce7', borderRadius: '7px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                                        <span style={{fontSize: '11.5px', fontWeight: 700, color: '#166534'}}>{currentLang === 'en' ? 'Total Settled Amount:' : 'કુલ ચૂકવાયેલ રકમ:'}</span>
+                                        <b style={{fontSize: '13px', color: '#14532d'}}>₹{number(parsedAmount)}</b>
+                                    </div>
+                                </div>
+                            ) : payerMode === 'single' ? (
                                 <div className="single-payer-wrap" style={{background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '9px', padding: '10px'}}>
                                     <span className="sub-panel-label" style={{fontSize: '11.5px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '8px'}}>
                                         {currentLang === 'en' ? 'Paying Company (ચૂકવનાર કંપની):' : 'ચૂકવનાર કંપની:'}
@@ -1405,13 +1505,18 @@ function RnskExpenseModal({entry, companies, onClose, onSaved, currentLang}) {
                                 </div>
                             ) : (
                                 <div className="multiple-payers-wrap">
-                                    <div className="split-action-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
+                                    <div className="split-action-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px'}}>
                                         <span className="sub-panel-label" style={{fontSize: '11.5px', fontWeight: 700, color: '#334155'}}>
                                             {currentLang === 'en' ? 'Enter amount paid by each company:' : 'દરેક કંપનીએ ચૂકવેલ રકમ દાખલ કરો:'}
                                         </span>
-                                        <button type="button" onClick={handleSplitEqually} className="quick-split-pill-btn" title="Divide equally">
-                                            <Split size={13}/> <span>⚡ Split Equally</span>
-                                        </button>
+                                        <div style={{display: 'inline-flex', gap: '6px'}}>
+                                            <button type="button" onClick={() => handleFillOwnShares(previewAllocations)} className="quick-split-pill-btn" title="Set by % Share">
+                                                <Zap size={13}/> <span>{currentLang === 'en' ? '⚡ Set by %' : '⚡ % મુજબ સેટ કરો'}</span>
+                                            </button>
+                                            <button type="button" onClick={handleSplitEqually} className="quick-split-pill-btn" title="Divide equally">
+                                                <Split size={13}/> <span>{currentLang === 'en' ? '⚡ Split Equally' : '⚡ સરખે ભાગે'}</span>
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div className="payers-grid-cards">
@@ -1968,7 +2073,7 @@ function RnskCompanyConfigModal({existingCompanies, currentLang, onClose, onSave
                                 <input
                                     type="text"
                                     className="rnsk-comp-name-input"
-                                    placeholder={currentLang === 'en' ? 'Company Name (e.g. Solar Tech LLP)' : 'કંપનીનું નામ (દા.ત. સોલાર ટેક)'}
+                                    placeholder={currentLang === 'en' ? 'Company Name' : 'કંપનીનું નામ'}
                                     value={comp.name}
                                     onChange={e => {
                                         const val = e.target.value;

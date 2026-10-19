@@ -272,7 +272,11 @@
                         @endif
                     </td>
                     <td>
-                        <b>{{ $entry['payer_company']['name'] ?? ($entry['from_company']['name'] ?? 'N/A') }}</b>
+                        @if(!empty($entry['is_all_settled']))
+                            <b style="color: #166534;">All Companies (Paid % Share - Settled / સરભર)</b>
+                        @else
+                            <b>{{ $entry['payer_company']['name'] ?? ($entry['from_company']['name'] ?? 'N/A') }}</b>
+                        @endif
                     </td>
                     <td class="text-right font-bold" style="color: {{ $entry['type'] === 'expense' ? '#0f172a' : '#166534' }}">
                         ₹{{ number_format($entry['amount'], 2) }}
@@ -282,6 +286,9 @@
                             @foreach($entry['allocations'] as $alloc)
                                 <div style="font-size: 7.5px;">
                                     {{ $alloc['company']['name'] ?? '' }}: ₹{{ number_format($alloc['amount'], 2) }} ({{ $alloc['percentage'] }}%)
+                                    @if(!empty($entry['is_all_settled']))
+                                        <span style="color: #166534; font-weight: bold;">[Settled / સરભર]</span>
+                                    @endif
                                 </div>
                             @endforeach
                         @elseif($entry['type'] === 'settlement')
