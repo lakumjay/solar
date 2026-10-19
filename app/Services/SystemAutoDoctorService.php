@@ -160,6 +160,10 @@ class SystemAutoDoctorService
                             $table->string('owner_photo_path')->nullable();
                         }
                     });
+                    $fixes[] = 'Added columns to companies: '.implode(', ', $missingCompCols);
+                }
+            }
+
             // 5. Ensure RNSK Expense tables exist
             if (! Schema::hasTable('rnsk_companies')) {
                 Schema::create('rnsk_companies', function (Blueprint $table) {
