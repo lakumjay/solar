@@ -11770,8 +11770,91 @@ h1, h2, h3, h4, strong {
   button, a, select {
     min-height: 42px;
   }
-  input:not(.login-input-core):not(.curtail-pct-input):not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
+  input:not(.login-input-core):not(.curtail-pct-input):not(.rnsk-date-input):not(.modern-date-input):not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
     min-height: 42px;
+  }
+}
+
+/* RNSK & Expense Toolbar Compact Responsive Mobile Styling */
+.rnsk-date-input {
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  padding: 6px 10px !important;
+  color: #0f172a !important;
+  background: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  outline: none !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.rnsk-date-input:focus {
+  border-color: #0f766e !important;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.12) !important;
+}
+
+.rnsk-company-select {
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  padding: 6px 10px !important;
+  color: #0f172a !important;
+  background: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  outline: none !important;
+  width: 100% !important;
+  cursor: pointer !important;
+  box-sizing: border-box !important;
+}
+
+.rnsk-company-select:focus {
+  border-color: #0f766e !important;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.12) !important;
+}
+
+@media (max-width: 680px) {
+  .expense-toolbar-main {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .date-input-group {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  .date-input-group .custom-date-box {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .date-input-group .company-filter-box {
+    grid-column: span 2 !important;
+  }
+  .date-input-group .apply-filter-btn {
+    grid-column: span 2 !important;
+    width: 100% !important;
+    height: 36px !important;
+    min-height: 36px !important;
+  }
+  .expense-toolbar-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  .expense-toolbar-actions .export-btn,
+  .expense-toolbar-actions .add-exp-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    font-size: 11.5px !important;
   }
 }
 
