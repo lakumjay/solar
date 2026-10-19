@@ -172,6 +172,17 @@ Route::prefix('api')->group(function () {
         Route::post('expenses/{expense}/reverse', [SharedExpenseController::class, 'reverse']);
         Route::post('expense-settlements', [SharedExpenseController::class, 'settle']);
         Route::get('expenses/{expense}/receipt', [SharedExpenseController::class, 'receipt'])->name('expenses.receipt');
+
+        // RNSK Expenses Isolated Routes
+        Route::get('rnsk-expenses', [\App\Http\Controllers\RnskExpenseController::class, 'index']);
+        Route::get('rnsk-expenses/export/pdf', [\App\Http\Controllers\RnskExpenseController::class, 'pdf']);
+        Route::post('rnsk-expense-percentages', [\App\Http\Controllers\RnskExpenseController::class, 'percentages']);
+        Route::post('rnsk-expenses', [\App\Http\Controllers\RnskExpenseController::class, 'store']);
+        Route::post('rnsk-expenses/{expense}', [\App\Http\Controllers\RnskExpenseController::class, 'update']);
+        Route::post('rnsk-expenses/{expense}/cancel', [\App\Http\Controllers\RnskExpenseController::class, 'cancel']);
+        Route::post('rnsk-expenses/{expense}/reverse', [\App\Http\Controllers\RnskExpenseController::class, 'reverse']);
+        Route::post('rnsk-expense-settlements', [\App\Http\Controllers\RnskExpenseController::class, 'settle']);
+        Route::get('rnsk-expenses/{expense}/receipt', [\App\Http\Controllers\RnskExpenseController::class, 'receipt'])->name('rnsk-expenses.receipt');
     });
 });
 

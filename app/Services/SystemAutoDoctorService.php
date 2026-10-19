@@ -160,8 +160,78 @@ class SystemAutoDoctorService
                             $table->string('owner_photo_path')->nullable();
                         }
                     });
-                    $fixes[] = 'Added columns to companies: '.implode(', ', $missingCompCols);
-                }
+            // 5. Ensure RNSK Expense tables exist
+            if (! Schema::hasTable('rnsk_companies')) {
+                Schema::create('rnsk_companies', function (Blueprint $table) {
+                    $table->id();
+                    $table->string('name', 150);
+                    $table->decimal('expense_percentage', 5, 2)->default(0.00);
+                    $table->boolean('active')->default(true);
+                    $table->unsignedInteger('display_order')->default(0);
+                    $table->timestamps();
+                });
+                $fixes[] = 'Created table: rnsk_companies';
+            }
+
+            if (! Schema::hasTable('rnsk_expenses')) {
+                Schema::create('rnsk_expenses', function (Blueprint $table) {
+                    $table->id();
+                    $table->date('expense_date');
+                    $table->foreignId('payer_company_id')->constrained('rnsk_companies')->restrictOnDelete();
+                    $table->string('purchaser_name', 150);
+                    $table->string('description', 255);
+                    $table->decimal('amount', 15, 2);
+                    $table->text('notes')->nullable();
+                    $table->string('receipt_path')->nullable();
+                    $table->string('entry_type', 30)->default('expense');
+                    $table->string('status', 30)->default('active');
+                    $table->foreignId('reverses_expense_id')->nullable()->constrained('rnsk_expenses')->nullOnDelete();
+                    $table->timestamp('locked_at')->nullable();
+                    $table->timestamp('cancelled_at')->nullable();
+                    $table->foreignId('cancelled_by')->nullable()->constrained('users')->nullOnDelete();
+                    $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+                    $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
+                    $table->timestamps();
+                    $table->index(['expense_date', 'status']);
+                    $table->index(['payer_company_id', 'expense_date']);
+                });
+                $fixes[] = 'Created table: rnsk_expenses';
+            }
+
+            if (! Schema::hasTable('rnsk_expense_allocations')) {
+                Schema::create('rnsk_expense_allocations', function (Blueprint $table) {
+                    $table->id();
+                    $table->foreignId('rnsk_expense_id')->constrained('rnsk_expenses')->cascadeOnDelete();
+                    $table->foreignId('rnsk_company_id')->constrained('rnsk_companies')->restrictOnDelete();
+                    $table->decimal('percentage', 5, 2)->default(0.00);
+                    $table->decimal('share_amount', 15, 2)->default(0.00);
+                    $table->decimal('amount_paid', 15, 2)->default(0.00);
+                    $table->timestamps();
+                    $table->unique(['rnsk_expense_id', 'rnsk_company_id'], 'rnsk_exp_comp_unique');
+                    $table->index(['rnsk_company_id', 'rnsk_expense_id'], 'rnsk_comp_exp_idx');
+                });
+                $fixes[] = 'Created table: rnsk_expense_allocations';
+            }
+
+            if (! Schema::hasTable('rnsk_expense_settlements')) {
+                Schema::create('rnsk_expense_settlements', function (Blueprint $table) {
+                    $table->id();
+                    $table->date('settled_on');
+                    $table->timestamp('settled_at')->nullable();
+                    $table->foreignId('from_company_id')->constrained('rnsk_companies')->restrictOnDelete();
+                    $table->foreignId('to_company_id')->constrained('rnsk_companies')->restrictOnDelete();
+                    $table->decimal('amount', 15, 2);
+                    $table->string('settlement_type', 30)->default('full');
+                    $table->decimal('remaining_balance', 15, 2)->nullable();
+                    $table->string('payment_mode', 50)->nullable()->default('bank_transfer');
+                    $table->string('payment_reference', 100)->nullable();
+                    $table->string('receipt_path')->nullable();
+                    $table->text('notes')->nullable();
+                    $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+                    $table->timestamps();
+                    $table->index(['settled_on', 'from_company_id', 'to_company_id'], 'rnsk_settle_date_idx');
+                });
+                $fixes[] = 'Created table: rnsk_expense_settlements';
             }
         } catch (\Throwable $e) {
             Log::warning('SystemAutoDoctorService schema check warning: '.$e->getMessage());

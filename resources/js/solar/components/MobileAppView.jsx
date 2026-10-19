@@ -931,6 +931,7 @@ export default function MobileAppView({
                                 'gallery': currentLang === 'en' ? 'Plant Gallery' : 'પ્લાન્ટ ગેલેરી',
                                 'reels': currentLang === 'en' ? 'Reels Hub' : 'રીલ્સ હબ',
                                 'expenses': currentLang === 'en' ? 'Shared Expenses' : 'સામાયિક ખર્ચ',
+                                'rnsk-expenses': currentLang === 'en' ? 'RNSK Expenses' : 'RNSK ખર્ચ & લેતી-દેતી',
                                 'salaries': currentLang === 'en' ? 'Salaries & Payroll' : 'પગાર અને પેરોલ',
                                 'my-salary': currentLang === 'en' ? 'My Salary Slip' : 'મારો પગાર',
                                 'stock': currentLang === 'en' ? 'Stock & Spares' : 'સ્ટોક અને સ્પેર',
@@ -2857,6 +2858,29 @@ export default function MobileAppView({
                                     </div>
                                     <div className="dmenu-card-sub">
                                         {currentLang === 'en' ? 'Cost Allocation' : 'લેતી-દેતી હિસાબ'}
+                                    </div>
+                                </button>
+                            )}
+
+                            {/* 3b. RNSK Expenses */}
+                            {(isSuperAdmin || user.role === 'company_admin' || can('view_expenses')) && (
+                                <button
+                                    type="button"
+                                    data-page="rnsk-expenses"
+                                    className="dmenu-card"
+                                    onClick={() => { setPage('rnsk-expenses'); setMoreMenuOpen(false); }}
+                                >
+                                    <div className="dmenu-card-top">
+                                        <div className="dmenu-bubble" style={{background: '#e0f2fe', color: '#0284c7'}}>
+                                            <Split size={19}/>
+                                        </div>
+                                        <ChevronRight size={14} className="dmenu-chevron"/>
+                                    </div>
+                                    <div className="dmenu-card-title">
+                                        {currentLang === 'en' ? 'RNSK Expenses' : 'RNSK ખર્ચા'}
+                                    </div>
+                                    <div className="dmenu-card-sub">
+                                        {currentLang === 'en' ? 'Dynamic % Allocation' : 'ડાયનેમિક % ભાગીદારી'}
                                     </div>
                                 </button>
                             )}
