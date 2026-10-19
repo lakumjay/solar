@@ -51,7 +51,8 @@ import {
     Phone,
     PhoneCall,
     Globe,
-    Languages
+    Languages,
+    Split
 } from 'lucide-react';
 import {api, logout} from '../api';
 import ISolarCloudVisualizer from './ISolarCloudVisualizer';
