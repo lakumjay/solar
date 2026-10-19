@@ -11858,6 +11858,291 @@ h1, h2, h3, h4, strong {
   }
 }
 
+/* ── RNSK Company Config Modal Elevated SaaS Design ── */
+.rnsk-config-modal {
+  max-width: 560px !important;
+}
+
+.rnsk-meter-box {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.rnsk-meter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.rnsk-meter-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.rnsk-meter-val {
+  font-size: 19px;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.rnsk-meter-badge {
+  font-size: 11px;
+  font-weight: 750;
+  padding: 3px 9px;
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rnsk-meter-badge.valid {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.rnsk-meter-badge.remaining {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.rnsk-meter-badge.excess {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
+.rnsk-meter-track {
+  width: 100%;
+  height: 8px;
+  background: #f1f5f9;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  display: flex;
+}
+
+.rnsk-meter-fill {
+  height: 100%;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease;
+  border-radius: 999px;
+}
+
+.rnsk-quick-helpers {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.rnsk-helper-btn {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 650;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rnsk-helper-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.rnsk-companies-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.rnsk-company-card-item {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.rnsk-company-card-item:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.rnsk-company-card-item.inactive {
+  background: #f8fafc;
+  opacity: 0.75;
+  border-style: dashed;
+}
+
+.rnsk-comp-num-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.rnsk-comp-name-input {
+  flex: 1;
+  min-width: 140px;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 7px !important;
+  padding: 6px 10px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #0f172a !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  box-sizing: border-box !important;
+}
+
+.rnsk-comp-name-input:focus {
+  border-color: #0f766e !important;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.12) !important;
+}
+
+.rnsk-comp-pct-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 95px;
+  flex-shrink: 0;
+}
+
+.rnsk-comp-pct-input {
+  width: 70px;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 7px !important;
+  padding: 6px 8px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  text-align: right !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  box-sizing: border-box !important;
+}
+
+.rnsk-comp-pct-input:focus {
+  border-color: #0f766e !important;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.12) !important;
+}
+
+.rnsk-comp-pct-symbol {
+  font-size: 12px;
+  font-weight: 800;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.rnsk-comp-active-pill {
+  padding: 4px 8px;
+  font-size: 10.5px;
+  font-weight: 750;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.rnsk-comp-active-pill.active {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.rnsk-comp-active-pill.inactive {
+  background: #f1f5f9;
+  color: #64748b;
+  border-color: #e2e8f0;
+}
+
+.rnsk-comp-del-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 5px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.rnsk-comp-del-btn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.rnsk-add-comp-btn {
+  width: 100%;
+  background: #f8fafc;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 9px;
+  padding: 9px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f766e;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.rnsk-add-comp-btn:hover {
+  background: #f0fdfa;
+  border-color: #0f766e;
+  color: #0d9488;
+}
+
+@media (max-width: 520px) {
+  .rnsk-company-card-item {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .rnsk-comp-name-input {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+  .rnsk-comp-pct-wrap {
+    flex: 1 1 auto;
+  }
+}
+
 
 
 

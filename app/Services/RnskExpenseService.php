@@ -107,11 +107,7 @@ class RnskExpenseService
                     'updated_by' => $actor->id,
                 ]);
 
-                $percentages = $companies->map(fn (RnskCompany $c) => [
-                    'company_id' => $c->id,
-                    'percentage' => (float) $c->expense_percentage,
-                ]);
-
+                $percentages = $this->resolveExpensePercentages($data, $companies);
                 $this->replaceAllocations($expense, (float) $data['amount'], $percentages, $data['payers'] ?? []);
                 $this->activity->log($actor, null, 'created', 'rnsk_expense', $expense->id, "RNSK expense {$expense->description} created", ['amount' => (float) $expense->amount]);
 
@@ -146,10 +142,12 @@ class RnskExpenseService
                 $expense->save();
 
                 $companies = RnskCompany::where('active', true)->orderBy('id')->get();
-                $percentages = $companies->map(fn (RnskCompany $c) => [
-                    'company_id' => $c->id,
-                    'percentage' => (float) $c->expense_percentage,
-                ]);
+                $percentages = ! empty($data['beneficiary_company_ids']) || ! empty($data['allocation_scope'])
+                    ? $this->resolveExpensePercentages($data, $companies)
+                    : $expense->allocations->map(fn (RnskExpenseAllocation $allocation) => [
+                        'company_id' => $allocation->rnsk_company_id,
+                        'percentage' => (float) $allocation->percentage,
+                    ]);
                 $this->replaceAllocations($expense, (float) $expense->amount, $percentages, $data['payers'] ?? []);
                 $this->activity->log($actor, null, 'updated', 'rnsk_expense', $expense->id, "RNSK expense {$expense->description} updated", ['amount' => (float) $expense->amount]);
 
@@ -334,6 +332,83 @@ class RnskExpenseService
                 'amount_paid' => $amountPaid,
             ]);
         }
+
+        // Also ensure any paying company that paid money is recorded
+        if (! empty($payerMap)) {
+            foreach ($payerMap as $cid => $paid) {
+                if ((float) $paid > 0 && ! collect($allocated)->contains('company_id', (int) $cid)) {
+                    RnskExpenseAllocation::create([
+                        'rnsk_expense_id' => $expense->id,
+                        'rnsk_company_id' => (int) $cid,
+                        'percentage' => 0,
+                        'share_amount' => 0,
+                        'amount_paid' => (float) $paid,
+                    ]);
+                }
+            }
+        } elseif ((int) $expense->payer_company_id && ! collect($allocated)->contains('company_id', (int) $expense->payer_company_id)) {
+            RnskExpenseAllocation::create([
+                'rnsk_expense_id' => $expense->id,
+                'rnsk_company_id' => (int) $expense->payer_company_id,
+                'percentage' => 0,
+                'share_amount' => 0,
+                'amount_paid' => $amount,
+            ]);
+        }
+    }
+
+    private function resolveExpensePercentages(array $data, Collection $companies): Collection
+    {
+        $scope = $data['allocation_scope'] ?? 'all';
+        $beneficiaryIds = collect($data['beneficiary_company_ids'] ?? [])->map(fn ($id) => (int) $id)->filter();
+
+        if ($scope === 'single' && $beneficiaryIds->isNotEmpty()) {
+            return collect([[
+                'company_id' => $beneficiaryIds->first(),
+                'percentage' => 100.0,
+            ]]);
+        }
+
+        if ($scope === 'two' && $beneficiaryIds->count() >= 2) {
+            $selected = $companies->whereIn('id', $beneficiaryIds->take(2)->all());
+            $sumMaster = (float) $selected->sum('expense_percentage');
+            if ($sumMaster > 0) {
+                $pct1 = round(((float) $selected->first()->expense_percentage / $sumMaster) * 100, 2);
+                $pct2 = round(100 - $pct1, 2);
+
+                return collect([
+                    ['company_id' => $selected->first()->id, 'percentage' => $pct1],
+                    ['company_id' => $selected->last()->id, 'percentage' => $pct2],
+                ]);
+            }
+
+            return collect([
+                ['company_id' => $selected->first()->id, 'percentage' => 50.0],
+                ['company_id' => $selected->last()->id, 'percentage' => 50.0],
+            ]);
+        }
+
+        if ($beneficiaryIds->isNotEmpty() && $beneficiaryIds->count() < $companies->count()) {
+            $selected = $companies->whereIn('id', $beneficiaryIds->all());
+            $sumMaster = (float) $selected->sum('expense_percentage');
+            if ($sumMaster > 0) {
+                $runningSum = 0;
+                $count = $selected->count();
+                return $selected->values()->map(function (RnskCompany $c, int $idx) use ($sumMaster, &$runningSum, $count) {
+                    if ($idx === $count - 1) {
+                        return ['company_id' => $c->id, 'percentage' => round(100 - $runningSum, 2)];
+                    }
+                    $pct = round(((float) $c->expense_percentage / $sumMaster) * 100, 2);
+                    $runningSum += $pct;
+                    return ['company_id' => $c->id, 'percentage' => $pct];
+                });
+            }
+        }
+
+        return $companies->map(fn (RnskCompany $company) => [
+            'company_id' => $company->id,
+            'percentage' => (float) $company->expense_percentage,
+        ]);
     }
 
     private function allocate(float $amount, Collection $percentages): array

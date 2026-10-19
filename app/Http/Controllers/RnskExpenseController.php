@@ -62,7 +62,13 @@ class RnskExpenseController extends Controller
             'description' => ['required', 'string', 'max:255'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'notes' => ['nullable', 'string'],
-            'receipt' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:10240'],
+            'receipt' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
+            'allocation_scope' => ['nullable', 'string', 'in:all,two,single'],
+            'beneficiary_company_ids' => ['nullable', 'array'],
+            'beneficiary_company_ids.*' => ['integer'],
+            'payers' => ['nullable', 'array'],
+            'payers.*.company_id' => ['required_with:payers', 'integer'],
+            'payers.*.amount_paid' => ['required_with:payers', 'numeric', 'min:0'],
         ]);
 
         $expense = $this->expenses->createExpense(
@@ -84,8 +90,14 @@ class RnskExpenseController extends Controller
             'description' => ['required', 'string', 'max:255'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'notes' => ['nullable', 'string'],
-            'receipt' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:10240'],
+            'receipt' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
             'remove_receipt' => ['nullable', 'boolean'],
+            'allocation_scope' => ['nullable', 'string', 'in:all,two,single'],
+            'beneficiary_company_ids' => ['nullable', 'array'],
+            'beneficiary_company_ids.*' => ['integer'],
+            'payers' => ['nullable', 'array'],
+            'payers.*.company_id' => ['required_with:payers', 'integer'],
+            'payers.*.amount_paid' => ['required_with:payers', 'numeric', 'min:0'],
         ]);
 
         $updated = $this->expenses->updateExpense(
