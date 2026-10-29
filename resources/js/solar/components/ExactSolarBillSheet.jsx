@@ -125,8 +125,12 @@ export default function ExactSolarBillSheet({
     const currentBillAmt = Math.round(Math.max(0, numSubTotal - numDiscount));
     const numTotalOut = Number(totalOut) || Math.round(currentBillAmt + numPrevBal + numInterest + Number(roundOff));
 
-    // Signature path
-    const signatureSrc = co.signature_path || sets.signature_url || null;
+    // Signature path with ON/OFF toggle check
+    const isCoSigEnabled = co.signature_enabled !== false;
+    const isGlobalSigEnabled = sets.signature_enabled !== false && sets.signature_enabled !== '0';
+    const signatureSrc = (co.signature_path && isCoSigEnabled)
+        ? co.signature_path
+        : (!co.signature_path && sets.signature_url && isGlobalSigEnabled ? sets.signature_url : null);
 
     return (
         <div className="printable-bill-sheet">

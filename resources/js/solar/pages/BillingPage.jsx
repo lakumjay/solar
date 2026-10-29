@@ -56,6 +56,28 @@ export function detectBillingMonth(rawText = '', fileName = '') {
     return null;
 }
 
+// Helper: Advance billing month by 1 (e.g. Aug-26 -> Sep-26, Dec-26 -> Jan-27)
+export function advanceMonthString(monthStr) {
+    if (!monthStr) return '';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const parts = monthStr.split(/[-_\s/]+/);
+    if (parts.length >= 2) {
+        const mName = parts[0];
+        const yr = parts[1];
+        const mIdx = months.findIndex(m => m.toLowerCase() === mName.toLowerCase());
+        if (mIdx !== -1) {
+            const nextIdx = (mIdx + 1) % 12;
+            let yrNum = parseInt(yr, 10);
+            if (nextIdx === 0) {
+                yrNum += 1;
+            }
+            const formattedYr = yr.length === 4 ? String(yrNum) : String(yrNum).padStart(2, '0');
+            return `${months[nextIdx]}-${formattedYr}`;
+        }
+    }
+    return monthStr;
+}
+
 export default function BillingPage({ currentUser }) {
     const { lang, t } = useLanguage();
 
@@ -72,6 +94,8 @@ export default function BillingPage({ currentUser }) {
     // Filters for Records & CA Report Tab
     const [filterCompany, setFilterCompany] = useState('all');
     const [filterStatus, setFilterStatus] = useState('all');
+    const [filterMonth, setFilterMonth] = useState('all');
+    const [monthOptions, setMonthOptions] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [caMonth, setCaMonth] = useState('');
     const [caCompanyId, setCaCompanyId] = useState('');
@@ -174,10 +198,22 @@ export default function BillingPage({ currentUser }) {
                     gst: settRes.default_customer_gstin || '24AABCO3285B1ZU',
                 });
             }
+
+            loadMonths();
         } catch (err) {
             console.error('Error loading billing init data:', err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Load Distinct Billing Months for Filter
+    const loadMonths = async () => {
+        try {
+            const m = await api('billing/months');
+            if (Array.isArray(m)) setMonthOptions(m);
+        } catch (err) {
+            console.error('Error loading bill months:', err);
         }
     };
 
@@ -188,6 +224,7 @@ export default function BillingPage({ currentUser }) {
             const params = new URLSearchParams();
             if (filterCompany !== 'all') params.append('company_id', filterCompany);
             if (filterStatus !== 'all') params.append('status', filterStatus);
+            if (filterMonth !== 'all') params.append('month', filterMonth);
             if (searchQuery) params.append('search', searchQuery);
 
             const res = await api(`billing/bills?${params.toString()}`);
@@ -229,10 +266,11 @@ export default function BillingPage({ currentUser }) {
     useEffect(() => {
         if (activeTab === 'records' || activeTab === 'ca') {
             fetchBills();
+            loadMonths();
         } else if (activeTab === 'reconciliation') {
             fetchReconciliation();
         }
-    }, [activeTab, filterCompany, filterStatus, searchQuery, reconMonth]);
+    }, [activeTab, filterCompany, filterStatus, filterMonth, searchQuery, reconMonth]);
 
     // Handle Company Switch in Step 1
     const handleCompanyChange = (compId) => {
@@ -378,6 +416,7 @@ export default function BillingPage({ currentUser }) {
             const billList = [{
                 company: comp1,
                 discount: disc1,
+                discountRate: disc1,
                 month: wMonth,
                 invNo: wInvNo,
                 invDate: wInvDate,
@@ -392,7 +431,7 @@ export default function BillingPage({ currentUser }) {
                 prevBal: pBal1,
                 interest: pInt1,
                 interestDays: pDays1,
-                totalOut: round2(pBal1 + pInt1 + res1.grand)
+                totalOut: Math.round((pBal1 + pInt1 + res1.grand) * 100) / 100
             }];
 
             // If Two-Company mode is active
@@ -414,6 +453,7 @@ export default function BillingPage({ currentUser }) {
                 billList.push({
                     company: comp2,
                     discount: disc2,
+                    discountRate: disc2,
                     month: wMonth,
                     invNo: inv2,
                     invDate: wInvDate,
@@ -428,7 +468,7 @@ export default function BillingPage({ currentUser }) {
                     prevBal: pBal2,
                     interest: pInt2,
                     interestDays: pDays2,
-                    totalOut: round2(pBal2 + pInt2 + res2.grand)
+                    totalOut: Math.round((pBal2 + pInt2 + res2.grand) * 100) / 100
                 });
             }
 
@@ -561,6 +601,42 @@ export default function BillingPage({ currentUser }) {
             const fy = fyOf(wInvDate);
             setWInvNo(nextInvoiceNo(comp, fy));
         }
+    };
+
+    // Multi-month helper: Create next month bill keeping the same uploaded PDF
+    const handleNewBillFromSamePdf = async () => {
+        const nextM = advanceMonthString(wMonth);
+        setWMonth(nextM);
+        setIsAutoMonth(false);
+
+        // Keep wPdfFile and wPdfName intact!
+        setWUnits({ credited: '', peak: '', banking: '', generated: '' });
+        setWTwoCo(false);
+        setWUnits2({ companyId: '', credited: '', peak: '', banking: '', generated: '', invNo: '' });
+        setWStmt({
+            unit: '', energyAmt: '', fcaAmt: '', pfAmt: '', ehvAmt: '',
+            touAmt: '', totalPeak: '', varAmt: '', boardAmt: '', dutyAmt: ''
+        });
+        setComputedBills([]);
+
+        // Advance Invoice Number for company 1
+        const comp = companies.find(c => c.id == wCompanyId);
+        if (comp) {
+            const fy = fyOf(wInvDate);
+            setWInvNo(nextInvoiceNo(comp, fy));
+        }
+
+        // Fetch fresh pending balance & interest for company 1
+        if (wCompanyId) {
+            try {
+                const pend = await api(`billing/pending/${wCompanyId}`);
+                setPendingInfo(pend || { prevBal: 0, interest: 0, interestDays: 0 });
+            } catch (e) {
+                console.error('Error fetching updated pending balance:', e);
+            }
+        }
+
+        setWizStep(1);
     };
 
     // CA Report Months List
@@ -1439,6 +1515,16 @@ export default function BillingPage({ currentUser }) {
                                 </button>
                                 <button
                                     type="button"
+                                    className="btn-secondary"
+                                    style={{ borderColor: '#3b82f6', color: '#1d4ed8', background: '#eff6ff', fontWeight: 600 }}
+                                    onClick={handleNewBillFromSamePdf}
+                                    title={lang === 'en' ? 'Create next month bill using same uploaded PDF' : 'આ જ PDF માંથી હવે પછીના મહિનાનું બિલ બનાવો'}
+                                >
+                                    <RefreshCw size={16} />
+                                    <span>{lang === 'en' ? '＋ New Bill from Same PDF' : '＋ આ જ PDF માંથી આગળનું બિલ'}</span>
+                                </button>
+                                <button
+                                    type="button"
                                     className="btn-primary"
                                     onClick={resetWizard}
                                 >
@@ -1489,6 +1575,18 @@ export default function BillingPage({ currentUser }) {
                                 <option value="all">{lang === 'en' ? 'All Companies' : 'બધી કંપનીઓ'}</option>
                                 {companies.map(c => (
                                     <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="filter-group">
+                            <select
+                                className="form-control"
+                                value={filterMonth}
+                                onChange={(e) => setFilterMonth(e.target.value)}
+                            >
+                                <option value="all">{lang === 'en' ? 'All Months' : 'બધા મહિના'}</option>
+                                {monthOptions.map(m => (
+                                    <option key={m} value={m}>{m}</option>
                                 ))}
                             </select>
                         </div>
@@ -2178,7 +2276,7 @@ export default function BillingPage({ currentUser }) {
                                 setEditingCompany({
                                     name: '', gstin: '', address: '', phones: '',
                                     bank_name: '', bank_ac: '', bank_ifsc: '', discount: '1.25',
-                                    inv_prefix: 'RS', last_seq: 0, active: true,
+                                    inv_prefix: 'RS', active: true, signature_enabled: true,
                                     due_days: '15', interest_pct: '18.0', loss_pct: '6.5',
                                     wheel_rate: '0.2352', bank_rate: '1.50', cross_pct: '15.0',
                                     letterhead_mode: 'digital', signature_path: '', letterhead_path: ''
@@ -2203,28 +2301,49 @@ export default function BillingPage({ currentUser }) {
                                             {c.inv_prefix} (છેલ્લો નં: #{c.last_seq || 0})
                                         </span>
                                     </div>
-                                    <button
-                                        type="button"
-                                        className="btn-edit-link"
-                                        onClick={() => {
-                                            setEditingCompany({
-                                                ...c,
-                                                due_days: c.due_days !== null && c.due_days !== undefined ? String(c.due_days) : '15',
-                                                interest_pct: c.interest_pct !== null && c.interest_pct !== undefined ? String(c.interest_pct) : '18.0',
-                                                loss_pct: c.loss_pct !== null && c.loss_pct !== undefined ? String(c.loss_pct) : '6.5',
-                                                wheel_rate: c.wheel_rate !== null && c.wheel_rate !== undefined ? String(c.wheel_rate) : '0.2352',
-                                                bank_rate: c.bank_rate !== null && c.bank_rate !== undefined ? String(c.bank_rate) : '1.50',
-                                                cross_pct: c.cross_pct !== null && c.cross_pct !== undefined ? String(c.cross_pct) : '15.0',
-                                                letterhead_mode: c.letterhead_mode || 'digital',
-                                            });
-                                            setEditingSignatureFile(null);
-                                            setEditingSignaturePreview(c.signature_path || null);
-                                            setEditingLetterheadFile(null);
-                                            setEditingLetterheadPreview(c.letterhead_path || null);
-                                        }}
-                                    >
-                                        Edit
-                                    </button>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button
+                                            type="button"
+                                            className="btn-edit-link"
+                                            onClick={() => {
+                                                setEditingCompany({
+                                                    ...c,
+                                                    signature_enabled: c.signature_enabled !== false,
+                                                    due_days: c.due_days !== null && c.due_days !== undefined ? String(c.due_days) : '15',
+                                                    interest_pct: c.interest_pct !== null && c.interest_pct !== undefined ? String(c.interest_pct) : '18.0',
+                                                    loss_pct: c.loss_pct !== null && c.loss_pct !== undefined ? String(c.loss_pct) : '6.5',
+                                                    wheel_rate: c.wheel_rate !== null && c.wheel_rate !== undefined ? String(c.wheel_rate) : '0.2352',
+                                                    bank_rate: c.bank_rate !== null && c.bank_rate !== undefined ? String(c.bank_rate) : '1.50',
+                                                    cross_pct: c.cross_pct !== null && c.cross_pct !== undefined ? String(c.cross_pct) : '15.0',
+                                                    letterhead_mode: c.letterhead_mode || 'digital',
+                                                });
+                                                setEditingSignatureFile(null);
+                                                setEditingSignaturePreview(c.signature_path || null);
+                                                setEditingLetterheadFile(null);
+                                                setEditingLetterheadPreview(c.letterhead_path || null);
+                                            }}
+                                        >
+                                            Edit
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="btn-edit-link"
+                                            style={{ color: '#ef4444' }}
+                                            onClick={async () => {
+                                                if (!confirm(lang === 'en' ? `Delete company "${c.name}"?` : `શું તમે કંપની "${c.name}" ડિલીટ કરવા માંગો છો?`)) return;
+                                                try {
+                                                    await api(`billing/companies/${c.id}`, { method: 'DELETE' });
+                                                    const comps = await api('billing/companies');
+                                                    if (comps) setCompanies(comps);
+                                                    alert(lang === 'en' ? 'Company deleted successfully' : 'કંપની સફળતાપૂર્વક ડિલીટ થઈ ગઈ');
+                                                } catch (err) {
+                                                    alert(err.message || 'Error deleting company');
+                                                }
+                                            }}
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="card-body">
                                     <p><b>GSTIN:</b> {c.gstin || 'N/A'}</p>
@@ -2242,8 +2361,8 @@ export default function BillingPage({ currentUser }) {
                                         <span style={{ fontSize: '10.5px', background: '#fef3c7', color: '#92400e', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
                                             Vyaaj: {c.interest_pct || 18.0}% p.a.
                                         </span>
-                                        <span style={{ fontSize: '10.5px', background: c.signature_path ? '#dcfce7' : '#f1f5f9', color: c.signature_path ? '#15803d' : '#64748b', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
-                                            {c.signature_path ? '✓ Digital Signature' : 'No Signature'}
+                                        <span style={{ fontSize: '10.5px', background: c.signature_path && c.signature_enabled !== false ? '#dcfce7' : '#f1f5f9', color: c.signature_path && c.signature_enabled !== false ? '#15803d' : '#64748b', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
+                                            {c.signature_path ? (c.signature_enabled !== false ? '✓ Digital Signature (ON)' : '○ Signature (OFF)') : 'No Signature'}
                                         </span>
                                         <span style={{ fontSize: '10.5px', background: '#f3e8ff', color: '#6b21a8', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
                                             {c.letterhead_mode === 'custom_image' ? '🖼️ Custom Letterhead' : c.letterhead_mode === 'preprinted' ? '📄 Pre-printed Pad' : '🏢 Digital Header'}
@@ -2499,6 +2618,31 @@ export default function BillingPage({ currentUser }) {
                                 }
                             }}
                         />
+
+                        {/* Global Signature ON / OFF Toggle */}
+                        <div style={{ marginTop: '14px', display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '10px 12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                            <input
+                                type="checkbox"
+                                id="global_sig_enabled"
+                                checked={settings.signature_enabled !== false && settings.signature_enabled !== '0'}
+                                onChange={async (e) => {
+                                    const val = e.target.checked ? '1' : '0';
+                                    setSettings(prev => ({ ...prev, signature_enabled: val }));
+                                    try {
+                                        await api('billing/settings', {
+                                            method: 'POST',
+                                            body: JSON.stringify({ signature_enabled: val })
+                                        });
+                                    } catch (err) {
+                                        console.error('Error updating signature_enabled setting:', err);
+                                    }
+                                }}
+                                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                            />
+                            <label htmlFor="global_sig_enabled" style={{ margin: 0, fontSize: '13px', fontWeight: 600, cursor: 'pointer', color: '#1e293b' }}>
+                                {lang === 'en' ? 'Print Digital Signature on Bills Globally (ON / OFF)' : 'બધા બિલ પર ડિજિટલ સહી પ્રિન્ટ કરવી (ચાલુ / બંધ)'}
+                            </label>
+                        </div>
                     </div>
                 </div>
             )}
@@ -2838,6 +2982,20 @@ export default function BillingPage({ currentUser }) {
                                     }
                                 }}
                             />
+
+                            {/* Digital Signature Toggle (ON / OFF) */}
+                            <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '10px 12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                <input
+                                    type="checkbox"
+                                    id="co_signature_enabled"
+                                    checked={editingCompany.signature_enabled !== false}
+                                    onChange={(e) => setEditingCompany({ ...editingCompany, signature_enabled: e.target.checked })}
+                                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                                />
+                                <label htmlFor="co_signature_enabled" style={{ margin: 0, fontSize: '13px', fontWeight: 600, cursor: 'pointer', color: '#1e293b' }}>
+                                    {lang === 'en' ? 'Print Digital Signature on Bills (ON / OFF)' : 'બિલ પર ડિજિટલ સહી પ્રિન્ટ કરવી (ચાલુ / બંધ)'}
+                                </label>
+                            </div>
                         </div>
 
                         {/* SECTION 5: LETTERHEAD FORMAT */}
@@ -2993,6 +3151,7 @@ export default function BillingPage({ currentUser }) {
                                         formData.append('bank_rate', editingCompany.bank_rate ?? '1.50');
                                         formData.append('cross_pct', editingCompany.cross_pct ?? '15.0');
                                         formData.append('letterhead_mode', editingCompany.letterhead_mode || 'digital');
+                                        formData.append('signature_enabled', editingCompany.signature_enabled !== false ? '1' : '0');
 
                                         if (editingSignatureFile) {
                                             formData.append('signature', editingSignatureFile);

@@ -39,12 +39,16 @@ class SolarBillingController extends Controller
     {
         $interestPct = (float) SolarBillingSetting::getVal('interest_pct', 18.0);
 
-        $query = SolarBill::with(['company:id,name,inv_prefix,gstin,bank_name,bank_ac,bank_ifsc,logo_path,interest_pct,due_days'])
+        $query = SolarBill::with(['company:id,name,inv_prefix,gstin,bank_name,bank_ac,bank_ifsc,logo_path,interest_pct,due_days,signature_path,signature_enabled'])
             ->orderBy('invoice_date', 'desc')
             ->orderBy('id', 'desc');
 
         if ($request->filled('company_id') && $request->input('company_id') !== 'all') {
             $query->where('company_id', $request->input('company_id'));
+        }
+
+        if ($request->filled('month') && $request->input('month') !== 'all') {
+            $query->where('month', $request->input('month'));
         }
 
         if ($request->filled('status') && $request->input('status') !== 'all') {
@@ -117,8 +121,8 @@ class SolarBillingController extends Controller
             'bank_ifsc' => 'nullable|string|max:30',
             'discount' => 'nullable|numeric|min:0',
             'inv_prefix' => 'required|string|max:20',
-            'last_seq' => 'nullable|integer|min:0',
             'active' => 'nullable|boolean',
+            'signature_enabled' => 'nullable|boolean',
             'due_days' => 'nullable|integer|min:1|max:180',
             'interest_pct' => 'nullable|numeric|min:0|max:100',
             'loss_pct' => 'nullable|numeric|min:0|max:100',
@@ -130,6 +134,9 @@ class SolarBillingController extends Controller
             'signature' => 'nullable|file|image|max:5120',
             'letterhead' => 'nullable|file|mimes:jpeg,png,jpg,webp,pdf|max:10240',
         ]);
+
+        // Disallow manual edits to last_seq — strictly auto-managed inside billing transaction
+        unset($data['last_seq']);
 
         if ($request->hasFile('logo') && $request->file('logo')->isValid()) {
             $path = $request->file('logo')->store('company_logos', 'public');
@@ -152,16 +159,6 @@ class SolarBillingController extends Controller
 
         if ($id) {
             $company = SolarBillingCompany::findOrFail($id);
-
-            // Guard against accidental modification or reduction of last_seq:
-            // If company already has issued bills, lock sequence completely so it advances ONLY via atomic bill generation in store().
-            $hasBills = SolarBill::where('company_id', $id)->exists();
-            if ($hasBills) {
-                unset($data['last_seq']);
-            } elseif (isset($data['last_seq'])) {
-                $data['last_seq'] = max(0, (int) $data['last_seq']);
-            }
-
             $company->update($data);
         } else {
             $company = SolarBillingCompany::create($data);
@@ -171,6 +168,47 @@ class SolarBillingController extends Controller
             'message' => 'Company saved successfully',
             'company' => $company,
         ]);
+    }
+
+    /**
+     * Delete a billing company with strict protection:
+     * Disallows deletion if bills exist in database for this company.
+     */
+    public function destroyCompany(int $id): JsonResponse
+    {
+        $company = SolarBillingCompany::findOrFail($id);
+        if (SolarBill::where('company_id', $company->id)->exists()) {
+            return response()->json([
+                'error' => 'Cannot delete company: billing records already exist for this company in database.'
+            ], 422);
+        }
+        $company->delete();
+        return response()->json(['message' => 'Company deleted successfully']);
+    }
+
+    /**
+     * Distinct billing months that have active bills (for the Records month dropdown).
+     */
+    public function billMonths(): JsonResponse
+    {
+        $months = SolarBill::where('status', '!=', 'void')
+            ->select('month')
+            ->distinct()
+            ->get()
+            ->pluck('month')
+            ->sort(function ($a, $b) {
+                try {
+                    $da = Carbon::createFromFormat('M-y', $a);
+                    $db = Carbon::createFromFormat('M-y', $b);
+                    return $db <=> $da;
+                } catch (\Throwable $e) {
+                    return strcmp($b, $a);
+                }
+            })
+            ->values()
+            ->toArray();
+
+        return response()->json(['months' => $months]);
     }
 
     /**
@@ -249,8 +287,8 @@ class SolarBillingController extends Controller
                 if ($ext !== 'pdf') {
                     return response()->json(['error' => 'Only valid PDF files are accepted.'], 422);
                 }
-                // Store on private 'local' disk so statement PDFs are never exposed via direct public URLs
-                $uploaded = $file->store('billing_statements', 'local');
+                // Store on private disk so statement PDFs are never exposed via direct public URLs
+                $uploaded = $file->store('billing_statements', 'private');
                 $pdfPath = $uploaded;
             }
         }
@@ -441,10 +479,12 @@ class SolarBillingController extends Controller
         $relPath = str_replace('/storage/', '', $bill->pdf_path);
         $cleanFilename = basename($relPath);
 
-        // Check private local disk first, fallback to public disk for legacy uploads
-        $disk = Storage::disk('local')->exists("billing_statements/{$cleanFilename}")
-            ? 'local'
-            : (Storage::disk('public')->exists("billing_statements/{$cleanFilename}") ? 'public' : null);
+        // Check private disk first, fallback to local/public disk for legacy uploads
+        $disk = Storage::disk('private')->exists("billing_statements/{$cleanFilename}")
+            ? 'private'
+            : (Storage::disk('local')->exists("billing_statements/{$cleanFilename}")
+                ? 'local'
+                : (Storage::disk('public')->exists("billing_statements/{$cleanFilename}") ? 'public' : null));
 
         if (! $disk) {
             return response()->json(['error' => 'Statement PDF file not found on server.'], 404);
@@ -464,6 +504,15 @@ class SolarBillingController extends Controller
             "billing_statements/{$cleanFilename}",
             "PGVCL-Statement-{$invClean}.pdf"
         );
+    }
+
+    /**
+     * Authenticated statement PDF download route alias.
+     */
+    public function downloadStatement(Request $request, $bill)
+    {
+        $id = $bill instanceof SolarBill ? $bill->id : (int) $bill;
+        return $this->downloadPdf($request, $id);
     }
 
     /**

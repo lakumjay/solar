@@ -195,6 +195,9 @@ Route::prefix('api')->group(function () {
         Route::get('billing/settings', [\App\Http\Controllers\SolarBillingController::class, 'settings']);
         Route::post('billing/settings', [\App\Http\Controllers\SolarBillingController::class, 'saveSettings']);
         Route::get('billing/bills/{id}/pdf', [\App\Http\Controllers\SolarBillingController::class, 'downloadPdf']);
+        Route::get('billing/bills/{bill}/statement', [\App\Http\Controllers\SolarBillingController::class, 'downloadStatement']);
+        Route::get('billing/months', [\App\Http\Controllers\SolarBillingController::class, 'billMonths']);
+        Route::delete('billing/companies/{id}', [\App\Http\Controllers\SolarBillingController::class, 'destroyCompany']);
         Route::get('billing/pending/{companyId}', [\App\Http\Controllers\SolarBillingController::class, 'pendingBalance']);
         Route::get('billing/reconciliation', [\App\Http\Controllers\SolarBillingController::class, 'reconciliation']);
     });

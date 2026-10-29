@@ -10,6 +10,7 @@ class SolarBillingCompany extends Model
 
     protected $casts = [
         'active' => 'boolean',
+        'signature_enabled' => 'boolean',
         'discount' => 'decimal:2',
         'last_seq' => 'integer',
         'due_days' => 'integer',
