@@ -200,6 +200,12 @@ Route::prefix('api')->group(function () {
         Route::delete('billing/companies/{id}', [\App\Http\Controllers\SolarBillingController::class, 'destroyCompany']);
         Route::get('billing/pending/{companyId}', [\App\Http\Controllers\SolarBillingController::class, 'pendingBalance']);
         Route::get('billing/reconciliation', [\App\Http\Controllers\SolarBillingController::class, 'reconciliation']);
+        Route::post('billing/bills/{id}/waive-interest', [\App\Http\Controllers\SolarBillingController::class, 'waiveInterest']);
+        Route::get('billing/charges', [\App\Http\Controllers\SolarBillingController::class, 'charges']);
+        Route::post('billing/charges', [\App\Http\Controllers\SolarBillingController::class, 'saveCharge']);
+        Route::post('billing/charges/{id}', [\App\Http\Controllers\SolarBillingController::class, 'saveCharge']);
+        Route::post('billing/charges/{id}/toggle', [\App\Http\Controllers\SolarBillingController::class, 'toggleCharge']);
+        Route::delete('billing/charges/{id}', [\App\Http\Controllers\SolarBillingController::class, 'destroyCharge']);
     });
 });
 

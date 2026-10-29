@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\SolarBill;
 use App\Models\SolarBillingCompany;
 use App\Models\SolarBillingSetting;
+use App\Models\SolarBillingCharge;
 use Carbon\Carbon;
 use InvalidArgumentException;
 
@@ -93,8 +94,14 @@ class SolarBillingEngineService
      * extra: { lossPct, crossPct, wheelRate, bankRate }
      * discount: Rs per unit (e.g. 1.25)
      */
-    public static function companyBill(array $units = [], array $rates = [], array $extra = [], float $discount = 1.25): array
-    {
+    public static function companyBill(
+        array $units = [],
+        array $rates = [],
+        array $extra = [],
+        float $discount = 1.25,
+        ?int $companyId = null,
+        ?string $billDate = null
+    ): array {
         $warnings = [];
         $credited = self::num($units['credited'] ?? 0);
         $peak = self::num($units['peak'] ?? 0);
@@ -126,14 +133,113 @@ class SolarBillingEngineService
         $board = $energy + $fca - $pf - $ehv + $tou + $vari;
         $duty = $board * (self::num($rates['dutyPct'] ?? 0) / 100);
         $total = $board + $duty;
-        $cross = ($energy + $fca) * ($crossPct / 100);
-        $wheel = $generated * $wheelRate;
-        $bankChg = $banking * $bankRate;
-        $net = $total - $cross - $wheel - $bankChg;
+
+        // DYNAMIC CHARGE / REBATE MASTER CALCULATION
+        $appliedCharges = [];
+        $net = $total;
+        $discountAmt = 0.0;
+        $hasDynamicCharges = false;
+
+        try {
+            $date = $billDate ? Carbon::parse($billDate)->format('Y-m-d') : now()->format('Y-m-d');
+            $chargesQuery = SolarBillingCharge::where('is_active', true)
+                ->where('effective_from', '<=', $date)
+                ->where(function ($q) use ($date) {
+                    $q->whereNull('effective_to')->orWhere('effective_to', '>=', $date);
+                })
+                ->where(function ($q) use ($companyId) {
+                    $q->whereNull('company_id');
+                    if ($companyId) {
+                        $q->orWhere('company_id', $companyId);
+                    }
+                })
+                ->orderByRaw('company_id IS NULL ASC') // company-specific comes first
+                ->orderBy('sort_order');
+
+            $charges = $chargesQuery->get()->unique('code');
+
+            if ($charges->isNotEmpty()) {
+                $hasDynamicCharges = true;
+                $hasPpa = false;
+
+                foreach ($charges as $c) {
+                    $cVal = (float) $c->value;
+
+                    // Manual parameter overrides if non-default value passed in $extra
+                    if ($c->code === 'wheeling' && isset($extra['wheelRate']) && is_numeric($extra['wheelRate']) && (float) $extra['wheelRate'] > 0) {
+                        $cVal = (float) $extra['wheelRate'];
+                    } elseif ($c->code === 'banking' && isset($extra['bankRate']) && is_numeric($extra['bankRate']) && (float) $extra['bankRate'] > 0) {
+                        $cVal = (float) $extra['bankRate'];
+                    } elseif ($c->code === 'cross_subsidy' && isset($extra['crossPct']) && is_numeric($extra['crossPct']) && (float) $extra['crossPct'] > 0) {
+                        $cVal = (float) $extra['crossPct'];
+                    } elseif ($c->code === 'ppa_discount' && $discount > 0) {
+                        $cVal = $discount;
+                    }
+
+                    $rawAmt = match ($c->calc_basis) {
+                        'per_unit' => $credited * $cVal,
+                        'per_banking_unit' => $banking * $cVal, // Strictly banking units!
+                        'per_peak_unit' => $peak * $cVal,
+                        'per_gen_unit' => $generated * $cVal,
+                        'pct_energy' => $energy * ($cVal / 100),
+                        'pct_energy_fca' => ($energy + $fca) * ($cVal / 100),
+                        'pct_board' => $board * ($cVal / 100),
+                        'fixed' => $cVal,
+                        default => 0.0,
+                    };
+
+                    if ($c->code === 'ppa_discount') {
+                        $discountAmt = $rawAmt;
+                        $discount = $cVal;
+                        $hasPpa = true;
+                    } else {
+                        if ($c->type === 'rebate') {
+                            $net -= $rawAmt;
+                        } else {
+                            $net += $rawAmt;
+                        }
+                    }
+
+                    $appliedCharges[$c->code] = [
+                        'name' => $c->name,
+                        'code' => $c->code,
+                        'type' => $c->type,
+                        'calc_basis' => $c->calc_basis,
+                        'value' => $cVal,
+                        'amount' => self::round2($rawAmt),
+                    ];
+                }
+
+                if (!$hasPpa) {
+                    $discountAmt = $credited * $discount;
+                }
+            }
+        } catch (\Throwable $e) {
+            $hasDynamicCharges = false;
+        }
+
+        // Fallback for tests/environments without DB
+        if (!$hasDynamicCharges) {
+            $cross = ($energy + $fca) * ($crossPct / 100);
+            $wheel = $generated * $wheelRate;
+            $bankChg = $banking * $bankRate;
+            $net = $total - $cross - $wheel - $bankChg;
+            $discountAmt = $credited * $discount;
+
+            $appliedCharges = [
+                'cross_subsidy' => ['name' => 'Cross Subsidy', 'code' => 'cross_subsidy', 'type' => 'rebate', 'calc_basis' => 'pct_energy_fca', 'value' => $crossPct, 'amount' => self::round2($cross)],
+                'wheeling' => ['name' => 'Wheeling Charge', 'code' => 'wheeling', 'type' => 'rebate', 'calc_basis' => 'per_gen_unit', 'value' => $wheelRate, 'amount' => self::round2($wheel)],
+                'banking' => ['name' => 'Banking Charge', 'code' => 'banking', 'type' => 'rebate', 'calc_basis' => 'per_banking_unit', 'value' => $bankRate, 'amount' => self::round2($bankChg)],
+                'ppa_discount' => ['name' => 'Discount (PPA)', 'code' => 'ppa_discount', 'type' => 'rebate', 'calc_basis' => 'per_unit', 'value' => $discount, 'amount' => self::round2($discountAmt)],
+            ];
+        }
+
+        $crossVal = $appliedCharges['cross_subsidy']['amount'] ?? 0.0;
+        $wheelVal = $appliedCharges['wheeling']['amount'] ?? 0.0;
+        $bankVal = $appliedCharges['banking']['amount'] ?? 0.0;
 
         $billRate = self::safeDiv($net, $credited);
         $netRate = $billRate - $discount;
-        $discountAmt = $credited * $discount;
         $rawGrand = $net - $discountAmt;
         $grand = (float) round($rawGrand);
         $roundOff = self::round2($grand - $rawGrand);
@@ -160,9 +266,10 @@ class SolarBillingEngineService
             'board' => self::round2($board),
             'duty' => self::round2($duty),
             'total' => self::round2($total),
-            'cross' => self::round2($cross),
-            'wheeling' => self::round2($wheel),
-            'banking' => self::round2($bankChg),
+            'cross' => self::round2($crossVal),
+            'wheeling' => self::round2($wheelVal),
+            'banking' => self::round2($bankVal),
+            'charges' => $appliedCharges,
             'net' => self::round2($net),
             'billRate' => $billRate,
             'netRate' => $netRate,
@@ -239,11 +346,14 @@ class SolarBillingEngineService
             }
         }
 
+        $lastUnpaidInvNo = $pendingBills->sortByDesc('invoice_date')->first()?->invoice_no;
+
         return [
             'prev_balance' => self::round2($prevBal),
             'interest_amt' => self::round2($rawInterest),
             'interest_days' => $maxDays,
             'interest_pct' => $interestPct,
+            'prev_invoice_no' => $lastUnpaidInvNo,
         ];
     }
 
@@ -299,14 +409,14 @@ class SolarBillingEngineService
         $extra['bankRate'] = isset($extra['bankRate']) && $extra['bankRate'] !== '' ? (float) $extra['bankRate'] : (float) ($company->bank_rate ?? 1.50);
         $extra['crossPct'] = isset($extra['crossPct']) && $extra['crossPct'] !== '' ? (float) $extra['crossPct'] : (float) ($company->cross_pct ?? 15.00);
 
-        // 4. Server computes breakdown independently
-        $recomputed = self::companyBill($units, $serverRates, $extra, $discount);
+        // 4. Server computes breakdown independently (with Dynamic Charge Master & company scope)
+        $invDate = $billInput['invoice_date'] ?? null;
+        $recomputed = self::companyBill($units, $serverRates, $extra, $discount, $company->id, $invDate);
 
         // 5. Server checks pending balance & interest directly from DB under row lock
         $interestPct = $company->interest_pct !== null && is_numeric($company->interest_pct)
             ? (float) $company->interest_pct
             : (float) SolarBillingSetting::getVal('interest_pct', 18.0);
-        $invDate = $billInput['invoice_date'] ?? null;
         $dbPending = self::getCompanyPendingAndInterest($company->id, $interestPct, $invDate, true);
 
         // 6. Security verification: Compare server vs client with float-dust protection
@@ -360,7 +470,24 @@ class SolarBillingEngineService
         $prevBal = $dbPending['prev_balance'];
         $interestAmt = $dbPending['interest_amt'];
         $interestDays = $dbPending['interest_days'];
-        $totalOutstanding = self::round2($serverGrand + $prevBal + $interestAmt);
+
+        // Overdue Interest: Apply or Waive handling
+        $interestWaived = isset($billInput['interest_waived']) ? round(self::num($billInput['interest_waived']), 2) : 0.0;
+        $waiveReason = trim($billInput['interest_waive_reason'] ?? '');
+
+        if ($interestWaived > 0) {
+            if (empty($waiveReason)) {
+                throw new InvalidArgumentException("વ્યાજ માફ કરવા માટે કારણ (Reason) લખવું ફરજિયાત છે.");
+            }
+            if ($interestWaived > $interestAmt) {
+                throw new InvalidArgumentException(
+                    sprintf("માફ કરેલ વ્યાજ (₹%s) કુલ ગણતરી કરેલ વ્યાજ (₹%s) કરતાં વધુ ન હોઈ શકે.", number_format($interestWaived, 2), number_format($interestAmt, 2))
+                );
+            }
+        }
+
+        $appliedInterest = max(0.0, $interestAmt - $interestWaived);
+        $totalOutstanding = self::round2($serverGrand + $prevBal + $appliedInterest);
 
         // Server derives canonical due_date (tamper-proof)
         $companyDueDays = (int) ($company->due_days ?: SolarBillingSetting::getVal('due_days', 15));
@@ -379,6 +506,9 @@ class SolarBillingEngineService
             'prev_balance' => $prevBal,
             'interest_amt' => $interestAmt,
             'interest_days' => $interestDays,
+            'interest_waived' => $interestWaived,
+            'interest_waive_reason' => $interestWaived > 0 ? $waiveReason : null,
+            'prev_invoice_no' => $dbPending['prev_invoice_no'] ?? null,
             'total_outstanding' => $totalOutstanding,
             'units_generated' => $recomputed['generated'],
             'due_date' => $canonicalDueDate,

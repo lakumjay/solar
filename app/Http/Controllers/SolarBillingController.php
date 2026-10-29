@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\SolarBill;
 use App\Models\SolarBillingCompany;
 use App\Models\SolarBillingSetting;
+use App\Models\SolarBillingCharge;
 use App\Services\SolarBillingEngineService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -349,8 +350,13 @@ class SolarBillingController extends Controller
                         'discount_rate' => $verified['discount_rate'],
                         'discount_amt' => $verified['discount_amt'],
                         'prev_balance' => $verified['prev_balance'],
+                        'prev_invoice_no' => $verified['prev_invoice_no'] ?? null,
                         'interest_amt' => $verified['interest_amt'],
                         'interest_days' => $verified['interest_days'],
+                        'interest_waived' => $verified['interest_waived'] ?? 0,
+                        'interest_waive_reason' => $verified['interest_waive_reason'] ?? null,
+                        'interest_waived_by' => ($verified['interest_waived'] ?? 0) > 0 ? $userId : null,
+                        'interest_waived_at' => ($verified['interest_waived'] ?? 0) > 0 ? now() : null,
                         'round_off' => $verified['round_off'],
                         'current_grand_total' => $verified['current_grand_total'],
                         'total_outstanding' => $verified['total_outstanding'],
@@ -635,6 +641,145 @@ class SolarBillingController extends Controller
             'companies' => $companyBreakdown,
             'daily_readings' => $dayWise,
             'available_months' => $availableMonths,
+        ]);
+    }
+
+    /**
+     * List all dynamic charges and rebates from the Charge Master.
+     */
+    public function charges(Request $request): JsonResponse
+    {
+        $charges = SolarBillingCharge::with('company:id,name')
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        return response()->json($charges);
+    }
+
+    /**
+     * Create or update a charge/rebate in the Charge Master.
+     * Supports rate history (archives previous row by setting effective_to when value changes).
+     */
+    public function saveCharge(Request $request, ?int $id = null): JsonResponse
+    {
+        $data = $request->validate([
+            'name' => 'required|string|max:191',
+            'code' => 'required|string|max:64|regex:/^[a-z0-9_]+$/',
+            'type' => 'required|in:charge,rebate',
+            'calc_basis' => 'required|in:per_unit,per_banking_unit,per_peak_unit,per_gen_unit,pct_energy,pct_energy_fca,pct_board,fixed',
+            'value' => 'required|numeric',
+            'company_id' => 'nullable|integer|exists:solar_billing_companies,id',
+            'effective_from' => 'required|date',
+            'effective_to' => 'nullable|date|after_or_equal:effective_from',
+            'is_active' => 'nullable|boolean',
+            'sort_order' => 'nullable|integer',
+            'history' => 'nullable|boolean',
+        ]);
+
+        $data['is_active'] = $request->has('is_active') ? $request->boolean('is_active') : true;
+        $data['sort_order'] = (int) ($data['sort_order'] ?? 0);
+
+        if ($id) {
+            $charge = SolarBillingCharge::findOrFail($id);
+            if (! empty($data['history']) && (float) $charge->value != (float) $data['value']) {
+                // Rate History preservation: archive old rate
+                $newStart = Carbon::parse($data['effective_from']);
+                $charge->update([
+                    'effective_to' => $newStart->copy()->subDay()->format('Y-m-d'),
+                ]);
+                unset($data['history']);
+                $newCharge = SolarBillingCharge::create($data);
+                return response()->json([
+                    'message' => 'New rate history row created successfully',
+                    'charge' => $newCharge->load('company:id,name'),
+                ]);
+            } else {
+                unset($data['history']);
+                $charge->update($data);
+                return response()->json([
+                    'message' => 'Charge updated successfully',
+                    'charge' => $charge->load('company:id,name'),
+                ]);
+            }
+        }
+
+        unset($data['history']);
+        $charge = SolarBillingCharge::create($data);
+        return response()->json([
+            'message' => 'Charge created successfully',
+            'charge' => $charge->load('company:id,name'),
+        ]);
+    }
+
+    /**
+     * Toggle active status of a charge/rebate.
+     */
+    public function toggleCharge(Request $request, int $id): JsonResponse
+    {
+        $charge = SolarBillingCharge::findOrFail($id);
+        $charge->is_active = ! $charge->is_active;
+        $charge->save();
+
+        return response()->json([
+            'message' => 'Charge status toggled',
+            'is_active' => $charge->is_active,
+        ]);
+    }
+
+    /**
+     * Disable a charge/rebate (Soft disable to preserve audit integrity).
+     */
+    public function destroyCharge(Request $request, int $id): JsonResponse
+    {
+        $charge = SolarBillingCharge::findOrFail($id);
+        $charge->is_active = false;
+        $charge->save();
+
+        return response()->json(['message' => 'Charge disabled successfully (Audit safe)']);
+    }
+
+    /**
+     * Waive or update overdue interest on an existing bill with mandatory reason.
+     */
+    public function waiveInterest(Request $request, int $id): JsonResponse
+    {
+        $bill = SolarBill::where('id', $id)->lockForUpdate()->firstOrFail();
+
+        if ($bill->status === 'void') {
+            return response()->json(['error' => 'Void bills cannot be modified.'], 422);
+        }
+
+        $data = $request->validate([
+            'interest_waived' => 'required|numeric|min:0',
+            'reason' => 'required|string|min:3|max:500',
+        ], [
+            'reason.required' => 'વ્યાજ માફ કરવા માટે કારણ (Reason) લખવું ફરજિયાત છે.',
+        ]);
+
+        $waived = round((float) $data['interest_waived'], 2);
+        $totalInterest = (float) $bill->interest_amt;
+
+        if ($waived > $totalInterest) {
+            return response()->json([
+                'error' => 'માફ કરેલ વ્યાજ કુલ વ્યાજ (₹' . number_format($totalInterest, 2) . ') કરતાં વધુ ન હોઈ શકે.'
+            ], 422);
+        }
+
+        $currentGrand = (float) $bill->current_grand_total;
+        $prevBal = (float) $bill->prev_balance;
+        $netInterest = max(0.0, $totalInterest - $waived);
+
+        $bill->interest_waived = $waived;
+        $bill->interest_waive_reason = trim($data['reason']);
+        $bill->interest_waived_by = $request->user()?->id;
+        $bill->interest_waived_at = $waived > 0 ? now() : null;
+        $bill->total_outstanding = round($currentGrand + $prevBal + $netInterest, 2);
+        $bill->save();
+
+        return response()->json([
+            'message' => $waived > 0 ? 'Interest waived successfully ✓' : 'Interest waiver updated ✓',
+            'bill' => $bill,
         ]);
     }
 }

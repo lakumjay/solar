@@ -73,13 +73,73 @@ export function companyBill(units = {}, rates = {}, extra = {}, cfg = {}) {
     const board = energy + fca - pf - ehv + tou + vari;
     const duty = board * num(rates.dutyPct) / 100;
     const total = board + duty;
-    const cross = (energy + fca) * num(extra.crossPct) / 100;
-    const wheel = generated * num(extra.wheelRate);
-    const bankChg = banking * num(extra.bankRate);
-    const net = total - cross - wheel - bankChg;
+
+    let cross = (energy + fca) * num(extra.crossPct) / 100;
+    let wheel = generated * num(extra.wheelRate);
+    let bankChg = banking * num(extra.bankRate);
+    let net = total - cross - wheel - bankChg;
+    let discountAmt = credited * discount;
+    let appliedCharges = null;
+
+    if (Array.isArray(extra.charges) && extra.charges.length > 0) {
+        net = total;
+        discountAmt = 0;
+        let hasPpa = false;
+        appliedCharges = {};
+
+        for (const c of extra.charges) {
+            if (c.is_active === false) continue;
+            let cVal = num(c.value);
+            if (c.code === 'wheeling' && num(extra.wheelRate) > 0) cVal = num(extra.wheelRate);
+            else if (c.code === 'banking' && num(extra.bankRate) > 0) cVal = num(extra.bankRate);
+            else if (c.code === 'cross_subsidy' && num(extra.crossPct) > 0) cVal = num(extra.crossPct);
+            else if (c.code === 'ppa_discount' && discount > 0) cVal = discount;
+
+            let rawAmt = 0;
+            switch (c.calc_basis) {
+                case 'per_unit': rawAmt = credited * cVal; break;
+                case 'per_banking_unit': rawAmt = banking * cVal; break;
+                case 'per_peak_unit': rawAmt = peak * cVal; break;
+                case 'per_gen_unit': rawAmt = generated * cVal; break;
+                case 'pct_energy': rawAmt = energy * (cVal / 100); break;
+                case 'pct_energy_fca': rawAmt = (energy + fca) * (cVal / 100); break;
+                case 'pct_board': rawAmt = board * (cVal / 100); break;
+                case 'fixed': rawAmt = cVal; break;
+                default: rawAmt = 0;
+            }
+
+            if (c.code === 'ppa_discount') {
+                discountAmt = rawAmt;
+                hasPpa = true;
+            } else {
+                if (c.type === 'rebate') {
+                    net -= rawAmt;
+                } else {
+                    net += rawAmt;
+                }
+            }
+
+            if (c.code === 'cross_subsidy') cross = rawAmt;
+            if (c.code === 'wheeling') wheel = rawAmt;
+            if (c.code === 'banking') bankChg = rawAmt;
+
+            appliedCharges[c.code] = {
+                name: c.name,
+                code: c.code,
+                type: c.type,
+                calc_basis: c.calc_basis,
+                value: cVal,
+                amount: round2(rawAmt)
+            };
+        }
+
+        if (!hasPpa) {
+            discountAmt = credited * discount;
+        }
+    }
+
     const billRate = safeDiv(net, credited);
     const netRate = billRate - discount;
-    const discountAmt = credited * discount;
     const rawGrand = net - discountAmt;
     const grand = Math.round(rawGrand);
     const roundOff = round2(grand - rawGrand);
@@ -106,6 +166,7 @@ export function companyBill(units = {}, rates = {}, extra = {}, cfg = {}) {
         cross: round2(cross),
         wheeling: round2(wheel),
         banking: round2(bankChg),
+        charges: appliedCharges,
         net: round2(net),
         billRate: billRate,
         netRate: netRate,

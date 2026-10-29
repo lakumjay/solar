@@ -80,9 +80,11 @@ export default function ExactSolarBillSheet({
     discountRate = 1.25,
     discountAmt = 0,
     prevBal = 0,
+    prevInvoiceNo = '',
     interest = 0,
     interestDays = 0,
     interestPct = 18,
+    interestWaived = 0,
     roundOff = 0,
     totalOut = 0,
     note = '',
@@ -121,9 +123,12 @@ export default function ExactSolarBillSheet({
     const numDiscount = Number(discountAmt) || 0;
     const numPrevBal = Number(prevBal) || 0;
     const numInterest = Number(interest) || 0;
+    const numInterestWaived = Number(interestWaived) || 0;
+    const netAppliedInterest = Math.max(0, numInterest - numInterestWaived);
+
     // Round Current Bill Amt to integer so it matches Grand Total consistently
     const currentBillAmt = Math.round(Math.max(0, numSubTotal - numDiscount));
-    const numTotalOut = Number(totalOut) || Math.round(currentBillAmt + numPrevBal + numInterest + Number(roundOff));
+    const numTotalOut = Number(totalOut) || Math.round(currentBillAmt + numPrevBal + netAppliedInterest + Number(roundOff));
 
     // Signature path with ON/OFF toggle check
     const isCoSigEnabled = co.signature_enabled !== false;
@@ -210,10 +215,10 @@ export default function ExactSolarBillSheet({
                                     <td><strong>{formatDDMMYYYY(invoiceDate)}</strong></td>
                                 </tr>
                                 {dueDate && (
-                                    <tr className="no-print-opt">
-                                        <td>Due Date</td>
+                                    <tr>
+                                        <td><strong>Due Date</strong></td>
                                         <td>:</td>
-                                        <td>{formatDDMMYYYY(dueDate)}</td>
+                                        <td><strong>{formatDDMMYYYY(dueDate)}</strong></td>
                                     </tr>
                                 )}
                             </tbody>
@@ -280,17 +285,17 @@ export default function ExactSolarBillSheet({
                     </div>
                     <div className="exact-bill-settle-balances">
                         <div className="exact-kv-row">
-                            <span>Previous Bal.</span>
+                            <span>Previous Bal.{prevInvoiceNo ? ` (Inv ${prevInvoiceNo})` : ''}</span>
                             <span>{inr2(numPrevBal)}</span>
                         </div>
                         <div className="exact-kv-row">
                             <span>Current Bill Amt</span>
                             <span>{inr2(currentBillAmt)}</span>
                         </div>
-                        {numInterest > 0 && (
+                        {netAppliedInterest > 0 && (
                             <div className="exact-kv-row">
                                 <span>Interest ({interestPct}% {interestDays ? `${interestDays}d` : ''})</span>
-                                <span>{inr2(numInterest)}</span>
+                                <span>{inr2(netAppliedInterest)}</span>
                             </div>
                         )}
                         <div className="exact-kv-row bold">

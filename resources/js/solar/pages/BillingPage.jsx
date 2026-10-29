@@ -4,7 +4,8 @@ import {
     Printer, Mail, FileText, CheckCircle2, AlertTriangle,
     XCircle, Ban, Download, RefreshCw, Eye, ArrowRight,
     ArrowLeft, Check, Upload, HelpCircle, BarChart3,
-    Trash2, Edit3, Scale, ChevronDown, ChevronUp, TrendingUp, X
+    Trash2, Edit3, Scale, ChevronDown, ChevronUp, TrendingUp, X,
+    Percent, Clock, ShieldCheck
 } from 'lucide-react';
 import { api } from '../api';
 import { useLanguage } from '../context/LanguageContext';
@@ -82,7 +83,7 @@ export default function BillingPage({ currentUser }) {
     const { lang, t } = useLanguage();
 
     // Navigation Tabs
-    const [activeTab, setActiveTab] = useState('bill'); // 'bill' | 'records' | 'ca' | 'reconciliation' | 'companies' | 'setup'
+    const [activeTab, setActiveTab] = useState('bill'); // 'bill' | 'records' | 'ca' | 'reconciliation' | 'companies' | 'charges' | 'setup'
 
     // Server State
     const [loading, setLoading] = useState(false);
@@ -90,6 +91,11 @@ export default function BillingPage({ currentUser }) {
     const [settings, setSettings] = useState({});
     const [bills, setBills] = useState([]);
     const [summary, setSummary] = useState(null);
+
+    // Charge Master State
+    const [charges, setCharges] = useState([]);
+    const [chargesLoading, setChargesLoading] = useState(false);
+    const [editingCharge, setEditingCharge] = useState(null);
 
     // Filters for Records & CA Report Tab
     const [filterCompany, setFilterCompany] = useState('all');
@@ -114,6 +120,7 @@ export default function BillingPage({ currentUser }) {
     // Modals & Actions
     const [viewingBill, setViewingBill] = useState(null);
     const [voidModal, setVoidModal] = useState({ open: false, bill: null, reason: '' });
+    const [waiveModal, setWaiveModal] = useState({ open: false, bill: null, waiveAmount: '', reason: '' });
     const [editingCompany, setEditingCompany] = useState(null); // null or company object
     const [editingSignatureFile, setEditingSignatureFile] = useState(null);
     const [editingSignaturePreview, setEditingSignaturePreview] = useState(null);
@@ -146,10 +153,19 @@ export default function BillingPage({ currentUser }) {
     // Step 2 Deductions
     const [wExtra, setWExtra] = useState({ lossPct: '', crossPct: '', wheelRate: '', bankRate: '' });
 
+    // Step 2 Overdue Interest Waiver State
+    const [wWaiveInterest, setWWaiveInterest] = useState(false);
+    const [wInterestWaived, setWInterestWaived] = useState('');
+    const [wInterestWaiveReason, setWInterestWaiveReason] = useState('');
+
+    const [wWaiveInterest2, setWWaiveInterest2] = useState(false);
+    const [wInterestWaived2, setWInterestWaived2] = useState('');
+    const [wInterestWaiveReason2, setWInterestWaiveReason2] = useState('');
+
     // Step 3 & 4 Computed Bills Cache
     const [computedBills, setComputedBills] = useState([]);
-    const [pendingInfo, setPendingInfo] = useState({ prevBal: 0, interest: 0, interestDays: 0 });
-    const [pendingInfo2, setPendingInfo2] = useState({ prevBal: 0, interest: 0, interestDays: 0 });
+    const [pendingInfo, setPendingInfo] = useState({ prevBal: 0, prev_invoice_no: null, interest: 0, interestDays: 0 });
+    const [pendingInfo2, setPendingInfo2] = useState({ prevBal: 0, prev_invoice_no: null, interest: 0, interestDays: 0 });
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccessCount, setSaveSuccessCount] = useState(0);
 
@@ -174,16 +190,31 @@ export default function BillingPage({ currentUser }) {
         }));
     };
 
-    // 1. Initial Load: Companies & Settings
+    // Load Dynamic Charges & Rebates Master
+    const fetchCharges = async () => {
+        setChargesLoading(true);
+        try {
+            const res = await api('billing/charges');
+            setCharges(Array.isArray(res) ? res : []);
+        } catch (err) {
+            console.error('Error fetching charges:', err);
+        } finally {
+            setChargesLoading(false);
+        }
+    };
+
+    // 1. Initial Load: Companies, Settings & Charges
     const loadInitData = async () => {
         setLoading(true);
         try {
-            const [compsRes, settRes] = await Promise.all([
+            const [compsRes, settRes, chgRes] = await Promise.all([
                 api('billing/companies'),
-                api('billing/settings')
+                api('billing/settings'),
+                api('billing/charges').catch(() => [])
             ]);
             setCompanies(compsRes || []);
             setSettings(settRes || {});
+            setCharges(Array.isArray(chgRes) ? chgRes : []);
 
             if (compsRes?.length && !wCompanyId) {
                 const first = compsRes[0];
@@ -269,6 +300,8 @@ export default function BillingPage({ currentUser }) {
             loadMonths();
         } else if (activeTab === 'reconciliation') {
             fetchReconciliation();
+        } else if (activeTab === 'charges') {
+            fetchCharges();
         }
     }, [activeTab, filterCompany, filterStatus, filterMonth, searchQuery, reconMonth]);
 
@@ -367,11 +400,17 @@ export default function BillingPage({ currentUser }) {
         // Fetch pending balance & snapshot interest for primary company
         try {
             const pi = await api(`billing/pending/${wCompanyId}`);
-            setPendingInfo(pi || { prev_balance: 0, interest_amt: 0, interest_days: 0 });
+            setPendingInfo(pi || { prev_balance: 0, prev_invoice_no: null, interest_amt: 0, interest_days: 0 });
+            setWWaiveInterest(false);
+            setWInterestWaived('');
+            setWInterestWaiveReason('');
 
             if (wTwoCo && wUnits2.companyId) {
                 const pi2 = await api(`billing/pending/${wUnits2.companyId}`);
-                setPendingInfo2(pi2 || { prev_balance: 0, interest_amt: 0, interest_days: 0 });
+                setPendingInfo2(pi2 || { prev_balance: 0, prev_invoice_no: null, interest_amt: 0, interest_days: 0 });
+                setWWaiveInterest2(false);
+                setWInterestWaived2('');
+                setWInterestWaiveReason2('');
             }
         } catch (e) {
             console.warn('Pending balance fetch failed', e);
@@ -406,12 +445,31 @@ export default function BillingPage({ currentUser }) {
                 max_bill_rate: settings.max_bill_rate ? parseFloat(settings.max_bill_rate) : 7.2
             };
 
-            const res1 = companyBill(wUnits, liveRates, wExtra, { discount: disc1, ...rateOpts });
+            const extraWithCharges = { ...wExtra, charges: charges };
+            const res1 = companyBill(wUnits, liveRates, extraWithCharges, { discount: disc1, ...rateOpts });
             const checks1 = runChecks(res1, wStmt, 0, rateOpts).slice(0, 2); // 2 Checks: Bill-Rate & Grand/Generated ratio
 
             const pBal1 = Number(pendingInfo?.prev_balance ?? pendingInfo?.prevBal) || 0;
             const pInt1 = Number(pendingInfo?.interest_amt ?? pendingInfo?.interest) || 0;
             const pDays1 = Number(pendingInfo?.interest_days ?? pendingInfo?.interestDays) || 0;
+            const prevInv1 = pendingInfo?.prev_invoice_no || null;
+
+            let waived1 = 0;
+            if (wWaiveInterest && pInt1 > 0) {
+                waived1 = parseFloat(wInterestWaived);
+                if (isNaN(waived1) || waived1 <= 0) {
+                    waived1 = pInt1;
+                }
+                if (waived1 > pInt1) {
+                    alert(lang === 'en' ? `Waive amount cannot exceed computed interest (₹${pInt1})` : `માફ રકમ ગણેલા વ્યાજ (₹${pInt1}) કરતાં વધુ ન હોઈ શકે`);
+                    return;
+                }
+                if (!wInterestWaiveReason.trim()) {
+                    alert(lang === 'en' ? 'Reason for waiving interest is mandatory' : 'વ્યાજ માફ કરવા માટેનું કારણ (Reason) લખવું ફરજિયાત છે');
+                    return;
+                }
+            }
+            const netInterest1 = Math.max(0, pInt1 - waived1);
 
             const billList = [{
                 company: comp1,
@@ -424,14 +482,17 @@ export default function BillingPage({ currentUser }) {
                 cust: wCust,
                 units: { ...wUnits },
                 stmt: { ...wStmt },
-                extra: { ...wExtra },
+                extra: extraWithCharges,
                 rates: liveRates,
                 result: res1,
                 checks: checks1,
                 prevBal: pBal1,
+                prevInvoiceNo: prevInv1,
                 interest: pInt1,
                 interestDays: pDays1,
-                totalOut: Math.round((pBal1 + pInt1 + res1.grand) * 100) / 100
+                interestWaived: waived1,
+                interestWaiveReason: wInterestWaiveReason.trim(),
+                totalOut: Math.round((pBal1 + netInterest1 + res1.grand) * 100) / 100
             }];
 
             // If Two-Company mode is active
@@ -443,12 +504,30 @@ export default function BillingPage({ currentUser }) {
 
                 const fy = fyOf(wInvDate);
                 const inv2 = wUnits2.invNo || nextInvoiceNo(comp2, fy);
-                const res2 = companyBill(wUnits2, liveRates, wExtra, { discount: disc2, ...rateOpts });
+                const res2 = companyBill(wUnits2, liveRates, extraWithCharges, { discount: disc2, ...rateOpts });
                 const checks2 = runChecks(res2, wStmt, 0, rateOpts).slice(0, 2);
 
                 const pBal2 = Number(pendingInfo2?.prev_balance ?? pendingInfo2?.prevBal) || 0;
                 const pInt2 = Number(pendingInfo2?.interest_amt ?? pendingInfo2?.interest) || 0;
                 const pDays2 = Number(pendingInfo2?.interest_days ?? pendingInfo2?.interestDays) || 0;
+                const prevInv2 = pendingInfo2?.prev_invoice_no || null;
+
+                let waived2 = 0;
+                if (wWaiveInterest2 && pInt2 > 0) {
+                    waived2 = parseFloat(wInterestWaived2);
+                    if (isNaN(waived2) || waived2 <= 0) {
+                        waived2 = pInt2;
+                    }
+                    if (waived2 > pInt2) {
+                        alert(lang === 'en' ? `Waive amount cannot exceed computed interest for company 2 (₹${pInt2})` : `કંપની ૨ માટે માફ રકમ ગણેલા વ્યાજ (₹${pInt2}) કરતાં વધુ ન હોઈ શકે`);
+                        return;
+                    }
+                    if (!wInterestWaiveReason2.trim()) {
+                        alert(lang === 'en' ? 'Reason for waiving interest for company 2 is mandatory' : 'કંપની ૨ માટે વ્યાજ માફ કરવાનું કારણ લખવું ફરજિયાત છે');
+                        return;
+                    }
+                }
+                const netInterest2 = Math.max(0, pInt2 - waived2);
 
                 billList.push({
                     company: comp2,
@@ -461,14 +540,17 @@ export default function BillingPage({ currentUser }) {
                     cust: wCust,
                     units: { ...wUnits2 },
                     stmt: { ...wStmt },
-                    extra: { ...wExtra },
+                    extra: extraWithCharges,
                     rates: liveRates,
                     result: res2,
                     checks: checks2,
                     prevBal: pBal2,
+                    prevInvoiceNo: prevInv2,
                     interest: pInt2,
                     interestDays: pDays2,
-                    totalOut: Math.round((pBal2 + pInt2 + res2.grand) * 100) / 100
+                    interestWaived: waived2,
+                    interestWaiveReason: wInterestWaiveReason2.trim(),
+                    totalOut: Math.round((pBal2 + netInterest2 + res2.grand) * 100) / 100
                 });
             }
 
@@ -506,8 +588,11 @@ export default function BillingPage({ currentUser }) {
                 formData.append(`bills[${index}][units_generated]`, b.result.generated);
 
                 formData.append(`bills[${index}][prev_balance]`, b.prevBal);
+                formData.append(`bills[${index}][prev_invoice_no]`, b.prevInvoiceNo || '');
                 formData.append(`bills[${index}][interest_amt]`, b.interest);
                 formData.append(`bills[${index}][interest_days]`, b.interestDays);
+                formData.append(`bills[${index}][interest_waived]`, b.interestWaived || 0);
+                formData.append(`bills[${index}][interest_waive_reason]`, b.interestWaiveReason || '');
 
                 // Source of truth: JSON structures
                 formData.append(`bills[${index}][stmt_inputs]`, JSON.stringify(b.stmt));
@@ -849,6 +934,14 @@ export default function BillingPage({ currentUser }) {
                 >
                     <Building2 size={17} />
                     <span>{lang === 'en' ? 'Companies' : 'કંપનીઓ'}</span>
+                </button>
+                <button
+                    type="button"
+                    className={`nav-pill-btn ${activeTab === 'charges' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('charges')}
+                >
+                    <Percent size={17} />
+                    <span>{lang === 'en' ? 'Charges & Rebates' : 'ચાર્જ & રીબેટ માસ્ટર'}</span>
                 </button>
                 <button
                     type="button"
@@ -1384,6 +1477,187 @@ export default function BillingPage({ currentUser }) {
                                 </div>
                             </details>
 
+                            {/* Section E: Overdue Interest & Balance Action */}
+                            {(Number(pendingInfo?.interest_amt) > 0 || Number(pendingInfo?.prev_balance) > 0) && (
+                                <div style={{ marginTop: '16px', border: '1.5px solid #fde047', background: '#fefce8', padding: '14px 16px', borderRadius: '10px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <Clock size={18} color="#b45309" />
+                                            <b style={{ color: '#92400e', fontSize: '14px' }}>
+                                                {lang === 'en' ? 'Previous Balance & Overdue Interest (18%)' : 'પાછલું બાકી બેલેન્સ & ઓવરડ્યુ વ્યાજ (૧૮% વાર્ષિક)'}
+                                            </b>
+                                        </div>
+                                        {pendingInfo?.prev_invoice_no && (
+                                            <span style={{ fontSize: '12px', background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
+                                                ગત ઇનવોઇસ: {pendingInfo.prev_invoice_no}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', marginBottom: '12px', background: '#ffffff', padding: '10px', borderRadius: '8px', border: '1px solid #fef08a' }}>
+                                        <div>
+                                            <small style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>પાછલું બાકી (Principal):</small>
+                                            <b style={{ color: '#0f172a', fontSize: '14px' }}>₹{inr(pendingInfo?.prev_balance || 0)}</b>
+                                        </div>
+                                        <div>
+                                            <small style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>ઓવરડ્યુ દિવસો:</small>
+                                            <b style={{ color: '#b45309', fontSize: '14px' }}>{pendingInfo?.interest_days || 0} દિવસ</b>
+                                        </div>
+                                        <div>
+                                            <small style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>ગણેલ વ્યાજ (Interest):</small>
+                                            <b style={{ color: '#dc2626', fontSize: '14px' }}>₹{inr(pendingInfo?.interest_amt || 0)}</b>
+                                        </div>
+                                    </div>
+
+                                    {Number(pendingInfo?.interest_amt) > 0 && (
+                                        <div style={{ background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #fed7aa' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '10px' }}>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#166534' }}>
+                                                    <input
+                                                        type="radio"
+                                                        name="waive_interest_choice_1"
+                                                        checked={!wWaiveInterest}
+                                                        onChange={() => setWWaiveInterest(false)}
+                                                    />
+                                                    <span>વ્યાજ લાગુ કરો (Apply Full Interest)</span>
+                                                </label>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#b45309' }}>
+                                                    <input
+                                                        type="radio"
+                                                        name="waive_interest_choice_1"
+                                                        checked={wWaiveInterest}
+                                                        onChange={() => {
+                                                            setWWaiveInterest(true);
+                                                            if (!wInterestWaived) setWInterestWaived(String(pendingInfo.interest_amt));
+                                                        }}
+                                                    />
+                                                    <span>વ્યાજ માફ કરો (Waive Overdue Interest)</span>
+                                                </label>
+                                            </div>
+
+                                            {wWaiveInterest && (
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px', marginTop: '10px', background: '#fffbeb', padding: '10px', borderRadius: '6px' }}>
+                                                    <div className="form-group" style={{ margin: 0 }}>
+                                                        <label style={{ fontSize: '12px', fontWeight: 600, color: '#92400e' }}>
+                                                            માફ કરવાની રકમ (₹):
+                                                        </label>
+                                                        <input
+                                                            type="number"
+                                                            step="any"
+                                                            max={pendingInfo?.interest_amt}
+                                                            className="form-control"
+                                                            placeholder={`મહત્તમ ₹${pendingInfo?.interest_amt}`}
+                                                            value={wInterestWaived}
+                                                            onChange={(e) => setWInterestWaived(e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div className="form-group" style={{ margin: 0 }}>
+                                                        <label style={{ fontSize: '12px', fontWeight: 600, color: '#92400e' }}>
+                                                            માફ કરવાનું કારણ (ફરજિયાત):
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            className="form-control"
+                                                            placeholder="દા.ત. વહેલી ચુકવણી નિમિત્તે મેનેજમેન્ટે વ્યાજ માફ કરેલ છે"
+                                                            value={wInterestWaiveReason}
+                                                            onChange={(e) => setWInterestWaiveReason(e.target.value)}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Section E-2: Company 2 Overdue Balance & Interest Action (if applicable) */}
+                            {wTwoCo && (Number(pendingInfo2?.interest_amt) > 0 || Number(pendingInfo2?.prev_balance) > 0) && (
+                                <div style={{ marginTop: '14px', border: '1.5px solid #fde047', background: '#fefce8', padding: '14px 16px', borderRadius: '10px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <Clock size={18} color="#b45309" />
+                                            <b style={{ color: '#92400e', fontSize: '14px' }}>
+                                                કંપની ૨: પાછલું બાકી & વ્યાજ {pendingInfo2?.prev_invoice_no ? `(ઇનવોઇસ: ${pendingInfo2.prev_invoice_no})` : ''}
+                                            </b>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', marginBottom: '12px', background: '#ffffff', padding: '10px', borderRadius: '8px', border: '1px solid #fef08a' }}>
+                                        <div>
+                                            <small style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>પાછલું બાકી:</small>
+                                            <b style={{ color: '#0f172a', fontSize: '14px' }}>₹{inr(pendingInfo2?.prev_balance || 0)}</b>
+                                        </div>
+                                        <div>
+                                            <small style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>ઓવરડ્યુ દિવસો:</small>
+                                            <b style={{ color: '#b45309', fontSize: '14px' }}>{pendingInfo2?.interest_days || 0} દિવસ</b>
+                                        </div>
+                                        <div>
+                                            <small style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>ગણેલ વ્યાજ:</small>
+                                            <b style={{ color: '#dc2626', fontSize: '14px' }}>₹{inr(pendingInfo2?.interest_amt || 0)}</b>
+                                        </div>
+                                    </div>
+
+                                    {Number(pendingInfo2?.interest_amt) > 0 && (
+                                        <div style={{ background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #fed7aa' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '10px' }}>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#166534' }}>
+                                                    <input
+                                                        type="radio"
+                                                        name="waive_interest_choice_2"
+                                                        checked={!wWaiveInterest2}
+                                                        onChange={() => setWWaiveInterest2(false)}
+                                                    />
+                                                    <span>વ્યાજ લાગુ કરો</span>
+                                                </label>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#b45309' }}>
+                                                    <input
+                                                        type="radio"
+                                                        name="waive_interest_choice_2"
+                                                        checked={wWaiveInterest2}
+                                                        onChange={() => {
+                                                            setWWaiveInterest2(true);
+                                                            if (!wInterestWaived2) setWInterestWaived2(String(pendingInfo2.interest_amt));
+                                                        }}
+                                                    />
+                                                    <span>વ્યાજ માફ કરો</span>
+                                                </label>
+                                            </div>
+
+                                            {wWaiveInterest2 && (
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px', marginTop: '10px', background: '#fffbeb', padding: '10px', borderRadius: '6px' }}>
+                                                    <div className="form-group" style={{ margin: 0 }}>
+                                                        <label style={{ fontSize: '12px', fontWeight: 600, color: '#92400e' }}>
+                                                            માફ કરવાની રકમ (₹):
+                                                        </label>
+                                                        <input
+                                                            type="number"
+                                                            step="any"
+                                                            max={pendingInfo2?.interest_amt}
+                                                            className="form-control"
+                                                            placeholder={`મહત્તમ ₹${pendingInfo2?.interest_amt}`}
+                                                            value={wInterestWaived2}
+                                                            onChange={(e) => setWInterestWaived2(e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div className="form-group" style={{ margin: 0 }}>
+                                                        <label style={{ fontSize: '12px', fontWeight: 600, color: '#92400e' }}>
+                                                            માફ કરવાનું કારણ (ફરજિયાત):
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            className="form-control"
+                                                            placeholder="કારણ દાખલ કરો"
+                                                            value={wInterestWaiveReason2}
+                                                            onChange={(e) => setWInterestWaiveReason2(e.target.value)}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             <div className="wizard-btn-row">
                                 <button type="button" className="btn-secondary" onClick={() => setWizStep(1)}>
                                     <ArrowLeft size={16} /> <span>{lang === 'en' ? 'Back' : 'પાછળ'}</span>
@@ -1441,9 +1715,11 @@ export default function BillingPage({ currentUser }) {
                                         discountRate={b.discount || b.company?.discount || 1.25}
                                         discountAmt={b.result?.discountAmt}
                                         prevBal={b.prevBal}
+                                        prevInvoiceNo={b.prevInvoiceNo}
                                         interest={b.interest}
                                         interestDays={b.interestDays}
                                         interestPct={b.company?.interest_pct ?? 18}
+                                        interestWaived={b.interestWaived || 0}
                                         roundOff={b.result?.roundOff}
                                         totalOut={b.totalOut}
                                         note={b.note}
@@ -1632,6 +1908,11 @@ export default function BillingPage({ currentUser }) {
                                         <div className="record-top-row">
                                             <div className="record-title-col">
                                                 <b className="record-inv-no">{bill.invoice_no}</b>
+                                                {bill.prev_invoice_no && (
+                                                    <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '6px' }}>
+                                                        (ગત: {bill.prev_invoice_no})
+                                                    </span>
+                                                )}
                                                 <span className="record-company-name">{bill.company?.name}</span>
                                             </div>
                                             <div className="record-status-col">
@@ -1659,6 +1940,13 @@ export default function BillingPage({ currentUser }) {
                                                 </div>
                                             )}
                                         </div>
+
+                                        {Number(bill.interest_waived) > 0 && (
+                                            <div style={{ marginTop: '6px', fontSize: '12px', color: '#15803d', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '3px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <CheckCircle2 size={13} color="#16a34a" />
+                                                <span>વ્યાજ માફ: <b>₹{inr(bill.interest_waived)}</b> {bill.interest_waive_reason ? `(${bill.interest_waive_reason})` : ''}</span>
+                                            </div>
+                                        )}
 
                                         {isVoid && bill.void_reason && (
                                             <div className="void-reason-box">
@@ -1710,6 +1998,24 @@ export default function BillingPage({ currentUser }) {
                                                 >
                                                     <RefreshCw size={14} />
                                                     <span>{isPending ? 'Paid કરો' : 'Pending કરો'}</span>
+                                                </button>
+                                            )}
+
+                                            {!isVoid && isPending && (Number(bill.interest_amt) > 0 || Number(bill.live_ledger?.live_accrued_interest) > 0) && (
+                                                <button
+                                                    type="button"
+                                                    className="btn-sm"
+                                                    style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', fontWeight: 600 }}
+                                                    onClick={() => setWaiveModal({
+                                                        open: true,
+                                                        bill: bill,
+                                                        waiveAmount: String(bill.interest_amt || bill.live_ledger?.live_accrued_interest || ''),
+                                                        reason: bill.interest_waive_reason || ''
+                                                    })}
+                                                    title="ઓવરડ્યુ વ્યાજ માફ કરો"
+                                                >
+                                                    <ShieldCheck size={14} />
+                                                    <span>વ્યાજ માફી</span>
                                                 </button>
                                             )}
 
@@ -2371,6 +2677,193 @@ export default function BillingPage({ currentUser }) {
                                 </div>
                             </div>
                         ))}
+                    </div>
+                </div>
+            )}
+
+            {/* TAB: CHARGE & REBATE MASTER */}
+            {activeTab === 'charges' && (
+                <div className="billing-charges-container">
+                    <div className="card-header-flex" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                        <div>
+                            <h3 className="card-title" style={{ margin: 0, fontSize: '18px' }}>
+                                {lang === 'en' ? 'Charge & Rebate Master' : 'ચાર્જ & રીબેટ માસ્ટર'}
+                            </h3>
+                            <small className="form-hint" style={{ marginTop: '2px', display: 'block' }}>
+                                {lang === 'en'
+                                    ? 'Dynamic charges & rebates engine — configure any charge or rebate without code changes or migrations.'
+                                    : 'ડાયનેમિક ચાર્જ & રીબેટ એન્જિન — કોડ કે માઇગ્રેશન બદલ્યા વગર નવા ચાર્જ/રીબેટ ઉમેરો કે રેટ બદલો.'}
+                            </small>
+                        </div>
+                        <button
+                            type="button"
+                            className="btn-primary"
+                            onClick={() => setEditingCharge({
+                                id: null,
+                                name: '',
+                                code: '',
+                                type: 'rebate',
+                                calc_basis: 'per_banking_unit',
+                                value: '',
+                                company_id: '',
+                                effective_from: new Date().toISOString().slice(0, 10),
+                                effective_to: '',
+                                sort_order: 10,
+                                is_active: true,
+                                history: false
+                            })}
+                        >
+                            <Plus size={16} /> <span>{lang === 'en' ? 'Add Charge / Rebate' : 'નવો ચાર્જ / રીબેટ ઉમેરો'}</span>
+                        </button>
+                    </div>
+
+                    {/* Master Info Notice */}
+                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px', fontSize: '13px', color: '#166534', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                        <CheckCircle2 size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
+                        <div>
+                            <b>માસ્ટર નિયમ:</b> કોઈપણ નવો ચાર્જ કે રીબેટ નવી ROW તરીકે સ્ટોર થાય છે. 
+                            બેન્કિંગ ચાર્જ <b>Banking Units</b> પર ગણાય છે (Credited Units પર નહીં). રેટ બદલતી વખતે 'Preserve Rate History' ઓન રાખવાથી જૂના બિલોના ઓડિટ પર કોઈ અસર થતી નથી.
+                        </div>
+                    </div>
+
+                    {/* Charges Table */}
+                    <div className="billing-card" style={{ padding: 0, overflow: 'hidden' }}>
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                                <thead>
+                                    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontSize: '12px', textTransform: 'uppercase' }}>
+                                        <th style={{ padding: '12px 14px' }}>નામ / કોડ</th>
+                                        <th style={{ padding: '12px 14px' }}>પ્રકાર</th>
+                                        <th style={{ padding: '12px 14px' }}>ગણતરી આધાર (Basis)</th>
+                                        <th style={{ padding: '12px 14px' }}>વેલ્યુ / રેટ</th>
+                                        <th style={{ padding: '12px 14px' }}>કંપની સ્કોપ</th>
+                                        <th style={{ padding: '12px 14px' }}>સમયગાળો (Effective)</th>
+                                        <th style={{ padding: '12px 14px' }}>સ્ટેટસ</th>
+                                        <th style={{ padding: '12px 14px', textAlign: 'right' }}>ક્રિયા</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {charges.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="8" style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>
+                                                {chargesLoading ? 'ચાર્જ લોડ થઈ રહ્યા છે...' : 'કોઈ ચાર્જ કે રીબેટ મળ્યા નથી.'}
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        charges.map(c => {
+                                            const isRebate = c.type === 'rebate';
+                                            const basisLabels = {
+                                                per_banking_unit: 'Banking Unit દીઠ',
+                                                per_unit: 'Credited Unit દીઠ',
+                                                per_peak_unit: 'Peak Unit દીઠ',
+                                                per_gen_unit: 'Generated Unit દીઠ',
+                                                pct_energy_fca: '% of (Energy + FCA)',
+                                                pct_energy: '% of Energy',
+                                                pct_board: '% of Board Charge',
+                                                fixed: 'Fixed રકમ (₹)'
+                                            };
+                                            return (
+                                                <tr key={c.id} style={{ borderBottom: '1px solid #f1f5f9', background: c.is_active ? '#ffffff' : '#f8fafc', opacity: c.is_active ? 1 : 0.65 }}>
+                                                    <td style={{ padding: '12px 14px' }}>
+                                                        <b style={{ color: '#0f172a', display: 'block' }}>{c.name}</b>
+                                                        <code style={{ fontSize: '11px', color: '#64748b' }}>{c.code}</code>
+                                                    </td>
+                                                    <td style={{ padding: '12px 14px' }}>
+                                                        <span style={{
+                                                            padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700,
+                                                            background: isRebate ? '#dcfce7' : '#ffedd5',
+                                                            color: isRebate ? '#15803d' : '#c2410c'
+                                                        }}>
+                                                            {isRebate ? '− રીબેટ (કપાત)' : '+ ચાર્જ (ઉમેરો)'}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '12px 14px', color: '#334155' }}>
+                                                        <span style={{ fontWeight: c.calc_basis === 'per_banking_unit' ? 700 : 500, color: c.calc_basis === 'per_banking_unit' ? '#0284c7' : 'inherit' }}>
+                                                            {basisLabels[c.calc_basis] || c.calc_basis}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '12px 14px' }}>
+                                                        <b style={{ fontSize: '14px', color: '#0f172a' }}>
+                                                            {c.calc_basis.startsWith('pct_') ? `${Number(c.value)}%` : `₹${Number(c.value)}`}
+                                                        </b>
+                                                    </td>
+                                                    <td style={{ padding: '12px 14px' }}>
+                                                        {c.company ? (
+                                                            <span style={{ background: '#f1f5f9', color: '#334155', padding: '2px 6px', borderRadius: '4px', fontSize: '12px', fontWeight: 600 }}>
+                                                                {c.company.name}
+                                                            </span>
+                                                        ) : (
+                                                            <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '4px', fontSize: '12px', fontWeight: 600 }}>
+                                                                Global (બધી કંપની)
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td style={{ padding: '12px 14px', fontSize: '12px', color: '#64748b' }}>
+                                                        <span>{c.effective_from} થી {c.effective_to || 'ચાલુ'}</span>
+                                                    </td>
+                                                    <td style={{ padding: '12px 14px' }}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={async () => {
+                                                                try {
+                                                                    await api(`billing/charges/${c.id}/toggle`, { method: 'POST' });
+                                                                    fetchCharges();
+                                                                } catch (err) {
+                                                                    alert(err.message || 'Error toggling charge');
+                                                                }
+                                                            }}
+                                                            style={{
+                                                                background: c.is_active ? '#10b981' : '#cbd5e1',
+                                                                color: '#ffffff',
+                                                                border: 'none',
+                                                                padding: '3px 10px',
+                                                                borderRadius: '12px',
+                                                                fontSize: '11px',
+                                                                fontWeight: 700,
+                                                                cursor: 'pointer'
+                                                            }}
+                                                        >
+                                                            {c.is_active ? 'ON' : 'OFF'}
+                                                        </button>
+                                                    </td>
+                                                    <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                                                        <button
+                                                            type="button"
+                                                            className="btn-edit-link"
+                                                            style={{ marginRight: '8px', cursor: 'pointer' }}
+                                                            onClick={() => setEditingCharge({
+                                                                ...c,
+                                                                value: String(c.value),
+                                                                company_id: c.company_id || '',
+                                                                history: false
+                                                            })}
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            className="btn-edit-link"
+                                                            style={{ color: '#0284c7', cursor: 'pointer' }}
+                                                            title="નવા રેટ સાથે નવી હિસ્ટ્રી લાઇન ઉમેરો"
+                                                            onClick={() => setEditingCharge({
+                                                                ...c,
+                                                                value: String(c.value),
+                                                                company_id: c.company_id || '',
+                                                                effective_from: new Date().toISOString().slice(0, 10),
+                                                                effective_to: '',
+                                                                history: true
+                                                            })}
+                                                        >
+                                                            નવો રેટ (હિસ્ટ્રી)
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             )}
@@ -3239,15 +3732,258 @@ export default function BillingPage({ currentUser }) {
                             discountRate={Number(viewingBill.discount_rate || viewingBill.company?.discount || 1.25)}
                             discountAmt={Number(viewingBill.discount_amt || viewingBill.result?.discountAmt || 0)}
                             prevBal={Number(viewingBill.prev_balance || viewingBill.prevBal || 0)}
+                            prevInvoiceNo={viewingBill.prev_invoice_no || viewingBill.prevInvoiceNo || ''}
                             interest={Number(viewingBill.interest_amt || viewingBill.interest || 0)}
                             interestDays={Number(viewingBill.interest_days || viewingBill.interestDays || 0)}
                             interestPct={Number(viewingBill.company?.interest_pct || settings.interest_pct || 18)}
+                            interestWaived={Number(viewingBill.interest_waived || viewingBill.interestWaived || 0)}
                             roundOff={Number(viewingBill.round_off || viewingBill.result?.roundOff || 0)}
                             totalOut={Number(viewingBill.total_outstanding || viewingBill.totalOut || 0)}
                             note={viewingBill.note || ''}
                             settings={settings}
                             lang={lang}
                         />
+                    </div>
+                </div>
+            )}
+
+            {/* WAIVE OVERDUE INTEREST MODAL */}
+            {waiveModal.open && (
+                <div className="billing-modal-backdrop" onClick={() => setWaiveModal({ open: false, bill: null, waiveAmount: '', reason: '' })}>
+                    <div className="billing-modal-box" onClick={(e) => e.stopPropagation()}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                            <h3 style={{ margin: 0, color: '#92400e', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <ShieldCheck size={18} color="#b45309" />
+                                <span>ઓવરડ્યુ વ્યાજ માફી (Waive Overdue Interest)</span>
+                            </h3>
+                            <button type="button" className="btn-secondary" style={{ padding: '2px 8px' }} onClick={() => setWaiveModal({ open: false, bill: null, waiveAmount: '', reason: '' })}>✕</button>
+                        </div>
+                        <p style={{ fontSize: '13px', color: '#475569', marginBottom: '12px' }}>
+                            ઇનવોઇસ <b>{waiveModal.bill?.invoice_no}</b> ({waiveModal.bill?.company?.name}) પર ઓવરડ્યુ વ્યાજ માફ કરવા માટે નીચે રકમ અને કારણ દાખલ કરો.
+                        </p>
+                        <div className="form-group">
+                            <label>માફ કરવાની રકમ (Waive Amount ₹):</label>
+                            <input
+                                type="number"
+                                step="any"
+                                className="form-control"
+                                value={waiveModal.waiveAmount}
+                                onChange={(e) => setWaiveModal({ ...waiveModal, waiveAmount: e.target.value })}
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>માફ કરવાનું કારણ (Mandatory Reason - ફરજિયાત):</label>
+                            <input
+                                type="text"
+                                className="form-control"
+                                placeholder="દા.ત. વહેલી ચુકવણી નિમિત્તે મેનેજમેન્ટે વ્યાજ માફ કરેલ છે"
+                                value={waiveModal.reason}
+                                onChange={(e) => setWaiveModal({ ...waiveModal, reason: e.target.value })}
+                            />
+                            <small style={{ fontSize: '11px', color: '#64748b' }}>ઓડિટ લોગમાં આ કારણ કાયમી ધોરણે સચવાશે.</small>
+                        </div>
+                        <div className="wizard-btn-row" style={{ marginTop: '16px' }}>
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => setWaiveModal({ open: false, bill: null, waiveAmount: '', reason: '' })}
+                            >
+                                કેન્સલ
+                            </button>
+                            <button
+                                type="button"
+                                className="btn-primary"
+                                style={{ background: '#059669', borderColor: '#059669' }}
+                                onClick={async () => {
+                                    if (!waiveModal.reason.trim()) {
+                                        alert(lang === 'en' ? 'Reason for waiving interest is mandatory' : 'વ્યાજ માફ કરવાનું કારણ લખવું ફરજિયાત છે');
+                                        return;
+                                    }
+                                    const amt = parseFloat(waiveModal.waiveAmount);
+                                    if (isNaN(amt) || amt <= 0) {
+                                        alert(lang === 'en' ? 'Please enter a valid waive amount' : 'માન્ય માફ રકમ દાખલ કરો');
+                                        return;
+                                    }
+                                    try {
+                                        await api(`billing/bills/${waiveModal.bill.id}/waive-interest`, {
+                                            method: 'POST',
+                                            body: JSON.stringify({
+                                                interest_waived: amt,
+                                                reason: waiveModal.reason.trim()
+                                            })
+                                        });
+                                        alert(lang === 'en' ? 'Interest waived successfully ✓' : 'વ્યાજ સફળતાપૂર્વક માફ કરવામાં આવ્યું ✓');
+                                        setWaiveModal({ open: false, bill: null, waiveAmount: '', reason: '' });
+                                        fetchBills();
+                                    } catch (err) {
+                                        alert(err.message || 'Error waiving interest');
+                                    }
+                                }}
+                            >
+                                ખાતરી કરો - વ્યાજ માફ કરો
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* EDIT / CREATE CHARGE MODAL */}
+            {editingCharge && (
+                <div className="billing-modal-backdrop" onClick={() => setEditingCharge(null)}>
+                    <div className="billing-modal-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '620px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+                            <h3 style={{ margin: 0, fontSize: '17px', color: '#0f172a' }}>
+                                {editingCharge.history
+                                    ? 'નવો રેટ દાખલ કરો (Rate History Preservation)'
+                                    : editingCharge.id
+                                        ? 'ચાર્જ / રીબેટ એડિટ કરો'
+                                        : 'નવો ચાર્જ અથવા રીબેટ ઉમેરો'}
+                            </h3>
+                            <button type="button" className="btn-secondary" style={{ padding: '4px 10px', fontSize: '13px' }} onClick={() => setEditingCharge(null)}>✕</button>
+                        </div>
+
+                        {editingCharge.history && (
+                            <div style={{ background: '#e0f2fe', border: '1px solid #bae6fd', borderRadius: '6px', padding: '10px 12px', marginBottom: '14px', fontSize: '12px', color: '#0369a1' }}>
+                                <b>દર ઇતિહાસ સાચવણી (Rate History):</b> જૂનો દર '{editingCharge.effective_from}' ની અગાઉ સુધી જ લાગુ રહેશે, અને આ નવો દર નવી ROW તરીકે સેવ થશે. જૂના બિલોના ઓડિટ પર કોઈ અસર થશે નહીં.
+                            </div>
+                        )}
+
+                        <div className="form-row-2">
+                            <div className="form-group">
+                                <label>નામ (Name):</label>
+                                <input
+                                    type="text"
+                                    className="form-control"
+                                    placeholder="દા.ત. Banking Charge"
+                                    value={editingCharge.name}
+                                    onChange={(e) => setEditingCharge({ ...editingCharge, name: e.target.value })}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>કોડ (Code - lowercase, underscore):</label>
+                                <input
+                                    type="text"
+                                    className="form-control"
+                                    placeholder="banking"
+                                    disabled={Boolean(editingCharge.id && !editingCharge.history)}
+                                    value={editingCharge.code}
+                                    onChange={(e) => setEditingCharge({ ...editingCharge, code: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') })}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="form-row-2">
+                            <div className="form-group">
+                                <label>પ્રકાર (Type):</label>
+                                <select
+                                    className="form-control"
+                                    value={editingCharge.type}
+                                    onChange={(e) => setEditingCharge({ ...editingCharge, type: e.target.value })}
+                                >
+                                    <option value="rebate">Rebate (− કપાત / બાદ)</option>
+                                    <option value="charge">Charge (+ ઉમેરો)</option>
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label>ગણતરી આધાર (Calculation Basis):</label>
+                                <select
+                                    className="form-control"
+                                    value={editingCharge.calc_basis}
+                                    onChange={(e) => setEditingCharge({ ...editingCharge, calc_basis: e.target.value })}
+                                >
+                                    <option value="per_banking_unit">per_banking_unit — Banking Unit દીઠ (e.g. 11,497 × 1.50)</option>
+                                    <option value="per_unit">per_unit — Credited Unit દીઠ (e.g. 60,392 × 1.25)</option>
+                                    <option value="per_gen_unit">per_gen_unit — Generated Unit દીઠ (e.g. Wheeling)</option>
+                                    <option value="per_peak_unit">per_peak_unit — Peak Unit દીઠ</option>
+                                    <option value="pct_energy_fca">pct_energy_fca — % of (Energy + FCA) (e.g. Cross Subsidy 15%)</option>
+                                    <option value="pct_energy">pct_energy — % of Energy Charge</option>
+                                    <option value="pct_board">pct_board — % of Board Charge</option>
+                                    <option value="fixed">fixed — નક્કી કરેલ ફિક્સ રકમ (₹)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="form-row-2">
+                            <div className="form-group">
+                                <label>વેલ્યુ / રેટ (Value / %):</label>
+                                <input
+                                    type="number"
+                                    step="any"
+                                    className="form-control"
+                                    placeholder="દા.ત. 1.50 અથવા 15"
+                                    value={editingCharge.value}
+                                    onChange={(e) => setEditingCharge({ ...editingCharge, value: e.target.value })}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>કંપની સ્કોપ (Company Scope):</label>
+                                <select
+                                    className="form-control"
+                                    value={editingCharge.company_id || ''}
+                                    onChange={(e) => setEditingCharge({ ...editingCharge, company_id: e.target.value ? parseInt(e.target.value, 10) : null })}
+                                >
+                                    <option value="">Global (બધી કંપનીઓને લાગુ)</option>
+                                    {companies.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="form-row-2">
+                            <div className="form-group">
+                                <label>ક્યારથી લાગુ (Effective From):</label>
+                                <input
+                                    type="date"
+                                    className="form-control"
+                                    value={editingCharge.effective_from}
+                                    onChange={(e) => setEditingCharge({ ...editingCharge, effective_from: e.target.value })}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>ક્યારે પૂરું (Effective To - ખાલી = ચાલુ):</label>
+                                <input
+                                    type="date"
+                                    className="form-control"
+                                    value={editingCharge.effective_to || ''}
+                                    onChange={(e) => setEditingCharge({ ...editingCharge, effective_to: e.target.value || null })}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="wizard-btn-row" style={{ marginTop: '16px' }}>
+                            <button type="button" className="btn-secondary" onClick={() => setEditingCharge(null)}>
+                                કેન્સલ
+                            </button>
+                            <button
+                                type="button"
+                                className="btn-primary"
+                                onClick={async () => {
+                                    if (!editingCharge.name?.trim() || !editingCharge.code?.trim()) {
+                                        alert('નામ અને કોડ બંને દાખલ કરવા જરૂરી છે.');
+                                        return;
+                                    }
+                                    if (isNaN(parseFloat(editingCharge.value))) {
+                                        alert('માન્ય રેટ દાખલ કરો.');
+                                        return;
+                                    }
+                                    try {
+                                        const url = editingCharge.id ? `billing/charges/${editingCharge.id}` : 'billing/charges';
+                                        await api(url, {
+                                            method: 'POST',
+                                            body: JSON.stringify(editingCharge)
+                                        });
+                                        alert('ચાર્જ/રીબેટ સફળતાપૂર્વક સેવ થયો ✓');
+                                        setEditingCharge(null);
+                                        fetchCharges();
+                                    } catch (err) {
+                                        alert(err.message || 'Error saving charge');
+                                    }
+                                }}
+                            >
+                                સેવ કરો
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

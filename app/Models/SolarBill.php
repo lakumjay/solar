@@ -29,8 +29,10 @@ class SolarBill extends Model
         'current_grand_total' => 'decimal:2',
         'total_outstanding' => 'decimal:2',
         'paid_amount' => 'decimal:2',
+        'interest_waived' => 'decimal:2',
         'paid_at' => 'datetime',
         'voided_at' => 'datetime',
+        'interest_waived_at' => 'datetime',
     ];
 
     public function company()
@@ -46,6 +48,11 @@ class SolarBill extends Model
     public function voidedBy()
     {
         return $this->belongsTo(User::class, 'voided_by');
+    }
+
+    public function interestWaivedBy()
+    {
+        return $this->belongsTo(User::class, 'interest_waived_by');
     }
 
     /**

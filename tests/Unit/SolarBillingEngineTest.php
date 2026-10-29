@@ -317,4 +317,91 @@ class SolarBillingEngineTest extends TestCase
         $this->assertEquals(0.00, $res['prev_balance']);
         $this->assertEquals(0.00, $res['interest_amt']);
     }
+
+    public function test_banking_charge_calculates_on_banking_units_not_credited(): void
+    {
+        $units = [
+            'credited' => 60392,
+            'peak' => 18000,
+            'banking' => 11497, // Banking units
+            'generated' => 65000,
+        ];
+
+        $rates = [
+            'energyRate' => 4.20,
+            'fcaRate' => 2.45,
+            'pfPct' => 0.0,
+            'ehvPct' => 0.0,
+            'touRate' => 0.0,
+            'varPct' => 0.0,
+            'dutyPct' => 0.0,
+        ];
+
+        $bill = SolarBillingEngineService::companyBill($units, $rates, ['bankRate' => 1.50]);
+
+        // 11,497 * 1.50 = 17,245.50 (NOT 60,392 * 1.50 = 90,588)
+        $this->assertEquals(17245.50, $bill['banking']);
+    }
+
+    public function test_dynamic_charge_master_supports_custom_charge_without_code_change(): void
+    {
+        // Add a new dynamic rebate to the master: "Green Energy Rebate" 1% on Energy
+        $customCharge = \App\Models\SolarBillingCharge::create([
+            'name' => 'Green Energy Rebate',
+            'code' => 'green_rebate',
+            'type' => 'rebate',
+            'calc_basis' => 'pct_energy',
+            'value' => 1.0000,
+            'company_id' => null,
+            'effective_from' => '2026-01-01',
+            'is_active' => true,
+            'sort_order' => 10,
+        ]);
+
+        $units = ['credited' => 10000, 'banking' => 0, 'peak' => 0, 'generated' => 10000];
+        $rates = ['energyRate' => 5.00, 'fcaRate' => 2.00, 'pfPct' => 0, 'ehvPct' => 0, 'touRate' => 0, 'varPct' => 0, 'dutyPct' => 0];
+
+        $bill = SolarBillingEngineService::companyBill($units, $rates, [], 1.25);
+
+        // Energy = 10,000 * 5 = 50,000 -> 1% Green Rebate = ₹500
+        $this->assertArrayHasKey('green_rebate', $bill['charges']);
+        $this->assertEquals(500.00, $bill['charges']['green_rebate']['amount']);
+
+        // Clean up
+        $customCharge->delete();
+    }
+
+    public function test_overdue_interest_waived_requires_reason_and_reduces_total(): void
+    {
+        $company = SolarBillingCompany::create([
+            'name' => 'Solar Co Waive Test',
+            'inv_prefix' => 'SCW',
+            'interest_pct' => 18.0,
+            'due_days' => 15,
+        ]);
+
+        $this->createTestBill([
+            'company_id' => $company->id,
+            'invoice_no' => 'SCW/26-27/01',
+            'invoice_date' => '2026-08-01',
+            'due_date' => '2026-08-16',
+            'current_grand_total' => 100000.00,
+            'total_outstanding' => 100000.00,
+            'status' => 'pending',
+        ]);
+
+        $payload = [
+            'company_id' => $company->id,
+            'invoice_date' => '2026-09-15',
+            'units_credited' => 10000,
+            'stmt_inputs' => $this->sampleStatement(),
+            'interest_waived' => 500.00,
+            'interest_waive_reason' => '', // Empty reason should fail
+        ];
+
+        // 1. Rejects if reason is empty
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('વ્યાજ માફ કરવા માટે કારણ (Reason) લખવું ફરજિયાત છે.');
+        SolarBillingEngineService::verifyAndRecompute($payload, $company);
+    }
 }
