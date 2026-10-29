@@ -352,6 +352,8 @@ export default function BillingPage({ currentUser }) {
     const [pendingInfo2, setPendingInfo2] = useState({ prevBal: 0, prev_invoice_no: null, interest: 0, interestDays: 0 });
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccessCount, setSaveSuccessCount] = useState(0);
+    const [selectedBillIds, setSelectedBillIds] = useState([]);
+    const [viewingBills, setViewingBills] = useState([]);
 
     // Helper: apply company-specific billing parameters & compute due date
     const applyCompanyConfig = (comp, baseInvDate = wInvDate, currentSettings = settings) => {
@@ -928,12 +930,14 @@ export default function BillingPage({ currentUser }) {
         }
     };
 
-    // Print Invoice Handler
-    const handlePrintInvoice = (billObj) => {
-        setViewingBill(billObj);
+    // Print Invoice Handler (Single or Combined)
+    const handlePrintInvoice = (billOrBills) => {
+        const billsArr = Array.isArray(billOrBills) ? billOrBills : [billOrBills];
+        setViewingBills(billsArr);
+        setViewingBill(null);
         setTimeout(() => {
             window.print();
-        }, 200);
+        }, 250);
     };
 
     // Email Mailto Generator
@@ -2198,9 +2202,9 @@ export default function BillingPage({ currentUser }) {
                                 <button
                                     type="button"
                                     className="btn-action-print"
-                                    onClick={() => handlePrintInvoice(computedBills[0])}
+                                    onClick={() => handlePrintInvoice(computedBills)}
                                 >
-                                    <Printer size={16} /> <span>{lang === 'en' ? 'Print / PDF' : 'પ્રિન્ટ / PDF'}</span>
+                                    <Printer size={16} /> <span>{computedBills.length > 1 ? (lang === 'en' ? 'Print All / PDF' : 'બધા બિલ પ્રિન્ટ / PDF') : (lang === 'en' ? 'Print / PDF' : 'પ્રિન્ટ / PDF')}</span>
                                 </button>
                                 <button
                                     type="button"
@@ -2352,26 +2356,120 @@ export default function BillingPage({ currentUser }) {
                         </div>
                     </div>
 
+                    {/* Multi-Bill Selection & Batch Actions Bar */}
+                    {bills.length > 0 && (
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '10px 16px',
+                            background: selectedBillIds.length > 0 ? '#f0fdf4' : '#ffffff',
+                            borderRadius: '12px',
+                            border: selectedBillIds.length > 0 ? '1.5px solid #10b981' : '1px solid #e2e8f0',
+                            marginBottom: '14px',
+                            flexWrap: 'wrap',
+                            gap: '10px',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <input
+                                    type="checkbox"
+                                    id="select-all-bills"
+                                    checked={selectedBillIds.length === bills.length && bills.length > 0}
+                                    onChange={(e) => {
+                                        if (e.target.checked) {
+                                            setSelectedBillIds(bills.map(b => b.id));
+                                        } else {
+                                            setSelectedBillIds([]);
+                                        }
+                                    }}
+                                    style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#059669' }}
+                                />
+                                <label htmlFor="select-all-bills" style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: '#334155', cursor: 'pointer' }}>
+                                    {selectedBillIds.length > 0
+                                        ? `${selectedBillIds.length} બિલ પસંદ કરેલ (Selected)`
+                                        : (lang === 'en' ? 'Select All Bills for Batch Print' : 'બધા બિલ પસંદ કરો (Select All)')}
+                                </label>
+                            </div>
+
+                            {selectedBillIds.length > 0 && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <button
+                                        type="button"
+                                        className="btn-action-print"
+                                        style={{ padding: '7px 16px', fontSize: '12.5px', fontWeight: 800, background: '#059669', color: '#ffffff', border: 'none', borderRadius: '8px' }}
+                                        onClick={() => {
+                                            const toPrint = bills.filter(b => selectedBillIds.includes(b.id));
+                                            handlePrintInvoice(toPrint);
+                                        }}
+                                    >
+                                        <Printer size={15} />
+                                        <span>📄 સંયુક્ત પ્રિન્ટ / PDF ({selectedBillIds.length} Bills)</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="btn-secondary"
+                                        style={{ padding: '7px 12px', fontSize: '12px', borderRadius: '8px' }}
+                                        onClick={() => setSelectedBillIds([])}
+                                    >
+                                        ✕ રદ કરો
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Bills Table / Cards */}
                     <div className="records-list">
                         {bills.length === 0 ? (
-                            <div className="empty-records">
-                                <FolderClock size={36} />
-                                <p>{lang === 'en' ? 'No billing records found.' : 'કોઈ બિલ રેકોર્ડ મળ્યા નથી.'}</p>
+                            <div className="empty-records" style={{ textAlign: 'center', padding: '48px 20px', background: '#f8fafc', borderRadius: '16px', border: '1.5px dashed #cbd5e1', margin: '20px 0' }}>
+                                <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                                    <FolderClock size={32} />
+                                </div>
+                                <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#1e293b', margin: '0 0 6px' }}>
+                                    {lang === 'en' ? 'No Billing Records Found' : 'કોઈ બિલ રેકોર્ડ મળ્યા નથી'}
+                                </h3>
+                                <p style={{ fontSize: '13px', color: '#64748b', maxWidth: '360px', margin: '0 auto 18px', lineHeight: 1.5 }}>
+                                    {lang === 'en'
+                                        ? 'No solar bills match your selected filter. Create your first bill using the wizard.'
+                                        : 'પસંદ કરેલ ફિલ્ટરમાં કોઈ બિલ મળ્યું નથી. નવું બિલ બનાવવા માટે વિઝાર્ડનો ઉપયોગ કરો.'}
+                                </p>
+                                <button
+                                    type="button"
+                                    className="btn-primary"
+                                    onClick={() => setActiveTab('bill')}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '10px', fontSize: '13.5px', fontWeight: 700 }}
+                                >
+                                    <Plus size={16} />
+                                    <span>{lang === 'en' ? 'Create New Bill' : '＋ નવું બિલ બનાવો'}</span>
+                                </button>
                             </div>
                         ) : (
                             bills.map((bill) => {
                                 const isPending = bill.status === 'pending';
                                 const isVoid = bill.status === 'void';
                                 const live = bill.live_ledger;
+                                const isSelected = selectedBillIds.includes(bill.id);
 
                                 return (
-                                    <div key={bill.id} className={`bill-record-card ${bill.status}`}>
+                                    <div key={bill.id} className={`bill-record-card ${bill.status}`} style={{ outline: isSelected ? '2px solid #10b981' : 'none' }}>
                                         <div className="record-top-row">
-                                            <div className="record-title-col">
+                                            <div className="record-title-col" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isSelected}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) {
+                                                            setSelectedBillIds([...selectedBillIds, bill.id]);
+                                                        } else {
+                                                            setSelectedBillIds(selectedBillIds.filter(id => id !== bill.id));
+                                                        }
+                                                    }}
+                                                    style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#059669' }}
+                                                />
                                                 <b className="record-inv-no">{bill.invoice_no}</b>
                                                 {bill.prev_invoice_no && (
-                                                    <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '6px' }}>
+                                                    <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '2px' }}>
                                                         (ગત: {bill.prev_invoice_no})
                                                     </span>
                                                 )}
@@ -4151,63 +4249,82 @@ export default function BillingPage({ currentUser }) {
                 </div>
             )}
 
-            {/* VIEW BILL MODAL */}
-            {viewingBill && (
-                <div className="billing-modal-backdrop" onClick={() => setViewingBill(null)}>
-                    <div className="billing-modal-box large" onClick={(e) => e.stopPropagation()}>
-                        <div className="modal-header-actions">
-                            <h3>{viewingBill.invoice_no || viewingBill.invNo}</h3>
-                            <div className="btn-group">
-                                <button
-                                    type="button"
-                                    className="btn-action-print"
-                                    onClick={() => handlePrintInvoice(viewingBill)}
-                                >
-                                    <Printer size={16} /> <span>Print</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    className="btn-secondary"
-                                    onClick={() => setViewingBill(null)}
-                                >
-                                    ✕
-                                </button>
-                            </div>
-                        </div>
+            {/* VIEW BILL / COMBINED BILLS MODAL */}
+            {(viewingBill || viewingBills.length > 0) && (() => {
+                const activeList = viewingBills.length > 0 ? viewingBills : [viewingBill];
+                const isMulti = activeList.length > 1;
 
-                        {/* Exact BILL OF SUPPLY Debit Memo Display (Rajeshwari Solar Official Format) */}
-                        <ExactSolarBillSheet
-                            company={viewingBill.company}
-                            customer={{
-                                name: viewingBill.customer_name || viewingBill.cust?.name,
-                                address: viewingBill.customer_address || viewingBill.cust?.address,
-                                gst: viewingBill.customer_gstin || viewingBill.cust?.gst
-                            }}
-                            invoiceNo={viewingBill.invoice_no || viewingBill.invNo}
-                            invoiceDate={viewingBill.invoice_date || viewingBill.invDate}
-                            dueDate={viewingBill.due_date || viewingBill.dueDate}
-                            month={viewingBill.month}
-                            units={viewingBill.units_credited || viewingBill.units?.credited}
-                            billRate={Number(viewingBill.breakdown?.billRate || viewingBill.result?.billRate || 0)}
-                            netRate={Number(viewingBill.breakdown?.netRate || viewingBill.result?.netRate || 0)}
-                            subTotal={Number(viewingBill.sub_total || viewingBill.result?.net || 0)}
-                            discountRate={Number(viewingBill.discount_rate || viewingBill.company?.discount || 1.25)}
-                            discountAmt={Number(viewingBill.discount_amt || viewingBill.result?.discountAmt || 0)}
-                            prevBal={Number(viewingBill.prev_balance || viewingBill.prevBal || 0)}
-                            prevInvoiceNo={viewingBill.prev_invoice_no || viewingBill.prevInvoiceNo || ''}
-                            interest={Number(viewingBill.interest_amt || viewingBill.interest || 0)}
-                            interestDays={Number(viewingBill.interest_days || viewingBill.interestDays || 0)}
-                            interestPct={Number(viewingBill.company?.interest_pct || settings.interest_pct || 18)}
-                            interestWaived={Number(viewingBill.interest_waived || viewingBill.interestWaived || 0)}
-                            roundOff={Number(viewingBill.round_off || viewingBill.result?.roundOff || 0)}
-                            totalOut={Number(viewingBill.total_outstanding || viewingBill.totalOut || 0)}
-                            note={viewingBill.note || ''}
-                            settings={settings}
-                            lang={lang}
-                        />
+                return (
+                    <div className="billing-modal-backdrop" onClick={() => { setViewingBill(null); setViewingBills([]); }}>
+                        <div className="billing-modal-box large" onClick={(e) => e.stopPropagation()}>
+                            <div className="modal-header-actions no-print">
+                                <h3>
+                                    {isMulti
+                                        ? `📄 ${activeList.length} સંયુક્ત બિલ (Combined Invoices)`
+                                        : (activeList[0].invoice_no || activeList[0].invNo)}
+                                </h3>
+                                <div className="btn-group">
+                                    <button
+                                        type="button"
+                                        className="btn-action-print"
+                                        onClick={() => window.print()}
+                                    >
+                                        <Printer size={16} /> <span>Print {isMulti ? `All (${activeList.length})` : ''}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="btn-secondary"
+                                        onClick={() => { setViewingBill(null); setViewingBills([]); }}
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            </div>
+
+                            {activeList.map((b, idx) => (
+                                <div
+                                    key={b.id || idx}
+                                    style={{
+                                        pageBreakAfter: idx < activeList.length - 1 ? 'always' : 'auto',
+                                        breakAfter: idx < activeList.length - 1 ? 'page' : 'auto',
+                                        marginBottom: idx < activeList.length - 1 ? '32px' : '0'
+                                    }}
+                                >
+                                    <ExactSolarBillSheet
+                                        company={b.company}
+                                        customer={{
+                                            name: b.customer_name || b.cust?.name,
+                                            address: b.customer_address || b.cust?.address,
+                                            gst: b.customer_gstin || b.cust?.gst
+                                        }}
+                                        invoiceNo={b.invoice_no || b.invNo}
+                                        invoiceDate={b.invoice_date || b.invDate}
+                                        dueDate={b.due_date || b.dueDate}
+                                        month={b.month}
+                                        units={b.units_credited || b.units?.credited}
+                                        billRate={Number(b.breakdown?.billRate || b.result?.billRate || 0)}
+                                        netRate={Number(b.breakdown?.netRate || b.result?.netRate || 0)}
+                                        subTotal={Number(b.sub_total || b.result?.net || 0)}
+                                        discountRate={Number(b.discount_rate || b.discountRate || b.company?.discount || 1.25)}
+                                        discountAmt={Number(b.discount_amt || b.result?.discountAmt || 0)}
+                                        prevBal={Number(b.prev_balance || b.prevBal || 0)}
+                                        prevInvoiceNo={b.prev_invoice_no || b.prevInvoiceNo || ''}
+                                        interest={Number(b.interest_amt || b.interest || 0)}
+                                        interestDays={Number(b.interest_days || b.interestDays || 0)}
+                                        interestPct={Number(b.company?.interest_pct || settings.interest_pct || 18)}
+                                        interestWaived={Number(b.interest_waived || b.interestWaived || 0)}
+                                        roundOff={Number(b.round_off || b.result?.roundOff || 0)}
+                                        totalOut={Number(b.total_outstanding || b.totalOut || 0)}
+                                        note={b.note || ''}
+                                        settings={settings}
+                                        lang={lang}
+                                    />
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             {/* WAIVE OVERDUE INTEREST MODAL */}
             {waiveModal.open && (

@@ -245,8 +245,8 @@ export default function ExactSolarBillSheet({
                             <td className="col-name">Solar Power Generation {month}</td>
                             <td className="col-hsn">2716</td>
                             <td className="col-unit">{inrUnits(numUnits)}</td>
-                            <td className="col-rate">{numBillRate.toFixed(5)}</td>
-                            <td className="col-netrate">{numNetRate.toFixed(5)}</td>
+                            <td className="col-rate" title={numBillRate.toFixed(5)}>{numBillRate.toFixed(2)}</td>
+                            <td className="col-netrate" title={numNetRate.toFixed(5)}>{numNetRate.toFixed(2)}</td>
                             <td className="col-amt">{inr2(numSubTotal)}</td>
                         </tr>
                         {/* Filler row: vertical lines span the empty document space */}
@@ -305,7 +305,7 @@ export default function ExactSolarBillSheet({
                     </div>
                     <div className="exact-bill-settle-discount">
                         <div className="exact-kv-row">
-                            <span>Discount</span>
+                            <span>Discount {Number(discountRate) ? `(× ₹${Number(discountRate)})` : ''}</span>
                             <span>{inr2(numDiscount)}</span>
                         </div>
                     </div>

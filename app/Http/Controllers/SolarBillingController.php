@@ -103,8 +103,36 @@ class SolarBillingController extends Controller
      */
     public function companies(): JsonResponse
     {
-        $companies = SolarBillingCompany::orderBy('id')->get();
+        $companies = SolarBillingCompany::orderBy('id')->get()->map(function ($c) {
+            $this->syncCompanyLastSeq($c);
+            return $c->fresh();
+        });
         return response()->json($companies);
+    }
+
+    /**
+     * Synchronize company last_seq with the actual highest active bill in the database.
+     * If a bill was deleted from the database (e.g. testing or reset), last_seq cleanly rewinds.
+     */
+    public function syncCompanyLastSeq(SolarBillingCompany $company): int
+    {
+        $bills = SolarBill::where('company_id', $company->id)
+            ->where('status', '!=', 'void')
+            ->pluck('invoice_no');
+
+        $maxSeq = 0;
+        foreach ($bills as $invNo) {
+            if (preg_match('/\/(\d+)$/', $invNo, $m)) {
+                $s = (int) $m[1];
+                if ($s > $maxSeq) {
+                    $maxSeq = $s;
+                }
+            }
+        }
+        if ((int) $company->last_seq !== $maxSeq) {
+            $company->update(['last_seq' => $maxSeq]);
+        }
+        return $maxSeq;
     }
 
     /**
@@ -157,6 +185,9 @@ class SolarBillingController extends Controller
         } elseif ($request->boolean('clear_letterhead') || $request->input('clear_letterhead') === '1') {
             $data['letterhead_path'] = null;
         }
+
+        // Clean out raw uploaded file handles so Eloquent never tries to write them as SQL columns
+        unset($data['logo'], $data['signature'], $data['letterhead']);
 
         if ($id) {
             $company = SolarBillingCompany::findOrFail($id);

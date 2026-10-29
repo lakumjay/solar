@@ -411,13 +411,22 @@ class SolarBillingEngineService
 
         // 4. Server computes breakdown independently (with Dynamic Charge Master & company scope)
         $invDate = $billInput['invoice_date'] ?? null;
-        $recomputed = self::companyBill($units, $serverRates, $extra, $discount, $company->id, $invDate);
+        $recomputed = self::companyBill($units, $serverRates, $extra, $discount, $company->id ?? null, $invDate);
 
         // 5. Server checks pending balance & interest directly from DB under row lock
-        $interestPct = $company->interest_pct !== null && is_numeric($company->interest_pct)
-            ? (float) $company->interest_pct
-            : (float) SolarBillingSetting::getVal('interest_pct', 18.0);
-        $dbPending = self::getCompanyPendingAndInterest($company->id, $interestPct, $invDate, true);
+        $dbPending = [
+            'prev_balance' => 0.0,
+            'interest_amt' => 0.0,
+            'interest_days' => 0,
+            'interest_pct' => 18.0,
+            'prev_invoice_no' => null,
+        ];
+        if (! empty($company->id)) {
+            $interestPct = $company->interest_pct !== null && is_numeric($company->interest_pct)
+                ? (float) $company->interest_pct
+                : (float) SolarBillingSetting::getVal('interest_pct', 18.0);
+            $dbPending = self::getCompanyPendingAndInterest((int) $company->id, $interestPct, $invDate, true);
+        }
 
         // 6. Security verification: Compare server vs client with float-dust protection
         $serverGrand = round((float) $recomputed['grand'], 2);
@@ -466,8 +475,9 @@ class SolarBillingEngineService
             );
         }
 
-        // Canonical server totals
-        $prevBal = $dbPending['prev_balance'];
+        // Canonical server totals (DB pending has first priority; batch-chained billInput fallback)
+        $prevBal = $dbPending['prev_balance'] > 0 ? $dbPending['prev_balance'] : (float) ($billInput['prev_balance'] ?? 0.0);
+        $prevInvNo = ! empty($dbPending['prev_invoice_no']) ? $dbPending['prev_invoice_no'] : ($billInput['prev_invoice_no'] ?? null);
         $interestAmt = $dbPending['interest_amt'];
         $interestDays = $dbPending['interest_days'];
 
@@ -508,7 +518,7 @@ class SolarBillingEngineService
             'interest_days' => $interestDays,
             'interest_waived' => $interestWaived,
             'interest_waive_reason' => $interestWaived > 0 ? $waiveReason : null,
-            'prev_invoice_no' => $dbPending['prev_invoice_no'] ?? null,
+            'prev_invoice_no' => $prevInvNo,
             'total_outstanding' => $totalOutstanding,
             'units_generated' => $recomputed['generated'],
             'due_date' => $canonicalDueDate,

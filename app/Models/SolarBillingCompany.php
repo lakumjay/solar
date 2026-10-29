@@ -6,7 +6,30 @@ use Illuminate\Database\Eloquent\Model;
 
 class SolarBillingCompany extends Model
 {
-    protected $guarded = [];
+    protected $fillable = [
+        'name',
+        'gstin',
+        'address',
+        'phones',
+        'bank_name',
+        'bank_ac',
+        'bank_ifsc',
+        'discount',
+        'inv_prefix',
+        'last_seq',
+        'logo_path',
+        'signature_path',
+        'signature_enabled',
+        'letterhead_path',
+        'letterhead_mode',
+        'due_days',
+        'interest_pct',
+        'loss_pct',
+        'wheel_rate',
+        'bank_rate',
+        'cross_pct',
+        'active',
+    ];
 
     protected $casts = [
         'active' => 'boolean',

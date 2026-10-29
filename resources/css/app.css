@@ -13421,12 +13421,31 @@ h1, h2, h3, h4, strong {
   body * {
     visibility: hidden;
   }
+  .no-print {
+    display: none !important;
+  }
+  .billing-modal-backdrop {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .billing-modal-box {
+    position: static !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
   .printable-bill-sheet,
   .printable-bill-sheet * {
     visibility: visible;
   }
   .printable-bill-sheet {
-    position: absolute;
+    position: relative !important;
     left: 0;
     top: 0;
     width: 100% !important;
@@ -13435,6 +13454,8 @@ h1, h2, h3, h4, strong {
     padding: 0 !important;
     border: none !important;
     box-shadow: none !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
   }
   .exact-bill-frame {
     border: 1.5px solid #000000 !important;

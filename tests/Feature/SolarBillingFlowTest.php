@@ -441,4 +441,97 @@ class SolarBillingFlowTest extends TestCase
         $this->assertContains('cross_subsidy', $codes);
         $this->assertContains('ppa_discount', $codes);
     }
+
+    public function test_company_signature_upload_saves_cleanly_without_sql_column_error(): void
+    {
+        Storage::fake('public');
+
+        $fakeSignature = UploadedFile::fake()->image('signature.png', 200, 80);
+
+        $response = $this->actingAs($this->user)->post("/api/billing/companies/{$this->rajeshwari->id}", [
+            'name' => 'RAJESHWARI SOLAR',
+            'inv_prefix' => 'RS',
+            'signature' => $fakeSignature,
+            'signature_enabled' => 1,
+        ]);
+
+        $response->assertOk();
+        $this->rajeshwari->refresh();
+        $this->assertNotNull($this->rajeshwari->signature_path);
+        $this->assertTrue((bool) $this->rajeshwari->signature_enabled);
+    }
+
+    public function test_deleted_bill_rewinds_last_seq_cleanly(): void
+    {
+        Storage::fake('solar_bills');
+
+        $stmt = [
+            'unit' => 166107,
+            'energyAmt' => 697649.40,
+            'fcaAmt' => 406962.15,
+            'pfAmt' => 14301.81,
+            'ehvAmt' => 6976.49,
+            'touAmt' => 41995.95,
+            'totalPeak' => 49407,
+            'varAmt' => 44074.00,
+            'boardAmt' => 1169403.19,
+            'dutyAmt' => 175410.48,
+        ];
+        $derived = \App\Services\SolarBillingEngineService::deriveRates($stmt);
+        $units = [
+            'credited' => 105715,
+            'peak' => 31708,
+            'banking' => 20113,
+            'generated' => 113064,
+        ];
+        $extra = [
+            'lossPct' => 6.5,
+            'crossPct' => 15.0,
+            'wheelRate' => 0.2352,
+            'bankRate' => 1.50,
+        ];
+        $result = \App\Services\SolarBillingEngineService::companyBill($units, $derived, $extra, 1.25);
+        $validPdf = UploadedFile::fake()->createWithContent('Blueart Granito.pdf', "%PDF-1.4\nTest statement content\n%%EOF");
+
+        // 1. Create a bill -> last_seq advances to 1
+        $res = $this->actingAs($this->user)->postJson('/api/billing/bills', [
+            'bills' => [
+                [
+                    'company_id' => $this->rajeshwari->id,
+                    'month' => 'Aug-26',
+                    'invoice_no' => 'RS/26-27/01',
+                    'invoice_date' => '2026-08-15',
+                    'customer_name' => 'Blueart Granito Pvt. Ltd.',
+                    'customer_address' => 'Morbi-363642',
+                    'customer_gstin' => '24AABCO3285B1ZU',
+                    'units_credited' => 105715,
+                    'units_peak' => 31708,
+                    'units_banking' => 20113,
+                    'units_generated' => 113064,
+                    'prev_balance' => 0,
+                    'interest_amt' => 0,
+                    'interest_days' => 0,
+                    'stmt_inputs' => json_encode($stmt),
+                    'rates_derived' => json_encode($derived),
+                    'extra_params' => json_encode($extra),
+                    'breakdown' => json_encode($result),
+                ],
+            ],
+            'pdf_file' => $validPdf,
+        ]);
+
+        $res->assertOk();
+        $this->rajeshwari->refresh();
+        $this->assertEquals(1, $this->rajeshwari->last_seq);
+
+        // 2. If bill is deleted from DB (e.g. testing or error), last_seq cleanly rewinds
+        SolarBill::where('company_id', $this->rajeshwari->id)->delete();
+
+        // Query companies endpoint
+        $compRes = $this->actingAs($this->user)->getJson('/api/billing/companies');
+        $compRes->assertOk();
+        $this->rajeshwari->refresh();
+        $this->assertEquals(0, $this->rajeshwari->last_seq);
+    }
 }
+
