@@ -104,7 +104,7 @@ export async function api(path, options = {}, isRetry = false) {
 
     if (!response.ok) {
         const validation = payload?.errors ? Object.values(payload.errors).flat()[0] : null;
-        throw new Error(validation || payload?.message || 'Something went wrong.');
+        throw new Error(validation || payload?.error || payload?.message || 'Something went wrong.');
     }
 
     if (payload?.csrf_token) {

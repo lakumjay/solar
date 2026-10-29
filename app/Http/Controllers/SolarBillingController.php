@@ -5,11 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\SolarBill;
 use App\Models\SolarBillingCompany;
 use App\Models\SolarBillingSetting;
+use App\Services\SolarBillingEngineService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use InvalidArgumentException;
+use RuntimeException;
 
 class SolarBillingController extends Controller
 {
@@ -167,38 +170,14 @@ class SolarBillingController extends Controller
      */
     public function pendingBalance(Request $request, int $companyId): JsonResponse
     {
-        $interestPct = (float) SolarBillingSetting::getVal('interest_pct', 18.0);
-        $pendingBills = SolarBill::where('company_id', $companyId)
-            ->where('status', 'pending')
-            ->get();
-
-        $prevBal = $pendingBills->sum('total_outstanding');
-        $rawInterest = 0.00;
-        $maxDays = 0;
-        $now = Carbon::now()->startOfDay();
-
-        foreach ($pendingBills as $b) {
-            $due = Carbon::parse($b->due_date ?: $b->invoice_date)->startOfDay();
-            $days = $now->greaterThan($due) ? $now->diffInDays($due) : 0;
-            if ($days > $maxDays) {
-                $maxDays = $days;
-            }
-            if ($days > 0 && $b->total_outstanding > 0) {
-                $rawInterest += (float) $b->total_outstanding * ($interestPct / 100) * ($days / 365);
-            }
-        }
-
-        return response()->json([
-            'prev_balance' => round($prevBal, 2),
-            'interest' => round($rawInterest, 2),
-            'interest_days' => $maxDays,
-            'interest_pct' => $interestPct,
-        ]);
+        $metrics = SolarBillingEngineService::getCompanyPendingAndInterest($companyId);
+        return response()->json($metrics);
     }
 
     /**
-     * Store new bill(s) inside a database transaction with pessimistic locking
-     * to prevent invoice number collision and ensure mathematical auditability.
+     * Store new bill(s) inside a database transaction with pessimistic locking.
+     * Enforces strict server-side financial recomputation from raw statement inputs.
+     * Never trusts client-submitted financial totals.
      */
     public function store(Request $request): JsonResponse
     {
@@ -208,7 +187,7 @@ class SolarBillingController extends Controller
             'bills.*.month' => 'required|string|max:30',
             'bills.*.invoice_date' => 'required|date',
             'bills.*.units_credited' => 'required|numeric|min:0.01',
-            'bills.*.breakdown' => 'required|array',
+            'bills.*.stmt_inputs' => 'required',
             'pdf_file' => 'nullable|file|mimes:pdf|max:10240', // 10MB max
         ]);
 
@@ -222,90 +201,95 @@ class SolarBillingController extends Controller
         $dueDays = (int) SolarBillingSetting::getVal('due_days', 15);
         $savedBills = [];
 
-        DB::transaction(function () use ($request, $pdfPath, $userId, $dueDays, &$savedBills) {
-            foreach ($request->input('bills') as $billInput) {
-                $companyId = (int) $billInput['company_id'];
+        try {
+            DB::transaction(function () use ($request, $pdfPath, $userId, $dueDays, &$savedBills) {
+                foreach ($request->input('bills') as $billInput) {
+                    $companyId = (int) $billInput['company_id'];
 
-                // 1. Pessimistic lock on company sequence row
-                $company = SolarBillingCompany::where('id', $companyId)->lockForUpdate()->firstOrFail();
+                    // 1. Pessimistic lock on company sequence row
+                    $company = SolarBillingCompany::where('id', $companyId)->lockForUpdate()->firstOrFail();
 
-                // 2. Determine Financial Year
-                $invDate = $billInput['invoice_date'];
-                $fy = $this->fyOf($invDate);
+                    // 2. SERVER-SIDE FINANCIAL SOURCE OF TRUTH:
+                    // Independently recomputes all rates, breakdown, discount, roundoff, and totals.
+                    // Strictly verifies client totals within ₹2 tolerance, otherwise throws InvalidArgumentException.
+                    $verified = SolarBillingEngineService::verifyAndRecompute($billInput, $company);
 
-                // 3. Invoice Number generation / collision protection
-                if (! empty($billInput['invoice_no'])) {
-                    $invoiceNo = trim($billInput['invoice_no']);
-                } else {
-                    $nextSeq = (int) $company->last_seq + 1;
-                    $seqPadded = str_pad((string) $nextSeq, 2, '0', STR_PAD_LEFT);
-                    $invoiceNo = "{$company->inv_prefix}/{$fy}/{$seqPadded}";
+                    // 3. Determine Financial Year
+                    $invDate = $billInput['invoice_date'];
+                    $fy = $this->fyOf($invDate);
+
+                    // 4. Invoice Number generation / collision protection
+                    if (! empty($billInput['invoice_no'])) {
+                        $invoiceNo = trim($billInput['invoice_no']);
+                    } else {
+                        $nextSeq = (int) $company->last_seq + 1;
+                        $seqPadded = str_pad((string) $nextSeq, 2, '0', STR_PAD_LEFT);
+                        $invoiceNo = "{$company->inv_prefix}/{$fy}/{$seqPadded}";
+                    }
+
+                    // Verify uniqueness (extra safety)
+                    if (SolarBill::where('invoice_no', $invoiceNo)->exists()) {
+                        throw new RuntimeException("Invoice number '{$invoiceNo}' already exists! Collision prevented.");
+                    }
+
+                    // 5. Calculate due date
+                    $dueDate = isset($billInput['due_date'])
+                        ? Carbon::parse($billInput['due_date'])->format('Y-m-d')
+                        : Carbon::parse($invDate)->addDays($dueDays)->format('Y-m-d');
+
+                    // 6. Save Bill with 100% CANONICAL SERVER-VERIFIED FIGURES
+                    $bill = SolarBill::create([
+                        'company_id' => $company->id,
+                        'month' => $billInput['month'],
+                        'invoice_no' => $invoiceNo,
+                        'invoice_date' => $invDate,
+                        'due_date' => $dueDate,
+                        'customer_name' => $billInput['customer_name'] ?? 'Blueart Granito Pvt. Ltd.',
+                        'customer_address' => $billInput['customer_address'] ?? null,
+                        'customer_gstin' => $billInput['customer_gstin'] ?? null,
+                        'units_credited' => (float) $billInput['units_credited'],
+                        'units_peak' => (float) ($billInput['units_peak'] ?? 0),
+                        'units_banking' => (float) ($billInput['units_banking'] ?? 0),
+                        'units_generated' => $verified['units_generated'],
+                        'stmt_inputs' => $verified['stmt_inputs'],
+                        'rates_derived' => $verified['rates_derived'],
+                        'extra_params' => $verified['extra_params'],
+                        'breakdown' => $verified['breakdown'],
+                        'sub_total' => $verified['sub_total'],
+                        'discount_rate' => $verified['discount_rate'],
+                        'discount_amt' => $verified['discount_amt'],
+                        'prev_balance' => $verified['prev_balance'],
+                        'interest_amt' => $verified['interest_amt'],
+                        'interest_days' => $verified['interest_days'],
+                        'round_off' => $verified['round_off'],
+                        'current_grand_total' => $verified['current_grand_total'],
+                        'total_outstanding' => $verified['total_outstanding'],
+                        'status' => 'pending',
+                        'pdf_path' => $pdfPath,
+                        'notes' => $billInput['notes'] ?? null,
+                        'created_by' => $userId,
+                    ]);
+
+                    // 7. Increment sequence atomically
+                    $company->increment('last_seq');
+
+                    $savedBills[] = $bill;
                 }
-
-                // Verify uniqueness (extra safety)
-                if (SolarBill::where('invoice_no', $invoiceNo)->exists()) {
-                    throw new \RuntimeException("Invoice number '{$invoiceNo}' already exists! Collision prevented.");
-                }
-
-                // 4. Calculate due date
-                $dueDate = isset($billInput['due_date'])
-                    ? Carbon::parse($billInput['due_date'])->format('Y-m-d')
-                    : Carbon::parse($invDate)->addDays($dueDays)->format('Y-m-d');
-
-                // 5. Units & Financials
-                $breakdown = $billInput['breakdown'];
-                $subTotal = (float) ($breakdown['net'] ?? $billInput['sub_total'] ?? 0);
-                $discountAmt = (float) ($breakdown['discountAmt'] ?? $billInput['discount_amt'] ?? 0);
-                $roundOff = (float) ($breakdown['roundOff'] ?? $billInput['round_off'] ?? 0);
-                $currentGrand = (float) ($breakdown['grand'] ?? $billInput['current_grand_total'] ?? 0);
-
-                $prevBal = (float) ($billInput['prev_balance'] ?? 0);
-                $interestAmt = (float) ($billInput['interest_amt'] ?? 0);
-                $interestDays = (int) ($billInput['interest_days'] ?? 0);
-                $totalOutstanding = round($currentGrand + $prevBal + $interestAmt, 2);
-
-                // 6. Save Bill
-                $bill = SolarBill::create([
-                    'company_id' => $company->id,
-                    'month' => $billInput['month'],
-                    'invoice_no' => $invoiceNo,
-                    'invoice_date' => $invDate,
-                    'due_date' => $dueDate,
-                    'customer_name' => $billInput['customer_name'] ?? 'Blueart Granito Pvt. Ltd.',
-                    'customer_address' => $billInput['customer_address'] ?? null,
-                    'customer_gstin' => $billInput['customer_gstin'] ?? null,
-                    'units_credited' => $billInput['units_credited'],
-                    'units_peak' => $billInput['units_peak'] ?? 0,
-                    'units_banking' => $billInput['units_banking'] ?? 0,
-                    'units_generated' => $billInput['units_generated'] ?? ($breakdown['generated'] ?? 0),
-                    'stmt_inputs' => $billInput['stmt_inputs'] ?? null,
-                    'rates_derived' => $billInput['rates_derived'] ?? null,
-                    'extra_params' => $billInput['extra_params'] ?? null,
-                    'breakdown' => $breakdown,
-                    'sub_total' => $subTotal,
-                    'discount_rate' => $billInput['discount_rate'] ?? 1.25,
-                    'discount_amt' => $discountAmt,
-                    'prev_balance' => $prevBal,
-                    'interest_amt' => $interestAmt,
-                    'interest_days' => $interestDays,
-                    'round_off' => $roundOff,
-                    'current_grand_total' => $currentGrand,
-                    'total_outstanding' => $totalOutstanding,
-                    'status' => 'pending',
-                    'pdf_path' => $pdfPath,
-                    'notes' => $billInput['notes'] ?? null,
-                    'created_by' => $userId,
-                ]);
-
-                // 7. Increment sequence atomically
-                $company->increment('last_seq');
-
-                $savedBills[] = $bill;
-            }
-        });
+            });
+        } catch (InvalidArgumentException $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+                'security_status' => 'REJECTED_CALCULATION_MISMATCH',
+            ], 422);
+        } catch (RuntimeException $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+                'security_status' => 'COLLISION_CONFLICT',
+            ], 409);
+        }
 
         return response()->json([
-            'message' => count($savedBills) . ' bill(s) saved successfully',
+            'message' => count($savedBills) . ' bill(s) verified & saved successfully (Server Recomputed & Secured)',
             'bills' => $savedBills,
         ]);
     }
