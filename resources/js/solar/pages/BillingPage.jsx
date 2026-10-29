@@ -360,6 +360,7 @@ export default function BillingPage({ currentUser }) {
 
         const billList = [{
             company: comp1,
+            discount: disc1,
             month: wMonth,
             invNo: wInvNo,
             invDate: wInvDate,
@@ -374,7 +375,7 @@ export default function BillingPage({ currentUser }) {
             prevBal: pendingInfo.prev_balance || 0,
             interest: pendingInfo.interest || 0,
             interestDays: pendingInfo.interest_days || 0,
-            totalOut: Math.round((pendingInfo.prev_balance || 0) + (pendingInfo.interest || 0) + res1.grand)
+            totalOut: round2((pendingInfo.prev_balance || 0) + (pendingInfo.interest || 0) + res1.grand)
         }];
 
         // If Two-Company mode is active
@@ -391,6 +392,7 @@ export default function BillingPage({ currentUser }) {
 
             billList.push({
                 company: comp2,
+                discount: disc2,
                 month: wMonth,
                 invNo: inv2,
                 invDate: wInvDate,
@@ -405,7 +407,7 @@ export default function BillingPage({ currentUser }) {
                 prevBal: pendingInfo2.prev_balance || 0,
                 interest: pendingInfo2.interest || 0,
                 interestDays: pendingInfo2.interest_days || 0,
-                totalOut: Math.round((pendingInfo2.prev_balance || 0) + (pendingInfo2.interest || 0) + res2.grand)
+                totalOut: round2((pendingInfo2.prev_balance || 0) + (pendingInfo2.interest || 0) + res2.grand)
             });
         }
 
@@ -1400,7 +1402,7 @@ export default function BillingPage({ currentUser }) {
                                                 <b>₹{inr(b.result.net)}</b>
                                             </div>
                                             <div className="summary-row discount">
-                                                <span>Less: Discount ({inr(b.units.credited)} × ₹1.25):</span>
+                                                <span>Less: Discount ({inr(b.units.credited)} × ₹{Number(b.discount || b.company?.discount || 1.25).toFixed(2)}):</span>
                                                 <b>- ₹{inr(b.result.discountAmt)}</b>
                                             </div>
 
@@ -1413,7 +1415,7 @@ export default function BillingPage({ currentUser }) {
 
                                             {b.interest > 0 && (
                                                 <div className="summary-row overdue">
-                                                    <span>Interest 18% p.a. ({b.interestDays} days):</span>
+                                                    <span>Interest {b.company?.interest_pct ?? 18}% p.a. ({b.interestDays} days):</span>
                                                     <b>₹{inr(b.interest)}</b>
                                                 </div>
                                             )}
@@ -1675,7 +1677,7 @@ export default function BillingPage({ currentUser }) {
 
                                             {bill.pdf_path && (
                                                 <a
-                                                    href={bill.pdf_path}
+                                                    href={`/api/billing/bills/${bill.id}/pdf?inline=1`}
                                                     target="_blank"
                                                     rel="noreferrer"
                                                     className="btn-sm btn-pdf-link"
@@ -3218,7 +3220,7 @@ export default function BillingPage({ currentUser }) {
                                     <b>₹{inr(viewingBill.sub_total || viewingBill.result?.net)}</b>
                                 </div>
                                 <div className="summary-row discount">
-                                    <span>Less: Discount ({inr(viewingBill.units_credited || viewingBill.units?.credited)} × ₹1.25):</span>
+                                    <span>Less: Discount ({inr(viewingBill.units_credited || viewingBill.units?.credited)} × ₹{Number(viewingBill.discount_rate || viewingBill.company?.discount || 1.25).toFixed(2)}):</span>
                                     <b>- ₹{inr(viewingBill.discount_amt || viewingBill.result?.discountAmt)}</b>
                                 </div>
 

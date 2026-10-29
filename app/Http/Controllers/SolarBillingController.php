@@ -39,7 +39,7 @@ class SolarBillingController extends Controller
     {
         $interestPct = (float) SolarBillingSetting::getVal('interest_pct', 18.0);
 
-        $query = SolarBill::with(['company:id,name,inv_prefix,gstin,bank_name,bank_ac,bank_ifsc,logo_path'])
+        $query = SolarBill::with(['company:id,name,inv_prefix,gstin,bank_name,bank_ac,bank_ifsc,logo_path,interest_pct,due_days'])
             ->orderBy('invoice_date', 'desc')
             ->orderBy('id', 'desc');
 
@@ -61,7 +61,10 @@ class SolarBillingController extends Controller
         }
 
         $bills = $query->get()->map(function (SolarBill $bill) use ($interestPct) {
-            $metrics = $bill->getLiveLedgerMetrics($interestPct);
+            $coInterest = $bill->company?->interest_pct !== null && is_numeric($bill->company->interest_pct)
+                ? (float) $bill->company->interest_pct
+                : $interestPct;
+            $metrics = $bill->getLiveLedgerMetrics($coInterest);
             $arr = $bill->toArray();
             $arr['live_ledger'] = $metrics;
             return $arr;
@@ -149,6 +152,23 @@ class SolarBillingController extends Controller
 
         if ($id) {
             $company = SolarBillingCompany::findOrFail($id);
+
+            // Guard against accidental reduction of last_seq below already generated bills
+            if (isset($data['last_seq'])) {
+                $existingBills = SolarBill::where('company_id', $id)->pluck('invoice_no');
+                $maxIssuedSeq = 0;
+                foreach ($existingBills as $inv) {
+                    if (preg_match('/\/(\d+)$/', $inv, $m)) {
+                        $maxIssuedSeq = max($maxIssuedSeq, (int) $m[1]);
+                    }
+                }
+                if ((int) $data['last_seq'] < $maxIssuedSeq) {
+                    return response()->json([
+                        'error' => "સિક્વન્સ નંબર ઘટાડી શકાય નહીં: કંપની માટે છેલ્લો બિલ નંબર {$maxIssuedSeq} બની ચૂક્યો છે. ડુપ્લિકેટ અટકાવવા માટે last_seq ઓછામાં ઓછો {$maxIssuedSeq} હોવો જોઈએ."
+                    ], 422);
+                }
+            }
+
             $company->update($data);
         } else {
             $company = SolarBillingCompany::create($data);
@@ -236,8 +256,9 @@ class SolarBillingController extends Controller
                 if ($ext !== 'pdf') {
                     return response()->json(['error' => 'Only valid PDF files are accepted.'], 422);
                 }
-                $uploaded = $file->store('billing_statements', 'public');
-                $pdfPath = Storage::url($uploaded);
+                // Store on private 'local' disk so statement PDFs are never exposed via direct public URLs
+                $uploaded = $file->store('billing_statements', 'local');
+                $pdfPath = $uploaded;
             }
         }
 
@@ -427,12 +448,26 @@ class SolarBillingController extends Controller
         $relPath = str_replace('/storage/', '', $bill->pdf_path);
         $cleanFilename = basename($relPath);
 
-        if (! Storage::disk('public')->exists("billing_statements/{$cleanFilename}")) {
+        // Check private local disk first, fallback to public disk for legacy uploads
+        $disk = Storage::disk('local')->exists("billing_statements/{$cleanFilename}")
+            ? 'local'
+            : (Storage::disk('public')->exists("billing_statements/{$cleanFilename}") ? 'public' : null);
+
+        if (! $disk) {
             return response()->json(['error' => 'Statement PDF file not found on server.'], 404);
         }
 
         $invClean = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $bill->invoice_no);
-        return Storage::disk('public')->download(
+        $fullPath = Storage::disk($disk)->path("billing_statements/{$cleanFilename}");
+
+        if ($request->boolean('inline') || $request->input('stream') === '1') {
+            return response()->file($fullPath, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => "inline; filename=\"PGVCL-Statement-{$invClean}.pdf\"",
+            ]);
+        }
+
+        return Storage::disk($disk)->download(
             "billing_statements/{$cleanFilename}",
             "PGVCL-Statement-{$invClean}.pdf"
         );
