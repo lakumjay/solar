@@ -12,6 +12,7 @@ if ($secret !== 'solarflow_auto_deploy_2026') {
 $baseDir = dirname(__DIR__);
 $output = [];
 
+@unlink($baseDir . '/.git/index.lock');
 exec("cd " . escapeshellarg($baseDir) . " && git fetch origin main 2>&1", $output);
 exec("cd " . escapeshellarg($baseDir) . " && git reset --hard FETCH_HEAD 2>&1", $output);
 exec("cd " . escapeshellarg($baseDir) . " && php artisan migrate --force 2>&1", $output);
