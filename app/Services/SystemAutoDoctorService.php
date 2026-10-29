@@ -272,6 +272,72 @@ class SystemAutoDoctorService
                     ]);
                 $fixes[] = 'Verified Sunrise & Rajeshwari billing company profiles & bank records';
             }
+
+            // 7. Ensure solar_billing_charges table and default seeds exist
+            if (! Schema::hasTable('solar_billing_charges')) {
+                Schema::create('solar_billing_charges', function (Blueprint $table) {
+                    $table->id();
+                    $table->string('name');
+                    $table->string('code')->unique();
+                    $table->enum('type', ['charge', 'rebate']);
+                    $table->enum('calc_basis', [
+                        'per_unit',
+                        'per_banking_unit',
+                        'per_peak_unit',
+                        'per_gen_unit',
+                        'pct_energy',
+                        'pct_energy_fca',
+                        'pct_board',
+                        'fixed',
+                    ]);
+                    $table->decimal('value', 12, 4);
+                    $table->foreignId('company_id')->nullable()->constrained('solar_billing_companies')->nullOnDelete();
+                    $table->date('effective_from');
+                    $table->date('effective_to')->nullable();
+                    $table->boolean('is_active')->default(true);
+                    $table->integer('sort_order')->default(0);
+                    $table->timestamps();
+                });
+                $fixes[] = 'Created table: solar_billing_charges';
+
+                DB::table('solar_billing_charges')->insert([
+                    ['name' => 'Cross Subsidy Rebate', 'code' => 'cross_subsidy', 'type' => 'rebate', 'calc_basis' => 'pct_energy_fca', 'value' => 15.0000, 'effective_from' => '2026-04-01', 'sort_order' => 10, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+                    ['name' => 'Wheeling Charge Rebate', 'code' => 'wheeling', 'type' => 'rebate', 'calc_basis' => 'per_gen_unit', 'value' => 0.2352, 'effective_from' => '2026-04-01', 'sort_order' => 20, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+                    ['name' => 'Banking Charge Rebate', 'code' => 'banking', 'type' => 'rebate', 'calc_basis' => 'per_banking_unit', 'value' => 1.5000, 'effective_from' => '2026-04-01', 'sort_order' => 30, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+                    ['name' => 'PPA Discount Rebate', 'code' => 'ppa_discount', 'type' => 'rebate', 'calc_basis' => 'per_unit', 'value' => 1.2500, 'effective_from' => '2026-04-01', 'sort_order' => 40, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+                ]);
+                $fixes[] = 'Seeded default charges (Banking on banking units)';
+            }
+
+            // 8. Ensure solar_bills interest waiver & prev_invoice_no columns exist
+            if (Schema::hasTable('solar_bills')) {
+                $missingBillCols = [];
+                foreach (['interest_waived', 'interest_waive_reason', 'interest_waived_by', 'interest_waived_at', 'prev_invoice_no'] as $col) {
+                    if (! Schema::hasColumn('solar_bills', $col)) {
+                        $missingBillCols[] = $col;
+                    }
+                }
+                if (! empty($missingBillCols)) {
+                    Schema::table('solar_bills', function (Blueprint $table) use ($missingBillCols) {
+                        if (in_array('interest_waived', $missingBillCols, true)) {
+                            $table->decimal('interest_waived', 12, 2)->default(0.00)->after('interest_days');
+                        }
+                        if (in_array('interest_waive_reason', $missingBillCols, true)) {
+                            $table->text('interest_waive_reason')->nullable()->after('interest_waived');
+                        }
+                        if (in_array('interest_waived_by', $missingBillCols, true)) {
+                            $table->foreignId('interest_waived_by')->nullable()->constrained('users')->nullOnDelete()->after('interest_waive_reason');
+                        }
+                        if (in_array('interest_waived_at', $missingBillCols, true)) {
+                            $table->timestamp('interest_waived_at')->nullable()->after('interest_waived_by');
+                        }
+                        if (in_array('prev_invoice_no', $missingBillCols, true)) {
+                            $table->string('prev_invoice_no', 64)->nullable()->after('prev_balance');
+                        }
+                    });
+                    $fixes[] = 'Added columns to solar_bills: '.implode(', ', $missingBillCols);
+                }
+            }
         } catch (\Throwable $e) {
             Log::warning('SystemAutoDoctorService schema check warning: '.$e->getMessage());
         }
