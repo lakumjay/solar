@@ -13352,6 +13352,8 @@ h1, h2, h3, h4, strong {
 .sheet-preprinted-margin {
   width: 100%;
   position: relative;
+  height: 52mm;
+  min-height: 52mm;
 }
 
 .preprinted-hint-banner {
@@ -13364,10 +13366,177 @@ h1, h2, h3, h4, strong {
   border-radius: 6px;
 }
 
+/* Custom Upload Card & Drop Zone */
+.custom-upload-zone {
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 16px 14px;
+  text-align: center;
+  background: #f8fafc;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.custom-upload-zone:hover {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+.upload-browse-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.upload-browse-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+.upload-card-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.upload-preview-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+.upload-thumb-img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 2px;
+  flex-shrink: 0;
+}
+.upload-thumb-banner {
+  max-width: 140px;
+  height: 48px;
+  object-fit: contain;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 2px;
+  flex-shrink: 0;
+}
+.upload-meta-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.upload-filename {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.upload-badge-ok {
+  font-size: 11px;
+  color: #059669;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.upload-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #dc2626;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.upload-delete-btn:hover {
+  background: #fee2e2;
+  border-color: #ef4444;
+  color: #b91c1c;
+}
+
+/* Reconciliation Tab Styles */
+.recon-grid-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.recon-kpi-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+.recon-kpi-label {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.recon-kpi-val {
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.2;
+}
+.recon-kpi-sub {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
 @media print {
+  .sheet-preprinted-margin {
+    height: 52mm !important;
+    min-height: 52mm !important;
+    display: block !important;
+    visibility: hidden !important;
+  }
   .preprinted-hint-banner,
-  .no-print {
+  .no-print,
+  .billing-nav-pills,
+  .wizard-btn-row,
+  .recon-actions-bar {
     display: none !important;
   }
+  .billing-card {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
 }
+
 

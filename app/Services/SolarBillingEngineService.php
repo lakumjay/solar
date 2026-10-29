@@ -187,7 +187,10 @@ class SolarBillingEngineService
         bool $lockForUpdate = false
     ): array {
         if ($interestPct === null) {
-            $interestPct = (float) SolarBillingSetting::getVal('interest_pct', 18.0);
+            $comp = SolarBillingCompany::find($companyId);
+            $interestPct = $comp && $comp->interest_pct !== null && is_numeric($comp->interest_pct)
+                ? (float) $comp->interest_pct
+                : (float) SolarBillingSetting::getVal('interest_pct', 18.0);
         }
 
         // FAIL CLOSED: No silent catch block! If database fails, exception bubbles up
@@ -359,6 +362,10 @@ class SolarBillingEngineService
         $interestDays = $dbPending['interest_days'];
         $totalOutstanding = self::round2($serverGrand + $prevBal + $interestAmt);
 
+        // Server derives canonical due_date (tamper-proof)
+        $companyDueDays = (int) ($company->due_days ?: SolarBillingSetting::getVal('due_days', 15));
+        $canonicalDueDate = Carbon::parse($invDate)->addDays($companyDueDays)->format('Y-m-d');
+
         return [
             'stmt_inputs' => $stmt,
             'rates_derived' => $serverRates,
@@ -374,6 +381,7 @@ class SolarBillingEngineService
             'interest_days' => $interestDays,
             'total_outstanding' => $totalOutstanding,
             'units_generated' => $recomputed['generated'],
+            'due_date' => $canonicalDueDate,
         ];
     }
 }

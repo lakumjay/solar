@@ -196,6 +196,7 @@ Route::prefix('api')->group(function () {
         Route::post('billing/settings', [\App\Http\Controllers\SolarBillingController::class, 'saveSettings']);
         Route::get('billing/bills/{id}/pdf', [\App\Http\Controllers\SolarBillingController::class, 'downloadPdf']);
         Route::get('billing/pending/{companyId}', [\App\Http\Controllers\SolarBillingController::class, 'pendingBalance']);
+        Route::get('billing/reconciliation', [\App\Http\Controllers\SolarBillingController::class, 'reconciliation']);
     });
 });
 

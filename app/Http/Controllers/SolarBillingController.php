@@ -136,11 +136,15 @@ class SolarBillingController extends Controller
         if ($request->hasFile('signature') && $request->file('signature')->isValid()) {
             $path = $request->file('signature')->store('company_signatures', 'public');
             $data['signature_path'] = Storage::url($path);
+        } elseif ($request->boolean('clear_signature') || $request->input('clear_signature') === '1') {
+            $data['signature_path'] = null;
         }
 
         if ($request->hasFile('letterhead') && $request->file('letterhead')->isValid()) {
             $path = $request->file('letterhead')->store('company_letterheads', 'public');
             $data['letterhead_path'] = Storage::url($path);
+        } elseif ($request->boolean('clear_letterhead') || $request->input('clear_letterhead') === '1') {
+            $data['letterhead_path'] = null;
         }
 
         if ($id) {
@@ -180,6 +184,9 @@ class SolarBillingController extends Controller
         if ($request->hasFile('signature_file')) {
             $path = $request->file('signature_file')->store('signatures', 'public');
             SolarBillingSetting::setVal('signature_url', Storage::url($path));
+        } elseif ($request->boolean('clear_signature') || $request->input('clear_signature') === '1') {
+            SolarBillingSetting::setVal('signature_path', '');
+            SolarBillingSetting::setVal('signature_url', '');
         }
 
         return response()->json([
@@ -212,11 +219,13 @@ class SolarBillingController extends Controller
         $request->validate([
             'bills' => 'required|array|min:1',
             'bills.*.company_id' => 'required|integer|exists:solar_billing_companies,id',
-            'bills.*.month' => 'required|string|max:30',
+            'bills.*.month' => ['required', 'string', 'regex:/^[A-Za-z]{3}-\d{2}$/'],
             'bills.*.invoice_date' => 'required|date',
             'bills.*.units_credited' => 'required|numeric|min:0.01',
             'bills.*.stmt_inputs' => 'required',
             'pdf_file' => 'nullable|file|mimes:pdf|max:10240', // 10MB max
+        ], [
+            'bills.*.month.regex' => 'બિલિંગ મહિનો માન્ય ફોર્મેટ (જેમ કે Oct-26) માં હોવો જોઈએ.',
         ]);
 
         $pdfPath = null;
@@ -233,11 +242,10 @@ class SolarBillingController extends Controller
         }
 
         $userId = $request->user()?->id;
-        $dueDays = (int) SolarBillingSetting::getVal('due_days', 15);
         $savedBills = [];
 
         try {
-            DB::transaction(function () use ($request, $pdfPath, $userId, $dueDays, &$savedBills) {
+            DB::transaction(function () use ($request, $pdfPath, $userId, &$savedBills) {
                 foreach ($request->input('bills') as $billInput) {
                     $companyId = (int) $billInput['company_id'];
 
@@ -245,7 +253,7 @@ class SolarBillingController extends Controller
                     $company = SolarBillingCompany::where('id', $companyId)->lockForUpdate()->firstOrFail();
 
                     // 2. SERVER-SIDE FINANCIAL SOURCE OF TRUTH:
-                    // Independently recomputes all rates, breakdown, discount, roundoff, and totals.
+                    // Independently recomputes all rates, breakdown, discount, roundoff, and canonical due_date.
                     // Strictly verifies client totals within ₹2 tolerance, otherwise throws InvalidArgumentException.
                     $verified = SolarBillingEngineService::verifyAndRecompute($billInput, $company);
 
@@ -267,19 +275,13 @@ class SolarBillingController extends Controller
                         throw new RuntimeException("Invoice number '{$invoiceNo}' already exists! Collision prevented.");
                     }
 
-                    // 5. Calculate due date
-                    $companyDueDays = (int) ($company->due_days ?: $dueDays);
-                    $dueDate = isset($billInput['due_date']) && ! empty($billInput['due_date'])
-                        ? Carbon::parse($billInput['due_date'])->format('Y-m-d')
-                        : Carbon::parse($invDate)->addDays($companyDueDays)->format('Y-m-d');
-
-                    // 6. Save Bill with 100% CANONICAL SERVER-VERIFIED FIGURES
+                    // 5. Save Bill with 100% CANONICAL SERVER-VERIFIED FIGURES & TAMPER-PROOF DUE DATE
                     $bill = SolarBill::create([
                         'company_id' => $company->id,
                         'month' => $billInput['month'],
                         'invoice_no' => $invoiceNo,
                         'invoice_date' => $invDate,
-                        'due_date' => $dueDate,
+                        'due_date' => $verified['due_date'],
                         'customer_name' => $billInput['customer_name'] ?? 'Blueart Granito Pvt. Ltd.',
                         'customer_address' => $billInput['customer_address'] ?? null,
                         'customer_gstin' => $billInput['customer_gstin'] ?? null,
@@ -434,5 +436,128 @@ class SolarBillingController extends Controller
             "billing_statements/{$cleanFilename}",
             "PGVCL-Statement-{$invClean}.pdf"
         );
+    }
+
+    /**
+     * Daily Meter Reading vs PGVCL Credited Units Reconciliation Report.
+     * Compares plant site export readings against credited utility units.
+     */
+    public function reconciliation(Request $request): JsonResponse
+    {
+        $monthStr = $request->input('month'); // e.g. 'Oct-26', 'Aug-26'
+        if (! $monthStr) {
+            $latestBill = SolarBill::orderByDesc('invoice_date')->first();
+            $monthStr = $latestBill ? $latestBill->month : Carbon::now()->format('M-y');
+        }
+
+        try {
+            $parsed = Carbon::createFromFormat('M-y', $monthStr);
+        } catch (\Throwable $e) {
+            $parsed = Carbon::now();
+        }
+
+        $year = (int) $parsed->format('Y');
+        $monthNum = (int) $parsed->format('m');
+        $monthName = $parsed->format('F Y');
+
+        // 1. Plant Site Generation from Daily Readings
+        $dailyRows = \App\Models\DailyReading::whereYear('reading_date', $year)
+            ->whereMonth('reading_date', $monthNum)
+            ->orderBy('reading_date')
+            ->get();
+
+        $plantMeterExport = (float) $dailyRows->sum('plant_export_unit');
+        $plantMeterImport = (float) $dailyRows->sum('plant_import_unit');
+        $subMeterExport = (float) $dailyRows->sum('sub_export_unit');
+        $readingDaysCount = $dailyRows->count();
+
+        // 2. PGVCL Bills for this Month
+        $bills = SolarBill::with('company')
+            ->where('month', $monthStr)
+            ->where('status', '!=', 'void')
+            ->get();
+
+        $pgvclCreditedTotal = (float) $bills->sum('units_credited');
+        $pgvclGeneratedTotal = (float) $bills->sum('units_generated');
+        $pgvclGrandTotal = (float) $bills->sum('current_grand_total');
+
+        // Weighted Average Bill Rate (₹/unit)
+        $avgBillRate = $pgvclCreditedTotal > 0
+            ? round($pgvclGrandTotal / $pgvclCreditedTotal, 4)
+            : (float) SolarBillingSetting::getVal('avg_bill_rate', 6.56);
+
+        // 3. Variance & Loss Calculations
+        // Difference: Plant Meter Export - PGVCL Credited
+        $unitDifference = round($plantMeterExport - $pgvclCreditedTotal, 2);
+        $lossPct = $plantMeterExport > 0
+            ? round(($unitDifference / $plantMeterExport) * 100, 2)
+            : 0.0;
+        $financialLossValue = round(max(0, $unitDifference) * $avgBillRate, 2);
+
+        // 4. Per-Company Breakdown
+        $companyBreakdown = [];
+        foreach ($bills as $b) {
+            $coName = $b->company?->name ?: 'Unknown Company';
+            $breakdown = $b->breakdown ?: [];
+            $rate = isset($breakdown['billRate']) ? (float) $breakdown['billRate'] : ($b->units_credited > 0 ? round($b->sub_total / $b->units_credited, 4) : 0);
+            $sharePct = $pgvclCreditedTotal > 0 ? round(($b->units_credited / $pgvclCreditedTotal) * 100, 2) : 0;
+            $meterAllocated = round($plantMeterExport * ($sharePct / 100), 2);
+            $coDiff = round($meterAllocated - (float) $b->units_credited, 2);
+
+            $companyBreakdown[] = [
+                'bill_id' => $b->id,
+                'company_id' => $b->company_id,
+                'company_name' => $coName,
+                'invoice_no' => $b->invoice_no,
+                'credited_units' => (float) $b->units_credited,
+                'allocated_meter_units' => $meterAllocated,
+                'unit_diff' => $coDiff,
+                'bill_rate' => $rate,
+                'grand_total' => (float) $b->current_grand_total,
+                'share_pct' => $sharePct,
+                'loss_value' => round(max(0, $coDiff) * $rate, 2),
+            ];
+        }
+
+        // 5. Day-by-Day Reading Breakdown
+        $dayWise = $dailyRows->map(function ($r) {
+            return [
+                'date' => Carbon::parse($r->reading_date)->format('d M Y'),
+                'raw_date' => Carbon::parse($r->reading_date)->format('Y-m-d'),
+                'export_unit' => (float) $r->plant_export_unit,
+                'import_unit' => (float) $r->plant_import_unit,
+                'sub_export_unit' => (float) $r->sub_export_unit,
+            ];
+        });
+
+        // 6. Available Billing Months in System for dropdown
+        $availableMonths = SolarBill::where('status', '!=', 'void')
+            ->distinct()
+            ->pluck('month')
+            ->toArray();
+        if (! in_array($monthStr, $availableMonths)) {
+            $availableMonths[] = $monthStr;
+        }
+
+        return response()->json([
+            'month' => $monthStr,
+            'month_label' => $monthName,
+            'summary' => [
+                'plant_meter_export' => $plantMeterExport,
+                'plant_meter_import' => $plantMeterImport,
+                'sub_meter_export' => $subMeterExport,
+                'reading_days' => $readingDaysCount,
+                'pgvcl_credited_units' => $pgvclCreditedTotal,
+                'pgvcl_generated_units' => $pgvclGeneratedTotal,
+                'pgvcl_grand_total' => $pgvclGrandTotal,
+                'unit_difference' => $unitDifference,
+                'loss_percentage' => $lossPct,
+                'avg_bill_rate' => $avgBillRate,
+                'financial_loss_value' => $financialLossValue,
+            ],
+            'companies' => $companyBreakdown,
+            'daily_readings' => $dayWise,
+            'available_months' => $availableMonths,
+        ]);
     }
 }

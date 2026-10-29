@@ -3,7 +3,8 @@ import {
     Receipt, Building2, FolderClock, Settings, Plus, Search,
     Printer, Mail, FileText, CheckCircle2, AlertTriangle,
     XCircle, Ban, Download, RefreshCw, Eye, ArrowRight,
-    ArrowLeft, Check, Upload, HelpCircle, BarChart3
+    ArrowLeft, Check, Upload, HelpCircle, BarChart3,
+    Trash2, Edit3, Scale, ChevronDown, ChevronUp, TrendingUp, X
 } from 'lucide-react';
 import { api } from '../api';
 import { useLanguage } from '../context/LanguageContext';
@@ -58,7 +59,7 @@ export default function BillingPage({ currentUser }) {
     const { lang, t } = useLanguage();
 
     // Navigation Tabs
-    const [activeTab, setActiveTab] = useState('bill'); // 'bill' | 'records' | 'ca' | 'companies' | 'setup'
+    const [activeTab, setActiveTab] = useState('bill'); // 'bill' | 'records' | 'ca' | 'reconciliation' | 'companies' | 'setup'
 
     // Server State
     const [loading, setLoading] = useState(false);
@@ -73,6 +74,17 @@ export default function BillingPage({ currentUser }) {
     const [searchQuery, setSearchQuery] = useState('');
     const [caMonth, setCaMonth] = useState('');
     const [caCompanyId, setCaCompanyId] = useState('');
+
+    // Reconciliation Tab State
+    const [reconData, setReconData] = useState(null);
+    const [reconMonth, setReconMonth] = useState('');
+    const [reconLoading, setReconLoading] = useState(false);
+    const [showDayWise, setShowDayWise] = useState(false);
+
+    // File Input Refs
+    const sigInputRef = useRef(null);
+    const lhInputRef = useRef(null);
+    const globalSigRef = useRef(null);
 
     // Modals & Actions
     const [viewingBill, setViewingBill] = useState(null);
@@ -189,6 +201,26 @@ export default function BillingPage({ currentUser }) {
         }
     };
 
+    // 3. Load Reconciliation Data
+    const fetchReconciliation = async (monthOverride) => {
+        setReconLoading(true);
+        try {
+            const targetMonth = monthOverride !== undefined ? monthOverride : reconMonth;
+            const url = targetMonth ? `billing/reconciliation?month=${targetMonth}` : 'billing/reconciliation';
+            const res = await api(url);
+            if (res) {
+                setReconData(res);
+                if (!reconMonth && res.month) {
+                    setReconMonth(res.month);
+                }
+            }
+        } catch (err) {
+            console.error('Error fetching reconciliation data:', err);
+        } finally {
+            setReconLoading(false);
+        }
+    };
+
     useEffect(() => {
         loadInitData();
     }, []);
@@ -196,8 +228,10 @@ export default function BillingPage({ currentUser }) {
     useEffect(() => {
         if (activeTab === 'records' || activeTab === 'ca') {
             fetchBills();
+        } else if (activeTab === 'reconciliation') {
+            fetchReconciliation();
         }
-    }, [activeTab, filterCompany, filterStatus, searchQuery]);
+    }, [activeTab, filterCompany, filterStatus, searchQuery, reconMonth]);
 
     // Handle Company Switch in Step 1
     const handleCompanyChange = (compId) => {
@@ -625,6 +659,50 @@ export default function BillingPage({ currentUser }) {
         dlFile(`SolarFlow-CA-Report-${sMonth}.json`, jsonContent, 'application/json');
     };
 
+    const downloadReconciliationCsv = () => {
+        if (!reconData) return;
+        const sMonth = reconData.month || reconMonth || 'current';
+        const lines = [
+            'SOLAR GENERATION VS PGVCL CREDITED UNITS RECONCILIATION REPORT',
+            `Billing Month,${reconData.month || ''},"${reconData.month_label || ''}"`,
+            `Report Generated At,"${new Date().toLocaleString('en-IN')}"`,
+            '',
+            'METRIC,VALUE,UNIT',
+            `Plant Meter Export (Site),${reconData.summary?.plant_meter_export || 0},KWH`,
+            `Plant Meter Import (Site),${reconData.summary?.plant_meter_import || 0},KWH`,
+            `PGVCL Credited Units (Bill),${reconData.summary?.pgvcl_credited_units || 0},KWH`,
+            `Variance / Generation Loss,${reconData.summary?.unit_difference || 0},KWH`,
+            `Loss Percentage,${reconData.summary?.loss_percentage || 0}%,%`,
+            `Average Bill Rate,${reconData.summary?.avg_bill_rate || 0},Rs/Unit`,
+            `Financial Loss Value,${reconData.summary?.financial_loss_value || 0},Rs`,
+            '',
+            'COMPANY BREAKDOWN',
+            'Company Name,Invoice No,Credited Units (KWH),Share %,Allocated Meter Units (KWH),Diff Units (KWH),Bill Rate (Rs),Grand Total (Rs),Loss Value (Rs)',
+            ...(reconData.companies || []).map(c => [
+                `"${c.company_name}"`,
+                `"${c.invoice_no}"`,
+                c.credited_units,
+                `${c.share_pct}%`,
+                c.allocated_meter_units,
+                c.unit_diff,
+                c.bill_rate,
+                c.grand_total,
+                c.loss_value
+            ].join(',')),
+            '',
+            'DAILY METER READINGS',
+            'Date,Plant Export Unit (KWH),Plant Import Unit (KWH),Sub-Meter Export (KWH)',
+            ...(reconData.daily_readings || []).map(d => [
+                `"${d.date}"`,
+                d.export_unit,
+                d.import_unit,
+                d.sub_export_unit
+            ].join(','))
+        ];
+
+        dlFile(`SolarFlow-Reconciliation-${sMonth}.csv`, lines.join('\n'));
+    };
+
     return (
         <div className="solar-billing-module">
             {/* Top Navigation Tabs */}
@@ -652,6 +730,14 @@ export default function BillingPage({ currentUser }) {
                 >
                     <BarChart3 size={17} />
                     <span>{lang === 'en' ? 'CA Report' : '📊 CA રિપોર્ટ'}</span>
+                </button>
+                <button
+                    type="button"
+                    className={`nav-pill-btn ${activeTab === 'reconciliation' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('reconciliation')}
+                >
+                    <Scale size={17} />
+                    <span>{lang === 'en' ? 'Reconciliation' : '📈 સરખામણી'}</span>
                 </button>
                 <button
                     type="button"
@@ -759,9 +845,13 @@ export default function BillingPage({ currentUser }) {
                                 <div className="form-group">
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
                                         <label style={{ margin: 0 }}>{lang === 'en' ? 'Billing Month (e.g. Oct-26)' : 'મહિનો (દા.ત. Oct-26)'}</label>
-                                        {isAutoMonth && (
-                                            <span style={{ fontSize: '11px', color: '#059669', fontWeight: 700 }}>
-                                                ✓ Auto
+                                        {isAutoMonth ? (
+                                            <span style={{ fontSize: '11px', color: '#059669', background: '#ecfdf5', padding: '2px 8px', borderRadius: '12px', fontWeight: 700, border: '1px solid #a7f3d0' }}>
+                                                ✓ {lang === 'en' ? 'Auto-detected from PDF' : 'PDF માંથી ઓટો'}
+                                            </span>
+                                        ) : (
+                                            <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                                {lang === 'en' ? 'Manual entry' : 'મેન્યુઅલ'}
                                             </span>
                                         )}
                                     </div>
@@ -776,7 +866,7 @@ export default function BillingPage({ currentUser }) {
                                         }}
                                     />
                                     <small className="form-hint">
-                                        {lang === 'en' ? 'Auto-detected on PDF upload, or edit manually.' : 'PDF અપલોડ કરવાથી ઓટો આવશે, અથવા અહીં જાતે બદલી શકો છો.'}
+                                        {lang === 'en' ? 'Auto-filled upon PDF upload, or adjust manually if required.' : 'PDF અપલોડ કરવાથી ઓટોમેટિક આવી જશે. જરૂર જણાયે અહીં બદલી શકો છો.'}
                                     </small>
                                 </div>
                                 <div className="form-group">
@@ -1821,6 +1911,333 @@ export default function BillingPage({ currentUser }) {
                 </div>
             )}
 
+            {/* TAB: RECONCILIATION REPORT (Plant Meter Export vs PGVCL Credited Units) */}
+            {activeTab === 'reconciliation' && (
+                <div className="billing-reconciliation-container">
+                    {/* Header Bar */}
+                    <div className="card-header-flex no-print" style={{ marginBottom: '16px' }}>
+                        <div>
+                            <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Scale size={20} color="#059669" />
+                                <span>{lang === 'en' ? 'Plant Meter vs PGVCL Credited Units Reconciliation' : 'દૈનિક મીટર રીડિંગ vs PGVCL ક્રેડિટ યુનિટ્સ સરખામણી'}</span>
+                            </h3>
+                            <p className="card-subtitle" style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0 0' }}>
+                                {lang === 'en'
+                                    ? 'Audit plant site generation against utility credit statements, loss % and financial variance.'
+                                    : 'સોલાર પ્લાન્ટ સાઇટના મીટર એક્સપોર્ટ અને PGVCL બિલિંગ ક્રેડિટ યુનિટ વચ્ચેનો ઓડિટ તફાવત, વ્હીલિંગ લોસ % અને નાણાકીય નુકસાન વિશ્લેષણ.'}
+                            </p>
+                        </div>
+                        <div className="recon-actions-bar" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                            {/* Month Dropdown */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <label style={{ fontSize: '12px', fontWeight: 700, margin: 0, color: '#475569' }}>
+                                    {lang === 'en' ? 'Month:' : 'મહિનો:'}
+                                </label>
+                                <select
+                                    className="form-control"
+                                    style={{ width: 'auto', minWidth: '110px', padding: '6px 12px', fontSize: '13px', fontWeight: 600 }}
+                                    value={reconMonth}
+                                    onChange={(e) => {
+                                        setReconMonth(e.target.value);
+                                        fetchReconciliation(e.target.value);
+                                    }}
+                                >
+                                    {(reconData?.available_months || ['Oct-26', 'Sep-26', 'Aug-26']).map(m => (
+                                        <option key={m} value={m}>{m}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                style={{ padding: '6px 12px', fontSize: '13px' }}
+                                onClick={() => fetchReconciliation(reconMonth)}
+                                title={lang === 'en' ? 'Refresh Report' : 'રિપોર્ટ રિફ્રેશ કરો'}
+                            >
+                                <RefreshCw size={14} className={reconLoading ? 'animate-spin' : ''} />
+                                <span>{lang === 'en' ? 'Refresh' : 'રિફ્રેશ'}</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                style={{ padding: '6px 12px', fontSize: '13px' }}
+                                onClick={downloadReconciliationCsv}
+                                title={lang === 'en' ? 'Download CSV' : 'CSV ડાઉનલોડ'}
+                            >
+                                <Download size={14} />
+                                <span>CSV</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                className="btn-primary"
+                                style={{ padding: '6px 14px', fontSize: '13px' }}
+                                onClick={() => window.print()}
+                                title={lang === 'en' ? 'Print or Save as PDF' : 'પ્રિન્ટ / PDF સેવ કરો'}
+                            >
+                                <Printer size={14} />
+                                <span>{lang === 'en' ? 'Print / PDF' : 'પ્રિન્ટ / PDF'}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {reconLoading ? (
+                        <div className="billing-card" style={{ textAlign: 'center', padding: '40px' }}>
+                            <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 10px', color: '#3b82f6' }} />
+                            <p style={{ color: '#64748b', fontSize: '14px' }}>
+                                {lang === 'en' ? 'Analyzing daily meter readings and PGVCL bills...' : 'દૈનિક મીટર રીડિંગ્સ અને PGVCL બિલની સરખામણી થઈ રહી છે...'}
+                            </p>
+                        </div>
+                    ) : !reconData ? (
+                        <div className="billing-card" style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                            <AlertTriangle size={24} style={{ color: '#f59e0b', margin: '0 auto 8px' }} />
+                            <p>{lang === 'en' ? 'No reconciliation data available for this period.' : 'પસંદ કરેલા મહિના માટે કોઈ રીડિંગ અથવા બિલ મળ્યા નથી.'}</p>
+                        </div>
+                    ) : (
+                        <>
+                            {/* 4 Summary KPI Cards */}
+                            <div className="recon-grid-kpis">
+                                {/* KPI 1: Plant Meter Export */}
+                                <div className="recon-kpi-card" style={{ borderLeft: '4px solid #3b82f6' }}>
+                                    <div className="recon-kpi-label">{lang === 'en' ? 'Plant Meter Export (Site)' : 'પ્લાન્ટ મીટર એક્સપોર્ટ (સાઇટ)'}</div>
+                                    <div className="recon-kpi-val" style={{ color: '#1e40af' }}>
+                                        {Math.round(reconData.summary?.plant_meter_export || 0).toLocaleString('en-IN')}{' '}
+                                        <span style={{ fontSize: '14px', fontWeight: 600, color: '#64748b' }}>KWH</span>
+                                    </div>
+                                    <div className="recon-kpi-sub">
+                                        {lang === 'en'
+                                            ? `Import: ${Math.round(reconData.summary?.plant_meter_import || 0).toLocaleString('en-IN')} KWH • ${reconData.summary?.reading_days || 0} reading days`
+                                            : `ઇમ્પોર્ટ: ${Math.round(reconData.summary?.plant_meter_import || 0).toLocaleString('en-IN')} KWH • ${reconData.summary?.reading_days || 0} દિવસો`}
+                                    </div>
+                                </div>
+
+                                {/* KPI 2: PGVCL Credited Units */}
+                                <div className="recon-kpi-card" style={{ borderLeft: '4px solid #10b981' }}>
+                                    <div className="recon-kpi-label">{lang === 'en' ? 'PGVCL Credited Units (Bill)' : 'PGVCL ક્રેડિટ યુનિટ્સ (બિલ)'}</div>
+                                    <div className="recon-kpi-val" style={{ color: '#065f46' }}>
+                                        {Math.round(reconData.summary?.pgvcl_credited_units || 0).toLocaleString('en-IN')}{' '}
+                                        <span style={{ fontSize: '14px', fontWeight: 600, color: '#64748b' }}>KWH</span>
+                                    </div>
+                                    <div className="recon-kpi-sub">
+                                        {lang === 'en'
+                                            ? `Gross Gen: ${Math.round(reconData.summary?.pgvcl_generated_units || 0).toLocaleString('en-IN')} KWH`
+                                            : `કુલ જનરેશન: ${Math.round(reconData.summary?.pgvcl_generated_units || 0).toLocaleString('en-IN')} KWH`}
+                                    </div>
+                                </div>
+
+                                {/* KPI 3: Unit Variance & Loss % */}
+                                <div className="recon-kpi-card" style={{ borderLeft: `4px solid ${(reconData.summary?.loss_percentage || 0) > 8 ? '#ef4444' : '#f59e0b'}` }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <div className="recon-kpi-label">{lang === 'en' ? 'Loss / Difference' : 'તફાવત / વ્હીલિંગ લોસ'}</div>
+                                        <span style={{
+                                            fontSize: '11px',
+                                            fontWeight: 800,
+                                            padding: '2px 8px',
+                                            borderRadius: '12px',
+                                            background: (reconData.summary?.loss_percentage || 0) > 8 ? '#fee2e2' : '#fef3c7',
+                                            color: (reconData.summary?.loss_percentage || 0) > 8 ? '#991b1b' : '#92400e'
+                                        }}>
+                                            {reconData.summary?.loss_percentage || 0}% {lang === 'en' ? 'Loss' : 'લોસ'}
+                                        </span>
+                                    </div>
+                                    <div className="recon-kpi-val" style={{ color: (reconData.summary?.unit_difference || 0) > 0 ? '#b45309' : '#059669' }}>
+                                        {Math.round(reconData.summary?.unit_difference || 0).toLocaleString('en-IN')}{' '}
+                                        <span style={{ fontSize: '14px', fontWeight: 600, color: '#64748b' }}>KWH</span>
+                                    </div>
+                                    <div className="recon-kpi-sub">
+                                        {lang === 'en' ? 'Difference between plant export & credited units' : 'પ્લાન્ટ એક્સપોર્ટ અને PGVCL ક્રેડિટ વચ્ચેનો ગેપ'}
+                                    </div>
+                                </div>
+
+                                {/* KPI 4: Financial Loss Value */}
+                                <div className="recon-kpi-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+                                    <div className="recon-kpi-label">{lang === 'en' ? 'Financial Loss Value' : 'અંદાજિત તફાવત રકમ'}</div>
+                                    <div className="recon-kpi-val" style={{ color: '#5b21b6' }}>
+                                        ₹ {Math.round(reconData.summary?.financial_loss_value || 0).toLocaleString('en-IN')}
+                                    </div>
+                                    <div className="recon-kpi-sub">
+                                        {lang === 'en'
+                                            ? `At Avg Bill Rate: ₹${reconData.summary?.avg_bill_rate || 0}/unit`
+                                            : `સરેરાશ બિલ રેટ: ₹${reconData.summary?.avg_bill_rate || 0}/unit લેખે`}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Company-wise Breakdown Table */}
+                            <div className="billing-card" style={{ marginBottom: '20px' }}>
+                                <div className="card-header-flex" style={{ marginBottom: '12px' }}>
+                                    <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#1e293b' }}>
+                                        🏢 {lang === 'en' ? 'Company-Wise Allocation & Difference' : 'કંપની વાઇઝ ક્રેડિટ ફાળવણી અને તફાવત'}
+                                    </h4>
+                                    <span style={{ fontSize: '12px', color: '#64748b' }}>
+                                        {lang === 'en' ? `Month: ${reconData.month_label}` : `બિલિંગ મહિનો: ${reconData.month_label}`}
+                                    </span>
+                                </div>
+
+                                <div className="table-responsive">
+                                    <table className="billing-table">
+                                        <thead>
+                                            <tr>
+                                                <th>{lang === 'en' ? 'Company Name' : 'કંપનીનું નામ'}</th>
+                                                <th>{lang === 'en' ? 'Invoice No.' : 'ઇનવોઇસ નં.'}</th>
+                                                <th style={{ textAlign: 'right' }}>{lang === 'en' ? 'Credited (KWH)' : 'PGVCL ક્રેડિટ (KWH)'}</th>
+                                                <th style={{ textAlign: 'right' }}>{lang === 'en' ? 'Share %' : 'હિસ્સો %'}</th>
+                                                <th style={{ textAlign: 'right' }}>{lang === 'en' ? 'Meter Share (KWH)' : 'ફાળવેલ મીટર (KWH)'}</th>
+                                                <th style={{ textAlign: 'right' }}>{lang === 'en' ? 'Loss Units (KWH)' : 'તફાવત યુનિટ (KWH)'}</th>
+                                                <th style={{ textAlign: 'right' }}>{lang === 'en' ? 'Bill Rate' : 'બિલ રેટ (₹)'}</th>
+                                                <th style={{ textAlign: 'right' }}>{lang === 'en' ? 'Grand Total' : 'બિલ રકમ (₹)'}</th>
+                                                <th style={{ textAlign: 'right' }}>{lang === 'en' ? 'Loss Value' : 'નુકસાન રકમ (₹)'}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {(!reconData.companies || reconData.companies.length === 0) ? (
+                                                <tr>
+                                                    <td colSpan="9" style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>
+                                                        {lang === 'en' ? 'No active bills recorded for this month.' : 'આ મહિના માટે કોઈ સેવ થયેલ બિલ મળ્યું નથી.'}
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                reconData.companies.map((co, idx) => (
+                                                    <tr key={idx}>
+                                                        <td style={{ fontWeight: 600, color: '#0f172a' }}>{co.company_name}</td>
+                                                        <td>
+                                                            <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0369a1' }}>
+                                                                {co.invoice_no}
+                                                            </span>
+                                                        </td>
+                                                        <td style={{ textAlign: 'right', fontWeight: 700 }}>
+                                                            {Math.round(co.credited_units).toLocaleString('en-IN')}
+                                                        </td>
+                                                        <td style={{ textAlign: 'right', color: '#64748b' }}>
+                                                            {co.share_pct}%
+                                                        </td>
+                                                        <td style={{ textAlign: 'right' }}>
+                                                            {Math.round(co.allocated_meter_units).toLocaleString('en-IN')}
+                                                        </td>
+                                                        <td style={{ textAlign: 'right', color: co.unit_diff > 0 ? '#b45309' : '#059669', fontWeight: 700 }}>
+                                                            {Math.round(co.unit_diff).toLocaleString('en-IN')}
+                                                        </td>
+                                                        <td style={{ textAlign: 'right' }}>
+                                                            ₹ {Number(co.bill_rate).toFixed(4)}
+                                                        </td>
+                                                        <td style={{ textAlign: 'right', fontWeight: 700, color: '#047857' }}>
+                                                            ₹ {Math.round(co.grand_total).toLocaleString('en-IN')}
+                                                        </td>
+                                                        <td style={{ textAlign: 'right', fontWeight: 700, color: co.loss_value > 0 ? '#b91c1c' : '#64748b' }}>
+                                                            ₹ {Math.round(co.loss_value).toLocaleString('en-IN')}
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                        {reconData.companies && reconData.companies.length > 0 && (
+                                            <tfoot>
+                                                <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
+                                                    <td colSpan="2">{lang === 'en' ? 'Total / Weighted Average' : 'કુલ સરવાળો / સરેરાશ'}</td>
+                                                    <td style={{ textAlign: 'right' }}>
+                                                        {Math.round(reconData.summary?.pgvcl_credited_units || 0).toLocaleString('en-IN')}
+                                                    </td>
+                                                    <td style={{ textAlign: 'right' }}>100%</td>
+                                                    <td style={{ textAlign: 'right' }}>
+                                                        {Math.round(reconData.summary?.plant_meter_export || 0).toLocaleString('en-IN')}
+                                                    </td>
+                                                    <td style={{ textAlign: 'right', color: (reconData.summary?.unit_difference || 0) > 0 ? '#b45309' : '#059669' }}>
+                                                        {Math.round(reconData.summary?.unit_difference || 0).toLocaleString('en-IN')}
+                                                    </td>
+                                                    <td style={{ textAlign: 'right' }}>
+                                                        ₹ {Number(reconData.summary?.avg_bill_rate || 0).toFixed(4)}
+                                                    </td>
+                                                    <td style={{ textAlign: 'right', color: '#047857' }}>
+                                                        ₹ {Math.round(reconData.summary?.pgvcl_grand_total || 0).toLocaleString('en-IN')}
+                                                    </td>
+                                                    <td style={{ textAlign: 'right', color: (reconData.summary?.financial_loss_value || 0) > 0 ? '#b91c1c' : '#64748b' }}>
+                                                        ₹ {Math.round(reconData.summary?.financial_loss_value || 0).toLocaleString('en-IN')}
+                                                    </td>
+                                                </tr>
+                                            </tfoot>
+                                        )}
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* Day-by-Day Reading Breakdown (Collapsible) */}
+                            <div className="billing-card" style={{ marginBottom: '20px' }}>
+                                <div
+                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }}
+                                    onClick={() => setShowDayWise(!showDayWise)}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <FolderClock size={16} color="#3b82f6" />
+                                        <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#1e293b' }}>
+                                            📅 {lang === 'en' ? 'Day-by-Day Plant Meter Readings' : 'દૈનિક પ્લાન્ટ મીટર રીડિંગ્સ વિગત'} ({reconData.daily_readings?.length || 0} {lang === 'en' ? 'days' : 'દિવસો'})
+                                        </h4>
+                                    </div>
+                                    <button type="button" className="btn-secondary" style={{ padding: '4px 8px', fontSize: '12px' }}>
+                                        {showDayWise ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                        <span>{showDayWise ? (lang === 'en' ? 'Hide Details' : 'છુપાવો') : (lang === 'en' ? 'Show Details' : 'વિગત જુઓ')}</span>
+                                    </button>
+                                </div>
+
+                                {showDayWise && (
+                                    <div className="table-responsive" style={{ marginTop: '14px', maxHeight: '380px', overflowY: 'auto' }}>
+                                        <table className="billing-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>{lang === 'en' ? 'Date' : 'તારીખ'}</th>
+                                                    <th style={{ textAlign: 'right' }}>{lang === 'en' ? 'Plant Export Unit (KWH)' : 'પ્લાન્ટ એક્સપોર્ટ યુનિટ (KWH)'}</th>
+                                                    <th style={{ textAlign: 'right' }}>{lang === 'en' ? 'Plant Import Unit (KWH)' : 'પ્લાન્ટ ઇમ્પોર્ટ યુનિટ (KWH)'}</th>
+                                                    <th style={{ textAlign: 'right' }}>{lang === 'en' ? 'Sub-Meter Export (KWH)' : 'સબ-મીટર એક્સપોર્ટ (KWH)'}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {(!reconData.daily_readings || reconData.daily_readings.length === 0) ? (
+                                                    <tr>
+                                                        <td colSpan="4" style={{ textAlign: 'center', padding: '16px', color: '#94a3b8' }}>
+                                                            {lang === 'en' ? 'No daily readings recorded for this calendar month.' : 'આ મહિના માટે કોઈ દૈનિક મીટર રીડિંગ દાખલ થયેલ નથી.'}
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    reconData.daily_readings.map((d, idx) => (
+                                                        <tr key={idx}>
+                                                            <td style={{ fontWeight: 600 }}>{d.date}</td>
+                                                            <td style={{ textAlign: 'right', fontWeight: 700, color: '#1e40af' }}>
+                                                                {Math.round(d.export_unit).toLocaleString('en-IN')}
+                                                            </td>
+                                                            <td style={{ textAlign: 'right', color: '#64748b' }}>
+                                                                {Math.round(d.import_unit).toLocaleString('en-IN')}
+                                                            </td>
+                                                            <td style={{ textAlign: 'right', color: '#475569' }}>
+                                                                {Math.round(d.sub_export_unit).toLocaleString('en-IN')}
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Technical Audit & Loss Note */}
+                            <div className="billing-card ca-checklist-card">
+                                <h4 style={{ margin: '0 0 8px 0', fontSize: '13.5px', color: '#065f46', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <CheckCircle2 size={16} />
+                                    <span>{lang === 'en' ? 'Technical Audit & Loss Benchmarks' : 'ટેકનિકલ ઓડિટ & વ્હીલિંગ લોસ માર્ગદર્શિકા'}</span>
+                                </h4>
+                                <div className="ca-note-item">
+                                    <b>• સ્વીકાર્ય વ્હીલિંગ લોસ રેન્જ:</b> સોલાર ઓપન એક્સેસ નિયમો અનુસાર ૬૬ કેવી / ૧૧ કેવી ટ્રાન્સમિશન નેટવર્કમાં ૪% થી ૮% સુધીનો વ્હીલિંગ અને ટ્રાન્સમિશન લોસ સામાન્ય ગણાય છે.
+                                </div>
+                                <div className="ca-note-item">
+                                    <b>• નુકસાન નિયંત્રણ:</b> જો તફાવત ૮% થી વધી જાય તો GETCO સબસ્ટેશન મીટર અને પ્લાન્ટ મેઇન મીટર વચ્ચે સીટી/પીટી (CT/PT) ટેસ્ટિંગ અને ક્રેડિટ સ્ટેટમેન્ટ ક્રોસ-વેરિફિકેશન કરાવવું.
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
+            )}
+
             {/* TAB 3: COMPANIES CONFIGURATION */}
             {activeTab === 'companies' && (
                 <div className="billing-companies-container">
@@ -2072,25 +2489,82 @@ export default function BillingPage({ currentUser }) {
 
                     {/* Signature Management */}
                     <div className="billing-card" style={{ marginTop: '16px' }}>
-                        <h3 className="card-title">{lang === 'en' ? 'Authorised Digital Signature' : 'અધિકૃત સહી (Signature)'}</h3>
-                        <p className="form-hint">
-                            સહી અપલોડ કરો — દરેક બિલના 'BILL OF SUPPLY' પર આપોઆપ લાગશે.
+                        <h3 className="card-title">{lang === 'en' ? 'Authorised Digital Signature (Default / Global)' : 'ગ્લોબલ અધિકૃત સહી (Default Signature)'}</h3>
+                        <p className="form-hint" style={{ marginBottom: '12px' }}>
+                            {lang === 'en'
+                                ? 'Upload signature image — used as fallback for companies that do not have their own specific signature.'
+                                : 'સહી અપલોડ કરો — જે કંપનીની પોતાની સહી નહીં હોય ત્યાં આ ડિફોલ્ટ સહી આપોઆપ લાગશે.'}
                         </p>
 
-                        <div className="sig-preview-area">
-                            {settings.signature_url ? (
-                                <img src={settings.signature_url} alt="Uploaded Signature" className="uploaded-sig" />
-                            ) : (
-                                <span className="no-sig-text">હજુ કોઈ સહી અપલોડ નથી કરી.</span>
-                            )}
-                        </div>
+                        {settings.signature_url ? (
+                            <div className="upload-card-preview">
+                                <div className="upload-preview-left">
+                                    <img src={settings.signature_url} alt="Uploaded Signature" className="upload-thumb-img" />
+                                    <div className="upload-meta-info">
+                                        <span className="upload-filename">
+                                            {lang === 'en' ? 'Global Default Signature' : 'સિસ્ટમ ડિફોલ્ટ ડિજિટલ સહી'}
+                                        </span>
+                                        <span className="upload-badge-ok">
+                                            <CheckCircle2 size={13} />
+                                            {lang === 'en' ? 'Active on all bills' : 'બધા બિલ માટે સેટ છે'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    className="upload-delete-btn"
+                                    title={lang === 'en' ? 'Remove Signature' : 'સહી હટાવો'}
+                                    onClick={async () => {
+                                        if (!confirm(lang === 'en' ? 'Remove global signature?' : 'શું ખરેખર ડિફોલ્ટ સહી હટાવવી છે?')) return;
+                                        try {
+                                            await api('billing/settings', {
+                                                method: 'POST',
+                                                body: JSON.stringify({ clear_signature: 1 })
+                                            });
+                                            setSettings(prev => ({ ...prev, signature_url: '', signature_path: '' }));
+                                            if (globalSigRef.current) globalSigRef.current.value = '';
+                                            alert(lang === 'en' ? 'Signature removed' : 'સહી હટાવી દેવામાં આવી ✓');
+                                        } catch (err) {
+                                            alert(err.message || 'Error removing signature');
+                                        }
+                                    }}
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            </div>
+                        ) : (
+                            <div
+                                className="custom-upload-zone"
+                                onClick={() => globalSigRef.current?.click()}
+                            >
+                                <Upload size={24} color="#3b82f6" />
+                                <div style={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>
+                                    {lang === 'en' ? 'Choose Signature Image or Drag & Drop' : 'સહીની ઇમેજ પસંદ કરો અથવા અહીં ડ્રેગ કરો'}
+                                </div>
+                                <button
+                                    type="button"
+                                    className="upload-browse-btn"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        globalSigRef.current?.click();
+                                    }}
+                                >
+                                    <Upload size={14} />
+                                    <span>{lang === 'en' ? 'Browse Signature' : 'સહી પસંદ કરો'}</span>
+                                </button>
+                                <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                    {lang === 'en' ? 'Supported: PNG with transparent background, or JPG' : 'સપોર્ટેડ: પારદર્શક બેકગ્રાઉન્ડ વાળી PNG અથવા JPG'}
+                                </span>
+                            </div>
+                        )}
 
                         <input
+                            ref={globalSigRef}
                             type="file"
                             accept="image/*"
-                            className="form-control"
+                            style={{ display: 'none' }}
                             onChange={async (e) => {
-                                const file = e.target.files[0];
+                                const file = e.target.files?.[0];
                                 if (!file) return;
                                 const fd = new FormData();
                                 fd.append('signature_file', file);
@@ -2100,7 +2574,7 @@ export default function BillingPage({ currentUser }) {
                                         body: fd
                                     });
                                     if (res?.settings) setSettings(res.settings);
-                                    alert('સહી અપલોડ થઈ ગઈ ✓');
+                                    alert(lang === 'en' ? 'Signature uploaded successfully ✓' : 'સહી અપલોડ થઈ ગઈ ✓');
                                 } catch (err) {
                                     alert(err.message || 'Error uploading signature');
                                 }
@@ -2373,31 +2847,78 @@ export default function BillingPage({ currentUser }) {
                         </div>
 
                         <div className="form-group">
-                            <label>{lang === 'en' ? 'Upload Signature Image (PNG / JPG / WebP)' : 'સહી અપલોડ કરો (PNG / JPG પારદર્શક બેકગ્રાઉન્ડ શ્રેષ્ઠ)'}</label>
-                            <input
-                                type="file"
-                                accept="image/*"
-                                className="form-control"
-                                onChange={(e) => {
-                                    const file = e.target.files[0];
-                                    if (file) {
-                                        setEditingSignatureFile(file);
-                                        setEditingSignaturePreview(URL.createObjectURL(file));
-                                    }
-                                }}
-                            />
-                            {(editingSignaturePreview || editingCompany.signature_path) && (
-                                <div className="preview-thumbnail-box">
-                                    <img
-                                        src={editingSignaturePreview || editingCompany.signature_path}
-                                        alt="Signature Preview"
-                                        className="preview-thumbnail-img"
-                                    />
-                                    <span style={{ fontSize: '11.5px', color: '#059669', fontWeight: 700 }}>
-                                        ✓ {lang === 'en' ? 'Signature attached for this company' : 'આ કંપનીની ડિજિટલ સહી સેટ છે'}
+                            <label>{lang === 'en' ? 'Company Digital Signature Image' : 'કંપની અધિકૃત સહી (Signature Image)'}</label>
+                            {(editingSignaturePreview || editingCompany.signature_path) ? (
+                                <div className="upload-card-preview">
+                                    <div className="upload-preview-left">
+                                        <img
+                                            src={editingSignaturePreview || editingCompany.signature_path}
+                                            alt="Signature Preview"
+                                            className="upload-thumb-img"
+                                        />
+                                        <div className="upload-meta-info">
+                                            <span className="upload-filename">
+                                                {editingSignatureFile ? editingSignatureFile.name : (lang === 'en' ? 'Company Signature' : `${editingCompany.name || 'Company'} સહી`)}
+                                            </span>
+                                            <span className="upload-badge-ok">
+                                                <CheckCircle2 size={13} />
+                                                {lang === 'en' ? 'Attached for this company' : 'આ કંપની માટે સહી સેટ છે'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="upload-delete-btn"
+                                        title={lang === 'en' ? 'Remove Signature' : 'સહી હટાવો'}
+                                        onClick={() => {
+                                            setEditingSignatureFile(null);
+                                            setEditingSignaturePreview(null);
+                                            setEditingCompany(prev => ({ ...prev, signature_path: '', clear_signature: 1 }));
+                                            if (sigInputRef.current) sigInputRef.current.value = '';
+                                        }}
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                            ) : (
+                                <div
+                                    className="custom-upload-zone"
+                                    onClick={() => sigInputRef.current?.click()}
+                                >
+                                    <Upload size={22} color="#3b82f6" />
+                                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>
+                                        {lang === 'en' ? 'Click to Upload Company Signature' : 'કંપનીની સહી પસંદ કરો અથવા અહીં ડ્રેગ કરો'}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="upload-browse-btn"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            sigInputRef.current?.click();
+                                        }}
+                                    >
+                                        <Upload size={14} />
+                                        <span>{lang === 'en' ? 'Browse Signature' : 'સહી પસંદ કરો'}</span>
+                                    </button>
+                                    <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                        {lang === 'en' ? 'PNG with transparent background is recommended' : 'પારદર્શક બેકગ્રાઉન્ડ ધરાવતી PNG અથવા JPG ઇમેજ'}
                                     </span>
                                 </div>
                             )}
+                            <input
+                                ref={sigInputRef}
+                                type="file"
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                        setEditingSignatureFile(file);
+                                        setEditingSignaturePreview(URL.createObjectURL(file));
+                                        setEditingCompany(prev => ({ ...prev, clear_signature: 0 }));
+                                    }
+                                }}
+                            />
                         </div>
 
                         {/* SECTION 5: LETTERHEAD FORMAT */}
@@ -2428,28 +2949,78 @@ export default function BillingPage({ currentUser }) {
                         {/* Custom Letterhead Banner File Upload */}
                         {editingCompany.letterhead_mode === 'custom_image' && (
                             <div className="form-group" style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                                <label>{lang === 'en' ? 'Upload Custom Letterhead Banner Image' : 'કસ્ટમ લેટરહેડ બેનર ઇમેજ અપલોડ કરો'}</label>
+                                <label>{lang === 'en' ? 'Custom Graphic Letterhead Banner' : 'કસ્ટમ લેટરહેડ બેનર ઇમેજ'}</label>
+                                {(editingLetterheadPreview || editingCompany.letterhead_path) ? (
+                                    <div className="upload-card-preview" style={{ marginTop: '6px' }}>
+                                        <div className="upload-preview-left">
+                                            <img
+                                                src={editingLetterheadPreview || editingCompany.letterhead_path}
+                                                alt="Letterhead Banner Preview"
+                                                className="upload-thumb-banner"
+                                            />
+                                            <div className="upload-meta-info">
+                                                <span className="upload-filename">
+                                                    {editingLetterheadFile ? editingLetterheadFile.name : (lang === 'en' ? 'Header Banner Image' : 'લેટરહેડ બેનર')}
+                                                </span>
+                                                <span className="upload-badge-ok">
+                                                    <CheckCircle2 size={13} />
+                                                    {lang === 'en' ? 'Banner attached' : 'બેનર સેટ છે'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className="upload-delete-btn"
+                                            title={lang === 'en' ? 'Remove Banner' : 'બેનર હટાવો'}
+                                            onClick={() => {
+                                                setEditingLetterheadFile(null);
+                                                setEditingLetterheadPreview(null);
+                                                setEditingCompany(prev => ({ ...prev, letterhead_path: '', clear_letterhead: 1 }));
+                                                if (lhInputRef.current) lhInputRef.current.value = '';
+                                            }}
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div
+                                        className="custom-upload-zone"
+                                        onClick={() => lhInputRef.current?.click()}
+                                    >
+                                        <Upload size={22} color="#3b82f6" />
+                                        <div style={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>
+                                            {lang === 'en' ? 'Choose Banner Image' : 'લેટરહેડ બેનર ઇમેજ પસંદ કરો'}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className="upload-browse-btn"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                lhInputRef.current?.click();
+                                            }}
+                                        >
+                                            <Upload size={14} />
+                                            <span>{lang === 'en' ? 'Browse Banner' : 'બેનર પસંદ કરો'}</span>
+                                        </button>
+                                        <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                            {lang === 'en' ? 'Recommended width: 800px-1200px (header strip)' : 'સૂચિત પહોળાઈ: ૮૦૦ થી ૧૨૦૦ પિક્સેલ (હેડર સ્ટ્રિપ)'}
+                                        </span>
+                                    </div>
+                                )}
                                 <input
+                                    ref={lhInputRef}
                                     type="file"
                                     accept="image/*"
-                                    className="form-control"
+                                    style={{ display: 'none' }}
                                     onChange={(e) => {
-                                        const file = e.target.files[0];
+                                        const file = e.target.files?.[0];
                                         if (file) {
                                             setEditingLetterheadFile(file);
                                             setEditingLetterheadPreview(URL.createObjectURL(file));
+                                            setEditingCompany(prev => ({ ...prev, clear_letterhead: 0 }));
                                         }
                                     }}
                                 />
-                                {(editingLetterheadPreview || editingCompany.letterhead_path) && (
-                                    <div className="preview-thumbnail-box" style={{ marginTop: '8px' }}>
-                                        <img
-                                            src={editingLetterheadPreview || editingCompany.letterhead_path}
-                                            alt="Letterhead Banner Preview"
-                                            style={{ maxHeight: '60px', width: '100%', objectFit: 'contain' }}
-                                        />
-                                    </div>
-                                )}
                             </div>
                         )}
 
@@ -2506,9 +3077,14 @@ export default function BillingPage({ currentUser }) {
 
                                         if (editingSignatureFile) {
                                             formData.append('signature', editingSignatureFile);
+                                        } else if (editingCompany.clear_signature) {
+                                            formData.append('clear_signature', '1');
                                         }
+
                                         if (editingLetterheadFile) {
                                             formData.append('letterhead', editingLetterheadFile);
+                                        } else if (editingCompany.clear_letterhead) {
+                                            formData.append('clear_letterhead', '1');
                                         }
 
                                         const endpoint = editingCompany.id
