@@ -89,23 +89,27 @@ export default function ExactSolarBillSheet({
     settings = {},
     lang = 'gu'
 }) {
+    const co = company || {};
+    const cust = customer || {};
+    const sets = settings || {};
+
     // Brand title split for top-right logo (e.g. "RAJESHWARI" [Green] & "SOLAR" [Orange])
-    const compName = company.name || 'RAJESHWARI SOLAR';
+    const compName = co.name || 'RAJESHWARI SOLAR';
     const words = compName.trim().split(/\s+/);
     let brandPart1 = words[0] || 'RAJESHWARI';
     let brandPart2 = words.slice(1).join(' ') || 'SOLAR';
 
     // Bank Detail display
     const bankAccountHolder = toTitleCase(compName);
-    const bankNameOnly = (company.bank_name || 'State Bank of India').split(',')[0].trim();
-    const bankAc = company.bank_ac || '44295348601';
-    const bankIfsc = company.bank_ifsc || 'SBIN0005946';
+    const bankNameOnly = (co.bank_name || 'State Bank of India').split(',')[0].trim();
+    const bankAc = co.bank_ac || '44295348601';
+    const bankIfsc = co.bank_ifsc || 'SBIN0005946';
 
     // Customer fields
-    const custName = customer.name || 'Blueart Granito Pvt. Ltd.';
-    const custAddress = customer.address || 'S. NO. 93/1P3, B/H. KEDA CERAMIC, PANELI ROAD,\nTAL. MORBI, JAMBUDIYA\nMorbi - 363642';
-    const custGstin = customer.gst || customer.gstin || '24AABCO3285B1ZU';
-    const placeOfSupply = customer.placeOfSupply || (custGstin && custGstin.startsWith('24') ? '24-Gujarat' : '24-Gujarat');
+    const custName = cust.name || 'Blueart Granito Pvt. Ltd.';
+    const custAddress = cust.address || 'S. NO. 93/1P3, B/H. KEDA CERAMIC, PANELI ROAD,\nTAL. MORBI, JAMBUDIYA\nMorbi - 363642';
+    const custGstin = cust.gst || cust.gstin || '24AABCO3285B1ZU';
+    const placeOfSupply = cust.placeOfSupply || (custGstin && custGstin.startsWith('24') ? '24-Gujarat' : '24-Gujarat');
 
     // Financial numbers
     const numUnits = Number(units) || 0;
@@ -119,12 +123,12 @@ export default function ExactSolarBillSheet({
     const numTotalOut = Number(totalOut) || Math.round(currentBillAmt + numPrevBal + numInterest + Number(roundOff));
 
     // Signature path
-    const signatureSrc = company.signature_path || settings.signature_url || null;
+    const signatureSrc = co.signature_path || sets.signature_url || null;
 
     return (
         <div className="printable-bill-sheet">
             {/* Top Brand Header (Outside the frame, or 52mm margin if pre-printed) */}
-            {company.letterhead_mode === 'preprinted' ? (
+            {co.letterhead_mode === 'preprinted' ? (
                 <div className="sheet-preprinted-margin" style={{ height: '52mm' }}>
                     <div className="preprinted-hint-banner no-print">
                         {lang === 'en'
@@ -132,16 +136,16 @@ export default function ExactSolarBillSheet({
                             : '⬆ પ્રી-પ્રિન્ટેડ લેટરપેડ માટે 52mm ખાલી જગ્યા (પ્રિન્ટમાં નહીં આવે)'}
                     </div>
                 </div>
-            ) : company.letterhead_mode === 'custom_image' && (company.letterhead_path || company.letterhead_url) ? (
+            ) : co.letterhead_mode === 'custom_image' && (co.letterhead_path || co.letterhead_url) ? (
                 <div className="sheet-letterhead-banner">
-                    <img src={company.letterhead_path || company.letterhead_url} alt="Company Letterhead" />
+                    <img src={co.letterhead_path || co.letterhead_url} alt="Company Letterhead" />
                 </div>
             ) : (
                 <div className="exact-bill-brand-top">
-                    {company.logo_path && (company.logo_path.includes('sunrise') || company.name?.toUpperCase().includes('SUNRISE')) ? (
+                    {co.logo_path && (co.logo_path.includes('sunrise') || co.name?.toUpperCase().includes('SUNRISE')) ? (
                         <div className="exact-bill-brand-wrap sunrise-banner">
                             <img
-                                src={company.logo_path || '/images/companies/sunrise-logo.png'}
+                                src={co.logo_path || '/images/companies/sunrise-logo.png'}
                                 alt={compName}
                                 className="exact-bill-logo-banner"
                                 style={{ height: '48px', width: 'auto', objectFit: 'contain' }}
@@ -149,8 +153,8 @@ export default function ExactSolarBillSheet({
                         </div>
                     ) : (
                         <div className="exact-bill-brand-wrap">
-                            {company.logo_path ? (
-                                <img src={company.logo_path} alt="Logo" className="exact-bill-logo" />
+                            {co.logo_path ? (
+                                <img src={co.logo_path} alt="Logo" className="exact-bill-logo" />
                             ) : (
                                 <img src="/images/companies/rajeshwari-logo.png" alt="Logo" className="exact-bill-logo" />
                             )}

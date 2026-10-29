@@ -84,8 +84,9 @@ export function companyBill(units = {}, rates = {}, extra = {}, cfg = {}) {
     const grand = Math.round(rawGrand);
     const roundOff = round2(grand - rawGrand);
 
-    const minRate = num(opts?.min_bill_rate || extra?.min_bill_rate) || 6.0;
-    const maxRate = num(opts?.max_bill_rate || extra?.max_bill_rate) || 7.2;
+    const opts = cfg || {};
+    const minRate = num(opts.min_bill_rate || extra?.min_bill_rate) || 6.0;
+    const maxRate = num(opts.max_bill_rate || extra?.max_bill_rate) || 7.2;
 
     if (billRate > 0 && (billRate < minRate || billRate > maxRate)) {
         warnings.push(`Bill Rate ${billRate.toFixed(2)} — ${minRate.toFixed(1)}-${maxRate.toFixed(1)} ની આસપાસ હોવો જોઈએ; રેટ તપાસો.`);

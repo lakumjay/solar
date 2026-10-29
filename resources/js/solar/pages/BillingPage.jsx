@@ -320,100 +320,115 @@ export default function BillingPage({ currentUser }) {
         // Fetch pending balance & snapshot interest for primary company
         try {
             const pi = await api(`billing/pending/${wCompanyId}`);
-            setPendingInfo(pi || { prevBal: 0, interest: 0, interestDays: 0 });
+            setPendingInfo(pi || { prev_balance: 0, interest_amt: 0, interest_days: 0 });
 
             if (wTwoCo && wUnits2.companyId) {
                 const pi2 = await api(`billing/pending/${wUnits2.companyId}`);
-                setPendingInfo2(pi2 || { prevBal: 0, interest: 0, interestDays: 0 });
+                setPendingInfo2(pi2 || { prev_balance: 0, interest_amt: 0, interest_days: 0 });
             }
-        } catch (_) {}
+        } catch (e) {
+            console.warn('Pending balance fetch failed', e);
+        }
 
         setWizStep(2);
     };
 
     // Advance Step 2 -> 3 (Preview & Check)
     const handleStep2Next = async () => {
-        if (!parseFloat(wUnits.credited)) {
-            alert(lang === 'en' ? 'Please enter Credited Units' : 'Credited Unit દાખલ કરો');
-            return;
-        }
-        if (!parseFloat(wStmt.unit)) {
-            alert(lang === 'en' ? 'Please enter Statement Total Units' : 'સ્ટેટમેન્ટના કુલ Total Units દાખલ કરો');
-            return;
-        }
-        if (wTwoCo && !parseFloat(wUnits2.credited)) {
-            alert(lang === 'en' ? 'Please enter Credited Units for second company' : 'બીજી કંપનીના Credited Unit દાખલ કરો');
-            return;
-        }
+        try {
+            if (!parseFloat(wUnits.credited)) {
+                alert(lang === 'en' ? 'Please enter Credited Units' : 'Credited Unit દાખલ કરો');
+                return;
+            }
+            if (!parseFloat(wStmt.unit)) {
+                alert(lang === 'en' ? 'Please enter Statement Total Units' : 'સ્ટેટમેન્ટના કુલ Total Units દાખલ કરો');
+                return;
+            }
+            if (wTwoCo && !parseFloat(wUnits2.credited)) {
+                alert(lang === 'en' ? 'Please enter Credited Units for second company' : 'બીજી કંપનીના Credited Unit દાખલ કરો');
+                return;
+            }
 
-        const comp1 = companies.find(c => c.id == wCompanyId);
-        const disc1 = comp1?.discount !== null && isFinite(parseFloat(comp1?.discount))
-            ? parseFloat(comp1.discount)
-            : (parseFloat(settings.default_discount) || 1.25);
-
-        const rateOpts = {
-            min_bill_rate: settings.min_bill_rate ? parseFloat(settings.min_bill_rate) : 6.0,
-            max_bill_rate: settings.max_bill_rate ? parseFloat(settings.max_bill_rate) : 7.2
-        };
-
-        const res1 = companyBill(wUnits, liveRates, wExtra, { discount: disc1, ...rateOpts });
-        const checks1 = runChecks(res1, wStmt, 0, rateOpts).slice(0, 2); // 2 Checks: Bill-Rate & Grand/Generated ratio
-
-        const billList = [{
-            company: comp1,
-            discount: disc1,
-            month: wMonth,
-            invNo: wInvNo,
-            invDate: wInvDate,
-            dueDate: wDueDate,
-            cust: wCust,
-            units: { ...wUnits },
-            stmt: { ...wStmt },
-            extra: { ...wExtra },
-            rates: liveRates,
-            result: res1,
-            checks: checks1,
-            prevBal: pendingInfo.prev_balance || 0,
-            interest: pendingInfo.interest || 0,
-            interestDays: pendingInfo.interest_days || 0,
-            totalOut: round2((pendingInfo.prev_balance || 0) + (pendingInfo.interest || 0) + res1.grand)
-        }];
-
-        // If Two-Company mode is active
-        if (wTwoCo && wUnits2.companyId) {
-            const comp2 = companies.find(c => c.id == wUnits2.companyId);
-            const disc2 = comp2?.discount !== null && isFinite(parseFloat(comp2?.discount))
-                ? parseFloat(comp2.discount)
+            const comp1 = companies.find(c => c.id == wCompanyId) || {};
+            const disc1 = comp1?.discount !== null && isFinite(parseFloat(comp1?.discount))
+                ? parseFloat(comp1.discount)
                 : (parseFloat(settings.default_discount) || 1.25);
 
-            const fy = fyOf(wInvDate);
-            const inv2 = wUnits2.invNo || nextInvoiceNo(comp2, fy);
-            const res2 = companyBill(wUnits2, liveRates, wExtra, { discount: disc2, ...rateOpts });
-            const checks2 = runChecks(res2, wStmt, 0, rateOpts).slice(0, 2);
+            const rateOpts = {
+                min_bill_rate: settings.min_bill_rate ? parseFloat(settings.min_bill_rate) : 6.0,
+                max_bill_rate: settings.max_bill_rate ? parseFloat(settings.max_bill_rate) : 7.2
+            };
 
-            billList.push({
-                company: comp2,
-                discount: disc2,
+            const res1 = companyBill(wUnits, liveRates, wExtra, { discount: disc1, ...rateOpts });
+            const checks1 = runChecks(res1, wStmt, 0, rateOpts).slice(0, 2); // 2 Checks: Bill-Rate & Grand/Generated ratio
+
+            const pBal1 = Number(pendingInfo?.prev_balance ?? pendingInfo?.prevBal) || 0;
+            const pInt1 = Number(pendingInfo?.interest_amt ?? pendingInfo?.interest) || 0;
+            const pDays1 = Number(pendingInfo?.interest_days ?? pendingInfo?.interestDays) || 0;
+
+            const billList = [{
+                company: comp1,
+                discount: disc1,
                 month: wMonth,
-                invNo: inv2,
+                invNo: wInvNo,
                 invDate: wInvDate,
                 dueDate: wDueDate,
                 cust: wCust,
-                units: { ...wUnits2 },
+                units: { ...wUnits },
                 stmt: { ...wStmt },
                 extra: { ...wExtra },
                 rates: liveRates,
-                result: res2,
-                checks: checks2,
-                prevBal: pendingInfo2.prev_balance || 0,
-                interest: pendingInfo2.interest || 0,
-                interestDays: pendingInfo2.interest_days || 0,
-                totalOut: round2((pendingInfo2.prev_balance || 0) + (pendingInfo2.interest || 0) + res2.grand)
-            });
-        }
+                result: res1,
+                checks: checks1,
+                prevBal: pBal1,
+                interest: pInt1,
+                interestDays: pDays1,
+                totalOut: round2(pBal1 + pInt1 + res1.grand)
+            }];
 
-        setComputedBills(billList);
-        setWizStep(3);
+            // If Two-Company mode is active
+            if (wTwoCo && wUnits2.companyId) {
+                const comp2 = companies.find(c => c.id == wUnits2.companyId) || {};
+                const disc2 = comp2?.discount !== null && isFinite(parseFloat(comp2?.discount))
+                    ? parseFloat(comp2.discount)
+                    : (parseFloat(settings.default_discount) || 1.25);
+
+                const fy = fyOf(wInvDate);
+                const inv2 = wUnits2.invNo || nextInvoiceNo(comp2, fy);
+                const res2 = companyBill(wUnits2, liveRates, wExtra, { discount: disc2, ...rateOpts });
+                const checks2 = runChecks(res2, wStmt, 0, rateOpts).slice(0, 2);
+
+                const pBal2 = Number(pendingInfo2?.prev_balance ?? pendingInfo2?.prevBal) || 0;
+                const pInt2 = Number(pendingInfo2?.interest_amt ?? pendingInfo2?.interest) || 0;
+                const pDays2 = Number(pendingInfo2?.interest_days ?? pendingInfo2?.interestDays) || 0;
+
+                billList.push({
+                    company: comp2,
+                    discount: disc2,
+                    month: wMonth,
+                    invNo: inv2,
+                    invDate: wInvDate,
+                    dueDate: wDueDate,
+                    cust: wCust,
+                    units: { ...wUnits2 },
+                    stmt: { ...wStmt },
+                    extra: { ...wExtra },
+                    rates: liveRates,
+                    result: res2,
+                    checks: checks2,
+                    prevBal: pBal2,
+                    interest: pInt2,
+                    interestDays: pDays2,
+                    totalOut: round2(pBal2 + pInt2 + res2.grand)
+                });
+            }
+
+            setComputedBills(billList);
+            setWizStep(3);
+        } catch (err) {
+            console.error('Step 2 advance error:', err);
+            alert((lang === 'en' ? 'Error preparing bill preview: ' : 'બિલ પ્રિવ્યૂ તૈયાર કરવામાં ખામી: ') + err.message);
+        }
     };
 
     // Save Bill to Backend API

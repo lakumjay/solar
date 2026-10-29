@@ -13785,6 +13785,43 @@ h1, h2, h3, h4, strong {
   color: #94a3b8;
 }
 
+/* Responsive Table Container & Billing Table */
+.table-responsive {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  margin-top: 8px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+}
+
+.billing-table {
+  width: 100% !important;
+  min-width: 820px;
+  border-collapse: collapse !important;
+  font-size: 13px !important;
+  background: #ffffff;
+}
+
+.billing-table th,
+.billing-table td {
+  border: 1px solid #e2e8f0 !important;
+  padding: 10px 12px !important;
+  white-space: nowrap !important;
+}
+
+.billing-table th {
+  background: #f8fafc !important;
+  color: #1e293b !important;
+  font-weight: 700 !important;
+  font-size: 12.5px !important;
+}
+
+.billing-table tbody tr:hover {
+  background: #f1f5f9 !important;
+}
+
 @media print {
   .sheet-preprinted-margin {
     height: 52mm !important;
