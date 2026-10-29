@@ -280,6 +280,10 @@ class SystemAutoDoctorService
                     }
                     $fixes[] = 'Purged stale voice audio cache';
                 }
+            } catch (\Throwable $e) {
+                // Ignore
+            }
+
             // Sync public/pull.php to cPanel public_html/pull.php if separated
             try {
                 $cpanelPull = base_path('../public_html/pull.php');
