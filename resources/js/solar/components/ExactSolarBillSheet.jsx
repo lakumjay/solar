@@ -138,18 +138,29 @@ export default function ExactSolarBillSheet({
                 </div>
             ) : (
                 <div className="exact-bill-brand-top">
-                    <div className="exact-bill-brand-wrap">
-                        {company.logo_path ? (
-                            <img src={company.logo_path} alt="Logo" className="exact-bill-logo" />
-                        ) : (
-                            <img src="/images/companies/rajeshwari-logo.png" alt="Logo" className="exact-bill-logo" />
-                        )}
-                        <div className="exact-bill-logo-bar" />
-                        <div className="exact-bill-brand-text">
-                            <span className="brand-title-green">{brandPart1}</span>
-                            <span className="brand-title-orange">{brandPart2}</span>
+                    {company.logo_path && (company.logo_path.includes('sunrise') || company.name?.toUpperCase().includes('SUNRISE')) ? (
+                        <div className="exact-bill-brand-wrap sunrise-banner">
+                            <img
+                                src={company.logo_path || '/images/companies/sunrise-logo.png'}
+                                alt={compName}
+                                className="exact-bill-logo-banner"
+                                style={{ height: '48px', width: 'auto', objectFit: 'contain' }}
+                            />
                         </div>
-                    </div>
+                    ) : (
+                        <div className="exact-bill-brand-wrap">
+                            {company.logo_path ? (
+                                <img src={company.logo_path} alt="Logo" className="exact-bill-logo" />
+                            ) : (
+                                <img src="/images/companies/rajeshwari-logo.png" alt="Logo" className="exact-bill-logo" />
+                            )}
+                            <div className="exact-bill-logo-bar" />
+                            <div className="exact-bill-brand-text">
+                                <span className="brand-title-green">{brandPart1}</span>
+                                <span className="brand-title-orange">{brandPart2}</span>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 

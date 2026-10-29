@@ -153,20 +153,13 @@ class SolarBillingController extends Controller
         if ($id) {
             $company = SolarBillingCompany::findOrFail($id);
 
-            // Guard against accidental reduction of last_seq below already generated bills
-            if (isset($data['last_seq'])) {
-                $existingBills = SolarBill::where('company_id', $id)->pluck('invoice_no');
-                $maxIssuedSeq = 0;
-                foreach ($existingBills as $inv) {
-                    if (preg_match('/\/(\d+)$/', $inv, $m)) {
-                        $maxIssuedSeq = max($maxIssuedSeq, (int) $m[1]);
-                    }
-                }
-                if ((int) $data['last_seq'] < $maxIssuedSeq) {
-                    return response()->json([
-                        'error' => "સિક્વન્સ નંબર ઘટાડી શકાય નહીં: કંપની માટે છેલ્લો બિલ નંબર {$maxIssuedSeq} બની ચૂક્યો છે. ડુપ્લિકેટ અટકાવવા માટે last_seq ઓછામાં ઓછો {$maxIssuedSeq} હોવો જોઈએ."
-                    ], 422);
-                }
+            // Guard against accidental modification or reduction of last_seq:
+            // If company already has issued bills, lock sequence completely so it advances ONLY via atomic bill generation in store().
+            $hasBills = SolarBill::where('company_id', $id)->exists();
+            if ($hasBills) {
+                unset($data['last_seq']);
+            } elseif (isset($data['last_seq'])) {
+                $data['last_seq'] = max(0, (int) $data['last_seq']);
             }
 
             $company->update($data);
