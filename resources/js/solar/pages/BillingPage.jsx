@@ -11,7 +11,7 @@ import { api } from '../api';
 import { useLanguage } from '../context/LanguageContext';
 import BillingEngine, {
     deriveRates, companyBill, computeInterest, runChecks,
-    nextInvoiceNo, fyOf, numberToWords, inr, round2
+    nextInvoiceNo, fyOf, numberToWords, inr, round2, num
 } from '../utils/billingEngine';
 import ExactSolarBillSheet from '../components/ExactSolarBillSheet';
 
