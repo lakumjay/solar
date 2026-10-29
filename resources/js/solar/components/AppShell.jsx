@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {Activity, BarChart3, Boxes, Building2, CalendarCheck2, Camera, ChevronRight, ClipboardPlus, Clock3, CloudSun, Film, Gauge, Globe, IndianRupee, LogOut, Menu, Phone, Sparkles, Split, Sun, UserCheck, Users, WalletCards, X, Zap} from 'lucide-react';
+import {Activity, BarChart3, Boxes, Building2, CalendarCheck2, Camera, ChevronRight, ClipboardPlus, Clock3, CloudSun, Film, Gauge, Globe, IndianRupee, LogOut, Menu, Phone, Receipt, Sparkles, Split, Sun, UserCheck, Users, WalletCards, X, Zap} from 'lucide-react';
 import {api, logout} from '../api';
 import MobileAppView from './MobileAppView';
 import NotificationPermissionModal from './NotificationPermissionModal';
@@ -316,6 +316,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         ['reels', t('reels'), Film],
         (isAdminOrOwner || can('view_expenses')) && ['expenses', t('expenses'), IndianRupee],
         (isAdminOrOwner || can('view_expenses')) && ['rnsk-expenses', t('rnskExpenses', 'RNSK ખર્ચા'), Split],
+        (isAdminOrOwner || can('view_expenses')) && ['billing', t('solarBilling', 'સોલાર બિલિંગ'), Receipt],
         user.role === 'super_admin' && ['companies', t('companies'), Building2],
         /* Hidden as requested: user.role === 'super_admin' && ['isolarcloud', 'iSolarCloud', CloudSun], */
         (user.role === 'super_admin' || can('manage_company_users')) && ['users', t('users'), Users],
@@ -339,6 +340,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         reels: ['Plant Solar Reels', 'Cinematic video hub with auto slow-mo, trending beats & Instagram share'],
         expenses: ['Shared expenses', 'Company-wise balances and settlements'],
         'rnsk-expenses': ['RNSK Expenses & Allocations', 'Dynamic partner company % splits, ledger and settlements'],
+        billing: ['Solar Power Billing & Open Access Ledger', 'PGVCL Open Access bill generator, ledger & interest tracker'],
         companies: ['Company configuration', 'Multipliers and inverters'],
         isolarcloud: ['iSolarCloud Live Integration', 'Sungrow OAuth 2.0 Connection & Real-Time Sync'],
         users: ['Users & access', 'Roles and custom permissions'],

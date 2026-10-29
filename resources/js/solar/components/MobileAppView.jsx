@@ -52,6 +52,7 @@ import {
     PhoneCall,
     Globe,
     Languages,
+    Receipt,
     Split
 } from 'lucide-react';
 import {api, logout} from '../api';
@@ -933,6 +934,7 @@ export default function MobileAppView({
                                 'reels': currentLang === 'en' ? 'Reels Hub' : 'રીલ્સ હબ',
                                 'expenses': currentLang === 'en' ? 'Shared Expenses' : 'સામાયિક ખર્ચ',
                                 'rnsk-expenses': currentLang === 'en' ? 'RNSK Expenses' : 'RNSK ખર્ચ & લેતી-દેતી',
+                                'billing': currentLang === 'en' ? 'Solar Billing' : 'સોલાર બિલિંગ & લેજર',
                                 'salaries': currentLang === 'en' ? 'Salaries & Payroll' : 'પગાર અને પેરોલ',
                                 'my-salary': currentLang === 'en' ? 'My Salary Slip' : 'મારો પગાર',
                                 'stock': currentLang === 'en' ? 'Stock & Spares' : 'સ્ટોક અને સ્પેર',
@@ -2882,6 +2884,29 @@ export default function MobileAppView({
                                     </div>
                                     <div className="dmenu-card-sub">
                                         {currentLang === 'en' ? 'Dynamic % Allocation' : 'ડાયનેમિક % ભાગીદારી'}
+                                    </div>
+                                </button>
+                            )}
+
+                            {/* 3c. Solar Billing & Open Access Ledger */}
+                            {(isSuperAdmin || user.role === 'company_admin' || can('view_expenses')) && (
+                                <button
+                                    type="button"
+                                    data-page="billing"
+                                    className="dmenu-card"
+                                    onClick={() => { setPage('billing'); setMoreMenuOpen(false); }}
+                                >
+                                    <div className="dmenu-card-top">
+                                        <div className="dmenu-bubble" style={{background: '#fef3c7', color: '#b45309'}}>
+                                            <Receipt size={19}/>
+                                        </div>
+                                        <ChevronRight size={14} className="dmenu-chevron"/>
+                                    </div>
+                                    <div className="dmenu-card-title">
+                                        {currentLang === 'en' ? 'Solar Billing' : 'સોલાર બિલિંગ'}
+                                    </div>
+                                    <div className="dmenu-card-sub">
+                                        {currentLang === 'en' ? 'PGVCL Open Access & Ledger' : 'PGVCL ઓપન એક્સેસ & લેજર'}
                                     </div>
                                 </button>
                             )}

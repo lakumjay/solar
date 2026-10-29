@@ -183,6 +183,18 @@ Route::prefix('api')->group(function () {
         Route::post('rnsk-expenses/{expense}/reverse', [\App\Http\Controllers\RnskExpenseController::class, 'reverse']);
         Route::post('rnsk-expense-settlements', [\App\Http\Controllers\RnskExpenseController::class, 'settle']);
         Route::get('rnsk-expenses/{expense}/receipt', [\App\Http\Controllers\RnskExpenseController::class, 'receipt'])->name('rnsk-expenses.receipt');
+
+        // Solar Billing Module Routes
+        Route::get('billing/bills', [\App\Http\Controllers\SolarBillingController::class, 'index']);
+        Route::post('billing/bills', [\App\Http\Controllers\SolarBillingController::class, 'store']);
+        Route::post('billing/bills/{id}/toggle-paid', [\App\Http\Controllers\SolarBillingController::class, 'togglePaid']);
+        Route::post('billing/bills/{id}/void', [\App\Http\Controllers\SolarBillingController::class, 'voidBill']);
+        Route::get('billing/companies', [\App\Http\Controllers\SolarBillingController::class, 'companies']);
+        Route::post('billing/companies', [\App\Http\Controllers\SolarBillingController::class, 'saveCompany']);
+        Route::post('billing/companies/{id}', [\App\Http\Controllers\SolarBillingController::class, 'saveCompany']);
+        Route::get('billing/settings', [\App\Http\Controllers\SolarBillingController::class, 'settings']);
+        Route::post('billing/settings', [\App\Http\Controllers\SolarBillingController::class, 'saveSettings']);
+        Route::get('billing/pending/{companyId}', [\App\Http\Controllers\SolarBillingController::class, 'pendingBalance']);
     });
 });
 

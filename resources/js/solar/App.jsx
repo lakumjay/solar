@@ -18,6 +18,7 @@ const ExcelImportPage = lazy(() => import('./pages/ExcelImportPage'));
 const EmployeesPage = lazy(() => import('./pages/EmployeesPage'));
 const ExpensesPage = lazy(() => import('./pages/ExpensesPage'));
 const RnskExpensesPage = lazy(() => import('./pages/RnskExpensesPage'));
+const BillingPage = lazy(() => import('./pages/BillingPage'));
 const LeaveHolidayPage = lazy(() => import('./pages/LeaveHolidayPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const MyAttendancePage = lazy(() => import('./pages/MyAttendancePage'));
@@ -269,6 +270,7 @@ function AppContent() {
                     {page === 'employees' && <EmployeesPage can={can} currentUser={user}/>}
                     {page === 'expenses' && <ExpensesPage currentUser={user}/>}
                     {page === 'rnsk-expenses' && <RnskExpensesPage currentUser={user}/>}
+                    {page === 'billing' && <BillingPage currentUser={user}/>}
                     {page === 'attendance' && <AttendancePage canCorrect={['super_admin', 'company_admin'].includes(user.role)} canRecord={can('record_employee_attendance')}/>}
                     {page === 'leave-holidays' && <LeaveHolidayPage can={can}/>}
                     {page === 'attendance-reports' && <AttendanceReportsPage/>}
