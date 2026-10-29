@@ -530,6 +530,10 @@ export default function BillingPage({ currentUser }) {
             generated: '',
             invNo: ''
         });
+        // Reset company-specific units (credited/peak/banking/generated) so the
+        // previous company's data does not carry over. Statement data (wStmt) is
+        // shared from the PDF and billing month stays, so they are kept.
+        setWUnits({ credited: '', peak: '', banking: '', generated: '' });
         const comp = companies.find(c => c.id == compId);
         if (comp) {
             applyCompanyConfig(comp, wInvDate, settings);
