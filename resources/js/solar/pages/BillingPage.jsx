@@ -286,6 +286,15 @@ export default function BillingPage({ currentUser }) {
     const handleLoadExample = () => {
         setWMonth('Aug-26');
         setWUnits({ credited: '105715', peak: '31708', banking: '20113', generated: '113064' });
+        setWTwoCo(true);
+        const secondCo = companies.find(c => c.id != wCompanyId) || { id: 2 };
+        setWUnits2({
+            companyId: secondCo.id,
+            credited: '60392',
+            peak: '17699',
+            banking: '11497',
+            generated: '64590'
+        });
         setWStmt({
             unit: '166107',
             energyAmt: '697649.40',

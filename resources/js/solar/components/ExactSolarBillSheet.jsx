@@ -100,10 +100,12 @@ export default function ExactSolarBillSheet({
     let brandPart2 = words.slice(1).join(' ') || 'SOLAR';
 
     // Bank Detail display
+    const isSunrise = co.name?.toUpperCase().includes('SUNRISE') || (co.logo_path && co.logo_path.includes('sunrise'));
     const bankAccountHolder = toTitleCase(compName);
     const bankNameOnly = (co.bank_name || 'State Bank of India').split(',')[0].trim();
-    const bankAc = co.bank_ac || '44295348601';
+    const bankAc = co.bank_ac || (isSunrise ? '44588738053' : '44295348601');
     const bankIfsc = co.bank_ifsc || 'SBIN0005946';
+    const compGstin = co.gstin || (isSunrise ? '24FFNPP9576P1Z4' : '24ABJFR7554G1ZX');
 
     // Customer fields
     const custName = cust.name || 'Blueart Granito Pvt. Ltd.';
@@ -119,7 +121,8 @@ export default function ExactSolarBillSheet({
     const numDiscount = Number(discountAmt) || 0;
     const numPrevBal = Number(prevBal) || 0;
     const numInterest = Number(interest) || 0;
-    const currentBillAmt = Math.max(0, numSubTotal - numDiscount);
+    // Round Current Bill Amt to integer so it matches Grand Total consistently
+    const currentBillAmt = Math.round(Math.max(0, numSubTotal - numDiscount));
     const numTotalOut = Number(totalOut) || Math.round(currentBillAmt + numPrevBal + numInterest + Number(roundOff));
 
     // Signature path
@@ -253,7 +256,7 @@ export default function ExactSolarBillSheet({
                 {/* 4. GSTIN No. & Sub Total Row */}
                 <div className="exact-bill-subtotal-row">
                     <div className="exact-bill-subtotal-gstin">
-                        GSTIN No.: {company.gstin || '24ABJFR7554G1ZX'}
+                        GSTIN No.: {compGstin}
                     </div>
                     <div className="exact-bill-subtotal-label">
                         Sub Total
