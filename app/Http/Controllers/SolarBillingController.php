@@ -286,7 +286,22 @@ class SolarBillingController extends Controller
             if ($file->isValid()) {
                 $ext = strtolower($file->getClientOriginalExtension());
                 if ($ext !== 'pdf') {
-                    return response()->json(['error' => 'Only valid PDF files are accepted.'], 422);
+                    return response()->json([
+                        'message' => 'ફક્ત માન્ય PDF (.pdf) ફાઈલ જ સ્વીકારવામાં આવે છે.',
+                        'errors' => ['pdf_file' => ['ફક્ત માન્ય PDF (.pdf) ફાઈલ જ સ્વીકારવામાં આવે છે.']],
+                    ], 422);
+                }
+                // Verify %PDF- magic bytes to reject renamed non-PDF files
+                $handle = @fopen($file->getRealPath(), 'rb');
+                if ($handle) {
+                    $header = fread($handle, 5);
+                    fclose($handle);
+                    if ($header !== '%PDF-') {
+                        return response()->json([
+                            'message' => 'અમાન્ય PDF: અપલોડ કરેલ ફાઈલ સાચો PDF દસ્તાવેજ નથી.',
+                            'errors' => ['pdf_file' => ['અમાન્ય PDF: અપલોડ કરેલ ફાઈલ સાચો PDF દસ્તાવેજ નથી.']],
+                        ], 422);
+                    }
                 }
                 // Store on private disk so statement PDFs are never exposed via direct public URLs
                 $uploaded = $file->store('billing_statements', 'private');

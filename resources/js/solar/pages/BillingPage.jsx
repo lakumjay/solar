@@ -79,6 +79,136 @@ export function advanceMonthString(monthStr) {
     return monthStr;
 }
 
+// Comprehensive PDF Statement validation and company matching
+export function validateSolarPdf(fileName = '', rawText = '', registeredCompanies = []) {
+    const fnLower = (fileName || '').toLowerCase();
+    const txtLower = (rawText || '').toLowerCase();
+    const combined = fnLower + ' ' + txtLower;
+
+    // 1. Is it a PDF file?
+    if (!fnLower.endsWith('.pdf')) {
+        return {
+            valid: false,
+            severity: 'error',
+            code: 'NOT_PDF',
+            title: 'અમાન્ય ફાઈલ ફોર્મેટ (Not a PDF)',
+            message: 'ફક્ત PDF (.pdf) ફાઈલ જ માન્ય છે. અન્ય કોઈપણ ફાઈલ અહીં ચાલશે નહીં.'
+        };
+    }
+
+    // 2. Obvious non-solar personal / administrative document patterns
+    const negativeDocs = [
+        { key: 'resume', label: 'બાયોડેટા / Resume' },
+        { key: 'curriculum vitae', label: 'Curriculum Vitae (CV)' },
+        { key: 'marksheet', label: 'માર્કશીટ / Marksheet' },
+        { key: 'pan card', label: 'પાન કાર્ડ / PAN Card' },
+        { key: 'aadhaar', label: 'આધાર કાર્ડ / Aadhaar' },
+        { key: 'driving licen', label: 'ડ્રાઇવિંગ લાયસન્સ' },
+        { key: 'passport', label: 'પાસપોર્ટ / Passport' },
+        { key: 'salary slip', label: 'પગાર સ્લિપ / Salary Slip' },
+        { key: 'irctc', label: 'ટિકિટ / Ticket' },
+        { key: 'boarding pass', label: 'બોર્ડિંગ પાસ' }
+    ];
+    for (const neg of negativeDocs) {
+        if (combined.includes(neg.key)) {
+            return {
+                valid: false,
+                severity: 'error',
+                code: 'INVALID_DOCUMENT',
+                title: 'અમાન્ય દસ્તાવેજ (Invalid Document)',
+                message: `આ ફાઈલ (${neg.label}) સોલાર કે PGVCL સ્ટેટમેન્ટ નથી. સોલાર બિલ બનાવવા માટે સાચી સ્ટેટમેન્ટ PDF અપલોડ કરો.`
+            };
+        }
+    }
+
+    // 3. Positive utility / open-access keywords
+    const solarKeywords = [
+        'pgvcl', 'paschim gujarat', 'open access', 'credit of open access',
+        'credit', 'solar', 'wind', 'energy charge', 'fca', 'wheeling',
+        'banking', 'kwh', 'ht consumer', 'discom', 'geb', 'blueart', 'granito',
+        'statement', 'bill of supply', 'power'
+    ];
+    const hasSolarKeyword = solarKeywords.some(kw => combined.includes(kw));
+
+    // 4. Match against registered companies
+    let matchedCompany = null;
+    if (Array.isArray(registeredCompanies) && registeredCompanies.length > 0) {
+        for (const comp of registeredCompanies) {
+            const compName = (comp.name || '').toLowerCase();
+            const prefix = (comp.inv_prefix || '').toLowerCase();
+            const words = compName
+                .split(/[\s-]+/)
+                .filter(w => w.length > 2 && !['solar', 'energy', 'pvt', 'ltd', 'limited', 'private'].includes(w));
+
+            const nameMatched = words.length > 0 && words.some(w => combined.includes(w));
+            const prefixMatched = prefix && prefix.length >= 2 && fnLower.includes(prefix);
+
+            if (nameMatched || prefixMatched) {
+                matchedCompany = comp;
+                break;
+            }
+        }
+    }
+
+    // 5. Check if PDF mentions an external/third-party company not added in the system
+    const commonThirdParties = [
+        { key: 'adani', name: 'ADANI SOLAR / POWER' },
+        { key: 'tata power', name: 'TATA POWER' },
+        { key: 'torrent', name: 'TORRENT POWER' },
+        { key: 'suzlon', name: 'SUZLON ENERGY' },
+        { key: 'waree', name: 'WAAREE ENERGIES' },
+        { key: 'renew power', name: 'RENEW POWER' },
+        { key: 'reliance', name: 'RELIANCE POWER' },
+        { key: 'ntpc', name: 'NTPC' },
+        { key: 'gsec', name: 'GSECL' }
+    ];
+    const foundThirdParty = commonThirdParties.find(tp => combined.includes(tp.key));
+
+    if (foundThirdParty && (!matchedCompany || !matchedCompany.name.toLowerCase().includes(foundThirdParty.key))) {
+        return {
+            valid: true,
+            severity: 'warning',
+            code: 'UNREGISTERED_COMPANY',
+            companyName: foundThirdParty.name,
+            matchedCompany: null,
+            title: `ધ્યાન આપો — અજાણી કંપની (${foundThirdParty.name})`,
+            message: `આ PDF માં "${foundThirdParty.name}" નો ઉલ્લેખ છે, જે હજુ તમારી સિસ્ટમમાં ઉમેરાયેલ નથી. તમે "કંપનીઓ" ટેબમાંથી નવી કંપની ઉમેરી શકો છો અથવા નીચેથી યોગ્ય કંપની પસંદ કરીને આગળ વધી શકો છો.`
+        };
+    }
+
+    // 6. If extractable text is substantial but has NO solar/energy keywords
+    if (!hasSolarKeyword && rawText && rawText.length > 250) {
+        return {
+            valid: false,
+            severity: 'error',
+            code: 'NOT_SOLAR_STATEMENT',
+            title: 'PGVCL વિગતો મળી નથી (Not a Solar Statement)',
+            message: 'આ PDF માં PGVCL કે સોલાર ઓપન એક્સેસ સંબંધિત કોઈ માહિતી (Credit Units, FCA, Wheeling etc.) નથી. આ PDF અહીં ચાલશે નહીં.'
+        };
+    }
+
+    // 7. Success / Valid state
+    if (matchedCompany) {
+        return {
+            valid: true,
+            severity: 'success',
+            code: 'MATCHED',
+            matchedCompany: matchedCompany,
+            title: `✓ માન્ય PGVCL સ્ટેટમેન્ટ — ${matchedCompany.name}`,
+            message: `કંપની "${matchedCompany.name}" PDF સાથે મેળ ખાઈ ગઈ છે.`
+        };
+    }
+
+    return {
+        valid: true,
+        severity: 'info',
+        code: 'ACCEPTED',
+        matchedCompany: null,
+        title: '✓ સ્ટેટમેન્ટ PDF સ્વીકારેલ છે',
+        message: `ફાઈલ "${fileName}" સ્વીકારાઈ છે. નીચે આપેલી કંપની અને યુનિટ્સ ચકાસીને આગળ વધો.`
+    };
+}
+
 export default function BillingPage({ currentUser }) {
     const { lang, t } = useLanguage();
 
@@ -137,6 +267,7 @@ export default function BillingPage({ currentUser }) {
     const [wDueDate, setWDueDate] = useState('');
     const [wPdfFile, setWPdfFile] = useState(null);
     const [wPdfName, setWPdfName] = useState('');
+    const [pdfValidation, setPdfValidation] = useState(null);
     const [wCust, setWCust] = useState({ name: '', address: '', gst: '' });
 
     // Step 2 Units
@@ -325,23 +456,38 @@ export default function BillingPage({ currentUser }) {
         }
     }, [wInvDate, wCompanyId]);
 
-    // Handle PDF upload and auto-detect month
+    // Handle PDF upload, validate solar criteria & auto-detect month/company
     const handlePdfUpload = async (file) => {
-        if (!file) return;
+        if (!file) {
+            setPdfValidation(null);
+            setWPdfFile(null);
+            setWPdfName('');
+            return;
+        }
         setWPdfFile(file);
         setWPdfName(file.name);
 
-        let detected = detectBillingMonth('', file.name);
-        if (!detected && file.slice) {
+        let rawText = '';
+        if (file.slice) {
             try {
                 const slice = file.slice(0, 131072);
-                const text = await slice.text();
-                detected = detectBillingMonth(text, file.name);
+                rawText = await slice.text();
             } catch (e) {
                 console.warn('PDF slice read failed', e);
             }
         }
 
+        // 1. Validate PDF against solar criteria and company master
+        const val = validateSolarPdf(file.name, rawText, companies);
+        setPdfValidation(val);
+
+        // 2. Auto-match company if found in PDF
+        if (val.matchedCompany && val.matchedCompany.id) {
+            handleCompanyChange(val.matchedCompany.id);
+        }
+
+        // 3. Auto-detect billing month
+        const detected = detectBillingMonth(rawText, file.name);
         if (detected) {
             setWMonth(detected);
             setIsAutoMonth(true);
@@ -388,6 +534,12 @@ export default function BillingPage({ currentUser }) {
 
     // Advance Step 1 -> 2
     const handleStep1Next = async () => {
+        // Strict PDF Validation Guard: If PDF was uploaded and flagged as invalid/unsupported
+        if (pdfValidation && !pdfValidation.valid && pdfValidation.severity === 'error') {
+            alert(pdfValidation.title + "\n\n" + pdfValidation.message);
+            return;
+        }
+
         if (!wMonth.trim()) {
             alert(lang === 'en' ? 'Please enter billing month (e.g. Oct-26)' : 'કૃપા કરીને મહિનો દાખલ કરો (દા.ત. Oct-26)');
             return;
@@ -677,6 +829,9 @@ export default function BillingPage({ currentUser }) {
     const resetWizard = () => {
         setWizStep(1);
         setWMonth('');
+        setWPdfFile(null);
+        setWPdfName('');
+        setPdfValidation(null);
         setWUnits({ credited: '', peak: '', banking: '', generated: '' });
         setWTwoCo(false);
         setWUnits2({ companyId: '', credited: '', peak: '', banking: '', generated: '', invNo: '' });
@@ -1014,6 +1169,92 @@ export default function BillingPage({ currentUser }) {
                                                 <span>{lang === 'en' ? `✓ Auto-detected Month: ${wMonth}` : `✓ PDF માંથી મહિનો શોધાયો: ${wMonth}`}</span>
                                             </span>
                                         )}
+                                    </div>
+                                )}
+
+                                {pdfValidation && (
+                                    <div style={{
+                                        marginTop: '12px',
+                                        padding: '12px 14px',
+                                        borderRadius: '8px',
+                                        display: 'flex',
+                                        alignItems: 'flex-start',
+                                        gap: '10px',
+                                        border: pdfValidation.severity === 'error'
+                                            ? '1.5px solid #ef4444'
+                                            : pdfValidation.severity === 'warning'
+                                                ? '1.5px solid #f59e0b'
+                                                : '1.5px solid #10b981',
+                                        background: pdfValidation.severity === 'error'
+                                            ? '#fef2f2'
+                                            : pdfValidation.severity === 'warning'
+                                                ? '#fffbeb'
+                                                : '#f0fdf4'
+                                    }}>
+                                        <div style={{
+                                            color: pdfValidation.severity === 'error'
+                                                ? '#dc2626'
+                                                : pdfValidation.severity === 'warning'
+                                                    ? '#d97706'
+                                                    : '#059669',
+                                            marginTop: '2px'
+                                        }}>
+                                            {pdfValidation.severity === 'error' ? (
+                                                <XCircle size={18} />
+                                            ) : pdfValidation.severity === 'warning' ? (
+                                                <AlertTriangle size={18} />
+                                            ) : (
+                                                <CheckCircle2 size={18} />
+                                            )}
+                                        </div>
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{
+                                                fontWeight: 700,
+                                                fontSize: '13px',
+                                                color: pdfValidation.severity === 'error'
+                                                    ? '#991b1b'
+                                                    : pdfValidation.severity === 'warning'
+                                                        ? '#92400e'
+                                                        : '#065f46'
+                                            }}>
+                                                {pdfValidation.title}
+                                            </div>
+                                            <div style={{
+                                                fontSize: '12px',
+                                                marginTop: '4px',
+                                                lineHeight: 1.5,
+                                                color: pdfValidation.severity === 'error'
+                                                    ? '#7f1d1d'
+                                                    : pdfValidation.severity === 'warning'
+                                                        ? '#78350f'
+                                                        : '#047857'
+                                            }}>
+                                                {pdfValidation.message}
+                                            </div>
+                                            {pdfValidation.severity === 'warning' && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setActiveTab('companies')}
+                                                    style={{
+                                                        marginTop: '8px',
+                                                        padding: '4px 10px',
+                                                        fontSize: '11px',
+                                                        fontWeight: 700,
+                                                        background: '#f59e0b',
+                                                        color: '#ffffff',
+                                                        border: 'none',
+                                                        borderRadius: '6px',
+                                                        cursor: 'pointer',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px'
+                                                    }}
+                                                >
+                                                    <Building2 size={12} />
+                                                    <span>{lang === 'en' ? '+ Add Company to Master' : '+ નવી કંપની ઉમેરો'}</span>
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
                             </div>
