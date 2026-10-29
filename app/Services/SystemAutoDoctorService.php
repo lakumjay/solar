@@ -474,8 +474,17 @@ class SystemAutoDoctorService
             @shell_exec("cd ".escapeshellarg($basePath)." && git remote set-url origin ".escapeshellarg($authUrl)." 2>&1");
         }
 
+        @chmod($basePath . '/.git', 0777);
+        @chmod($basePath . '/.git/index', 0666);
         @unlink($basePath . '/.git/index.lock');
-        $fetchOut = trim((string) @shell_exec("cd ".escapeshellarg($basePath)." && git fetch origin main:refs/remotes/origin/main 2>&1 && git reset --hard origin/main 2>&1"));
+        @unlink($basePath . '/.git/refs/heads/main.lock');
+        @unlink($basePath . '/.git/refs/remotes/origin/main.lock');
+
+        $fetchOut = trim((string) @shell_exec("cd ".escapeshellarg($basePath)." && git fetch origin main 2>&1 && git reset --hard origin/main 2>&1"));
+        if (str_contains($fetchOut, 'Could not write new index file')) {
+            @unlink($basePath . '/.git/index');
+            $fetchOut = trim((string) @shell_exec("cd ".escapeshellarg($basePath)." && git reset --hard origin/main 2>&1"));
+        }
         $logs[] = $fetchOut ?: 'Git reset to origin/main completed.';
 
         // Restore clean remote URL
