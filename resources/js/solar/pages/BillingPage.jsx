@@ -12,6 +12,48 @@ import BillingEngine, {
     nextInvoiceNo, fyOf, numberToWords, inr, round2
 } from '../utils/billingEngine';
 
+// Auto-detect billing month from PDF raw text or filename
+export function detectBillingMonth(rawText = '', fileName = '') {
+    const months = [
+        { regex: /Jan(?:uary)?/i, short: 'Jan' },
+        { regex: /Feb(?:ruary)?/i, short: 'Feb' },
+        { regex: /Mar(?:ch)?/i, short: 'Mar' },
+        { regex: /Apr(?:il)?/i, short: 'Apr' },
+        { regex: /May/i, short: 'May' },
+        { regex: /Jun(?:e)?/i, short: 'Jun' },
+        { regex: /Jul(?:y)?/i, short: 'Jul' },
+        { regex: /Aug(?:ust)?/i, short: 'Aug' },
+        { regex: /Sep(?:tember)?/i, short: 'Sep' },
+        { regex: /Oct(?:ober)?/i, short: 'Oct' },
+        { regex: /Nov(?:ember)?/i, short: 'Nov' },
+        { regex: /Dec(?:ember)?/i, short: 'Dec' },
+    ];
+
+    const sources = [fileName, rawText].filter(Boolean);
+
+    for (const text of sources) {
+        // 1. Text Month with 2 or 4 digit year: e.g. "Aug-26", "October 2026", "Sep_26", "Nov 26"
+        for (const m of months) {
+            const rx = new RegExp(m.regex.source + '[\\s-_/]*(?:20)?(\\d{2})\\b', 'i');
+            const match = text.match(rx);
+            if (match) {
+                return `${m.short}-${match[1]}`;
+            }
+        }
+
+        // 2. Numeric Month pattern like "08-2026" or "10/26"
+        const numRx = /(?:month|period|statement)?[^\d]*(0[1-9]|1[0-2])[\/\-_](?:20)?(\\d{2})\\b/i;
+        const numMatch = text.match(numRx);
+        if (numMatch) {
+            const mIndex = parseInt(numMatch[1], 10) - 1;
+            if (months[mIndex]) {
+                return `${months[mIndex].short}-${numMatch[2]}`;
+            }
+        }
+    }
+    return null;
+}
+
 export default function BillingPage({ currentUser }) {
     const { lang, t } = useLanguage();
 
@@ -36,11 +78,16 @@ export default function BillingPage({ currentUser }) {
     const [viewingBill, setViewingBill] = useState(null);
     const [voidModal, setVoidModal] = useState({ open: false, bill: null, reason: '' });
     const [editingCompany, setEditingCompany] = useState(null); // null or company object
+    const [editingSignatureFile, setEditingSignatureFile] = useState(null);
+    const [editingSignaturePreview, setEditingSignaturePreview] = useState(null);
+    const [editingLetterheadFile, setEditingLetterheadFile] = useState(null);
+    const [editingLetterheadPreview, setEditingLetterheadPreview] = useState(null);
 
     // Wizard State (Steps 1 to 4)
     const [wizStep, setWizStep] = useState(1);
     const [wCompanyId, setWCompanyId] = useState('');
     const [wMonth, setWMonth] = useState('');
+    const [isAutoMonth, setIsAutoMonth] = useState(false);
     const [wInvNo, setWInvNo] = useState('');
     const [wInvDate, setWInvDate] = useState(() => new Date().toISOString().slice(0, 10));
     const [wDueDate, setWDueDate] = useState('');
@@ -69,6 +116,27 @@ export default function BillingPage({ currentUser }) {
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccessCount, setSaveSuccessCount] = useState(0);
 
+    // Helper: apply company-specific billing parameters & compute due date
+    const applyCompanyConfig = (comp, baseInvDate = wInvDate, currentSettings = settings) => {
+        if (!comp) return;
+        const fy = fyOf(baseInvDate);
+        setWInvNo(nextInvoiceNo(comp, fy));
+
+        const dueDays = parseInt(comp.due_days) || parseInt(currentSettings?.due_days) || 15;
+        const d = new Date(baseInvDate);
+        if (!isNaN(d.getTime())) {
+            d.setDate(d.getDate() + dueDays);
+            setWDueDate(d.toISOString().slice(0, 10));
+        }
+
+        setWExtra(prev => ({
+            lossPct: (comp.loss_pct !== null && comp.loss_pct !== undefined && comp.loss_pct !== '') ? String(comp.loss_pct) : (prev.lossPct || currentSettings?.loss_pct || '6.5'),
+            crossPct: (comp.cross_pct !== null && comp.cross_pct !== undefined && comp.cross_pct !== '') ? String(comp.cross_pct) : (prev.crossPct || currentSettings?.cross_pct || '15'),
+            wheelRate: (comp.wheel_rate !== null && comp.wheel_rate !== undefined && comp.wheel_rate !== '') ? String(comp.wheel_rate) : (prev.wheelRate || currentSettings?.wheel_rate || '0.2352'),
+            bankRate: (comp.bank_rate !== null && comp.bank_rate !== undefined && comp.bank_rate !== '') ? String(comp.bank_rate) : (prev.bankRate || '1.50'),
+        }));
+    };
+
     // 1. Initial Load: Companies & Settings
     const loadInitData = async () => {
         setLoading(true);
@@ -81,9 +149,9 @@ export default function BillingPage({ currentUser }) {
             setSettings(settRes || {});
 
             if (compsRes?.length && !wCompanyId) {
-                setWCompanyId(compsRes[0].id);
-                const fy = fyOf(wInvDate);
-                setWInvNo(nextInvoiceNo(compsRes[0], fy));
+                const first = compsRes[0];
+                setWCompanyId(first.id);
+                applyCompanyConfig(first, wInvDate, settRes);
             }
 
             if (settRes) {
@@ -91,12 +159,6 @@ export default function BillingPage({ currentUser }) {
                     name: settRes.default_customer_name || 'Blueart Granito Pvt. Ltd.',
                     address: settRes.default_customer_address || 'S.No. 93/1P3, B/h. Keda Ceramic, Paneli Road, Morbi-363642',
                     gst: settRes.default_customer_gstin || '24AABCO3285B1ZU',
-                });
-                setWExtra({
-                    lossPct: settRes.loss_pct || '6.5',
-                    crossPct: settRes.cross_pct || '15',
-                    wheelRate: settRes.wheel_rate || '0.2352',
-                    bankRate: '1.50'
                 });
             }
         } catch (err) {
@@ -138,22 +200,47 @@ export default function BillingPage({ currentUser }) {
     }, [activeTab, filterCompany, filterStatus, searchQuery]);
 
     // Handle Company Switch in Step 1
-    const handleCompanyChange = async (compId) => {
+    const handleCompanyChange = (compId) => {
         setWCompanyId(compId);
         const comp = companies.find(c => c.id == compId);
         if (comp) {
-            const fy = fyOf(wInvDate);
-            setWInvNo(nextInvoiceNo(comp, fy));
+            applyCompanyConfig(comp, wInvDate, settings);
         }
     };
 
     // Auto calculate due date when invoice date changes
     useEffect(() => {
-        const days = parseInt(settings.due_days) || 15;
+        const comp = companies.find(c => c.id == wCompanyId);
+        const days = parseInt(comp?.due_days) || parseInt(settings?.due_days) || 15;
         const d = new Date(wInvDate);
-        d.setDate(d.getDate() + days);
-        setWDueDate(d.toISOString().slice(0, 10));
-    }, [wInvDate, settings.due_days]);
+        if (!isNaN(d.getTime())) {
+            d.setDate(d.getDate() + days);
+            setWDueDate(d.toISOString().slice(0, 10));
+        }
+    }, [wInvDate, wCompanyId]);
+
+    // Handle PDF upload and auto-detect month
+    const handlePdfUpload = async (file) => {
+        if (!file) return;
+        setWPdfFile(file);
+        setWPdfName(file.name);
+
+        let detected = detectBillingMonth('', file.name);
+        if (!detected && file.slice) {
+            try {
+                const slice = file.slice(0, 131072);
+                const text = await slice.text();
+                detected = detectBillingMonth(text, file.name);
+            } catch (e) {
+                console.warn('PDF slice read failed', e);
+            }
+        }
+
+        if (detected) {
+            setWMonth(detected);
+            setIsAutoMonth(true);
+        }
+    };
 
     // Live Derived Rates for Step 2
     const liveRates = useMemo(() => {
@@ -607,6 +694,44 @@ export default function BillingPage({ currentUser }) {
                                 {lang === 'en' ? 'Step 1 — Company & Billing Period' : 'Step 1 — કંપની અને મહિનો'}
                             </h3>
 
+                            {/* 1. PDF Statement Upload & Auto-Detection at Top */}
+                            <div className="pdf-upload-box" style={{
+                                background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
+                                border: '1.5px dashed #10b981',
+                                borderRadius: '12px',
+                                padding: '16px',
+                                marginBottom: '18px'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                                    <label style={{ fontWeight: 800, color: '#065f46', fontSize: '13px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <Upload size={16} />
+                                        <span>{lang === 'en' ? 'PGVCL Open Access Statement PDF' : 'PGVCL સ્ટેટમેન્ટ PDF અપલોડ કરો'}</span>
+                                    </label>
+                                    <span style={{ fontSize: '11px', color: '#047857', background: '#d1fae5', padding: '2px 8px', borderRadius: '9999px', fontWeight: 700 }}>
+                                        ⚡ {lang === 'en' ? 'Auto-detects Month & Stores for Audit' : 'મહિનો આપોઆપ આવી જશે'}
+                                    </span>
+                                </div>
+                                <input
+                                    type="file"
+                                    accept=".pdf"
+                                    className="form-control"
+                                    onChange={(e) => handlePdfUpload(e.target.files[0])}
+                                    style={{ background: '#ffffff' }}
+                                />
+                                {wPdfName && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                                        <span className="upload-badge">📄 {wPdfName}</span>
+                                        {isAutoMonth && (
+                                            <span className="auto-detected-badge">
+                                                <CheckCircle2 size={13} />
+                                                <span>{lang === 'en' ? `✓ Auto-detected Month: ${wMonth}` : `✓ PDF માંથી મહિનો શોધાયો: ${wMonth}`}</span>
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Company Selector */}
                             <div className="form-group">
                                 <label>{lang === 'en' ? 'Select Power Generating Company' : 'કંપની પસંદ કરો'}</label>
                                 <select
@@ -620,30 +745,46 @@ export default function BillingPage({ currentUser }) {
                                 </select>
                                 <small className="form-hint">
                                     {lang === 'en'
-                                        ? 'Invoice number and bank details will be loaded automatically.'
-                                        : 'કંપનીના શોર્ટ પ્રિફિક્સ પરથી Invoice No. અને બેંક આપોઆપ સેટ થશે.'}
+                                        ? 'Invoice prefix, payment due days, bank details & company terms loaded automatically.'
+                                        : 'કંપનીના શોર્ટ પ્રિફિક્સ, ચૂકવણી દિવસો, બેંક અને બિલિંગ નિયમો આપોઆપ સેટ થશે.'}
                                 </small>
                             </div>
 
                             <div className="form-row-2">
                                 <div className="form-group">
-                                    <label>{lang === 'en' ? 'Billing Month (e.g. Oct-26)' : 'મહિનો (દા.ત. Oct-26)'}</label>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                        <label style={{ margin: 0 }}>{lang === 'en' ? 'Billing Month (e.g. Oct-26)' : 'મહિનો (દા.ત. Oct-26)'}</label>
+                                        {isAutoMonth && (
+                                            <span style={{ fontSize: '11px', color: '#059669', fontWeight: 700 }}>
+                                                ✓ Auto
+                                            </span>
+                                        )}
+                                    </div>
                                     <input
                                         type="text"
                                         className="form-control"
                                         value={wMonth}
                                         placeholder="Oct-26"
-                                        onChange={(e) => setWMonth(e.target.value)}
+                                        onChange={(e) => {
+                                            setWMonth(e.target.value);
+                                            setIsAutoMonth(false);
+                                        }}
                                     />
+                                    <small className="form-hint">
+                                        {lang === 'en' ? 'Auto-detected on PDF upload, or edit manually.' : 'PDF અપલોડ કરવાથી ઓટો આવશે, અથવા અહીં જાતે બદલી શકો છો.'}
+                                    </small>
                                 </div>
                                 <div className="form-group">
-                                    <label>{lang === 'en' ? 'Invoice Date' : 'ઇનવોઇસ તારીખ'}</label>
+                                    <label>{lang === 'en' ? 'Invoice Date (Auto / Editable)' : 'ઇનવોઇસ તારીખ (Auto / Editable)'}</label>
                                     <input
                                         type="date"
                                         className="form-control"
                                         value={wInvDate}
                                         onChange={(e) => setWInvDate(e.target.value)}
                                     />
+                                    <small className="form-hint">
+                                        {lang === 'en' ? 'Defaults to today. Changeable if needed.' : 'આજની તારીખ ઓટો આવશે. જરૂર મુજબ બદલી શકાય.'}
+                                    </small>
                                 </div>
                             </div>
 
@@ -658,13 +799,16 @@ export default function BillingPage({ currentUser }) {
                                     />
                                 </div>
                                 <div className="form-group">
-                                    <label>{lang === 'en' ? 'Payment Due Date' : 'ચૂકવણી આખરી તારીખ'}</label>
+                                    <label>{lang === 'en' ? 'Payment Due Date (Auto / Editable)' : 'ચૂકવણી આખરી તારીખ (Auto / Editable)'}</label>
                                     <input
                                         type="date"
                                         className="form-control"
                                         value={wDueDate}
                                         onChange={(e) => setWDueDate(e.target.value)}
                                     />
+                                    <small className="form-hint">
+                                        {lang === 'en' ? 'Calculated from company due days. Editable.' : 'કંપનીના નક્કી કરેલા દિવસો મુજબ ઓટો ગણાશે. એડિટ કરી શકાય.'}
+                                    </small>
                                 </div>
                             </div>
 
@@ -678,22 +822,6 @@ export default function BillingPage({ currentUser }) {
                                     placeholder="Blueart Granito Pvt. Ltd."
                                     onChange={(e) => setWCust({ ...wCust, name: e.target.value })}
                                 />
-                            </div>
-
-                            {/* PDF Statement Upload */}
-                            <div className="form-group">
-                                <label>{lang === 'en' ? 'PGVCL Open Access Statement PDF (Optional Audit Trail)' : 'PGVCL સ્ટેટમેન્ટ PDF અપલોડ (રેકોર્ડ માટે)'}</label>
-                                <input
-                                    type="file"
-                                    accept=".pdf"
-                                    className="form-control"
-                                    onChange={(e) => {
-                                        const file = e.target.files[0];
-                                        setWPdfFile(file || null);
-                                        setWPdfName(file ? file.name : '');
-                                    }}
-                                />
-                                {wPdfName && <span className="upload-badge">📄 {wPdfName}</span>}
                             </div>
 
                             <div className="wizard-btn-row">
@@ -1102,11 +1230,24 @@ export default function BillingPage({ currentUser }) {
 
                                     {/* Exact BILL OF SUPPLY Debit Memo Display */}
                                     <div className="printable-bill-sheet">
-                                        <div className="sheet-header">
-                                            <h2>{b.company.name}</h2>
-                                            <p>{b.company.address}</p>
-                                            <p>GSTIN: <b>{b.company.gstin || 'N/A'}</b> | Ph: {b.company.phones || 'N/A'}</p>
-                                        </div>
+                                        {/* Company Letterhead Header */}
+                                        {b.company?.letterhead_mode === 'preprinted' ? (
+                                            <div className="sheet-preprinted-margin" style={{ height: '52mm' }}>
+                                                <div className="preprinted-hint-banner no-print">
+                                                    {lang === 'en' ? '⬆ 52mm Blank Margin for Pre-printed Letterhead Paper' : '⬆ પ્રી-પ્રિન્ટેડ લેટરપેડ માટે 52mm ખાલી જગ્યા (પ્રિન્ટમાં નહીં આવે)'}
+                                                </div>
+                                            </div>
+                                        ) : b.company?.letterhead_mode === 'custom_image' && (b.company?.letterhead_path || b.company?.letterhead_url) ? (
+                                            <div className="sheet-letterhead-banner">
+                                                <img src={b.company.letterhead_path || b.company.letterhead_url} alt="Company Letterhead" />
+                                            </div>
+                                        ) : (
+                                            <div className="sheet-header">
+                                                <h2>{b.company.name}</h2>
+                                                <p>{b.company.address}</p>
+                                                <p>GSTIN: <b>{b.company.gstin || 'N/A'}</b> {b.company.phones ? `| Ph: ${b.company.phones}` : ''}</p>
+                                            </div>
+                                        )}
 
                                         <div className="sheet-memo-bar">
                                             <span>Debit Memo</span>
@@ -1204,12 +1345,14 @@ export default function BillingPage({ currentUser }) {
                                         </div>
 
                                         <div className="sheet-terms">
-                                            1. Interest @18% p.a. will be charged if payment is not made within due date.<br />
+                                            1. Interest @{b.company?.interest_pct || settings.interest_pct || 18}% p.a. will be charged if payment is not made within due date.<br />
                                             2. "Subject to 'BOTAD' Jurisdiction only. E.&O.E."
                                         </div>
 
                                         <div className="sheet-signature-box">
-                                            {settings.signature_url ? (
+                                            {b.company?.signature_path ? (
+                                                <img src={b.company.signature_path} alt="Authorised Signature" className="sig-img" />
+                                            ) : settings.signature_url ? (
                                                 <img src={settings.signature_url} alt="Signature" className="sig-img" />
                                             ) : (
                                                 <div className="sig-spacer" />
@@ -1677,19 +1820,35 @@ export default function BillingPage({ currentUser }) {
             {activeTab === 'companies' && (
                 <div className="billing-companies-container">
                     <div className="card-header-flex">
-                        <h3 className="card-title">
-                            {lang === 'en' ? 'Solar Billing Companies' : 'સોલાર બિલિંગ કંપનીઓ'}
-                        </h3>
+                        <div>
+                            <h3 className="card-title">
+                                {lang === 'en' ? 'Solar Billing Companies' : 'સોલાર બિલિંગ કંપનીઓ'}
+                            </h3>
+                            <small className="form-hint" style={{ marginTop: '2px', display: 'block' }}>
+                                {lang === 'en'
+                                    ? 'Each company has its own digital signature, letterhead format, and billing terms.'
+                                    : 'દરેક કંપનીની પોતાની અલગ ડિજિટલ સહી, લેટરહેડ ફોર્મેટ અને બિલિંગ નિયમો.'}
+                            </small>
+                        </div>
                         <button
                             type="button"
-                            className="btn-primary"
-                            onClick={() => setEditingCompany({
-                                name: '', gstin: '', address: '', phones: '',
-                                bank_name: '', bank_ac: '', bank_ifsc: '', discount: '1.25',
-                                inv_prefix: 'RS', last_seq: 0, active: true
-                            })}
+                            className="btn-primary billing-btn-add-company"
+                            onClick={() => {
+                                setEditingCompany({
+                                    name: '', gstin: '', address: '', phones: '',
+                                    bank_name: '', bank_ac: '', bank_ifsc: '', discount: '1.25',
+                                    inv_prefix: 'RS', last_seq: 0, active: true,
+                                    due_days: '15', interest_pct: '18.0', loss_pct: '6.5',
+                                    wheel_rate: '0.2352', bank_rate: '1.50', cross_pct: '15.0',
+                                    letterhead_mode: 'digital', signature_path: '', letterhead_path: ''
+                                });
+                                setEditingSignatureFile(null);
+                                setEditingSignaturePreview(null);
+                                setEditingLetterheadFile(null);
+                                setEditingLetterheadPreview(null);
+                            }}
                         >
-                            <Plus size={16} /> <span>+ નવી કંપની</span>
+                            <Plus size={16} /> <span>{lang === 'en' ? 'Add Company' : 'નવી કંપની ઉમેરો'}</span>
                         </button>
                     </div>
 
@@ -1697,11 +1856,31 @@ export default function BillingPage({ currentUser }) {
                         {companies.map(c => (
                             <div key={c.id} className="company-profile-card">
                                 <div className="card-head">
-                                    <b>{c.name}</b>
+                                    <div style={{ display: 'grid', gap: '3px' }}>
+                                        <b style={{ fontSize: '15px' }}>{c.name}</b>
+                                        <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                            {c.inv_prefix} (છેલ્લો નં: #{c.last_seq || 0})
+                                        </span>
+                                    </div>
                                     <button
                                         type="button"
                                         className="btn-edit-link"
-                                        onClick={() => setEditingCompany(c)}
+                                        onClick={() => {
+                                            setEditingCompany({
+                                                ...c,
+                                                due_days: c.due_days !== null && c.due_days !== undefined ? String(c.due_days) : '15',
+                                                interest_pct: c.interest_pct !== null && c.interest_pct !== undefined ? String(c.interest_pct) : '18.0',
+                                                loss_pct: c.loss_pct !== null && c.loss_pct !== undefined ? String(c.loss_pct) : '6.5',
+                                                wheel_rate: c.wheel_rate !== null && c.wheel_rate !== undefined ? String(c.wheel_rate) : '0.2352',
+                                                bank_rate: c.bank_rate !== null && c.bank_rate !== undefined ? String(c.bank_rate) : '1.50',
+                                                cross_pct: c.cross_pct !== null && c.cross_pct !== undefined ? String(c.cross_pct) : '15.0',
+                                                letterhead_mode: c.letterhead_mode || 'digital',
+                                            });
+                                            setEditingSignatureFile(null);
+                                            setEditingSignaturePreview(c.signature_path || null);
+                                            setEditingLetterheadFile(null);
+                                            setEditingLetterheadPreview(c.letterhead_path || null);
+                                        }}
                                     >
                                         Edit
                                     </button>
@@ -1710,8 +1889,25 @@ export default function BillingPage({ currentUser }) {
                                     <p><b>GSTIN:</b> {c.gstin || 'N/A'}</p>
                                     <p><b>બેંક:</b> {c.bank_name || 'N/A'}</p>
                                     <p><b>A/c:</b> {c.bank_ac || 'N/A'} (IFSC: {c.bank_ifsc || 'N/A'})</p>
-                                    <p><b>ઇનવોઇસ સીરિઝ:</b> {c.inv_prefix} (છેલ્લો નં: {c.last_seq})</p>
-                                    <p><b>PPA ડિસ્કાઉન્ટ:</b> ₹{c.discount || '1.25'}/unit</p>
+
+                                    {/* Company Specific Terms Badges */}
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '10px' }}>
+                                        <span style={{ fontSize: '10.5px', background: '#ecfdf5', color: '#065f46', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
+                                            PPA: ₹{c.discount || '1.25'}/u
+                                        </span>
+                                        <span style={{ fontSize: '10.5px', background: '#eff6ff', color: '#1e40af', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
+                                            Due: {c.due_days || 15} Divas
+                                        </span>
+                                        <span style={{ fontSize: '10.5px', background: '#fef3c7', color: '#92400e', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
+                                            Vyaaj: {c.interest_pct || 18.0}% p.a.
+                                        </span>
+                                        <span style={{ fontSize: '10.5px', background: c.signature_path ? '#dcfce7' : '#f1f5f9', color: c.signature_path ? '#15803d' : '#64748b', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
+                                            {c.signature_path ? '✓ Digital Signature' : 'No Signature'}
+                                        </span>
+                                        <span style={{ fontSize: '10.5px', background: '#f3e8ff', color: '#6b21a8', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
+                                            {c.letterhead_mode === 'custom_image' ? '🖼️ Custom Letterhead' : c.letterhead_mode === 'preprinted' ? '📄 Pre-printed Pad' : '🏢 Digital Header'}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -1722,10 +1918,36 @@ export default function BillingPage({ currentUser }) {
             {/* TAB 4: GLOBAL SETUP & SIGNATURE */}
             {activeTab === 'setup' && (
                 <div className="billing-setup-container">
+                    <div className="billing-card" style={{ background: '#f8fafc', border: '1.5px solid #cbd5e1', marginBottom: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                            <div>
+                                <b style={{ color: '#0f172a', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <Building2 size={16} color="#059669" />
+                                    <span>{lang === 'en' ? 'Company-Specific Configurations Active' : 'કંપની દીઠ અલગ સેટિંગ્સ ઉપલબ્ધ'}</span>
+                                </b>
+                                <p className="form-hint" style={{ margin: '4px 0 0 0' }}>
+                                    {lang === 'en'
+                                        ? 'Each company now has its own Digital Signature, Letterhead Format, Due Days, Interest %, and Deduction rates configured under the Companies tab.'
+                                        : 'હવે દરેક કંપનીની પોતાની અલગ ડિજિટલ સહી, લેટરહેડ ફોર્મેટ, ચૂકવણી દિવસો, વ્યાજ %, અને ડિડક્શન દરો "કંપનીઓ" ટેબમાંથી સીધા સેટ કરી શકાય છે.'}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                style={{ whiteSpace: 'nowrap', fontSize: '12px', padding: '6px 12px' }}
+                                onClick={() => setActiveTab('companies')}
+                            >
+                                🏢 {lang === 'en' ? 'Go to Companies Tab →' : 'કંપનીઓ ટેબ પર જાઓ →'}
+                            </button>
+                        </div>
+                    </div>
+
                     <div className="billing-card">
-                        <h3 className="card-title">{lang === 'en' ? 'Global Billing Configuration' : 'મૂળભૂત નિયમો અને સેટિંગ'}</h3>
+                        <h3 className="card-title">{lang === 'en' ? 'Global Default Fallback Configuration' : 'મૂળભૂત ડિફોલ્ટ સેટિંગ્સ (Fallback)'}</h3>
                         <p className="form-hint">
-                            આ સેટિંગ્સ ડિફોલ્ટ ગણતરી માટે છે. દરેક બિલ વખતે રેટ PGVCL સ્ટેટમેન્ટમાંથી ઓટોમેટિક નીકળશે.
+                            {lang === 'en'
+                                ? 'These settings serve as system-wide fallback defaults when a company does not specify custom terms.'
+                                : 'જો કોઈ કંપનીમાં કસ્ટમ રેટ ન હોય ત્યારે આ ડિફોલ્ટ સેટિંગ્સ લાગુ પડશે.'}
                         </p>
 
                         <div className="form-row-2">
@@ -1898,119 +2120,392 @@ export default function BillingPage({ currentUser }) {
 
             {/* EDIT COMPANY MODAL */}
             {editingCompany && (
-                <div className="billing-modal-backdrop">
-                    <div className="billing-modal-box">
-                        <h3>{editingCompany.id ? 'કંપની એડિટ કરો' : 'નવી કંપની ઉમેરો'}</h3>
+                <div className="billing-modal-backdrop" onClick={() => setEditingCompany(null)}>
+                    <div className="billing-modal-box company-modal" onClick={(e) => e.stopPropagation()}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+                            <h3 style={{ margin: 0, fontSize: '17px', color: '#0f172a' }}>
+                                {editingCompany.id
+                                    ? (lang === 'en' ? 'Edit Company Profile & Settings' : 'કંપની પ્રોફાઇલ અને બિલિંગ નિયમો')
+                                    : (lang === 'en' ? 'Add New Solar Billing Company' : 'નવી સોલાર બિલિંગ કંપની ઉમેરો')}
+                            </h3>
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                style={{ padding: '4px 10px', fontSize: '13px' }}
+                                onClick={() => setEditingCompany(null)}
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* SECTION 1: BASIC DETAILS */}
+                        <div className="modal-section-title">
+                            <Building2 size={15} />
+                            <span>{lang === 'en' ? '1. Basic Company Information' : '૧. કંપનીની મૂળભૂત વિગતો'}</span>
+                        </div>
+
                         <div className="form-group">
-                            <label>Company Name</label>
+                            <label>{lang === 'en' ? 'Company Name' : 'કંપનીનું પૂરું નામ'}</label>
                             <input
                                 type="text"
                                 className="form-control"
+                                placeholder="e.g. Radhey Solar Energy"
                                 value={editingCompany.name || ''}
                                 onChange={(e) => setEditingCompany({ ...editingCompany, name: e.target.value })}
                             />
                         </div>
+
                         <div className="form-row-2">
                             <div className="form-group">
-                                <label>GSTIN</label>
+                                <label>{lang === 'en' ? 'GSTIN (GST Number)' : 'GSTIN નંબર'}</label>
                                 <input
                                     type="text"
                                     className="form-control"
+                                    placeholder="24AAAAA0000A1Z5"
                                     value={editingCompany.gstin || ''}
-                                    onChange={(e) => setEditingCompany({ ...editingCompany, gstin: e.target.value })}
+                                    onChange={(e) => setEditingCompany({ ...editingCompany, gstin: e.target.value.toUpperCase() })}
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Invoice Prefix (દા.ત. RS)</label>
+                                <label>{lang === 'en' ? 'Invoice Series Prefix' : 'ઇનવોઇસ પ્રિફિક્સ (દા.ત. RS)'}</label>
                                 <input
                                     type="text"
                                     className="form-control"
+                                    placeholder="RS"
                                     value={editingCompany.inv_prefix || ''}
-                                    onChange={(e) => setEditingCompany({ ...editingCompany, inv_prefix: e.target.value })}
+                                    onChange={(e) => setEditingCompany({ ...editingCompany, inv_prefix: e.target.value.toUpperCase() })}
                                 />
                             </div>
                         </div>
+
                         <div className="form-group">
-                            <label>Address</label>
+                            <label>{lang === 'en' ? 'Registered Address' : 'કંપની સરનામું'}</label>
                             <input
                                 type="text"
                                 className="form-control"
+                                placeholder="Plot No, GIDC, City, Gujarat"
                                 value={editingCompany.address || ''}
                                 onChange={(e) => setEditingCompany({ ...editingCompany, address: e.target.value })}
                             />
                         </div>
+
+                        <div className="form-group">
+                            <label>{lang === 'en' ? 'Contact Phone / Mobile' : 'સંપર્ક ફોન / મોબાઇલ'}</label>
+                            <input
+                                type="text"
+                                className="form-control"
+                                placeholder="+91 98765 43210"
+                                value={editingCompany.phones || ''}
+                                onChange={(e) => setEditingCompany({ ...editingCompany, phones: e.target.value })}
+                            />
+                        </div>
+
+                        {/* SECTION 2: BANK DETAILS */}
+                        <div className="modal-section-title">
+                            <Receipt size={15} />
+                            <span>{lang === 'en' ? '2. Bank Account Details (For Bill of Supply)' : '૨. બેંક એકાઉન્ટ વિગતો (બિલ પર છાપવા માટે)'}</span>
+                        </div>
+
                         <div className="form-row-2">
                             <div className="form-group">
-                                <label>Bank Name</label>
+                                <label>{lang === 'en' ? 'Bank Name' : 'બેંકનું નામ'}</label>
                                 <input
                                     type="text"
                                     className="form-control"
+                                    placeholder="State Bank of India"
                                     value={editingCompany.bank_name || ''}
                                     onChange={(e) => setEditingCompany({ ...editingCompany, bank_name: e.target.value })}
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Bank A/c No.</label>
+                                <label>{lang === 'en' ? 'Bank A/c No.' : 'બેંક એકાઉન્ટ નં.'}</label>
                                 <input
                                     type="text"
                                     className="form-control"
+                                    placeholder="123456789012"
                                     value={editingCompany.bank_ac || ''}
                                     onChange={(e) => setEditingCompany({ ...editingCompany, bank_ac: e.target.value })}
                                 />
                             </div>
                         </div>
+
+                        <div className="form-group">
+                            <label>{lang === 'en' ? 'IFSC Code' : 'IFSC કોડ'}</label>
+                            <input
+                                type="text"
+                                className="form-control"
+                                placeholder="SBIN0001234"
+                                value={editingCompany.bank_ifsc || ''}
+                                onChange={(e) => setEditingCompany({ ...editingCompany, bank_ifsc: e.target.value.toUpperCase() })}
+                            />
+                        </div>
+
+                        {/* SECTION 3: COMMERCIAL & BILLING RULES */}
+                        <div className="modal-section-title">
+                            <Settings size={15} />
+                            <span>{lang === 'en' ? '3. Company Billing Terms & Deductions' : '૩. કંપની બિલિંગ નિયમો & કપાત દર'}</span>
+                        </div>
+
                         <div className="form-row-2">
                             <div className="form-group">
-                                <label>IFSC Code</label>
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    value={editingCompany.bank_ifsc || ''}
-                                    onChange={(e) => setEditingCompany({ ...editingCompany, bank_ifsc: e.target.value })}
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>PPA Discount (₹/unit)</label>
+                                <label>{lang === 'en' ? 'PPA Discount (₹/unit)' : 'PPA ડિસ્કાઉન્ટ (₹/unit)'}</label>
                                 <input
                                     type="number"
                                     step="0.01"
                                     className="form-control"
-                                    value={editingCompany.discount || ''}
+                                    value={editingCompany.discount ?? '1.25'}
                                     placeholder="1.25"
                                     onChange={(e) => setEditingCompany({ ...editingCompany, discount: e.target.value })}
+                                />
+                                <small className="form-hint">{lang === 'en' ? 'Default discount per credited unit' : 'યુનિટ દીઠ ડિસ્કાઉન્ટ'}</small>
+                            </div>
+                            <div className="form-group">
+                                <label>{lang === 'en' ? 'Payment Due Days' : 'ચૂકવણી મુદત (દિવસો)'}</label>
+                                <input
+                                    type="number"
+                                    step="1"
+                                    className="form-control"
+                                    value={editingCompany.due_days ?? '15'}
+                                    placeholder="15"
+                                    onChange={(e) => setEditingCompany({ ...editingCompany, due_days: e.target.value })}
+                                />
+                                <small className="form-hint">{lang === 'en' ? 'Days from invoice date' : 'ઇનવોઇસ તારીખથી મુદત'}</small>
+                            </div>
+                        </div>
+
+                        <div className="form-row-2">
+                            <div className="form-group">
+                                <label>{lang === 'en' ? 'Annual Overdue Interest (% p.a.)' : 'બાકી રકમ પર વ્યાજ (% p.a.)'}</label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    className="form-control"
+                                    value={editingCompany.interest_pct ?? '18.0'}
+                                    placeholder="18.0"
+                                    onChange={(e) => setEditingCompany({ ...editingCompany, interest_pct: e.target.value })}
+                                />
+                                <small className="form-hint">{lang === 'en' ? 'Annual rate charged on overdue principal' : 'મુદત વીતી ગયા પછી વાર્ષિક વ્યાજ દર'}</small>
+                            </div>
+                            <div className="form-group">
+                                <label>{lang === 'en' ? 'Wheeling Loss %' : 'વ્હીલિંગ લોસ %'}</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    className="form-control"
+                                    value={editingCompany.loss_pct ?? '6.5'}
+                                    placeholder="6.5"
+                                    onChange={(e) => setEditingCompany({ ...editingCompany, loss_pct: e.target.value })}
                                 />
                             </div>
                         </div>
 
-                        <div className="wizard-btn-row">
+                        <div className="form-row-2">
+                            <div className="form-group">
+                                <label>{lang === 'en' ? 'Wheeling Charge (₹/KWH)' : 'વ્હીલિંગ ચાર્જ (₹/KWH)'}</label>
+                                <input
+                                    type="number"
+                                    step="0.0001"
+                                    className="form-control"
+                                    value={editingCompany.wheel_rate ?? '0.2352'}
+                                    placeholder="0.2352"
+                                    onChange={(e) => setEditingCompany({ ...editingCompany, wheel_rate: e.target.value })}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>{lang === 'en' ? 'Banking Rate (₹/unit)' : 'બેંકિંગ ચાર્જ દર (₹/unit)'}</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    className="form-control"
+                                    value={editingCompany.bank_rate ?? '1.50'}
+                                    placeholder="1.50"
+                                    onChange={(e) => setEditingCompany({ ...editingCompany, bank_rate: e.target.value })}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="form-group">
+                            <label>{lang === 'en' ? 'Cross Subsidy %' : 'ક્રોસ સબસિડી %'}</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                className="form-control"
+                                value={editingCompany.cross_pct ?? '15.0'}
+                                placeholder="15.0"
+                                onChange={(e) => setEditingCompany({ ...editingCompany, cross_pct: e.target.value })}
+                            />
+                        </div>
+
+                        {/* SECTION 4: AUTHORISED SIGNATURE */}
+                        <div className="modal-section-title">
+                            <FileText size={15} />
+                            <span>{lang === 'en' ? '4. Authorised Digital Signature' : '૪. કંપની અધિકૃત ડિજિટલ સહી'}</span>
+                        </div>
+
+                        <div className="form-group">
+                            <label>{lang === 'en' ? 'Upload Signature Image (PNG / JPG / WebP)' : 'સહી અપલોડ કરો (PNG / JPG પારદર્શક બેકગ્રાઉન્ડ શ્રેષ્ઠ)'}</label>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                className="form-control"
+                                onChange={(e) => {
+                                    const file = e.target.files[0];
+                                    if (file) {
+                                        setEditingSignatureFile(file);
+                                        setEditingSignaturePreview(URL.createObjectURL(file));
+                                    }
+                                }}
+                            />
+                            {(editingSignaturePreview || editingCompany.signature_path) && (
+                                <div className="preview-thumbnail-box">
+                                    <img
+                                        src={editingSignaturePreview || editingCompany.signature_path}
+                                        alt="Signature Preview"
+                                        className="preview-thumbnail-img"
+                                    />
+                                    <span style={{ fontSize: '11.5px', color: '#059669', fontWeight: 700 }}>
+                                        ✓ {lang === 'en' ? 'Signature attached for this company' : 'આ કંપનીની ડિજિટલ સહી સેટ છે'}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* SECTION 5: LETTERHEAD FORMAT */}
+                        <div className="modal-section-title">
+                            <Printer size={15} />
+                            <span>{lang === 'en' ? '5. Letterhead & Stationary Format' : '૫. લેટરહેડ / પ્રિન્ટિંગ ફોર્મેટ'}</span>
+                        </div>
+
+                        <div className="form-group">
+                            <label>{lang === 'en' ? 'Choose Invoice Letterhead Option' : 'બિલ પ્રિન્ટિંગ લેટરહેડ ઓપ્શન પસંદ કરો'}</label>
+                            <select
+                                className="form-control"
+                                value={editingCompany.letterhead_mode || 'digital'}
+                                onChange={(e) => setEditingCompany({ ...editingCompany, letterhead_mode: e.target.value })}
+                            >
+                                <option value="digital">
+                                    {lang === 'en' ? '🏢 Digital Letterhead (System generated header with Logo & Details)' : '🏢 ડિજિટલ લેટરહેડ (સિસ્ટમ આપોઆપ નામ/GSTIN છાપશે)'}
+                                </option>
+                                <option value="custom_image">
+                                    {lang === 'en' ? '🖼️ Custom Header Image Banner (Upload graphic letterhead header)' : '🖼️ કસ્ટમ લેટરહેડ બેનર (ગ્રાફિક ડિઝાઇન ઇમેજ અપલોડ કરો)'}
+                                </option>
+                                <option value="preprinted">
+                                    {lang === 'en' ? '📄 Pre-printed Stationary (Leaves 52mm top margin for physical letterpad)' : '📄 પ્રી-પ્રિન્ટેડ લેટરપેડ (ઓરિજિનલ પેપર માટે 52mm ટોપ માર્જિન)'}
+                                </option>
+                            </select>
+                        </div>
+
+                        {/* Custom Letterhead Banner File Upload */}
+                        {editingCompany.letterhead_mode === 'custom_image' && (
+                            <div className="form-group" style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                                <label>{lang === 'en' ? 'Upload Custom Letterhead Banner Image' : 'કસ્ટમ લેટરહેડ બેનર ઇમેજ અપલોડ કરો'}</label>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="form-control"
+                                    onChange={(e) => {
+                                        const file = e.target.files[0];
+                                        if (file) {
+                                            setEditingLetterheadFile(file);
+                                            setEditingLetterheadPreview(URL.createObjectURL(file));
+                                        }
+                                    }}
+                                />
+                                {(editingLetterheadPreview || editingCompany.letterhead_path) && (
+                                    <div className="preview-thumbnail-box" style={{ marginTop: '8px' }}>
+                                        <img
+                                            src={editingLetterheadPreview || editingCompany.letterhead_path}
+                                            alt="Letterhead Banner Preview"
+                                            style={{ maxHeight: '60px', width: '100%', objectFit: 'contain' }}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {editingCompany.letterhead_mode === 'preprinted' && (
+                            <div className="preprinted-hint-banner" style={{ marginBottom: '14px' }}>
+                                💡 <b>{lang === 'en' ? 'Pre-printed Paper Mode Active:' : 'પ્રી-પ્રિન્ટેડ પેપર મોડ:'}</b>{' '}
+                                {lang === 'en'
+                                    ? 'The invoice will leave a 52mm blank top margin so you can feed your physical company letterhead sheets directly into printer.'
+                                    : 'આ બિલમાં ટોચ પર ૫૨ મિ.મી. (52mm) ની ખાલી જગ્યા રહેશે, જેથી તમે તમારું ઓરિજિનલ પ્રિન્ટેડ લેટરપેડ સીધું પ્રિન્ટરમાં મૂકી શકો.'}
+                            </div>
+                        )}
+
+                        {/* Modal Action Buttons */}
+                        <div className="wizard-btn-row" style={{ marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '14px' }}>
                             <button
                                 type="button"
                                 className="btn-secondary"
-                                onClick={() => setEditingCompany(null)}
+                                onClick={() => {
+                                    setEditingCompany(null);
+                                    setEditingSignatureFile(null);
+                                    setEditingSignaturePreview(null);
+                                    setEditingLetterheadFile(null);
+                                    setEditingLetterheadPreview(null);
+                                }}
                             >
-                                રદ કરો
+                                {lang === 'en' ? 'Cancel' : 'રદ કરો'}
                             </button>
                             <button
                                 type="button"
                                 className="btn-primary"
                                 onClick={async () => {
+                                    if (!editingCompany.name?.trim()) {
+                                        alert(lang === 'en' ? 'Company name is required' : 'કંપનીનું નામ જરૂરી છે');
+                                        return;
+                                    }
                                     try {
+                                        const formData = new FormData();
+                                        formData.append('name', editingCompany.name || '');
+                                        formData.append('gstin', editingCompany.gstin || '');
+                                        formData.append('inv_prefix', editingCompany.inv_prefix || 'RS');
+                                        formData.append('address', editingCompany.address || '');
+                                        formData.append('phones', editingCompany.phones || '');
+                                        formData.append('bank_name', editingCompany.bank_name || '');
+                                        formData.append('bank_ac', editingCompany.bank_ac || '');
+                                        formData.append('bank_ifsc', editingCompany.bank_ifsc || '');
+                                        formData.append('discount', editingCompany.discount ?? '1.25');
+                                        formData.append('due_days', editingCompany.due_days ?? '15');
+                                        formData.append('interest_pct', editingCompany.interest_pct ?? '18.0');
+                                        formData.append('loss_pct', editingCompany.loss_pct ?? '6.5');
+                                        formData.append('wheel_rate', editingCompany.wheel_rate ?? '0.2352');
+                                        formData.append('bank_rate', editingCompany.bank_rate ?? '1.50');
+                                        formData.append('cross_pct', editingCompany.cross_pct ?? '15.0');
+                                        formData.append('letterhead_mode', editingCompany.letterhead_mode || 'digital');
+
+                                        if (editingSignatureFile) {
+                                            formData.append('signature', editingSignatureFile);
+                                        }
+                                        if (editingLetterheadFile) {
+                                            formData.append('letterhead', editingLetterheadFile);
+                                        }
+
                                         const endpoint = editingCompany.id
                                             ? `billing/companies/${editingCompany.id}`
                                             : 'billing/companies';
+
                                         await api(endpoint, {
                                             method: 'POST',
-                                            body: JSON.stringify(editingCompany)
+                                            body: formData
                                         });
+
                                         setEditingCompany(null);
+                                        setEditingSignatureFile(null);
+                                        setEditingSignaturePreview(null);
+                                        setEditingLetterheadFile(null);
+                                        setEditingLetterheadPreview(null);
+
                                         const comps = await api('billing/companies');
                                         if (comps) setCompanies(comps);
+                                        alert(lang === 'en' ? 'Company saved successfully ✓' : 'કંપની વિગતો સફળતાપૂર્વક સેવ થઈ ગઈ ✓');
                                     } catch (err) {
                                         alert(err.message || 'Error saving company');
                                     }
                                 }}
                             >
-                                સેવ કરો
+                                <Check size={16} />
+                                <span>{lang === 'en' ? 'Save Company Profile' : 'કંપની પ્રોફાઇલ સેવ કરો'}</span>
                             </button>
                         </div>
                     </div>
@@ -2043,11 +2538,24 @@ export default function BillingPage({ currentUser }) {
 
                         {/* Printable Sheet */}
                         <div className="printable-bill-sheet">
-                            <div className="sheet-header">
-                                <h2>{viewingBill.company?.name}</h2>
-                                <p>{viewingBill.company?.address}</p>
-                                <p>GSTIN: <b>{viewingBill.company?.gstin || 'N/A'}</b> | Ph: {viewingBill.company?.phones || 'N/A'}</p>
-                            </div>
+                            {/* Company Letterhead Header */}
+                            {viewingBill.company?.letterhead_mode === 'preprinted' ? (
+                                <div className="sheet-preprinted-margin" style={{ height: '52mm' }}>
+                                    <div className="preprinted-hint-banner no-print">
+                                        {lang === 'en' ? '⬆ 52mm Blank Margin for Pre-printed Letterhead Paper' : '⬆ પ્રી-પ્રિન્ટેડ લેટરપેડ માટે 52mm ખાલી જગ્યા (પ્રિન્ટમાં નહીં આવે)'}
+                                    </div>
+                                </div>
+                            ) : viewingBill.company?.letterhead_mode === 'custom_image' && (viewingBill.company?.letterhead_path || viewingBill.company?.letterhead_url) ? (
+                                <div className="sheet-letterhead-banner">
+                                    <img src={viewingBill.company.letterhead_path || viewingBill.company.letterhead_url} alt="Company Letterhead" />
+                                </div>
+                            ) : (
+                                <div className="sheet-header">
+                                    <h2>{viewingBill.company?.name}</h2>
+                                    <p>{viewingBill.company?.address}</p>
+                                    <p>GSTIN: <b>{viewingBill.company?.gstin || 'N/A'}</b> {viewingBill.company?.phones ? `| Ph: ${viewingBill.company?.phones}` : ''}</p>
+                                </div>
+                            )}
 
                             <div className="sheet-memo-bar">
                                 <span>Debit Memo</span>
@@ -2117,7 +2625,7 @@ export default function BillingPage({ currentUser }) {
 
                                 {(viewingBill.interest_amt > 0 || viewingBill.interest > 0) && (
                                     <div className="summary-row overdue">
-                                        <span>Interest 18% p.a. ({viewingBill.interest_days || viewingBill.interestDays} days):</span>
+                                        <span>Interest {viewingBill.company?.interest_pct || settings.interest_pct || 18}% p.a. ({viewingBill.interest_days || viewingBill.interestDays} days):</span>
                                         <b>₹{inr(viewingBill.interest_amt || viewingBill.interest)}</b>
                                     </div>
                                 )}
@@ -2143,12 +2651,14 @@ export default function BillingPage({ currentUser }) {
                             </div>
 
                             <div className="sheet-terms">
-                                1. Interest @18% p.a. will be charged if payment is not made within due date.<br />
+                                1. Interest @{viewingBill.company?.interest_pct || settings.interest_pct || 18}% p.a. will be charged if payment is not made within due date.<br />
                                 2. "Subject to 'BOTAD' Jurisdiction only. E.&O.E."
                             </div>
 
                             <div className="sheet-signature-box">
-                                {settings.signature_url ? (
+                                {viewingBill.company?.signature_path ? (
+                                    <img src={viewingBill.company.signature_path} alt="Authorised Signature" className="sig-img" />
+                                ) : settings.signature_url ? (
                                     <img src={settings.signature_url} alt="Signature" className="sig-img" />
                                 ) : (
                                     <div className="sig-spacer" />

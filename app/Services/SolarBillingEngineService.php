@@ -271,11 +271,19 @@ class SolarBillingEngineService
             'generated' => self::num($billInput['units_generated'] ?? 0),
         ];
 
+        // Merge company-specific deductions if not explicitly supplied
+        $extra['lossPct'] = isset($extra['lossPct']) && $extra['lossPct'] !== '' ? (float) $extra['lossPct'] : (float) ($company->loss_pct ?? 6.50);
+        $extra['wheelRate'] = isset($extra['wheelRate']) && $extra['wheelRate'] !== '' ? (float) $extra['wheelRate'] : (float) ($company->wheel_rate ?? 0.2352);
+        $extra['bankRate'] = isset($extra['bankRate']) && $extra['bankRate'] !== '' ? (float) $extra['bankRate'] : (float) ($company->bank_rate ?? 1.50);
+        $extra['crossPct'] = isset($extra['crossPct']) && $extra['crossPct'] !== '' ? (float) $extra['crossPct'] : (float) ($company->cross_pct ?? 15.00);
+
         // 4. Server computes breakdown independently
         $recomputed = self::companyBill($units, $serverRates, $extra, $discount);
 
         // 5. Server checks pending balance & interest directly from DB under row lock
-        $interestPct = (float) SolarBillingSetting::getVal('interest_pct', 18.0);
+        $interestPct = $company->interest_pct !== null && is_numeric($company->interest_pct)
+            ? (float) $company->interest_pct
+            : (float) SolarBillingSetting::getVal('interest_pct', 18.0);
         $invDate = $billInput['invoice_date'] ?? null;
         $dbPending = self::getCompanyPendingAndInterest($company->id, $interestPct, $invDate, true);
 

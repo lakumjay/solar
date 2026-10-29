@@ -113,11 +113,31 @@ class SolarBillingController extends Controller
             'inv_prefix' => 'required|string|max:20',
             'last_seq' => 'nullable|integer|min:0',
             'active' => 'nullable|boolean',
+            'due_days' => 'nullable|integer|min:1|max:180',
+            'interest_pct' => 'nullable|numeric|min:0|max:100',
+            'loss_pct' => 'nullable|numeric|min:0|max:100',
+            'wheel_rate' => 'nullable|numeric|min:0',
+            'bank_rate' => 'nullable|numeric|min:0',
+            'cross_pct' => 'nullable|numeric|min:0|max:100',
+            'letterhead_mode' => 'nullable|string|in:digital,custom_image,preprinted',
+            'logo' => 'nullable|file|image|max:5120',
+            'signature' => 'nullable|file|image|max:5120',
+            'letterhead' => 'nullable|file|mimes:jpeg,png,jpg,webp,pdf|max:10240',
         ]);
 
-        if ($request->hasFile('logo')) {
+        if ($request->hasFile('logo') && $request->file('logo')->isValid()) {
             $path = $request->file('logo')->store('company_logos', 'public');
             $data['logo_path'] = Storage::url($path);
+        }
+
+        if ($request->hasFile('signature') && $request->file('signature')->isValid()) {
+            $path = $request->file('signature')->store('company_signatures', 'public');
+            $data['signature_path'] = Storage::url($path);
+        }
+
+        if ($request->hasFile('letterhead') && $request->file('letterhead')->isValid()) {
+            $path = $request->file('letterhead')->store('company_letterheads', 'public');
+            $data['letterhead_path'] = Storage::url($path);
         }
 
         if ($id) {
@@ -170,7 +190,12 @@ class SolarBillingController extends Controller
      */
     public function pendingBalance(Request $request, int $companyId): JsonResponse
     {
-        $metrics = SolarBillingEngineService::getCompanyPendingAndInterest($companyId);
+        $company = SolarBillingCompany::find($companyId);
+        $interestPct = $company?->interest_pct !== null && is_numeric($company->interest_pct)
+            ? (float) $company->interest_pct
+            : (float) SolarBillingSetting::getVal('interest_pct', 18.0);
+
+        $metrics = SolarBillingEngineService::getCompanyPendingAndInterest($companyId, $interestPct);
         return response()->json($metrics);
     }
 
@@ -240,9 +265,10 @@ class SolarBillingController extends Controller
                     }
 
                     // 5. Calculate due date
-                    $dueDate = isset($billInput['due_date'])
+                    $companyDueDays = (int) ($company->due_days ?: $dueDays);
+                    $dueDate = isset($billInput['due_date']) && ! empty($billInput['due_date'])
                         ? Carbon::parse($billInput['due_date'])->format('Y-m-d')
-                        : Carbon::parse($invDate)->addDays($dueDays)->format('Y-m-d');
+                        : Carbon::parse($invDate)->addDays($companyDueDays)->format('Y-m-d');
 
                     // 6. Save Bill with 100% CANONICAL SERVER-VERIFIED FIGURES
                     $bill = SolarBill::create([
