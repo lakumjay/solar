@@ -168,18 +168,38 @@ class SolarBillingEngineService
 
     /**
      * Compute actual pending balance & overdue interest from database records.
+     * Enforces principal-based interest calculation (no interest-on-interest / double counting)
+     * and strictly excludes voided bills.
      */
-    public static function getCompanyPendingAndInterest(int $companyId, ?float $interestPct = null, ?string $referenceDate = null): array
-    {
+    public static function getCompanyPendingAndInterest(
+        int $companyId,
+        ?float $interestPct = null,
+        ?string $referenceDate = null,
+        bool $lockForUpdate = false
+    ): array {
         if ($interestPct === null) {
             $interestPct = (float) SolarBillingSetting::getVal('interest_pct', 18.0);
         }
 
-        $pendingBills = SolarBill::where('company_id', $companyId)
-            ->where('status', 'pending')
-            ->get();
+        try {
+            $query = SolarBill::where('company_id', $companyId)
+                ->where('status', 'pending')
+                ->where('status', '!=', 'void');
 
-        $prevBal = (float) $pendingBills->sum('total_outstanding');
+            // Pessimistic locking inside transaction prevents race conditions across concurrent bills
+            if ($lockForUpdate && \Illuminate\Support\Facades\DB::transactionLevel() > 0) {
+                $query->lockForUpdate();
+            }
+
+            $pendingBills = $query->get();
+        } catch (\Throwable $e) {
+            $pendingBills = collect();
+        }
+
+        // PRINCIPAL DEFINITION:
+        // In utility billing, previous unpaid balance is the sum of unpaid monthly bill principals
+        // (`current_grand_total`), avoiding double-counting of previous carry-forwards.
+        $prevBal = (float) $pendingBills->sum('current_grand_total');
         $rawInterest = 0.00;
         $maxDays = 0;
         $ref = $referenceDate ? Carbon::parse($referenceDate)->startOfDay() : Carbon::now()->startOfDay();
@@ -190,8 +210,10 @@ class SolarBillingEngineService
             if ($days > $maxDays) {
                 $maxDays = $days;
             }
-            if ($days > 0 && $b->total_outstanding > 0) {
-                $rawInterest += (float) $b->total_outstanding * ($interestPct / 100) * ($days / 365);
+            // Interest charged strictly on the principal (current_grand_total) of each overdue bill
+            $principal = (float) ($b->current_grand_total > 0 ? $b->current_grand_total : $b->total_outstanding);
+            if ($days > 0 && $principal > 0) {
+                $rawInterest += $principal * ($interestPct / 100) * ($days / 365);
             }
         }
 
@@ -208,6 +230,7 @@ class SolarBillingEngineService
      *
      * Validates that the submitted financial figures match the server's independent
      * recomputation from raw statement inputs within tolerance.
+     * Prevents float dust false-rejections by pre-rounding operands before diff comparison.
      * Rejects request if tampered or mismatched.
      * Returns server-verified canonical figures for database persistence.
      *
@@ -251,61 +274,56 @@ class SolarBillingEngineService
         // 4. Server computes breakdown independently
         $recomputed = self::companyBill($units, $serverRates, $extra, $discount);
 
-        // 5. Server checks pending balance & interest directly from DB
+        // 5. Server checks pending balance & interest directly from DB under row lock
         $interestPct = (float) SolarBillingSetting::getVal('interest_pct', 18.0);
         $invDate = $billInput['invoice_date'] ?? null;
-        $dbPending = self::getCompanyPendingAndInterest($company->id, $interestPct, $invDate);
+        $dbPending = self::getCompanyPendingAndInterest($company->id, $interestPct, $invDate, true);
 
-        // 6. Security verification: Compare server vs client
-        $serverGrand = (float) $recomputed['grand'];
-        $serverNet = (float) $recomputed['net'];
-        $serverDiscountAmt = (float) $recomputed['discountAmt'];
+        // 6. Security verification: Compare server vs client with float-dust protection
+        $serverGrand = round((float) $recomputed['grand'], 2);
+        $clientGrand = round(self::num($clientBreakdown['grand'] ?? $billInput['current_grand_total'] ?? 0), 2);
+        $grandDiff = round(abs($serverGrand - $clientGrand), 2);
 
-        $clientGrand = self::num($clientBreakdown['grand'] ?? $billInput['current_grand_total'] ?? 0);
-        $clientNet = self::num($clientBreakdown['net'] ?? $billInput['sub_total'] ?? 0);
-        $clientDiscountAmt = self::num($clientBreakdown['discountAmt'] ?? $billInput['discount_amt'] ?? 0);
+        $serverNet = round((float) $recomputed['net'], 2);
+        $clientNet = round(self::num($clientBreakdown['net'] ?? $billInput['sub_total'] ?? 0), 2);
+        $netDiff = round(abs($serverNet - $clientNet), 2);
+
+        $serverDiscountAmt = round((float) $recomputed['discountAmt'], 2);
+        $clientDiscountAmt = round(self::num($clientBreakdown['discountAmt'] ?? $billInput['discount_amt'] ?? 0), 2);
+        $discDiff = round(abs($serverDiscountAmt - $clientDiscountAmt), 2);
 
         // Check discrepancies if client provided amounts
-        if ($clientGrand > 0) {
-            $grandDiff = abs($serverGrand - $clientGrand);
-            if ($grandDiff > self::TOLERANCE_RUPEES) {
-                throw new InvalidArgumentException(
-                    sprintf(
-                        "ગણતરી મેળ ખાતી નથી (Financial Integrity Mismatch): Client Grand Total ₹%s vs Server Recomputed ₹%s (Difference: ₹%s > ₹%.2f). સુરક્ષા કારણોસર આ બિલ સેવ થશે નહીં.",
-                        number_format($clientGrand, 2),
-                        number_format($serverGrand, 2),
-                        number_format($grandDiff, 2),
-                        self::TOLERANCE_RUPEES
-                    )
-                );
-            }
+        if ($clientGrand > 0 && $grandDiff > self::TOLERANCE_RUPEES) {
+            throw new InvalidArgumentException(
+                sprintf(
+                    "ગણતરી મેળ ખાતી નથી (Financial Integrity Mismatch): Client Grand Total ₹%s vs Server Recomputed ₹%s (Difference: ₹%s > ₹%.2f). સુરક્ષા કારણોસર આ બિલ સેવ થશે નહીં.",
+                    number_format($clientGrand, 2),
+                    number_format($serverGrand, 2),
+                    number_format($grandDiff, 2),
+                    self::TOLERANCE_RUPEES
+                )
+            );
         }
 
-        if ($clientNet > 0) {
-            $netDiff = abs($serverNet - $clientNet);
-            if ($netDiff > self::TOLERANCE_RUPEES) {
-                throw new InvalidArgumentException(
-                    sprintf(
-                        "Subtotal (Net PGVCL Credit) મેળ ખાતો નથી: Client ₹%s vs Server ₹%s (Difference: ₹%s). Request rejected.",
-                        number_format($clientNet, 2),
-                        number_format($serverNet, 2),
-                        number_format($netDiff, 2)
-                    )
-                );
-            }
+        if ($clientNet > 0 && $netDiff > self::TOLERANCE_RUPEES) {
+            throw new InvalidArgumentException(
+                sprintf(
+                    "Subtotal (Net PGVCL Credit) મેળ ખાતો નથી: Client ₹%s vs Server ₹%s (Difference: ₹%s). Request rejected.",
+                    number_format($clientNet, 2),
+                    number_format($serverNet, 2),
+                    number_format($netDiff, 2)
+                )
+            );
         }
 
-        if ($clientDiscountAmt > 0) {
-            $discDiff = abs($serverDiscountAmt - $clientDiscountAmt);
-            if ($discDiff > self::TOLERANCE_RUPEES) {
-                throw new InvalidArgumentException(
-                    sprintf(
-                        "Discount Amount મેળ ખાતી નથી: Client ₹%s vs Server ₹%s. Request rejected.",
-                        number_format($clientDiscountAmt, 2),
-                        number_format($serverDiscountAmt, 2)
-                    )
-                );
-            }
+        if ($clientDiscountAmt > 0 && $discDiff > self::TOLERANCE_RUPEES) {
+            throw new InvalidArgumentException(
+                sprintf(
+                    "Discount Amount મેળ ખાતી નથી: Client ₹%s vs Server ₹%s. Request rejected.",
+                    number_format($clientDiscountAmt, 2),
+                    number_format($serverDiscountAmt, 2)
+                )
+            );
         }
 
         // Canonical server totals
@@ -319,9 +337,9 @@ class SolarBillingEngineService
             'rates_derived' => $serverRates,
             'extra_params' => $extra,
             'breakdown' => $recomputed,
-            'sub_total' => $recomputed['net'],
+            'sub_total' => $serverNet,
             'discount_rate' => $discount,
-            'discount_amt' => $recomputed['discountAmt'],
+            'discount_amt' => $serverDiscountAmt,
             'round_off' => $recomputed['roundOff'],
             'current_grand_total' => $serverGrand,
             'prev_balance' => $prevBal,

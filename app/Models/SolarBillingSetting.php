@@ -15,8 +15,12 @@ class SolarBillingSetting extends Model
 
     public static function getVal(string $key, $default = null)
     {
-        $rec = static::where('key', $key)->first();
-        return $rec ? $rec->value : $default;
+        try {
+            $rec = static::where('key', $key)->first();
+            return $rec ? $rec->value : $default;
+        } catch (\Throwable $e) {
+            return $default;
+        }
     }
 
     public static function setVal(string $key, $value): void

@@ -67,11 +67,11 @@ class SolarBillingController extends Controller
             return $arr;
         });
 
-        // Summary metrics
-        $totalBilled = SolarBill::where('status', '!=', 'void')->sum('total_outstanding');
-        $totalPaid = SolarBill::where('status', 'paid')->sum('total_outstanding');
-        $pendingBills = $bills->where('status', 'pending');
-        $totalPendingSnapshot = $pendingBills->sum('total_outstanding');
+        // Summary metrics (Principal-based revenue & debt tracking with strict void exclusion)
+        $totalBilled = SolarBill::where('status', '!=', 'void')->sum('current_grand_total');
+        $totalPaid = SolarBill::where('status', 'paid')->where('status', '!=', 'void')->sum('current_grand_total');
+        $pendingBills = $bills->where('status', 'pending')->where('status', '!=', 'void');
+        $totalPendingSnapshot = $pendingBills->sum('current_grand_total');
         $totalLiveDue = $pendingBills->sum(fn ($b) => $b['live_ledger']['current_total_due']);
 
         return response()->json([
@@ -193,8 +193,15 @@ class SolarBillingController extends Controller
 
         $pdfPath = null;
         if ($request->hasFile('pdf_file')) {
-            $uploaded = $request->file('pdf_file')->store('billing_statements', 'public');
-            $pdfPath = Storage::url($uploaded);
+            $file = $request->file('pdf_file');
+            if ($file->isValid()) {
+                $ext = strtolower($file->getClientOriginalExtension());
+                if ($ext !== 'pdf') {
+                    return response()->json(['error' => 'Only valid PDF files are accepted.'], 422);
+                }
+                $uploaded = $file->store('billing_statements', 'public');
+                $pdfPath = Storage::url($uploaded);
+            }
         }
 
         $userId = $request->user()?->id;
@@ -346,5 +353,30 @@ class SolarBillingController extends Controller
             'message' => "Bill {$bill->invoice_no} has been voided.",
             'bill' => $bill,
         ]);
+    }
+
+    /**
+     * Securely download or view statement PDF with path traversal guards.
+     */
+    public function downloadPdf(Request $request, int $id)
+    {
+        $bill = SolarBill::findOrFail($id);
+        if (! $bill->pdf_path) {
+            return response()->json(['error' => 'No statement PDF attached to this bill.'], 404);
+        }
+
+        // Path traversal guard: only extract basename and verify existence within billing_statements
+        $relPath = str_replace('/storage/', '', $bill->pdf_path);
+        $cleanFilename = basename($relPath);
+
+        if (! Storage::disk('public')->exists("billing_statements/{$cleanFilename}")) {
+            return response()->json(['error' => 'Statement PDF file not found on server.'], 404);
+        }
+
+        $invClean = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $bill->invoice_no);
+        return Storage::disk('public')->download(
+            "billing_statements/{$cleanFilename}",
+            "PGVCL-Statement-{$invClean}.pdf"
+        );
     }
 }

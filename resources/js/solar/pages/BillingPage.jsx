@@ -441,12 +441,13 @@ export default function BillingPage({ currentUser }) {
             const custGst = (b.customer_gstin || '').slice(0, 2);
             // If either GSTIN is missing, default to Gujarat Intra-state
             const isIntra = (!compGst || !custGst) ? true : (compGst === custGst);
-            const totalOut = Number(b.total_outstanding || 0);
+            // In CA GSTR-1 & HSN summary, supply value represents the monthly bill energy amount (current_grand_total)
+            const billValue = Number(b.current_grand_total || b.breakdown?.grand || b.total_outstanding || 0);
 
             if (isIntra) {
-                intra += totalOut;
+                intra += billValue;
             } else {
-                inter += totalOut;
+                inter += billValue;
             }
             qty += Number(b.units_credited || 0);
 
@@ -455,7 +456,7 @@ export default function BillingPage({ currentUser }) {
                 c: b.company,
                 isIntra,
                 units: Number(b.units_credited || 0),
-                value: totalOut
+                value: billValue
             };
         });
 
