@@ -363,6 +363,7 @@ class SystemAutoDoctorService
             @shell_exec("cd ".escapeshellarg($basePath)." && git remote set-url origin ".escapeshellarg($authUrl)." 2>&1");
         }
 
+        @unlink($basePath . '/.git/index.lock');
         $fetchOut = trim((string) @shell_exec("cd ".escapeshellarg($basePath)." && git fetch origin main:refs/remotes/origin/main 2>&1 && git reset --hard origin/main 2>&1"));
         $logs[] = $fetchOut ?: 'Git reset to origin/main completed.';
 
