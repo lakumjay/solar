@@ -282,6 +282,76 @@ class SolarBillingFlowTest extends TestCase
         $this->assertDatabaseHas('solar_bills', ['invoice_no' => 'SUN/26-27/001', 'total_outstanding' => $res2['grand']]);
     }
 
+    public function test_can_create_two_month_bills_for_same_company_in_single_request(): void
+    {
+        $stmt = [
+            'unit' => 166107,
+            'energyAmt' => 697649.40,
+            'fcaAmt' => 406962.15,
+            'pfAmt' => 14301.81,
+            'ehvAmt' => 6976.49,
+            'touAmt' => 41995.95,
+            'totalPeak' => 49407,
+            'varAmt' => 44074.00,
+            'boardAmt' => 1169403.19,
+            'dutyAmt' => 175410.48,
+        ];
+        $derived = \App\Services\SolarBillingEngineService::deriveRates($stmt);
+        $units = ['credited' => 105715, 'peak' => 31708, 'banking' => 20113, 'generated' => 113064];
+        $extra = ['lossPct' => 6.5, 'crossPct' => 15.0, 'wheelRate' => 0.2352, 'bankRate' => 1.50];
+        $res = \App\Services\SolarBillingEngineService::companyBill($units, $derived, $extra, 1.25);
+
+        $validPdf = UploadedFile::fake()->createWithContent('statement_two_months.pdf', "%PDF-1.5\nPGVCL Sep-Oct Statement");
+
+        // Bill 1: Sep-26 for Rajeshwari
+        // Bill 2: Oct-26 for Rajeshwari (Same company!)
+        $response = $this->actingAs($this->user)->postJson('/api/billing/bills', [
+            'bills' => [
+                [
+                    'company_id' => $this->rajeshwari->id,
+                    'month' => 'Sep-26',
+                    'invoice_no' => 'RS/26-27/001',
+                    'invoice_date' => '2026-09-05',
+                    'customer_name' => 'Blueart Granito Pvt. Ltd.',
+                    'units_credited' => 105715,
+                    'units_peak' => 31708,
+                    'units_banking' => 20113,
+                    'units_generated' => 113064,
+                    'prev_balance' => 0,
+                    'interest_amt' => 0,
+                    'stmt_inputs' => json_encode($stmt),
+                    'rates_derived' => json_encode($derived),
+                    'extra_params' => json_encode($extra),
+                    'breakdown' => json_encode($res),
+                ],
+                [
+                    'company_id' => $this->rajeshwari->id,
+                    'month' => 'Oct-26',
+                    'invoice_no' => 'RS/26-27/002',
+                    'invoice_date' => '2026-10-05',
+                    'customer_name' => 'Blueart Granito Pvt. Ltd.',
+                    'units_credited' => 105715,
+                    'units_peak' => 31708,
+                    'units_banking' => 20113,
+                    'units_generated' => 113064,
+                    'prev_balance' => $res['grand'],
+                    'interest_amt' => 0,
+                    'stmt_inputs' => json_encode($stmt),
+                    'rates_derived' => json_encode($derived),
+                    'extra_params' => json_encode($extra),
+                    'breakdown' => json_encode($res),
+                ],
+            ],
+            'pdf_file' => $validPdf,
+        ]);
+
+        $response->assertOk();
+        $this->assertDatabaseHas('solar_bills', ['invoice_no' => 'RS/26-27/001', 'company_id' => $this->rajeshwari->id, 'month' => 'Sep-26']);
+        $this->assertDatabaseHas('solar_bills', ['invoice_no' => 'RS/26-27/002', 'company_id' => $this->rajeshwari->id, 'month' => 'Oct-26']);
+        // Verify Sunrise was NOT created
+        $this->assertDatabaseMissing('solar_bills', ['company_id' => $this->sunrise->id]);
+    }
+
     public function test_next_month_pending_and_interest_calculation(): void
     {
         // 1. Create previous month bill (Sep-26) with due date 2026-09-20

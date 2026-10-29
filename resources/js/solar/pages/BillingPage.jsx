@@ -79,6 +79,50 @@ export function advanceMonthString(monthStr) {
     return monthStr;
 }
 
+// Helper: Get Current Billing Month (e.g. Oct-26)
+export function getCurrentBillingMonth() {
+    const now = new Date();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const m = months[now.getMonth()];
+    const yy = String(now.getFullYear()).slice(-2);
+    return `${m}-${yy}`;
+}
+
+// Helper: Go to previous billing month (e.g. Oct-26 -> Sep-26, Jan-27 -> Dec-26)
+export function prevMonthString(monthStr) {
+    if (!monthStr) return '';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const parts = monthStr.split(/[-_\s/]+/);
+    if (parts.length >= 2) {
+        const mName = parts[0];
+        const yr = parts[1];
+        const mIdx = months.findIndex(m => m.toLowerCase() === mName.toLowerCase());
+        if (mIdx !== -1) {
+            const prevIdx = (mIdx - 1 + 12) % 12;
+            let yrNum = parseInt(yr, 10);
+            if (mIdx === 0) {
+                yrNum -= 1;
+            }
+            const formattedYr = yr.length === 4 ? String(yrNum) : String(yrNum).padStart(2, '0');
+            return `${months[prevIdx]}-${formattedYr}`;
+        }
+    }
+    return monthStr;
+}
+
+// Helper: Advance Invoice Number sequence (e.g. RS/26-27/01 -> RS/26-27/02)
+export function advanceInvoiceNo(invNo) {
+    if (!invNo) return '';
+    const match = invNo.match(/^(.*\/)(\d+)$/);
+    if (match) {
+        const prefix = match[1];
+        const seq = parseInt(match[2], 10) + 1;
+        const len = match[2].length;
+        return `${prefix}${String(seq).padStart(len, '0')}`;
+    }
+    return `${invNo}-2`;
+}
+
 // Comprehensive PDF Statement validation and company matching
 export function validateSolarPdf(fileName = '', rawText = '', registeredCompanies = []) {
     const fnLower = (fileName || '').toLowerCase();
@@ -260,7 +304,7 @@ export default function BillingPage({ currentUser }) {
     // Wizard State (Steps 1 to 4)
     const [wizStep, setWizStep] = useState(1);
     const [wCompanyId, setWCompanyId] = useState('');
-    const [wMonth, setWMonth] = useState('');
+    const [wMonth, setWMonth] = useState(() => getCurrentBillingMonth());
     const [isAutoMonth, setIsAutoMonth] = useState(false);
     const [wInvNo, setWInvNo] = useState('');
     const [wInvDate, setWInvDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -273,7 +317,16 @@ export default function BillingPage({ currentUser }) {
     // Step 2 Units
     const [wUnits, setWUnits] = useState({ credited: '', peak: '', banking: '', generated: '' });
     const [wTwoCo, setWTwoCo] = useState(false);
-    const [wUnits2, setWUnits2] = useState({ companyId: '', credited: '', peak: '', banking: '', generated: '', invNo: '' });
+    const [wUnits2, setWUnits2] = useState({
+        mode: 'multi_month',
+        companyId: '',
+        month: '',
+        credited: '',
+        peak: '',
+        banking: '',
+        generated: '',
+        invNo: ''
+    });
 
     // Step 2 PGVCL Statement Inputs (CREDIT column)
     const [wStmt, setWStmt] = useState({
@@ -439,6 +492,18 @@ export default function BillingPage({ currentUser }) {
     // Handle Company Switch in Step 1
     const handleCompanyChange = (compId) => {
         setWCompanyId(compId);
+        // Reset secondary bill so other companies (Sunrise) do not leak into this company's bill
+        setWTwoCo(false);
+        setWUnits2({
+            mode: 'multi_month',
+            companyId: compId,
+            month: '',
+            credited: '',
+            peak: '',
+            banking: '',
+            generated: '',
+            invNo: ''
+        });
         const comp = companies.find(c => c.id == compId);
         if (comp) {
             applyCompanyConfig(comp, wInvDate, settings);
@@ -466,6 +531,19 @@ export default function BillingPage({ currentUser }) {
         }
         setWPdfFile(file);
         setWPdfName(file.name);
+
+        // Reset secondary bill on new PDF upload so it doesn't carry over
+        setWTwoCo(false);
+        setWUnits2({
+            mode: 'multi_month',
+            companyId: '',
+            month: '',
+            credited: '',
+            peak: '',
+            banking: '',
+            generated: '',
+            invNo: ''
+        });
 
         let rawText = '';
         if (file.slice) {
@@ -499,19 +577,51 @@ export default function BillingPage({ currentUser }) {
         return deriveRates(wStmt);
     }, [wStmt]);
 
-    // Load Aug-26 Real Example for Quick Testing
-    const handleLoadExample = () => {
+    // Load Verified Test Figures for Quick Testing
+    const handleLoadExample = (mode = 'single') => {
         setWMonth('Aug-26');
         setWUnits({ credited: '105715', peak: '31708', banking: '20113', generated: '113064' });
-        setWTwoCo(true);
-        const secondCo = companies.find(c => c.id != wCompanyId) || { id: 2 };
-        setWUnits2({
-            companyId: secondCo.id,
-            credited: '60392',
-            peak: '17699',
-            banking: '11497',
-            generated: '64590'
-        });
+
+        if (mode === 'two_company') {
+            setWTwoCo(true);
+            const secondCo = companies.find(c => c.id != wCompanyId) || { id: 2 };
+            setWUnits2({
+                mode: 'two_company',
+                companyId: secondCo.id,
+                month: 'Aug-26',
+                credited: '60392',
+                peak: '17699',
+                banking: '11497',
+                generated: '64590',
+                invNo: ''
+            });
+        } else if (mode === 'multi_month') {
+            setWTwoCo(true);
+            setWUnits2({
+                mode: 'multi_month',
+                companyId: wCompanyId,
+                month: 'Sep-26',
+                credited: '102500',
+                peak: '30200',
+                banking: '19500',
+                generated: '109600',
+                invNo: ''
+            });
+        } else {
+            // Default: SINGLE COMPANY (Rajeshwari Solar) — NO SUNRISE!
+            setWTwoCo(false);
+            setWUnits2({
+                mode: 'multi_month',
+                companyId: wCompanyId,
+                month: '',
+                credited: '',
+                peak: '',
+                banking: '',
+                generated: '',
+                invNo: ''
+            });
+        }
+
         setWStmt({
             unit: '166107',
             energyAmt: '697649.40',
@@ -647,22 +757,42 @@ export default function BillingPage({ currentUser }) {
                 totalOut: Math.round((pBal1 + netInterest1 + res1.grand) * 100) / 100
             }];
 
-            // If Two-Company mode is active
-            if (wTwoCo && wUnits2.companyId) {
-                const comp2 = companies.find(c => c.id == wUnits2.companyId) || {};
+            // If Second Bill (Multi-Month for same company OR Two-Company) is active
+            if (wTwoCo && parseFloat(wUnits2.credited)) {
+                const isTwoCo = wUnits2.mode === 'two_company';
+                const comp2 = isTwoCo
+                    ? (companies.find(c => c.id == wUnits2.companyId) || {})
+                    : comp1; // Same company for 2nd month (Rajeshwari)
+
                 const disc2 = comp2?.discount !== null && isFinite(parseFloat(comp2?.discount))
                     ? parseFloat(comp2.discount)
                     : (parseFloat(settings.default_discount) || 1.25);
 
                 const fy = fyOf(wInvDate);
-                const inv2 = wUnits2.invNo || nextInvoiceNo(comp2, fy);
+                const inv2 = wUnits2.invNo || (isTwoCo ? nextInvoiceNo(comp2, fy) : advanceInvoiceNo(wInvNo));
                 const res2 = companyBill(wUnits2, liveRates, extraWithCharges, { discount: disc2, ...rateOpts });
                 const checks2 = runChecks(res2, wStmt, 0, rateOpts).slice(0, 2);
 
-                const pBal2 = Number(pendingInfo2?.prev_balance ?? pendingInfo2?.prevBal) || 0;
-                const pInt2 = Number(pendingInfo2?.interest_amt ?? pendingInfo2?.interest) || 0;
-                const pDays2 = Number(pendingInfo2?.interest_days ?? pendingInfo2?.interestDays) || 0;
-                const prevInv2 = pendingInfo2?.prev_invoice_no || null;
+                const month2 = isTwoCo ? wMonth : (wUnits2.month || prevMonthString(wMonth) || 'Sep-26');
+
+                let pBal2 = 0;
+                let prevInv2 = null;
+                let pInt2 = 0;
+                let pDays2 = 0;
+
+                if (isTwoCo) {
+                    pBal2 = Number(pendingInfo2?.prev_balance ?? pendingInfo2?.prevBal) || 0;
+                    pInt2 = Number(pendingInfo2?.interest_amt ?? pendingInfo2?.interest) || 0;
+                    pDays2 = Number(pendingInfo2?.interest_days ?? pendingInfo2?.interestDays) || 0;
+                    prevInv2 = pendingInfo2?.prev_invoice_no || null;
+                } else {
+                    // Multi-month for same company (e.g. Sep-26 & Oct-26):
+                    // Bill 2 carries forward Bill 1's grand total as Previous Balance!
+                    pBal2 = res1.grand;
+                    prevInv2 = wInvNo;
+                    pInt2 = 0;
+                    pDays2 = 0;
+                }
 
                 let waived2 = 0;
                 if (wWaiveInterest2 && pInt2 > 0) {
@@ -671,11 +801,11 @@ export default function BillingPage({ currentUser }) {
                         waived2 = pInt2;
                     }
                     if (waived2 > pInt2) {
-                        alert(lang === 'en' ? `Waive amount cannot exceed computed interest for company 2 (₹${pInt2})` : `કંપની ૨ માટે માફ રકમ ગણેલા વ્યાજ (₹${pInt2}) કરતાં વધુ ન હોઈ શકે`);
+                        alert(lang === 'en' ? `Waive amount cannot exceed computed interest for bill 2 (₹${pInt2})` : `બિલ ૨ માટે માફ રકમ ગણેલા વ્યાજ (₹${pInt2}) કરતાં વધુ ન હોઈ શકે`);
                         return;
                     }
                     if (!wInterestWaiveReason2.trim()) {
-                        alert(lang === 'en' ? 'Reason for waiving interest for company 2 is mandatory' : 'કંપની ૨ માટે વ્યાજ માફ કરવાનું કારણ લખવું ફરજિયાત છે');
+                        alert(lang === 'en' ? 'Reason for waiving interest for bill 2 is mandatory' : 'બિલ ૨ માટે વ્યાજ માફ કરવાનું કારણ લખવું ફરજિયાત છે');
                         return;
                     }
                 }
@@ -685,7 +815,7 @@ export default function BillingPage({ currentUser }) {
                     company: comp2,
                     discount: disc2,
                     discountRate: disc2,
-                    month: wMonth,
+                    month: month2,
                     invNo: inv2,
                     invDate: wInvDate,
                     dueDate: wDueDate,
@@ -828,17 +958,18 @@ export default function BillingPage({ currentUser }) {
     // Reset Wizard
     const resetWizard = () => {
         setWizStep(1);
-        setWMonth('');
+        setWMonth(getCurrentBillingMonth());
+        setWInvDate(new Date().toISOString().slice(0, 10));
         setWPdfFile(null);
         setWPdfName('');
         setPdfValidation(null);
         setWUnits({ credited: '', peak: '', banking: '', generated: '' });
         setWTwoCo(false);
-        setWUnits2({ companyId: '', credited: '', peak: '', banking: '', generated: '', invNo: '' });
+        setWUnits2({ mode: 'multi_month', companyId: '', month: '', credited: '', peak: '', banking: '', generated: '', invNo: '' });
         setComputedBills([]);
         const comp = companies.find(c => c.id == wCompanyId);
         if (comp) {
-            const fy = fyOf(wInvDate);
+            const fy = fyOf(new Date().toISOString().slice(0, 10));
             setWInvNo(nextInvoiceNo(comp, fy));
         }
     };
@@ -852,7 +983,7 @@ export default function BillingPage({ currentUser }) {
         // Keep wPdfFile and wPdfName intact!
         setWUnits({ credited: '', peak: '', banking: '', generated: '' });
         setWTwoCo(false);
-        setWUnits2({ companyId: '', credited: '', peak: '', banking: '', generated: '', invNo: '' });
+        setWUnits2({ mode: 'multi_month', companyId: wCompanyId, month: '', credited: '', peak: '', banking: '', generated: '', invNo: '' });
         setWStmt({
             unit: '', energyAmt: '', fcaAmt: '', pfAmt: '', ehvAmt: '',
             touAmt: '', totalPeak: '', varAmt: '', boardAmt: '', dutyAmt: ''
@@ -1371,14 +1502,16 @@ export default function BillingPage({ currentUser }) {
                                 <h3 className="card-title">
                                     {lang === 'en' ? 'Step 2 — Units & PGVCL Statement' : 'Step 2 — યુનિટ્સ & સ્ટેટમેન્ટ ડેટા'}
                                 </h3>
-                                <button
-                                    type="button"
-                                    className="btn-example-load"
-                                    onClick={handleLoadExample}
-                                    title="Load Aug-26 verified test figures"
-                                >
-                                    ⚡ {lang === 'en' ? 'Load Aug-26 Demo' : 'Aug-26 ઉદાહરણ લોડ કરો'}
-                                </button>
+                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                    <button
+                                        type="button"
+                                        className="btn-example-load"
+                                        onClick={() => handleLoadExample('single')}
+                                        title="Load Rajeshwari Solar single bill demo"
+                                    >
+                                        ⚡ {lang === 'en' ? 'Load Demo (Single Bill)' : 'રાજેશ્વરી ઉદાહરણ લોડ કરો'}
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Section A: Primary Company Units */}
@@ -1439,42 +1572,126 @@ export default function BillingPage({ currentUser }) {
                                 </div>
                             </details>
 
-                            {/* Section B: Two-Company Option (Sunrise + Rajeshwari in 1 PDF) */}
+                            {/* Section B: Second Bill Option (Two Months for Same Company OR Two Companies) */}
                             <details className="accordion-sec">
                                 <summary>
-                                    <b>B. બીજી કંપની (Two-Company Flow)</b>
+                                    <b>B. બીજું બિલ ઉમેરો (2nd Month અથવા 2nd Company)</b>
                                     <span className="accordion-badge optional">ઓપ્શનલ</span>
                                 </summary>
                                 <div className="accordion-body">
-                                    <label className="checkbox-label">
+                                    <label className="checkbox-label" style={{ marginBottom: '12px' }}>
                                         <input
                                             type="checkbox"
                                             checked={wTwoCo}
                                             onChange={(e) => {
-                                                setWTwoCo(e.target.checked);
-                                                if (e.target.checked && !wUnits2.companyId) {
-                                                    const other = companies.find(c => c.id != wCompanyId);
-                                                    if (other) setWUnits2(prev => ({ ...prev, companyId: other.id }));
+                                                const checked = e.target.checked;
+                                                setWTwoCo(checked);
+                                                if (checked) {
+                                                    setWUnits2(prev => ({
+                                                        ...prev,
+                                                        mode: prev.mode || 'multi_month',
+                                                        companyId: prev.companyId || wCompanyId,
+                                                        month: prev.month || (wMonth ? prevMonthString(wMonth) : 'Sep-26')
+                                                    }));
                                                 }
                                             }}
                                         />
-                                        <span><b>એક જ PDF માંથી બીજી કંપનીનું બિલ પણ સાથે બનાવવું છે</b></span>
+                                        <span><b>એક જ સાથે બીજું બિલ પણ બનાવવું છે (૨ મહિનાનું અથવા બીજી કંપનીનું)</b></span>
                                     </label>
 
                                     {wTwoCo && (
-                                        <div className="two-co-box">
-                                            <div className="form-group">
-                                                <label>બીજી કંપની પસંદ કરો</label>
-                                                <select
-                                                    className="form-control"
-                                                    value={wUnits2.companyId}
-                                                    onChange={(e) => setWUnits2({ ...wUnits2, companyId: e.target.value, invNo: '' })}
+                                        <div className="two-co-box" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px' }}>
+                                            {/* Mode Selector Tabs */}
+                                            <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setWUnits2(prev => ({
+                                                        ...prev,
+                                                        mode: 'multi_month',
+                                                        companyId: wCompanyId,
+                                                        month: prev.month || (wMonth ? prevMonthString(wMonth) : 'Sep-26')
+                                                    }))}
+                                                    style={{
+                                                        flex: 1,
+                                                        minWidth: '220px',
+                                                        padding: '8px 12px',
+                                                        borderRadius: '8px',
+                                                        fontSize: '12px',
+                                                        fontWeight: 700,
+                                                        cursor: 'pointer',
+                                                        border: wUnits2.mode !== 'two_company' ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
+                                                        background: wUnits2.mode !== 'two_company' ? '#eff6ff' : '#ffffff',
+                                                        color: wUnits2.mode !== 'two_company' ? '#1d4ed8' : '#64748b'
+                                                    }}
                                                 >
-                                                    {companies.filter(c => c.id != wCompanyId).map(c => (
-                                                        <option key={c.id} value={c.id}>{c.name}</option>
-                                                    ))}
-                                                </select>
+                                                    📅 ૨ મહિનાનું બિલ ({companies.find(c => c.id == wCompanyId)?.name || 'આ જ કંપની'})
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const other = companies.find(c => c.id != wCompanyId);
+                                                        setWUnits2(prev => ({
+                                                            ...prev,
+                                                            mode: 'two_company',
+                                                            companyId: other ? other.id : '',
+                                                            month: wMonth
+                                                        }));
+                                                    }}
+                                                    style={{
+                                                        flex: 1,
+                                                        minWidth: '220px',
+                                                        padding: '8px 12px',
+                                                        borderRadius: '8px',
+                                                        fontSize: '12px',
+                                                        fontWeight: 700,
+                                                        cursor: 'pointer',
+                                                        border: wUnits2.mode === 'two_company' ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
+                                                        background: wUnits2.mode === 'two_company' ? '#eff6ff' : '#ffffff',
+                                                        color: wUnits2.mode === 'two_company' ? '#1d4ed8' : '#64748b'
+                                                    }}
+                                                >
+                                                    🏢 બીજી કંપનીનું બિલ (Two Companies)
+                                                </button>
                                             </div>
+
+                                            {/* Conditional Fields based on mode */}
+                                            {wUnits2.mode === 'two_company' ? (
+                                                <div className="form-group">
+                                                    <label>બીજી કંપની પસંદ કરો</label>
+                                                    <select
+                                                        className="form-control"
+                                                        value={wUnits2.companyId}
+                                                        onChange={(e) => setWUnits2({ ...wUnits2, companyId: e.target.value, invNo: '' })}
+                                                    >
+                                                        {companies.filter(c => c.id != wCompanyId).map(c => (
+                                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            ) : (
+                                                <div className="form-row-2">
+                                                    <div className="form-group">
+                                                        <label>કંપની</label>
+                                                        <input
+                                                            type="text"
+                                                            className="form-control"
+                                                            disabled
+                                                            value={`${companies.find(c => c.id == wCompanyId)?.name || 'આ જ કંપની'} (આ જ કંપની)`}
+                                                            style={{ background: '#f1f5f9' }}
+                                                        />
+                                                    </div>
+                                                    <div className="form-group">
+                                                        <label>બીજા બિલનો મહિનો (2nd Month)</label>
+                                                        <input
+                                                            type="text"
+                                                            className="form-control"
+                                                            value={wUnits2.month || ''}
+                                                            placeholder="Sep-26"
+                                                            onChange={(e) => setWUnits2({ ...wUnits2, month: e.target.value })}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             <div className="form-row-2">
                                                 <div className="form-group">
@@ -1484,6 +1701,7 @@ export default function BillingPage({ currentUser }) {
                                                         step="any"
                                                         className="form-control"
                                                         value={wUnits2.credited}
+                                                        placeholder="0"
                                                         onChange={(e) => setWUnits2({ ...wUnits2, credited: e.target.value })}
                                                     />
                                                 </div>
@@ -1494,6 +1712,7 @@ export default function BillingPage({ currentUser }) {
                                                         step="any"
                                                         className="form-control"
                                                         value={wUnits2.peak}
+                                                        placeholder="0"
                                                         onChange={(e) => setWUnits2({ ...wUnits2, peak: e.target.value })}
                                                     />
                                                 </div>
@@ -1506,16 +1725,18 @@ export default function BillingPage({ currentUser }) {
                                                         step="any"
                                                         className="form-control"
                                                         value={wUnits2.banking}
+                                                        placeholder="0"
                                                         onChange={(e) => setWUnits2({ ...wUnits2, banking: e.target.value })}
                                                     />
                                                 </div>
                                                 <div className="form-group">
-                                                    <label>Generated (ખાલી=ઓટો)</label>
+                                                    <label>Generated Unit (ખાલી=ઓટો)</label>
                                                     <input
                                                         type="number"
                                                         step="any"
                                                         className="form-control"
                                                         value={wUnits2.generated}
+                                                        placeholder="Auto 6.5%"
                                                         onChange={(e) => setWUnits2({ ...wUnits2, generated: e.target.value })}
                                                     />
                                                 </div>
