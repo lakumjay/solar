@@ -206,7 +206,15 @@ Route::prefix('api')->group(function () {
         Route::post('billing/charges/{id}', [\App\Http\Controllers\SolarBillingController::class, 'saveCharge']);
         Route::post('billing/charges/{id}/toggle', [\App\Http\Controllers\SolarBillingController::class, 'toggleCharge']);
         Route::delete('billing/charges/{id}', [\App\Http\Controllers\SolarBillingController::class, 'destroyCharge']);
+        Route::get('billing/companies/{id}/signature', [\App\Http\Controllers\SolarBillingController::class, 'companySignature']);
+        Route::get('billing/settings/signature', [\App\Http\Controllers\SolarBillingController::class, 'globalSignature']);
     });
+});
+
+// Also allow direct image requests for signatures (e.g. standalone print view or PDF rendering)
+Route::middleware(['web'])->group(function () {
+    Route::get('billing/companies/{id}/signature', [\App\Http\Controllers\SolarBillingController::class, 'companySignature']);
+    Route::get('billing/settings/signature', [\App\Http\Controllers\SolarBillingController::class, 'globalSignature']);
 });
 
 Route::fallback(function () {

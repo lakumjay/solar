@@ -3755,7 +3755,12 @@ export default function BillingPage({ currentUser }) {
                         {settings.signature_url ? (
                             <div className="upload-card-preview">
                                 <div className="upload-preview-left">
-                                    <img src={settings.signature_url} alt="Uploaded Signature" className="upload-thumb-img" />
+                                    <img
+                                        src={settings.signature_url?.startsWith('data:') ? settings.signature_url : '/billing/settings/signature'}
+                                        alt="Uploaded Signature"
+                                        className="upload-thumb-img"
+                                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                    />
                                     <div className="upload-meta-info">
                                         <span className="upload-filename">
                                             {lang === 'en' ? 'Global Default Signature' : 'સિસ્ટમ ડિફોલ્ટ ડિજિટલ સહી'}
@@ -4133,9 +4138,10 @@ export default function BillingPage({ currentUser }) {
                                 <div className="upload-card-preview">
                                     <div className="upload-preview-left">
                                         <img
-                                            src={editingSignaturePreview || editingCompany.signature_path}
+                                            src={editingSignaturePreview || (editingCompany.id && editingCompany.signature_path ? `/billing/companies/${editingCompany.id}/signature` : editingCompany.signature_path)}
                                             alt="Signature Preview"
                                             className="upload-thumb-img"
+                                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                         />
                                         <div className="upload-meta-info">
                                             <span className="upload-filename">

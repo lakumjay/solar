@@ -459,6 +459,11 @@ class SolarBillingFlowTest extends TestCase
         $this->rajeshwari->refresh();
         $this->assertNotNull($this->rajeshwari->signature_path);
         $this->assertTrue((bool) $this->rajeshwari->signature_enabled);
+
+        // Test streaming the signature endpoint
+        $sigResponse = $this->get("/billing/companies/{$this->rajeshwari->id}/signature");
+        $sigResponse->assertOk();
+        $this->assertStringContainsString('image/', $sigResponse->headers->get('Content-Type'));
     }
 
     public function test_deleted_bill_rewinds_last_seq_cleanly(): void

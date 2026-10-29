@@ -828,4 +828,94 @@ class SolarBillingController extends Controller
             'bill' => $bill,
         ]);
     }
+
+    /**
+     * Stream company signature image reliably without relying on broken /storage symlinks.
+     */
+    public function companySignature(int $id)
+    {
+        $company = SolarBillingCompany::find($id);
+        if (!$company || !$company->signature_path || $company->signature_enabled === false) {
+            return $this->transparentPixelResponse();
+        }
+
+        return $this->streamSignatureFile($company->signature_path);
+    }
+
+    /**
+     * Stream global fallback signature image reliably.
+     */
+    public function globalSignature()
+    {
+        $enabled = SolarBillingSetting::getVal('signature_enabled', '1');
+        if ($enabled === '0' || $enabled === false) {
+            return $this->transparentPixelResponse();
+        }
+
+        $url = SolarBillingSetting::getVal('signature_url') ?: SolarBillingSetting::getVal('signature_path');
+        if (!$url) {
+            return $this->transparentPixelResponse();
+        }
+
+        return $this->streamSignatureFile($url);
+    }
+
+    /**
+     * Helper to find and stream a signature file from public, local, or private storage.
+     */
+    protected function streamSignatureFile(string $storedPath)
+    {
+        // Strip out domain prefix or /storage/ prefix if present
+        $clean = preg_replace('/^https?:\/\/[^\/]+/i', '', $storedPath);
+        $clean = preg_replace('/^\/?storage\//i', '', $clean);
+        $clean = ltrim($clean, '/');
+
+        $candidatePaths = [
+            storage_path('app/public/' . $clean),
+            storage_path('app/private/' . $clean),
+            storage_path('app/' . $clean),
+            public_path($clean),
+            public_path('storage/' . $clean),
+            base_path('public/' . $clean),
+        ];
+
+        foreach ($candidatePaths as $fullPath) {
+            if (file_exists($fullPath) && is_file($fullPath)) {
+                $mime = mime_content_type($fullPath) ?: 'image/png';
+                return response()->file($fullPath, [
+                    'Content-Type' => $mime,
+                    'Cache-Control' => 'public, max-age=86400',
+                ]);
+            }
+        }
+
+        foreach (['public', 'local', 'private'] as $disk) {
+            if (Storage::disk($disk)->exists($clean)) {
+                $fullPath = Storage::disk($disk)->path($clean);
+                if (file_exists($fullPath) && is_file($fullPath)) {
+                    $mime = mime_content_type($fullPath) ?: 'image/png';
+                    return response()->file($fullPath, [
+                        'Content-Type' => $mime,
+                        'Cache-Control' => 'public, max-age=86400',
+                    ]);
+                }
+            }
+        }
+
+        return $this->transparentPixelResponse();
+    }
+
+    /**
+     * 1x1 transparent PNG response so browser NEVER renders a broken image placeholder.
+     */
+    protected function transparentPixelResponse()
+    {
+        $pixel = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=');
+        return response($pixel, 200, [
+            'Content-Type' => 'image/png',
+            'Content-Length' => strlen($pixel),
+            'Cache-Control' => 'public, max-age=3600',
+        ]);
+    }
 }
+

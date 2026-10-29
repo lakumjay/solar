@@ -133,9 +133,22 @@ export default function ExactSolarBillSheet({
     // Signature path with ON/OFF toggle check
     const isCoSigEnabled = co.signature_enabled !== false;
     const isGlobalSigEnabled = sets.signature_enabled !== false && sets.signature_enabled !== '0';
-    const signatureSrc = (co.signature_path && isCoSigEnabled)
-        ? co.signature_path
-        : (!co.signature_path && sets.signature_url && isGlobalSigEnabled ? sets.signature_url : null);
+    let signatureSrc = null;
+    if (co.signature_path && isCoSigEnabled) {
+        if (typeof co.signature_path === 'string' && (co.signature_path.startsWith('data:') || co.signature_path.startsWith('blob:'))) {
+            signatureSrc = co.signature_path;
+        } else if (co.id) {
+            signatureSrc = `/billing/companies/${co.id}/signature`;
+        } else {
+            signatureSrc = co.signature_path;
+        }
+    } else if (sets.signature_url && isGlobalSigEnabled) {
+        if (typeof sets.signature_url === 'string' && (sets.signature_url.startsWith('data:') || sets.signature_url.startsWith('blob:'))) {
+            signatureSrc = sets.signature_url;
+        } else {
+            signatureSrc = '/billing/settings/signature';
+        }
+    }
 
     return (
         <div className="printable-bill-sheet">
@@ -348,7 +361,14 @@ export default function ExactSolarBillSheet({
                         <div><strong>For, {compName}</strong></div>
                         <div className="exact-bill-sign-img-wrap">
                             {signatureSrc ? (
-                                <img src={signatureSrc} alt="Signature" className="exact-bill-sig-img" />
+                                <img
+                                    src={signatureSrc}
+                                    alt="Signature"
+                                    className="exact-bill-sig-img"
+                                    onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                    }}
+                                />
                             ) : null}
                         </div>
                         <div className="exact-bill-sign-line" />

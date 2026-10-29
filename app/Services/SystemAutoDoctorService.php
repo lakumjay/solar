@@ -271,6 +271,17 @@ class SystemAutoDoctorService
                         'logo_path' => '/images/companies/rajeshwari-logo.png',
                     ]);
                 $fixes[] = 'Verified Sunrise & Rajeshwari billing company profiles & bank records';
+
+                $sigDiagnostics = [];
+                $comps = DB::table('solar_billing_companies')->select('id', 'name', 'signature_path', 'signature_enabled')->get();
+                foreach ($comps as $c) {
+                    $sigDiagnostics[] = "Comp {$c->id} ({$c->name}): sig_path=" . ($c->signature_path ?? 'NULL') . ", enabled=" . ($c->signature_enabled ? '1' : '0');
+                }
+                $settSigs = DB::table('solar_billing_settings')->where('key', 'like', '%sig%')->get();
+                foreach ($settSigs as $s) {
+                    $sigDiagnostics[] = "Setting {$s->key}={$s->value}";
+                }
+                $fixes[] = 'Signature Diagnostics: ' . implode(' | ', $sigDiagnostics);
             }
 
             // 7. Ensure solar_billing_charges table and default seeds exist
