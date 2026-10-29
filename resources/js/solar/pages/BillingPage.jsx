@@ -12,6 +12,7 @@ import BillingEngine, {
     deriveRates, companyBill, computeInterest, runChecks,
     nextInvoiceNo, fyOf, numberToWords, inr, round2
 } from '../utils/billingEngine';
+import ExactSolarBillSheet from '../components/ExactSolarBillSheet';
 
 // Auto-detect billing month from PDF raw text or filename
 export function detectBillingMonth(rawText = '', fileName = '') {
@@ -1325,138 +1326,30 @@ export default function BillingPage({ currentUser }) {
                                         ))}
                                     </div>
 
-                                    {/* Exact BILL OF SUPPLY Debit Memo Display */}
-                                    <div className="printable-bill-sheet">
-                                        {/* Company Letterhead Header */}
-                                        {b.company?.letterhead_mode === 'preprinted' ? (
-                                            <div className="sheet-preprinted-margin" style={{ height: '52mm' }}>
-                                                <div className="preprinted-hint-banner no-print">
-                                                    {lang === 'en' ? '⬆ 52mm Blank Margin for Pre-printed Letterhead Paper' : '⬆ પ્રી-પ્રિન્ટેડ લેટરપેડ માટે 52mm ખાલી જગ્યા (પ્રિન્ટમાં નહીં આવે)'}
-                                                </div>
-                                            </div>
-                                        ) : b.company?.letterhead_mode === 'custom_image' && (b.company?.letterhead_path || b.company?.letterhead_url) ? (
-                                            <div className="sheet-letterhead-banner">
-                                                <img src={b.company.letterhead_path || b.company.letterhead_url} alt="Company Letterhead" />
-                                            </div>
-                                        ) : (
-                                            <div className="sheet-header">
-                                                <h2>{b.company.name}</h2>
-                                                <p>{b.company.address}</p>
-                                                <p>GSTIN: <b>{b.company.gstin || 'N/A'}</b> {b.company.phones ? `| Ph: ${b.company.phones}` : ''}</p>
-                                            </div>
-                                        )}
-
-                                        <div className="sheet-memo-bar">
-                                            <span>Debit Memo</span>
-                                            <b>BILL OF SUPPLY</b>
-                                            <span>Original</span>
-                                        </div>
-
-                                        <table className="sheet-table info-table">
-                                            <tbody>
-                                                <tr>
-                                                    <td style={{ width: '60%' }}>
-                                                        <b>Bill To:</b><br />
-                                                        <strong>{b.cust.name}</strong><br />
-                                                        {b.cust.address}<br />
-                                                        GSTIN: {b.cust.gst}
-                                                    </td>
-                                                    <td>
-                                                        <b>Invoice No:</b> <strong>{b.invNo}</strong><br />
-                                                        <b>Date:</b> {b.invDate}<br />
-                                                        <b>Due Date:</b> {b.dueDate}
-                                                    </td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-
-                                        <table className="sheet-table items-table">
-                                            <thead>
-                                                <tr>
-                                                    <th>Sr</th>
-                                                    <th>Product Name</th>
-                                                    <th>HSN</th>
-                                                    <th>Unit</th>
-                                                    <th>Rate</th>
-                                                    <th>Net Rate</th>
-                                                    <th>Amount (₹)</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr>
-                                                    <td>1</td>
-                                                    <td>Solar Power Generation {b.month}</td>
-                                                    <td>2716</td>
-                                                    <td>{inr(b.units.credited)}</td>
-                                                    <td>{b.result.billRate.toFixed(5)}</td>
-                                                    <td>{b.result.netRate.toFixed(5)}</td>
-                                                    <td>{inr(b.result.net)}</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-
-                                        {/* Financial Summary */}
-                                        <div className="sheet-summary-box">
-                                            <div className="summary-row">
-                                                <span>Sub Total:</span>
-                                                <b>₹{inr(b.result.net)}</b>
-                                            </div>
-                                            <div className="summary-row discount">
-                                                <span>Less: Discount ({inr(b.units.credited)} × ₹{Number(b.discount || b.company?.discount || 1.25).toFixed(2)}):</span>
-                                                <b>- ₹{inr(b.result.discountAmt)}</b>
-                                            </div>
-
-                                            {b.prevBal > 0 && (
-                                                <div className="summary-row overdue">
-                                                    <span>Previous Balance (Pending):</span>
-                                                    <b>₹{inr(b.prevBal)}</b>
-                                                </div>
-                                            )}
-
-                                            {b.interest > 0 && (
-                                                <div className="summary-row overdue">
-                                                    <span>Interest {b.company?.interest_pct ?? 18}% p.a. ({b.interestDays} days):</span>
-                                                    <b>₹{inr(b.interest)}</b>
-                                                </div>
-                                            )}
-
-                                            <div className="summary-row">
-                                                <span>Round Off:</span>
-                                                <b>{b.result.roundOff.toFixed(2)}</b>
-                                            </div>
-
-                                            <div className="summary-row grand-total">
-                                                <span>Total Outstanding Due:</span>
-                                                <b>₹{inr(b.totalOut)}</b>
-                                            </div>
-                                        </div>
-
-                                        <p className="amount-words">
-                                            <b>Amount in words:</b> {numberToWords(b.totalOut)}
-                                        </p>
-
-                                        {/* Bank Details */}
-                                        <div className="sheet-bank-box">
-                                            <b>Bank Details:</b> {b.company.bank_name}<br />
-                                            A/c: <strong>{b.company.bank_ac}</strong> | IFSC: <strong>{b.company.bank_ifsc}</strong>
-                                        </div>
-
-                                        <div className="sheet-terms">
-                                            1. Interest @{b.company?.interest_pct || settings.interest_pct || 18}% p.a. will be charged if payment is not made within due date.<br />
-                                            2. "Subject to 'BOTAD' Jurisdiction only. E.&O.E."
-                                        </div>
-
-                                        <div className="sheet-signature-box">
-                                            {b.company?.signature_path ? (
-                                                <img src={b.company.signature_path} alt="Authorised Signature" className="sig-img" />
-                                            ) : settings.signature_url ? (
-                                                <img src={settings.signature_url} alt="Signature" className="sig-img" />
-                                            ) : (
-                                                <div className="sig-spacer" />
-                                            )}
-                                            <p>For, <b>{b.company.name}</b><br />(Authorised Signatory)</p>
-                                        </div>
-                                    </div>
+                                    {/* Exact BILL OF SUPPLY Debit Memo Display (Rajeshwari Solar Official Format) */}
+                                    <ExactSolarBillSheet
+                                        company={b.company}
+                                        customer={b.cust}
+                                        invoiceNo={b.invNo}
+                                        invoiceDate={b.invDate}
+                                        dueDate={b.dueDate}
+                                        month={b.month}
+                                        units={b.units?.credited}
+                                        billRate={b.result?.billRate}
+                                        netRate={b.result?.netRate}
+                                        subTotal={b.result?.net}
+                                        discountRate={b.discount || b.company?.discount || 1.25}
+                                        discountAmt={b.result?.discountAmt}
+                                        prevBal={b.prevBal}
+                                        interest={b.interest}
+                                        interestDays={b.interestDays}
+                                        interestPct={b.company?.interest_pct ?? 18}
+                                        roundOff={b.result?.roundOff}
+                                        totalOut={b.totalOut}
+                                        note={b.note}
+                                        settings={settings}
+                                        lang={lang}
+                                    />
                                 </div>
                             ))}
 
@@ -3144,136 +3037,34 @@ export default function BillingPage({ currentUser }) {
                             </div>
                         </div>
 
-                        {/* Printable Sheet */}
-                        <div className="printable-bill-sheet">
-                            {/* Company Letterhead Header */}
-                            {viewingBill.company?.letterhead_mode === 'preprinted' ? (
-                                <div className="sheet-preprinted-margin" style={{ height: '52mm' }}>
-                                    <div className="preprinted-hint-banner no-print">
-                                        {lang === 'en' ? '⬆ 52mm Blank Margin for Pre-printed Letterhead Paper' : '⬆ પ્રી-પ્રિન્ટેડ લેટરપેડ માટે 52mm ખાલી જગ્યા (પ્રિન્ટમાં નહીં આવે)'}
-                                    </div>
-                                </div>
-                            ) : viewingBill.company?.letterhead_mode === 'custom_image' && (viewingBill.company?.letterhead_path || viewingBill.company?.letterhead_url) ? (
-                                <div className="sheet-letterhead-banner">
-                                    <img src={viewingBill.company.letterhead_path || viewingBill.company.letterhead_url} alt="Company Letterhead" />
-                                </div>
-                            ) : (
-                                <div className="sheet-header">
-                                    <h2>{viewingBill.company?.name}</h2>
-                                    <p>{viewingBill.company?.address}</p>
-                                    <p>GSTIN: <b>{viewingBill.company?.gstin || 'N/A'}</b> {viewingBill.company?.phones ? `| Ph: ${viewingBill.company?.phones}` : ''}</p>
-                                </div>
-                            )}
-
-                            <div className="sheet-memo-bar">
-                                <span>Debit Memo</span>
-                                <b>BILL OF SUPPLY</b>
-                                <span>Original</span>
-                            </div>
-
-                            <table className="sheet-table info-table">
-                                <tbody>
-                                    <tr>
-                                        <td style={{ width: '60%' }}>
-                                            <b>Bill To:</b><br />
-                                            <strong>{viewingBill.customer_name || viewingBill.cust?.name}</strong><br />
-                                            {viewingBill.customer_address || viewingBill.cust?.address}<br />
-                                            GSTIN: {viewingBill.customer_gstin || viewingBill.cust?.gst}
-                                        </td>
-                                        <td>
-                                            <b>Invoice No:</b> <strong>{viewingBill.invoice_no || viewingBill.invNo}</strong><br />
-                                            <b>Date:</b> {viewingBill.invoice_date || viewingBill.invDate}<br />
-                                            <b>Due Date:</b> {viewingBill.due_date || viewingBill.dueDate}
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-
-                            <table className="sheet-table items-table">
-                                <thead>
-                                    <tr>
-                                        <th>Sr</th>
-                                        <th>Product Name</th>
-                                        <th>HSN</th>
-                                        <th>Unit</th>
-                                        <th>Rate</th>
-                                        <th>Net Rate</th>
-                                        <th>Amount (₹)</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>1</td>
-                                        <td>Solar Power Generation {viewingBill.month}</td>
-                                        <td>2716</td>
-                                        <td>{inr(viewingBill.units_credited || viewingBill.units?.credited)}</td>
-                                        <td>{Number(viewingBill.breakdown?.billRate || viewingBill.result?.billRate || 0).toFixed(5)}</td>
-                                        <td>{Number(viewingBill.breakdown?.netRate || viewingBill.result?.netRate || 0).toFixed(5)}</td>
-                                        <td>{inr(viewingBill.sub_total || viewingBill.result?.net)}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-
-                            <div className="sheet-summary-box">
-                                <div className="summary-row">
-                                    <span>Sub Total:</span>
-                                    <b>₹{inr(viewingBill.sub_total || viewingBill.result?.net)}</b>
-                                </div>
-                                <div className="summary-row discount">
-                                    <span>Less: Discount ({inr(viewingBill.units_credited || viewingBill.units?.credited)} × ₹{Number(viewingBill.discount_rate || viewingBill.company?.discount || 1.25).toFixed(2)}):</span>
-                                    <b>- ₹{inr(viewingBill.discount_amt || viewingBill.result?.discountAmt)}</b>
-                                </div>
-
-                                {(viewingBill.prev_balance > 0 || viewingBill.prevBal > 0) && (
-                                    <div className="summary-row overdue">
-                                        <span>Previous Balance (Pending):</span>
-                                        <b>₹{inr(viewingBill.prev_balance || viewingBill.prevBal)}</b>
-                                    </div>
-                                )}
-
-                                {(viewingBill.interest_amt > 0 || viewingBill.interest > 0) && (
-                                    <div className="summary-row overdue">
-                                        <span>Interest {viewingBill.company?.interest_pct || settings.interest_pct || 18}% p.a. ({viewingBill.interest_days || viewingBill.interestDays} days):</span>
-                                        <b>₹{inr(viewingBill.interest_amt || viewingBill.interest)}</b>
-                                    </div>
-                                )}
-
-                                <div className="summary-row">
-                                    <span>Round Off:</span>
-                                    <b>{Number(viewingBill.round_off || viewingBill.result?.roundOff || 0).toFixed(2)}</b>
-                                </div>
-
-                                <div className="summary-row grand-total">
-                                    <span>Total Outstanding Due:</span>
-                                    <b>₹{inr(viewingBill.total_outstanding || viewingBill.totalOut)}</b>
-                                </div>
-                            </div>
-
-                            <p className="amount-words">
-                                <b>Amount in words:</b> {numberToWords(viewingBill.total_outstanding || viewingBill.totalOut)}
-                            </p>
-
-                            <div className="sheet-bank-box">
-                                <b>Bank Details:</b> {viewingBill.company?.bank_name}<br />
-                                A/c: <strong>{viewingBill.company?.bank_ac}</strong> | IFSC: <strong>{viewingBill.company?.bank_ifsc}</strong>
-                            </div>
-
-                            <div className="sheet-terms">
-                                1. Interest @{viewingBill.company?.interest_pct || settings.interest_pct || 18}% p.a. will be charged if payment is not made within due date.<br />
-                                2. "Subject to 'BOTAD' Jurisdiction only. E.&O.E."
-                            </div>
-
-                            <div className="sheet-signature-box">
-                                {viewingBill.company?.signature_path ? (
-                                    <img src={viewingBill.company.signature_path} alt="Authorised Signature" className="sig-img" />
-                                ) : settings.signature_url ? (
-                                    <img src={settings.signature_url} alt="Signature" className="sig-img" />
-                                ) : (
-                                    <div className="sig-spacer" />
-                                )}
-                                <p>For, <b>{viewingBill.company?.name}</b><br />(Authorised Signatory)</p>
-                            </div>
-                        </div>
+                        {/* Exact BILL OF SUPPLY Debit Memo Display (Rajeshwari Solar Official Format) */}
+                        <ExactSolarBillSheet
+                            company={viewingBill.company}
+                            customer={{
+                                name: viewingBill.customer_name || viewingBill.cust?.name,
+                                address: viewingBill.customer_address || viewingBill.cust?.address,
+                                gst: viewingBill.customer_gstin || viewingBill.cust?.gst
+                            }}
+                            invoiceNo={viewingBill.invoice_no || viewingBill.invNo}
+                            invoiceDate={viewingBill.invoice_date || viewingBill.invDate}
+                            dueDate={viewingBill.due_date || viewingBill.dueDate}
+                            month={viewingBill.month}
+                            units={viewingBill.units_credited || viewingBill.units?.credited}
+                            billRate={Number(viewingBill.breakdown?.billRate || viewingBill.result?.billRate || 0)}
+                            netRate={Number(viewingBill.breakdown?.netRate || viewingBill.result?.netRate || 0)}
+                            subTotal={Number(viewingBill.sub_total || viewingBill.result?.net || 0)}
+                            discountRate={Number(viewingBill.discount_rate || viewingBill.company?.discount || 1.25)}
+                            discountAmt={Number(viewingBill.discount_amt || viewingBill.result?.discountAmt || 0)}
+                            prevBal={Number(viewingBill.prev_balance || viewingBill.prevBal || 0)}
+                            interest={Number(viewingBill.interest_amt || viewingBill.interest || 0)}
+                            interestDays={Number(viewingBill.interest_days || viewingBill.interestDays || 0)}
+                            interestPct={Number(viewingBill.company?.interest_pct || settings.interest_pct || 18)}
+                            roundOff={Number(viewingBill.round_off || viewingBill.result?.roundOff || 0)}
+                            totalOut={Number(viewingBill.total_outstanding || viewingBill.totalOut || 0)}
+                            note={viewingBill.note || ''}
+                            settings={settings}
+                            lang={lang}
+                        />
                     </div>
                 </div>
             )}
