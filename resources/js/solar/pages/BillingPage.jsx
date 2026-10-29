@@ -316,8 +316,13 @@ export default function BillingPage({ currentUser }) {
             ? parseFloat(comp1.discount)
             : (parseFloat(settings.default_discount) || 1.25);
 
-        const res1 = companyBill(wUnits, liveRates, wExtra, { discount: disc1 });
-        const checks1 = runChecks(res1, wStmt, 0).slice(0, 2); // 2 Checks: Bill-Rate & Grand/Generated ratio
+        const rateOpts = {
+            min_bill_rate: settings.min_bill_rate ? parseFloat(settings.min_bill_rate) : 6.0,
+            max_bill_rate: settings.max_bill_rate ? parseFloat(settings.max_bill_rate) : 7.2
+        };
+
+        const res1 = companyBill(wUnits, liveRates, wExtra, { discount: disc1, ...rateOpts });
+        const checks1 = runChecks(res1, wStmt, 0, rateOpts).slice(0, 2); // 2 Checks: Bill-Rate & Grand/Generated ratio
 
         const billList = [{
             company: comp1,
@@ -347,8 +352,8 @@ export default function BillingPage({ currentUser }) {
 
             const fy = fyOf(wInvDate);
             const inv2 = wUnits2.invNo || nextInvoiceNo(comp2, fy);
-            const res2 = companyBill(wUnits2, liveRates, wExtra, { discount: disc2 });
-            const checks2 = runChecks(res2, wStmt, 0).slice(0, 2);
+            const res2 = companyBill(wUnits2, liveRates, wExtra, { discount: disc2, ...rateOpts });
+            const checks2 = runChecks(res2, wStmt, 0, rateOpts).slice(0, 2);
 
             billList.push({
                 company: comp2,
@@ -2015,6 +2020,31 @@ export default function BillingPage({ currentUser }) {
                                     className="form-control"
                                     value={settings.wheel_rate || '0.2352'}
                                     onChange={(e) => setSettings({ ...settings, wheel_rate: e.target.value })}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="form-row-2">
+                            <div className="form-group">
+                                <label>{lang === 'en' ? 'Min Bill Rate Sanity (₹/unit)' : 'ન્યૂનતમ બિલ રેટ (₹/unit - ચેતવણી)'}</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    className="form-control"
+                                    placeholder="6.00"
+                                    value={settings.min_bill_rate || '6.00'}
+                                    onChange={(e) => setSettings({ ...settings, min_bill_rate: e.target.value })}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>{lang === 'en' ? 'Max Bill Rate Sanity (₹/unit)' : 'મહત્તમ બિલ રેટ (₹/unit - ચેતવણી)'}</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    className="form-control"
+                                    placeholder="7.20"
+                                    value={settings.max_bill_rate || '7.20'}
+                                    onChange={(e) => setSettings({ ...settings, max_bill_rate: e.target.value })}
                                 />
                             </div>
                         </div>

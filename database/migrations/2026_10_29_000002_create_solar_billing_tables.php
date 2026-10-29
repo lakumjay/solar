@@ -125,7 +125,7 @@ return new class extends Migration
                 $table->string('month', 30); // e.g. 'Oct-26', 'Aug-26'
                 $table->string('invoice_no', 100)->unique(); // UNIQUE constraint preventing collision
                 $table->date('invoice_date');
-                $table->date('due_date');
+                $table->date('due_date')->nullable();
 
                 // Customer info
                 $table->string('customer_name', 255);

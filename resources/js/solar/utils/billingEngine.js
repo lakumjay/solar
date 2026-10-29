@@ -84,8 +84,11 @@ export function companyBill(units = {}, rates = {}, extra = {}, cfg = {}) {
     const grand = Math.round(rawGrand);
     const roundOff = round2(grand - rawGrand);
 
-    if (billRate > 0 && (billRate < 6.0 || billRate > 7.2)) {
-        warnings.push(`Bill Rate ${billRate.toFixed(2)} — 6.5-6.6 ની આસપાસ હોવો જોઈએ; રેટ તપાસો.`);
+    const minRate = num(opts?.min_bill_rate || extra?.min_bill_rate) || 6.0;
+    const maxRate = num(opts?.max_bill_rate || extra?.max_bill_rate) || 7.2;
+
+    if (billRate > 0 && (billRate < minRate || billRate > maxRate)) {
+        warnings.push(`Bill Rate ${billRate.toFixed(2)} — ${minRate.toFixed(1)}-${maxRate.toFixed(1)} ની આસપાસ હોવો જોઈએ; રેટ તપાસો.`);
     }
 
     return {
@@ -122,7 +125,7 @@ export function computeInterest(pending, daysOverdue, pct) {
 }
 
 /* Pre-send checks: returns [{ok, text}]. */
-export function runChecks(bill, stmt = {}, othersSum = 0) {
+export function runChecks(bill, stmt = {}, othersSum = 0, options = {}) {
     const out = [];
 
     // 1: wheeling split sums to statement total (when statement wheeling is provided)
@@ -135,10 +138,12 @@ export function runChecks(bill, stmt = {}, othersSum = 0) {
         });
     }
 
-    // 2: bill rate sane
+    // 2: bill rate sane (configurable threshold from settings)
+    const minRate = num(options.min_bill_rate) || 6.0;
+    const maxRate = num(options.max_bill_rate) || 7.2;
     out.push({
-        ok: bill.billRate >= 6.0 && bill.billRate <= 7.2,
-        text: `Bill Rate ${bill.billRate.toFixed(5)} (6.0 થી 7.2 ની વચ્ચે હોવો જોઈએ)`
+        ok: bill.billRate >= minRate && bill.billRate <= maxRate,
+        text: `Bill Rate ${bill.billRate.toFixed(5)} (${minRate.toFixed(1)} થી ${maxRate.toFixed(1)} ની વચ્ચે હોવો જોઈએ)`
     });
 
     // 3: grand/generated ratio + roundoff

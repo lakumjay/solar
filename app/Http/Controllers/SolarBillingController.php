@@ -67,12 +67,15 @@ class SolarBillingController extends Controller
             return $arr;
         });
 
-        // Summary metrics (Principal-based revenue & debt tracking with strict void exclusion)
+        // Summary metrics (Principal-based revenue & debt tracking with strict void exclusion & partial payment handling)
         $totalBilled = SolarBill::where('status', '!=', 'void')->sum('current_grand_total');
-        $totalPaid = SolarBill::where('status', 'paid')->where('status', '!=', 'void')->sum('current_grand_total');
-        $pendingBills = $bills->where('status', 'pending')->where('status', '!=', 'void');
-        $totalPendingSnapshot = $pendingBills->sum('current_grand_total');
-        $totalLiveDue = $pendingBills->sum(fn ($b) => $b['live_ledger']['current_total_due']);
+        $totalPaidDirect = (float) SolarBill::where('status', 'paid')->sum('current_grand_total');
+        $totalPaidPartial = (float) SolarBill::where('status', 'partial')->sum('paid_amount');
+        $totalPaid = $totalPaidDirect + $totalPaidPartial;
+
+        $unpaidBills = $bills->filter(fn ($b) => $b && in_array($b['status'], ['pending', 'partial']));
+        $totalPendingSnapshot = $unpaidBills->sum(fn ($b) => max(0.0, (float) ($b['current_grand_total'] ?? 0) - (float) ($b['paid_amount'] ?? 0)));
+        $totalLiveDue = $unpaidBills->sum(fn ($b) => $b['live_ledger']['current_total_due']);
 
         return response()->json([
             'bills' => $bills,
@@ -81,7 +84,7 @@ class SolarBillingController extends Controller
                 'total_paid' => round($totalPaid, 2),
                 'total_pending' => round($totalPendingSnapshot, 2),
                 'total_live_due' => round($totalLiveDue, 2),
-                'pending_count' => $pendingBills->count(),
+                'pending_count' => $unpaidBills->count(),
                 'interest_pct' => $interestPct,
             ],
         ]);
@@ -303,8 +306,15 @@ class SolarBillingController extends Controller
                         'created_by' => $userId,
                     ]);
 
-                    // 7. Increment sequence atomically
-                    $company->increment('last_seq');
+                    // 7. Increment sequence atomically:
+                    // If invoice_no ends with a sequence number (e.g. RS/26-27/05),
+                    // ensure last_seq advances to at least that number to prevent collisions.
+                    $extractedSeq = null;
+                    if (preg_match('/\/(\d+)$/', $invoiceNo, $m)) {
+                        $extractedSeq = (int) $m[1];
+                    }
+                    $targetSeq = $extractedSeq !== null ? max((int) $company->last_seq + 1, $extractedSeq) : (int) $company->last_seq + 1;
+                    $company->update(['last_seq' => $targetSeq]);
 
                     $savedBills[] = $bill;
                 }
@@ -329,33 +339,45 @@ class SolarBillingController extends Controller
 
     /**
      * Toggle Paid / Pending status.
+     * Enforces strict Lock Order: Company -> Bill inside transaction to prevent deadlocks.
      */
     public function togglePaid(Request $request, int $id): JsonResponse
     {
-        $bill = SolarBill::findOrFail($id);
+        return DB::transaction(function () use ($id) {
+            $bill = SolarBill::findOrFail($id);
 
-        if ($bill->status === 'void') {
-            return response()->json(['error' => 'Voided bill status cannot be toggled.'], 422);
-        }
+            // 1. Lock company first (Strict Lock Order: Company -> Bill)
+            SolarBillingCompany::where('id', $bill->company_id)->lockForUpdate()->first();
 
-        if ($bill->status === 'paid') {
-            $bill->status = 'pending';
-            $bill->paid_at = null;
-        } else {
-            $bill->status = 'paid';
-            $bill->paid_at = Carbon::now();
-        }
+            // 2. Lock bill
+            $bill = SolarBill::where('id', $id)->lockForUpdate()->firstOrFail();
 
-        $bill->save();
+            if ($bill->status === 'void') {
+                return response()->json(['error' => 'Voided bill status cannot be toggled.'], 422);
+            }
 
-        return response()->json([
-            'message' => "Bill status updated to {$bill->status}",
-            'bill' => $bill,
-        ]);
+            if ($bill->status === 'paid') {
+                $bill->status = 'pending';
+                $bill->paid_at = null;
+                $bill->paid_amount = 0.00;
+            } else {
+                $bill->status = 'paid';
+                $bill->paid_at = Carbon::now();
+                $bill->paid_amount = $bill->total_outstanding;
+            }
+
+            $bill->save();
+
+            return response()->json([
+                'message' => "Bill status updated to {$bill->status}",
+                'bill' => $bill,
+            ]);
+        });
     }
 
     /**
      * Mark a bill as Void / Cancelled instead of deleting it.
+     * Enforces strict Lock Order: Company -> Bill inside transaction to prevent deadlocks.
      */
     public function voidBill(Request $request, int $id): JsonResponse
     {
@@ -363,22 +385,30 @@ class SolarBillingController extends Controller
             'reason' => 'required|string|max:255',
         ]);
 
-        $bill = SolarBill::findOrFail($id);
+        return DB::transaction(function () use ($request, $id) {
+            $bill = SolarBill::findOrFail($id);
 
-        if ($bill->status === 'void') {
-            return response()->json(['error' => 'Bill is already voided.'], 422);
-        }
+            // 1. Lock company first (Strict Lock Order: Company -> Bill)
+            SolarBillingCompany::where('id', $bill->company_id)->lockForUpdate()->first();
 
-        $bill->status = 'void';
-        $bill->voided_at = Carbon::now();
-        $bill->voided_by = $request->user()?->id;
-        $bill->void_reason = $request->input('reason');
-        $bill->save();
+            // 2. Lock bill
+            $bill = SolarBill::where('id', $id)->lockForUpdate()->firstOrFail();
 
-        return response()->json([
-            'message' => "Bill {$bill->invoice_no} has been voided.",
-            'bill' => $bill,
-        ]);
+            if ($bill->status === 'void') {
+                return response()->json(['error' => 'Bill is already voided.'], 422);
+            }
+
+            $bill->status = 'void';
+            $bill->voided_at = Carbon::now();
+            $bill->voided_by = $request->user()?->id;
+            $bill->void_reason = $request->input('reason');
+            $bill->save();
+
+            return response()->json([
+                'message' => "Bill {$bill->invoice_no} has been voided.",
+                'bill' => $bill,
+            ]);
+        });
     }
 
     /**

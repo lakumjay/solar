@@ -2,13 +2,17 @@
 
 namespace Tests\Unit;
 
+use App\Models\SolarBill;
 use App\Models\SolarBillingCompany;
 use App\Services\SolarBillingEngineService;
+use Carbon\Carbon;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use InvalidArgumentException;
 use Tests\TestCase;
 
 class SolarBillingEngineTest extends TestCase
 {
+    use RefreshDatabase;
     /**
      * Standard Aug-26 PGVCL Statement sample (Blueart Granito statement).
      */
@@ -210,7 +214,107 @@ class SolarBillingEngineTest extends TestCase
         ];
 
         $res = SolarBillingEngineService::verifyAndRecompute($payload, $company);
-        // Server saves CANONICAL ₹561777, not the client drift ₹561778
         $this->assertEquals(561777.0, $res['current_grand_total']);
+    }
+
+    private function createTestBill(array $attributes): SolarBill
+    {
+        $defaults = [
+            'customer_name' => 'Blueart Granito Pvt. Ltd.',
+            'month' => 'Aug-26',
+            'units_credited' => 10000.00,
+            'units_generated' => 10500.00,
+            'sub_total' => 50000.00,
+            'breakdown' => ['grand' => 50000.00],
+            'status' => 'pending',
+        ];
+
+        return SolarBill::create(array_merge($defaults, $attributes));
+    }
+
+    public function test_pending_balance_deducts_partial_paid_amount(): void
+    {
+        $company = SolarBillingCompany::create([
+            'name' => 'Solar Co 1',
+            'inv_prefix' => 'SC',
+            'interest_pct' => 18.0,
+            'due_days' => 15,
+        ]);
+
+        $this->createTestBill([
+            'company_id' => $company->id,
+            'invoice_no' => 'SC/26-27/01',
+            'invoice_date' => '2026-08-01',
+            'due_date' => '2026-08-16',
+            'current_grand_total' => 100000.00,
+            'total_outstanding' => 100000.00,
+            'paid_amount' => 40000.00,
+            'status' => 'partial',
+        ]);
+
+        // Reference date: 2026-09-15 (30 days overdue after 2026-08-16)
+        $res = SolarBillingEngineService::getCompanyPendingAndInterest($company->id, 18.0, '2026-09-15');
+
+        // Unpaid principal is 100,000 - 40,000 = 60,000
+        $this->assertEquals(60000.00, $res['prev_balance']);
+        $this->assertEquals(30, $res['interest_days']);
+
+        // Interest on 60,000 for 30 days @ 18% = 60000 * 0.18 * (30/365) = 887.67
+        $expectedInterest = round(60000.00 * 0.18 * (30 / 365), 2);
+        $this->assertEquals($expectedInterest, $res['interest_amt']);
+    }
+
+    public function test_due_date_grace_period_fallback_when_due_date_null(): void
+    {
+        $company = SolarBillingCompany::create([
+            'name' => 'Solar Co 2',
+            'inv_prefix' => 'SC2',
+            'interest_pct' => 18.0,
+            'due_days' => 20, // 20 days credit period
+        ]);
+
+        $this->createTestBill([
+            'company_id' => $company->id,
+            'invoice_no' => 'SC2/26-27/01',
+            'invoice_date' => '2026-08-01',
+            'due_date' => null, // null due_date should fallback to 2026-08-01 + 20 days = 2026-08-21
+            'current_grand_total' => 50000.00,
+            'total_outstanding' => 50000.00,
+            'status' => 'pending',
+        ]);
+
+        // 1. Reference date: 2026-08-15 (within 20 days grace) -> 0 overdue days, 0 interest
+        $resWithinGrace = SolarBillingEngineService::getCompanyPendingAndInterest($company->id, 18.0, '2026-08-15');
+        $this->assertEquals(0, $resWithinGrace['interest_days']);
+        $this->assertEquals(0.00, $resWithinGrace['interest_amt']);
+
+        // 2. Reference date: 2026-08-25 (4 days overdue after 2026-08-21)
+        $resOverdue = SolarBillingEngineService::getCompanyPendingAndInterest($company->id, 18.0, '2026-08-25');
+        $this->assertEquals(4, $resOverdue['interest_days']);
+        $expectedInterest = round(50000.00 * 0.18 * (4 / 365), 2);
+        $this->assertEquals($expectedInterest, $resOverdue['interest_amt']);
+    }
+
+    public function test_void_bills_are_excluded_from_pending_balance(): void
+    {
+        $company = SolarBillingCompany::create([
+            'name' => 'Solar Co 3',
+            'inv_prefix' => 'SC3',
+        ]);
+
+        $this->createTestBill([
+            'company_id' => $company->id,
+            'invoice_no' => 'SC3/26-27/01',
+            'invoice_date' => '2026-08-01',
+            'due_date' => '2026-08-15',
+            'current_grand_total' => 75000.00,
+            'total_outstanding' => 75000.00,
+            'status' => 'void',
+            'void_reason' => 'Cancelled test',
+        ]);
+
+        $res = SolarBillingEngineService::getCompanyPendingAndInterest($company->id, 18.0, '2026-09-01');
+        $this->assertEquals(0.00, $res['prev_balance']);
+        $this->assertEquals(0.00, $res['interest_amt']);
     }
 }

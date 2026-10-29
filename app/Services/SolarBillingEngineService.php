@@ -138,8 +138,15 @@ class SolarBillingEngineService
         $grand = (float) round($rawGrand);
         $roundOff = self::round2($grand - $rawGrand);
 
-        if ($billRate > 0 && ($billRate < 6.0 || $billRate > 7.2)) {
-            $warnings[] = sprintf('Bill Rate %.2f — should normally be between 6.0 and 7.2.', $billRate);
+        $minRate = isset($extra['min_bill_rate']) && is_numeric($extra['min_bill_rate'])
+            ? (float) $extra['min_bill_rate']
+            : (float) SolarBillingSetting::getVal('min_bill_rate', 6.00);
+        $maxRate = isset($extra['max_bill_rate']) && is_numeric($extra['max_bill_rate'])
+            ? (float) $extra['max_bill_rate']
+            : (float) SolarBillingSetting::getVal('max_bill_rate', 7.20);
+
+        if ($billRate > 0 && ($billRate < $minRate || $billRate > $maxRate)) {
+            $warnings[] = sprintf('Bill Rate %.2f — should normally be between %.2f and %.2f.', $billRate, $minRate, $maxRate);
         }
 
         return [
@@ -168,8 +175,10 @@ class SolarBillingEngineService
 
     /**
      * Compute actual pending balance & overdue interest from database records.
-     * Enforces principal-based interest calculation (no interest-on-interest / double counting)
-     * and strictly excludes voided bills.
+     * Enforces principal-based interest calculation (no interest-on-interest / double counting),
+     * strictly accounts for partial payments, and provides proper grace period fallbacks.
+     *
+     * FAIL CLOSED: If database query fails, throws exception to rollback outer transaction.
      */
     public static function getCompanyPendingAndInterest(
         int $companyId,
@@ -181,39 +190,49 @@ class SolarBillingEngineService
             $interestPct = (float) SolarBillingSetting::getVal('interest_pct', 18.0);
         }
 
-        try {
-            $query = SolarBill::where('company_id', $companyId)
-                ->where('status', 'pending')
-                ->where('status', '!=', 'void');
+        // FAIL CLOSED: No silent catch block! If database fails, exception bubbles up
+        // to rollback transaction, preventing invoices from saving with false zero balances.
+        $query = SolarBill::with('company:id,due_days')
+            ->where('company_id', $companyId)
+            ->whereIn('status', ['pending', 'partial']);
 
-            // Pessimistic locking inside transaction prevents race conditions across concurrent bills
-            if ($lockForUpdate && \Illuminate\Support\Facades\DB::transactionLevel() > 0) {
-                $query->lockForUpdate();
-            }
-
-            $pendingBills = $query->get();
-        } catch (\Throwable $e) {
-            $pendingBills = collect();
+        // Pessimistic locking inside transaction prevents race conditions across concurrent bills
+        if ($lockForUpdate && \Illuminate\Support\Facades\DB::transactionLevel() > 0) {
+            $query->lockForUpdate();
         }
+
+        $pendingBills = $query->get();
 
         // PRINCIPAL DEFINITION:
         // In utility billing, previous unpaid balance is the sum of unpaid monthly bill principals
-        // (`current_grand_total`), avoiding double-counting of previous carry-forwards.
-        $prevBal = (float) $pendingBills->sum('current_grand_total');
+        // (`current_grand_total - paid_amount`), avoiding double-counting of previous carry-forwards.
+        $defaultDueDays = (int) SolarBillingSetting::getVal('due_days', 15);
+        $prevBal = 0.00;
         $rawInterest = 0.00;
         $maxDays = 0;
         $ref = $referenceDate ? Carbon::parse($referenceDate)->startOfDay() : Carbon::now()->startOfDay();
 
         foreach ($pendingBills as $b) {
-            $due = Carbon::parse($b->due_date ?: $b->invoice_date)->startOfDay();
-            $days = $ref->greaterThan($due) ? $ref->diffInDays($due) : 0;
+            // Grace period fallback: if due_date is null, fallback to invoice_date + due_days
+            $coDueDays = (int) ($b->company?->due_days ?: $defaultDueDays);
+            $due = $b->due_date
+                ? Carbon::parse($b->due_date)->startOfDay()
+                : Carbon::parse($b->invoice_date)->addDays($coDueDays)->startOfDay();
+
+            $days = $ref->greaterThan($due) ? $due->diffInDays($ref) : 0;
             if ($days > $maxDays) {
                 $maxDays = $days;
             }
-            // Interest charged strictly on the principal (current_grand_total) of each overdue bill
-            $principal = (float) ($b->current_grand_total > 0 ? $b->current_grand_total : $b->total_outstanding);
-            if ($days > 0 && $principal > 0) {
-                $rawInterest += $principal * ($interestPct / 100) * ($days / 365);
+
+            // Interest charged strictly on the unpaid principal of each overdue bill
+            $paidAmt = (float) ($b->paid_amount ?? 0);
+            $billPrincipal = (float) ($b->current_grand_total > 0 ? $b->current_grand_total : $b->total_outstanding);
+            $unpaidPrincipal = max(0.0, $billPrincipal - $paidAmt);
+
+            $prevBal += $unpaidPrincipal;
+
+            if ($days > 0 && $unpaidPrincipal > 0) {
+                $rawInterest += $unpaidPrincipal * ($interestPct / 100) * ($days / 365);
             }
         }
 

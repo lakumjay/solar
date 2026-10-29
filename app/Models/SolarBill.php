@@ -28,6 +28,7 @@ class SolarBill extends Model
         'round_off' => 'decimal:2',
         'current_grand_total' => 'decimal:2',
         'total_outstanding' => 'decimal:2',
+        'paid_amount' => 'decimal:2',
         'paid_at' => 'datetime',
         'voided_at' => 'datetime',
     ];
@@ -49,32 +50,41 @@ class SolarBill extends Model
 
     /**
      * Live accrued interest calculation for ledger & pending display.
+     * Supports both pending and partial payment status.
      */
     public function getLiveLedgerMetrics(float $interestPct = 18.0): array
     {
-        if ($this->status !== 'pending') {
+        if ($this->status !== 'pending' && $this->status !== 'partial') {
             return [
                 'is_overdue' => false,
                 'overdue_days' => 0,
                 'live_accrued_interest' => 0.00,
-                'current_total_due' => (float) $this->total_outstanding,
+                'current_total_due' => 0.00,
             ];
         }
 
         $now = Carbon::now()->startOfDay();
-        $due = Carbon::parse($this->due_date)->startOfDay();
-        $days = $now->greaterThan($due) ? $now->diffInDays($due) : 0;
+        $coDueDays = (int) ($this->company?->due_days ?: 15);
+        $due = $this->due_date
+            ? Carbon::parse($this->due_date)->startOfDay()
+            : Carbon::parse($this->invoice_date)->addDays($coDueDays)->startOfDay();
+        $days = $now->greaterThan($due) ? $due->diffInDays($now) : 0;
+
+        $paid = (float) ($this->paid_amount ?? 0);
+        $unpaidPrincipal = max(0.0, (float) ($this->current_grand_total ?: $this->total_outstanding) - $paid);
+        $unpaidTotal = max(0.0, (float) $this->total_outstanding - $paid);
 
         $accrued = 0.00;
-        if ($days > 0 && $interestPct > 0 && $this->total_outstanding > 0) {
-            $accrued = round((float) $this->total_outstanding * ($interestPct / 100) * ($days / 365), 2);
+        if ($days > 0 && $interestPct > 0 && $unpaidPrincipal > 0) {
+            $accrued = round($unpaidPrincipal * ($interestPct / 100) * ($days / 365), 2);
         }
 
         return [
             'is_overdue' => $days > 0,
             'overdue_days' => (int) $days,
+            'unpaid_principal' => round($unpaidPrincipal, 2),
             'live_accrued_interest' => $accrued,
-            'current_total_due' => round((float) $this->total_outstanding + $accrued, 2),
+            'current_total_due' => round($unpaidTotal + $accrued, 2),
         ];
     }
 }
