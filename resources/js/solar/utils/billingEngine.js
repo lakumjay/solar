@@ -205,7 +205,7 @@ export function runChecks(bill, stmt = {}, othersSum = 0, options = {}) {
     const maxRate = num(options.max_bill_rate) || 7.2;
     out.push({
         ok: bill.billRate >= minRate && bill.billRate <= maxRate,
-        text: `Bill Rate ${bill.billRate.toFixed(5)} (${minRate.toFixed(1)} થી ${maxRate.toFixed(1)} ની વચ્ચે હોવો જોઈએ)`
+        text: `Bill Rate ₹${bill.billRate.toFixed(2)} (${minRate.toFixed(1)} થી ${maxRate.toFixed(1)} ની વચ્ચે હોવો જોઈએ)`
     });
 
     // 3: grand/generated ratio + roundoff

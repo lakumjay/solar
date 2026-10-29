@@ -18,39 +18,61 @@ import ExactSolarBillSheet from '../components/ExactSolarBillSheet';
 // Auto-detect billing month from PDF raw text or filename
 export function detectBillingMonth(rawText = '', fileName = '') {
     const months = [
-        { regex: /Jan(?:uary)?/i, short: 'Jan' },
-        { regex: /Feb(?:ruary)?/i, short: 'Feb' },
-        { regex: /Mar(?:ch)?/i, short: 'Mar' },
-        { regex: /Apr(?:il)?/i, short: 'Apr' },
-        { regex: /May/i, short: 'May' },
-        { regex: /Jun(?:e)?/i, short: 'Jun' },
-        { regex: /Jul(?:y)?/i, short: 'Jul' },
-        { regex: /Aug(?:ust)?/i, short: 'Aug' },
-        { regex: /Sep(?:tember)?/i, short: 'Sep' },
-        { regex: /Oct(?:ober)?/i, short: 'Oct' },
-        { regex: /Nov(?:ember)?/i, short: 'Nov' },
-        { regex: /Dec(?:ember)?/i, short: 'Dec' },
+        { regex: /Jan(?:uary)?/i, short: 'Jan', num: '01' },
+        { regex: /Feb(?:ruary)?/i, short: 'Feb', num: '02' },
+        { regex: /Mar(?:ch)?/i, short: 'Mar', num: '03' },
+        { regex: /Apr(?:il)?/i, short: 'Apr', num: '04' },
+        { regex: /May/i, short: 'May', num: '05' },
+        { regex: /Jun(?:e)?/i, short: 'Jun', num: '06' },
+        { regex: /Jul(?:y)?/i, short: 'Jul', num: '07' },
+        { regex: /Aug(?:ust)?/i, short: 'Aug', num: '08' },
+        { regex: /Sep(?:tember)?/i, short: 'Sep', num: '09' },
+        { regex: /Oct(?:ober)?/i, short: 'Oct', num: '10' },
+        { regex: /Nov(?:ember)?/i, short: 'Nov', num: '11' },
+        { regex: /Dec(?:ember)?/i, short: 'Dec', num: '12' },
     ];
 
-    const sources = [fileName, rawText].filter(Boolean);
+    // Decode any UTF-16BE hex strings from PDF headers (e.g. <FEFF004100750067...>)
+    let decodedText = rawText || '';
+    if (decodedText.includes('<FEFF') || decodedText.includes('<feff')) {
+        decodedText = decodedText.replace(/<[Ff][Ee][Ff][Ff]([0-9A-Fa-f]+)>/g, (_, hex) => {
+            let s = '';
+            for (let i = 0; i < hex.length; i += 4) {
+                const code = parseInt(hex.substr(i, 4), 16);
+                if (code > 0 && code < 128) s += String.fromCharCode(code);
+            }
+            return s;
+        });
+    }
+
+    const sources = [fileName, decodedText].filter(Boolean);
 
     for (const text of sources) {
-        // 1. Text Month with 2 or 4 digit year: e.g. "Aug-26", "October 2026", "Sep_26", "Nov 26"
+        // 1. Text Month with 2 or 4 digit year: e.g. "Aug-26", "August 2026", "Sep_26", "Nov 26", "Aug26"
         for (const m of months) {
-            const rx = new RegExp(m.regex.source + '[\\s-_/]*(?:20)?(\\d{2})\\b', 'i');
+            const rx = new RegExp('(?:^|[^a-zA-Z])' + m.regex.source + '[\\s-_/]*(?:20)?(\\d{2})\\b', 'i');
             const match = text.match(rx);
             if (match) {
                 return `${m.short}-${match[1]}`;
             }
         }
 
-        // 2. Numeric Month pattern like "08-2026" or "10/26"
-        const numRx = /(?:month|period|statement)?[^\d]*(0[1-9]|1[0-2])[\/\-_](?:20)?(\\d{2})\\b/i;
+        // 2. Numeric Month pattern like "08-2026", "08/26", "2026-08", "2026/08"
+        const numRx = /(?:month|period|statement|bill|date)?[^\d]*(0[1-9]|1[0-2])[\/\-_](?:20)?(\d{2})\b/i;
         const numMatch = text.match(numRx);
         if (numMatch) {
             const mIndex = parseInt(numMatch[1], 10) - 1;
             if (months[mIndex]) {
                 return `${months[mIndex].short}-${numMatch[2]}`;
+            }
+        }
+
+        const ymdRx = /\b(?:20)?(\d{2})[\/\-_](0[1-9]|1[0-2])\b/;
+        const ymdMatch = text.match(ymdRx);
+        if (ymdMatch) {
+            const mIndex = parseInt(ymdMatch[2], 10) - 1;
+            if (months[mIndex]) {
+                return `${months[mIndex].short}-${ymdMatch[1]}`;
             }
         }
     }
@@ -313,6 +335,8 @@ export default function BillingPage({ currentUser }) {
     const [wPdfName, setWPdfName] = useState('');
     const [pdfValidation, setPdfValidation] = useState(null);
     const [wCust, setWCust] = useState({ name: '', address: '', gst: '' });
+    const [step1Error, setStep1Error] = useState('');
+    const [step2Error, setStep2Error] = useState('');
 
     // Step 2 Units
     const [wUnits, setWUnits] = useState({ credited: '', peak: '', banking: '', generated: '' });
@@ -574,10 +598,19 @@ export default function BillingPage({ currentUser }) {
         }
     };
 
-    // Live Derived Rates for Step 2
+    // Live Derived Rates for Step 2 (auto-fallbacks to credited and peak units so rates compute immediately)
     const liveRates = useMemo(() => {
-        return deriveRates(wStmt);
-    }, [wStmt]);
+        const totalCredited = num(wUnits.credited) + (wTwoCo ? num(wUnits2.credited) : 0);
+        const totalPeak = num(wUnits.peak) + (wTwoCo ? num(wUnits2.peak) : 0);
+        const effectiveUnit = num(wStmt.unit) > 0 ? num(wStmt.unit) : totalCredited;
+        const effectivePeak = num(wStmt.totalPeak) > 0 ? num(wStmt.totalPeak) : totalPeak;
+
+        return deriveRates({
+            ...wStmt,
+            unit: effectiveUnit,
+            totalPeak: effectivePeak,
+        });
+    }, [wStmt, wUnits, wUnits2, wTwoCo]);
 
     // Load Verified Test Figures for Quick Testing
     const handleLoadExample = (mode = 'single') => {
@@ -646,18 +679,24 @@ export default function BillingPage({ currentUser }) {
 
     // Advance Step 1 -> 2
     const handleStep1Next = async () => {
+        setStep1Error('');
+        if (!wCompanyId) {
+            setStep1Error(lang === 'en' ? 'Please select a company to proceed' : 'આગળ વધવા માટે કૃપા કરીને કંપની પસંદ કરો');
+            return;
+        }
+
         // Strict PDF Validation Guard: If PDF was uploaded and flagged as invalid/unsupported
         if (pdfValidation && !pdfValidation.valid && pdfValidation.severity === 'error') {
-            alert(pdfValidation.title + "\n\n" + pdfValidation.message);
+            setStep1Error(pdfValidation.title + ": " + pdfValidation.message);
             return;
         }
 
         if (!wMonth.trim()) {
-            alert(lang === 'en' ? 'Please enter billing month (e.g. Oct-26)' : 'કૃપા કરીને મહિનો દાખલ કરો (દા.ત. Oct-26)');
+            setStep1Error(lang === 'en' ? 'Please enter or select billing month (e.g. Aug-26)' : 'કૃપા કરીને મહિનો દાખલ કરો અથવા પસંદ કરો (દા.ત. Aug-26)');
             return;
         }
         if (!wInvNo.trim()) {
-            alert(lang === 'en' ? 'Please enter invoice number' : 'કૃપા કરીને Invoice No. દાખલ કરો');
+            setStep1Error(lang === 'en' ? 'Please enter invoice number' : 'કૃપા કરીને Invoice No. દાખલ કરો');
             return;
         }
 
@@ -686,16 +725,37 @@ export default function BillingPage({ currentUser }) {
     // Advance Step 2 -> 3 (Preview & Check)
     const handleStep2Next = async () => {
         try {
-            if (!parseFloat(wUnits.credited)) {
-                alert(lang === 'en' ? 'Please enter Credited Units' : 'Credited Unit દાખલ કરો');
+            setStep2Error('');
+            const credited1 = parseFloat(wUnits.credited);
+            if (!credited1 || credited1 <= 0) {
+                setStep2Error(lang === 'en' ? 'Please enter Credited Units in Section A' : 'કૃપા કરીને Section A માં Credited Unit દાખલ કરો');
                 return;
             }
-            if (!parseFloat(wStmt.unit)) {
-                alert(lang === 'en' ? 'Please enter Statement Total Units' : 'સ્ટેટમેન્ટના કુલ Total Units દાખલ કરો');
-                return;
+
+            // Auto-populate Statement unit from Credited units if user left it blank
+            let effectiveStmtUnit = parseFloat(wStmt.unit);
+            if (!effectiveStmtUnit || effectiveStmtUnit <= 0) {
+                const autoUnit = credited1 + (wTwoCo ? (parseFloat(wUnits2.credited) || 0) : 0);
+                if (autoUnit > 0) {
+                    effectiveStmtUnit = autoUnit;
+                    setWStmt(prev => ({ ...prev, unit: String(autoUnit) }));
+                } else {
+                    setStep2Error(lang === 'en' ? 'Please enter Statement Total Units in Section C' : 'Section C માં સ્ટેટમેન્ટના Total Units દાખલ કરો');
+                    return;
+                }
             }
+
+            // Auto-populate Total Peak if left blank
+            let effectivePeak = parseFloat(wStmt.totalPeak);
+            if (!effectivePeak || effectivePeak <= 0) {
+                const autoPeak = (parseFloat(wUnits.peak) || 0) + (wTwoCo ? (parseFloat(wUnits2.peak) || 0) : 0);
+                if (autoPeak > 0) {
+                    setWStmt(prev => ({ ...prev, totalPeak: String(autoPeak) }));
+                }
+            }
+
             if (wTwoCo && !parseFloat(wUnits2.credited)) {
-                alert(lang === 'en' ? 'Please enter Credited Units for second company' : 'બીજી કંપનીના Credited Unit દાખલ કરો');
+                setStep2Error(lang === 'en' ? 'Please enter Credited Units for second company' : 'બીજી કંપનીના Credited Unit દાખલ કરો');
                 return;
             }
 
@@ -1264,236 +1324,297 @@ export default function BillingPage({ currentUser }) {
                         ))}
                     </div>
 
-                    {/* Step 1: Company & Month Selection */}
+                    {/* Step 1: Company & Month Selection (Mobile-First Polish) */}
                     {wizStep === 1 && (
-                        <div className="billing-card">
-                            <h3 className="card-title">
-                                {lang === 'en' ? 'Step 1 — Company & Billing Period' : 'Step 1 — કંપની અને મહિનો'}
-                            </h3>
+                        <div className="step1-card-container">
+                            <div className="step1-section-header">
+                                <div>
+                                    <h3 className="card-title" style={{ margin: '0 0 4px 0' }}>
+                                        {lang === 'en' ? 'Step 1 — Company & Billing Period' : 'Step 1 — કંપની અને બિલિંગ મહિનો'}
+                                    </h3>
+                                    <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
+                                        {lang === 'en' ? 'Select solar power plant, statement PDF and billing period.' : 'પાવર પ્લાન્ટ કંપની, સ્ટેટમેન્ટ PDF અને બિલિંગ મહિનો પસંદ કરો.'}
+                                    </p>
+                                </div>
+                                <span className="step1-badge-auto">
+                                    <ShieldCheck size={14} />
+                                    <span>{lang === 'en' ? 'Audit Verified' : 'ઓડિટ વેરિફાઈડ'}</span>
+                                </span>
+                            </div>
 
-                            {/* 1. PDF Statement Upload & Auto-Detection at Top */}
-                            <div className="pdf-upload-box" style={{
-                                background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
-                                border: '1.5px dashed #10b981',
-                                borderRadius: '12px',
-                                padding: '16px',
-                                marginBottom: '18px'
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
-                                    <label style={{ fontWeight: 800, color: '#065f46', fontSize: '13px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <Upload size={16} />
-                                        <span>{lang === 'en' ? 'PGVCL Open Access Statement PDF' : 'PGVCL સ્ટેટમેન્ટ PDF અપલોડ કરો'}</span>
+                            {/* Inline Error Banner */}
+                            {step1Error && (
+                                <div className="step1-error-banner">
+                                    <AlertTriangle size={18} />
+                                    <span>{step1Error}</span>
+                                </div>
+                            )}
+
+                            {/* 1. Company Selection Cards */}
+                            <div style={{ marginBottom: '18px' }}>
+                                <label className="step1-label">
+                                    <span>{lang === 'en' ? 'Select Power Generating Company' : '૧. પાવર ઉત્પાદક કંપની પસંદ કરો'}</span>
+                                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{companies.length} કંપનીઓ ઉપલબ્ધ</span>
+                                </label>
+                                <div className="step1-company-grid">
+                                    {companies.map(c => {
+                                        const isSelected = String(wCompanyId) === String(c.id);
+                                        const dueDays = c.due_days || settings.due_days || 15;
+                                        const monogram = (c.inv_prefix || c.name || 'CO').slice(0, 3).toUpperCase();
+                                        return (
+                                            <div
+                                                key={c.id}
+                                                className={`step1-company-card ${isSelected ? 'selected' : ''}`}
+                                                onClick={() => handleCompanyChange(c.id)}
+                                                role="radio"
+                                                aria-checked={isSelected}
+                                            >
+                                                <div className="step1-radio-dot">
+                                                    {isSelected && <div className="step1-radio-inner" />}
+                                                </div>
+                                                <div className="step1-co-avatar">
+                                                    {c.logo_path ? (
+                                                        <img src={c.logo_path} alt={c.name} />
+                                                    ) : (
+                                                        <span>{monogram}</span>
+                                                    )}
+                                                </div>
+                                                <div className="step1-co-details">
+                                                    <div className="step1-co-name" title={c.name}>{c.name}</div>
+                                                    <div className="step1-co-meta">
+                                                        <span className="step1-co-pill prefix">{c.inv_prefix || 'RS'}</span>
+                                                        <span className="step1-co-pill due">{dueDays} દિવસ મુદત</span>
+                                                        {c.discount && <span className="step1-co-pill">₹{Number(c.discount).toFixed(2)} PPA</span>}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* 2. Modern PDF Statement Upload & Drop Zone */}
+                            <div style={{ marginBottom: '20px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                    <label className="step1-label" style={{ margin: 0 }}>
+                                        <span>{lang === 'en' ? 'PGVCL Open Access Statement PDF' : '૨. PGVCL ઓપન એક્સેસ સ્ટેટમેન્ટ PDF'}</span>
                                     </label>
-                                    <span style={{ fontSize: '11px', color: '#047857', background: '#d1fae5', padding: '2px 8px', borderRadius: '9999px', fontWeight: 700 }}>
-                                        ⚡ {lang === 'en' ? 'Auto-detects Month & Stores for Audit' : 'મહિનો આપોઆપ આવી જશે'}
+                                    <span className="step1-badge-auto">
+                                        ⚡ {lang === 'en' ? 'Auto-reads Month & Audits' : 'ઓટો-ડિટેક્ટ અને ઓડિટ'}
                                     </span>
                                 </div>
-                                <input
-                                    type="file"
-                                    accept=".pdf"
-                                    className="form-control"
-                                    onChange={(e) => handlePdfUpload(e.target.files[0])}
-                                    style={{ background: '#ffffff' }}
-                                />
-                                {wPdfName && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
-                                        <span className="upload-badge">📄 {wPdfName}</span>
-                                        {isAutoMonth && (
-                                            <span className="auto-detected-badge">
-                                                <CheckCircle2 size={13} />
-                                                <span>{lang === 'en' ? `✓ Auto-detected Month: ${wMonth}` : `✓ PDF માંથી મહિનો શોધાયો: ${wMonth}`}</span>
-                                            </span>
-                                        )}
-                                    </div>
-                                )}
+
+                                <div
+                                    className={`step1-dropzone ${wPdfFile ? 'has-file' : ''}`}
+                                    onClick={() => document.getElementById('step1-pdf-input')?.click()}
+                                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                    onDrop={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                                            handlePdfUpload(e.dataTransfer.files[0]);
+                                        }
+                                    }}
+                                >
+                                    <input
+                                        id="step1-pdf-input"
+                                        type="file"
+                                        accept=".pdf"
+                                        style={{ display: 'none' }}
+                                        onChange={(e) => handlePdfUpload(e.target.files[0])}
+                                    />
+
+                                    {wPdfFile ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '10px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <FileText size={22} />
+                                                </div>
+                                                <div style={{ textAlign: 'left' }}>
+                                                    <b style={{ fontSize: '13.5px', color: '#0f172a', display: 'block', wordBreak: 'break-all' }}>{wPdfName}</b>
+                                                    <span style={{ fontSize: '11.5px', color: '#64748b' }}>
+                                                        {(wPdfFile.size ? (wPdfFile.size / 1024).toFixed(1) + ' KB' : 'PDF Document')}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                {isAutoMonth ? (
+                                                    <span className="step1-badge-auto">
+                                                        <CheckCircle2 size={13} />
+                                                        <span>મહિનો: <b>{wMonth}</b></span>
+                                                    </span>
+                                                ) : (
+                                                    <span style={{ fontSize: '11px', color: '#92400e', background: '#fef3c7', padding: '3px 8px', borderRadius: '999px', fontWeight: 700 }}>
+                                                        સ્કેન કરેલ PDF
+                                                    </span>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handlePdfUpload(null);
+                                                    }}
+                                                    style={{ background: '#fee2e2', color: '#dc2626', border: 'none', padding: '5px 10px', borderRadius: '8px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer' }}
+                                                >
+                                                    ✕ બદલો
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="step1-dropzone-icon">
+                                                <Upload size={22} />
+                                            </div>
+                                            <div className="step1-dropzone-title">
+                                                {lang === 'en' ? 'Tap to upload or drag & drop PDF statement' : 'PDF સ્ટેટમેન્ટ અહીં ડ્રેગ કરો અથવા ફાઈલ પસંદ કરવા ટેપ કરો'}
+                                            </div>
+                                            <div className="step1-dropzone-subtitle">
+                                                {lang === 'en' ? 'PGVCL Open Access Statement (.pdf up to 10MB)' : 'PGVCL ઓપન એક્સેસ ક્રેડિટ સ્ટેટમેન્ટ (.pdf)'}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
 
                                 {pdfValidation && (
                                     <div style={{
-                                        marginTop: '12px',
                                         padding: '12px 14px',
-                                        borderRadius: '8px',
+                                        borderRadius: '10px',
                                         display: 'flex',
                                         alignItems: 'flex-start',
                                         gap: '10px',
-                                        border: pdfValidation.severity === 'error'
-                                            ? '1.5px solid #ef4444'
-                                            : pdfValidation.severity === 'warning'
-                                                ? '1.5px solid #f59e0b'
-                                                : '1.5px solid #10b981',
-                                        background: pdfValidation.severity === 'error'
-                                            ? '#fef2f2'
-                                            : pdfValidation.severity === 'warning'
-                                                ? '#fffbeb'
-                                                : '#f0fdf4'
+                                        marginBottom: '14px',
+                                        border: pdfValidation.severity === 'error' ? '1.5px solid #ef4444' : pdfValidation.severity === 'warning' ? '1.5px solid #f59e0b' : '1.5px solid #10b981',
+                                        background: pdfValidation.severity === 'error' ? '#fef2f2' : pdfValidation.severity === 'warning' ? '#fffbeb' : '#f0fdf4'
                                     }}>
-                                        <div style={{
-                                            color: pdfValidation.severity === 'error'
-                                                ? '#dc2626'
-                                                : pdfValidation.severity === 'warning'
-                                                    ? '#d97706'
-                                                    : '#059669',
-                                            marginTop: '2px'
-                                        }}>
-                                            {pdfValidation.severity === 'error' ? (
-                                                <XCircle size={18} />
-                                            ) : pdfValidation.severity === 'warning' ? (
-                                                <AlertTriangle size={18} />
-                                            ) : (
-                                                <CheckCircle2 size={18} />
-                                            )}
+                                        <div style={{ color: pdfValidation.severity === 'error' ? '#dc2626' : pdfValidation.severity === 'warning' ? '#d97706' : '#059669', marginTop: '2px' }}>
+                                            {pdfValidation.severity === 'error' ? <XCircle size={18} /> : pdfValidation.severity === 'warning' ? <AlertTriangle size={18} /> : <CheckCircle2 size={18} />}
                                         </div>
                                         <div style={{ flex: 1 }}>
-                                            <div style={{
-                                                fontWeight: 700,
-                                                fontSize: '13px',
-                                                color: pdfValidation.severity === 'error'
-                                                    ? '#991b1b'
-                                                    : pdfValidation.severity === 'warning'
-                                                        ? '#92400e'
-                                                        : '#065f46'
-                                            }}>
+                                            <div style={{ fontWeight: 700, fontSize: '13px', color: pdfValidation.severity === 'error' ? '#991b1b' : pdfValidation.severity === 'warning' ? '#92400e' : '#065f46' }}>
                                                 {pdfValidation.title}
                                             </div>
-                                            <div style={{
-                                                fontSize: '12px',
-                                                marginTop: '4px',
-                                                lineHeight: 1.5,
-                                                color: pdfValidation.severity === 'error'
-                                                    ? '#7f1d1d'
-                                                    : pdfValidation.severity === 'warning'
-                                                        ? '#78350f'
-                                                        : '#047857'
-                                            }}>
+                                            <div style={{ fontSize: '12px', marginTop: '3px', lineHeight: 1.5, color: pdfValidation.severity === 'error' ? '#7f1d1d' : pdfValidation.severity === 'warning' ? '#78350f' : '#047857' }}>
                                                 {pdfValidation.message}
                                             </div>
-                                            {pdfValidation.severity === 'warning' && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setActiveTab('companies')}
-                                                    style={{
-                                                        marginTop: '8px',
-                                                        padding: '4px 10px',
-                                                        fontSize: '11px',
-                                                        fontWeight: 700,
-                                                        background: '#f59e0b',
-                                                        color: '#ffffff',
-                                                        border: 'none',
-                                                        borderRadius: '6px',
-                                                        cursor: 'pointer',
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        gap: '4px'
-                                                    }}
-                                                >
-                                                    <Building2 size={12} />
-                                                    <span>{lang === 'en' ? '+ Add Company to Master' : '+ નવી કંપની ઉમેરો'}</span>
-                                                </button>
-                                            )}
                                         </div>
                                     </div>
                                 )}
                             </div>
 
-                            {/* Company Selector */}
-                            <div className="form-group">
-                                <label>{lang === 'en' ? 'Select Power Generating Company' : 'કંપની પસંદ કરો'}</label>
-                                <select
-                                    className="form-control"
-                                    value={wCompanyId}
-                                    onChange={(e) => handleCompanyChange(e.target.value)}
-                                >
-                                    {companies.map(c => (
-                                        <option key={c.id} value={c.id}>{c.name}</option>
-                                    ))}
-                                </select>
-                                <small className="form-hint">
-                                    {lang === 'en'
-                                        ? 'Invoice prefix, payment due days, bank details & company terms loaded automatically.'
-                                        : 'કંપનીના શોર્ટ પ્રિફિક્સ, ચૂકવણી દિવસો, બેંક અને બિલિંગ નિયમો આપોઆપ સેટ થશે.'}
-                                </small>
-                            </div>
-
-                            <div className="form-row-2">
-                                <div className="form-group">
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                        <label style={{ margin: 0 }}>{lang === 'en' ? 'Billing Month (e.g. Oct-26)' : 'મહિનો (દા.ત. Oct-26)'}</label>
+                            {/* 3. Billing Month & Dates Grid */}
+                            <div className="step1-grid-2">
+                                {/* Billing Month + Quick Month Chips */}
+                                <div className="step1-input-group">
+                                    <label className="step1-label">
+                                        <span>{lang === 'en' ? 'Billing Month (e.g. Aug-26)' : '૩. બિલિંગ મહિનો (દા.ત. Aug-26)'}</span>
                                         {isAutoMonth ? (
-                                            <span style={{ fontSize: '11px', color: '#059669', background: '#ecfdf5', padding: '2px 8px', borderRadius: '12px', fontWeight: 700, border: '1px solid #a7f3d0' }}>
-                                                ✓ {lang === 'en' ? 'Auto-detected from PDF' : 'PDF માંથી ઓટો'}
-                                            </span>
+                                            <span className="step1-badge-auto">✓ PDF માંથી ઓટો</span>
                                         ) : (
-                                            <span style={{ fontSize: '11px', color: '#64748b' }}>
-                                                {lang === 'en' ? 'Manual entry' : 'મેન્યુઅલ'}
-                                            </span>
+                                            <span style={{ fontSize: '11px', color: '#64748b' }}>મેન્યુઅલ / ઝડપી પસંદગી</span>
                                         )}
-                                    </div>
+                                    </label>
                                     <input
                                         type="text"
-                                        className="form-control"
+                                        className="step1-input"
                                         value={wMonth}
-                                        placeholder="Oct-26"
+                                        placeholder="Aug-26"
                                         onChange={(e) => {
                                             setWMonth(e.target.value);
                                             setIsAutoMonth(false);
                                         }}
                                     />
-                                    <small className="form-hint">
-                                        {lang === 'en' ? 'Auto-filled upon PDF upload, or adjust manually if required.' : 'PDF અપલોડ કરવાથી ઓટોમેટિક આવી જશે. જરૂર જણાયે અહીં બદલી શકો છો.'}
-                                    </small>
+                                    {/* Quick Month Chips */}
+                                    <div className="step1-quick-months">
+                                        {['Aug-26', 'Sep-26', 'Oct-26', 'Nov-26'].map((qm) => (
+                                            <button
+                                                key={qm}
+                                                type="button"
+                                                className={`step1-month-pill ${wMonth.toLowerCase() === qm.toLowerCase() ? 'active' : ''}`}
+                                                onClick={() => {
+                                                    setWMonth(qm);
+                                                    setIsAutoMonth(false);
+                                                    const comp = companies.find(c => c.id == wCompanyId);
+                                                    if (comp) applyCompanyConfig(comp, wInvDate, settings);
+                                                }}
+                                            >
+                                                {qm}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                                <div className="form-group">
-                                    <label>{lang === 'en' ? 'Invoice Date (Auto / Editable)' : 'ઇનવોઇસ તારીખ (Auto / Editable)'}</label>
+
+                                {/* Invoice Date */}
+                                <div className="step1-input-group">
+                                    <label className="step1-label">
+                                        <span>{lang === 'en' ? 'Invoice Date' : 'ઇનવોઇસ તારીખ'}</span>
+                                        <span style={{ fontSize: '11px', color: '#64748b' }}>આજની તારીખ (Editable)</span>
+                                    </label>
                                     <input
                                         type="date"
-                                        className="form-control"
+                                        className="step1-input"
                                         value={wInvDate}
                                         onChange={(e) => setWInvDate(e.target.value)}
                                     />
-                                    <small className="form-hint">
-                                        {lang === 'en' ? 'Defaults to today. Changeable if needed.' : 'આજની તારીખ ઓટો આવશે. જરૂર મુજબ બદલી શકાય.'}
-                                    </small>
                                 </div>
                             </div>
 
-                            <div className="form-row-2">
-                                <div className="form-group">
-                                    <label>{lang === 'en' ? 'Invoice No. (Auto generated)' : 'ઇનવોઇસ નં. (Auto)'}</label>
+                            <div className="step1-grid-2" style={{ marginTop: '12px' }}>
+                                {/* Invoice Number */}
+                                <div className="step1-input-group">
+                                    <label className="step1-label">
+                                        <span>{lang === 'en' ? 'Invoice Number (Auto Sequence)' : 'ઇનવોઇસ નંબર (Auto Serial)'}</span>
+                                        <span className="step1-co-pill prefix">{companies.find(c => c.id == wCompanyId)?.inv_prefix || 'RS'}</span>
+                                    </label>
                                     <input
                                         type="text"
-                                        className="form-control"
+                                        className="step1-input"
                                         value={wInvNo}
                                         onChange={(e) => setWInvNo(e.target.value)}
                                     />
                                 </div>
-                                <div className="form-group">
-                                    <label>{lang === 'en' ? 'Payment Due Date (Auto / Editable)' : 'ચૂકવણી આખરી તારીખ (Auto / Editable)'}</label>
+
+                                {/* Due Date with Auto Calculation Badge */}
+                                <div className="step1-input-group">
+                                    <label className="step1-label">
+                                        <span>{lang === 'en' ? 'Payment Due Date' : 'ચૂકવણી આખરી તારીખ'}</span>
+                                        <span className="step1-badge-due">
+                                            ⚡ {companies.find(c => c.id == wCompanyId)?.due_days || settings.due_days || 15} દિવસ મુદત
+                                        </span>
+                                    </label>
                                     <input
                                         type="date"
-                                        className="form-control"
+                                        className="step1-input"
                                         value={wDueDate}
                                         onChange={(e) => setWDueDate(e.target.value)}
                                     />
-                                    <small className="form-hint">
-                                        {lang === 'en' ? 'Calculated from company due days. Editable.' : 'કંપનીના નક્કી કરેલા દિવસો મુજબ ઓટો ગણાશે. એડિટ કરી શકાય.'}
-                                    </small>
                                 </div>
                             </div>
 
-                            {/* Customer Profile */}
-                            <div className="form-group">
-                                <label>{lang === 'en' ? 'Customer / Factory (Bill To)' : 'ગ્રાહક / ફેક્ટરી (બિલ કોના નામે છે)'}</label>
+                            {/* Customer Profile (Bill To) */}
+                            <div style={{ marginTop: '14px', marginBottom: '22px' }}>
+                                <label className="step1-label">
+                                    <span>{lang === 'en' ? 'Customer / Factory (Bill To)' : 'ગ્રાહક / ફેક્ટરી (બિલ કોના નામે છે)'}</span>
+                                    <span style={{ fontSize: '11px', color: '#64748b' }}>GSTIN: {wCust.gst || '24AABCO3285B1ZU'}</span>
+                                </label>
                                 <input
                                     type="text"
-                                    className="form-control"
+                                    className="step1-input"
                                     value={wCust.name}
                                     placeholder="Blueart Granito Pvt. Ltd."
                                     onChange={(e) => setWCust({ ...wCust, name: e.target.value })}
                                 />
                             </div>
 
-                            <div className="wizard-btn-row">
-                                <button type="button" className="btn-primary" onClick={handleStep1Next}>
-                                    <span>{lang === 'en' ? 'Next: Enter Units →' : 'આગળ વધો: ડેટા એન્ટ્રી →'}</span>
+                            {/* Action Buttons Row */}
+                            <div style={{ marginTop: '16px' }}>
+                                <button
+                                    type="button"
+                                    className="step1-btn-next"
+                                    onClick={handleStep1Next}
+                                >
+                                    <span>{lang === 'en' ? 'Next: Enter Units & Statement Data →' : 'આગળ વધો: યુનિટ્સ & ડેટા એન્ટ્રી →'}</span>
+                                    <ArrowRight size={18} />
                                 </button>
                             </div>
                         </div>
@@ -1517,6 +1638,13 @@ export default function BillingPage({ currentUser }) {
                                     </button>
                                 </div>
                             </div>
+
+                            {step2Error && (
+                                <div className="step1-error-banner" style={{ marginBottom: '14px' }}>
+                                    <AlertTriangle size={18} />
+                                    <span>{step2Error}</span>
+                                </div>
+                            )}
 
                             {/* Section A: Primary Company Units */}
                             <details className="accordion-sec" open>
@@ -2124,6 +2252,13 @@ export default function BillingPage({ currentUser }) {
                                 </div>
                             )}
 
+                            {step2Error && (
+                                <div className="step1-error-banner" style={{ marginBottom: '14px' }}>
+                                    <AlertTriangle size={18} />
+                                    <span>{step2Error}</span>
+                                </div>
+                            )}
+
                             <div className="wizard-btn-row">
                                 <button type="button" className="btn-secondary" onClick={() => setWizStep(1)}>
                                     <ArrowLeft size={16} /> <span>{lang === 'en' ? 'Back' : 'પાછળ'}</span>
@@ -2419,9 +2554,35 @@ export default function BillingPage({ currentUser }) {
                         </div>
                     )}
 
+                    {/* Active Filter Clear Banner */}
+                    {(filterCompany !== 'all' || filterMonth !== 'all' || filterStatus !== 'all' || searchQuery) && (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: '10px', marginBottom: '14px', fontSize: '13px', color: '#92400e' }}>
+                            <span>🔍 ફિલ્ટર લાગુ છે — {bills.length} બિલ દર્શાવેલ છે.</span>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setFilterCompany('all');
+                                    setFilterMonth('all');
+                                    setFilterStatus('all');
+                                    setSearchQuery('');
+                                }}
+                                style={{ background: '#d97706', color: '#ffffff', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                                ફિલ્ટર સાફ કરો (Clear)
+                            </button>
+                        </div>
+                    )}
+
                     {/* Bills Table / Cards */}
                     <div className="records-list">
-                        {bills.length === 0 ? (
+                        {loading ? (
+                            <div style={{ textAlign: 'center', padding: '48px 20px', background: '#f8fafc', borderRadius: '16px', border: '1.5px solid #e2e8f0', margin: '20px 0' }}>
+                                <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 12px', color: '#059669' }} />
+                                <p style={{ color: '#64748b', fontSize: '14px', fontWeight: 600 }}>
+                                    {lang === 'en' ? 'Loading billing records...' : 'બિલ રેકોર્ડ લોડ થઈ રહ્યા છે...'}
+                                </p>
+                            </div>
+                        ) : bills.length === 0 ? (
                             <div className="empty-records" style={{ textAlign: 'center', padding: '48px 20px', background: '#f8fafc', borderRadius: '16px', border: '1.5px dashed #cbd5e1', margin: '20px 0' }}>
                                 <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                                     <FolderClock size={32} />
