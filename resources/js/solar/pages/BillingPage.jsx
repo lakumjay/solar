@@ -3,7 +3,7 @@ import {
     Receipt, Building2, FolderClock, Settings, Plus, Search,
     Printer, Mail, FileText, CheckCircle2, AlertTriangle,
     XCircle, Ban, Download, RefreshCw, Eye, ArrowRight,
-    ArrowLeft, Check, Upload, HelpCircle
+    ArrowLeft, Check, Upload, HelpCircle, BarChart3
 } from 'lucide-react';
 import { api } from '../api';
 import { useLanguage } from '../context/LanguageContext';
@@ -16,7 +16,7 @@ export default function BillingPage({ currentUser }) {
     const { lang, t } = useLanguage();
 
     // Navigation Tabs
-    const [activeTab, setActiveTab] = useState('bill'); // 'bill' | 'records' | 'companies' | 'setup'
+    const [activeTab, setActiveTab] = useState('bill'); // 'bill' | 'records' | 'ca' | 'companies' | 'setup'
 
     // Server State
     const [loading, setLoading] = useState(false);
@@ -25,10 +25,12 @@ export default function BillingPage({ currentUser }) {
     const [bills, setBills] = useState([]);
     const [summary, setSummary] = useState(null);
 
-    // Filters for Records Tab
+    // Filters for Records & CA Report Tab
     const [filterCompany, setFilterCompany] = useState('all');
     const [filterStatus, setFilterStatus] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
+    const [caMonth, setCaMonth] = useState('');
+    const [caCompanyId, setCaCompanyId] = useState('');
 
     // Modals & Actions
     const [viewingBill, setViewingBill] = useState(null);
@@ -130,7 +132,7 @@ export default function BillingPage({ currentUser }) {
     }, []);
 
     useEffect(() => {
-        if (activeTab === 'records') {
+        if (activeTab === 'records' || activeTab === 'ca') {
             fetchBills();
         }
     }, [activeTab, filterCompany, filterStatus, searchQuery]);
@@ -408,6 +410,128 @@ export default function BillingPage({ currentUser }) {
         }
     };
 
+    // CA Report Months List
+    const caMonths = useMemo(() => {
+        const m = {};
+        const out = [];
+        bills.forEach(b => {
+            if (b.month && !m[b.month]) {
+                m[b.month] = true;
+                out.push(b.month);
+            }
+        });
+        return out;
+    }, [bills]);
+
+    // CA Report (GSTR-1 Table 8 & HSN Summary) Data Calculation
+    const caData = useMemo(() => {
+        const validBills = bills.filter(b => b.status !== 'void');
+        const filtered = validBills.filter(b => {
+            const matchMonth = !caMonth || caMonth === 'all' || b.month === caMonth;
+            const matchCo = !caCompanyId || caCompanyId === 'all' || String(b.company_id) === String(caCompanyId);
+            return matchMonth && matchCo;
+        });
+
+        let intra = 0;
+        let inter = 0;
+        let qty = 0;
+
+        const rows = filtered.map(b => {
+            const compGst = (b.company?.gstin || '').slice(0, 2);
+            const custGst = (b.customer_gstin || '').slice(0, 2);
+            // If either GSTIN is missing, default to Gujarat Intra-state
+            const isIntra = (!compGst || !custGst) ? true : (compGst === custGst);
+            const totalOut = Number(b.total_outstanding || 0);
+
+            if (isIntra) {
+                intra += totalOut;
+            } else {
+                inter += totalOut;
+            }
+            qty += Number(b.units_credited || 0);
+
+            return {
+                b,
+                c: b.company,
+                isIntra,
+                units: Number(b.units_credited || 0),
+                value: totalOut
+            };
+        });
+
+        return {
+            rows,
+            intra: round2(intra),
+            inter: round2(inter),
+            qty: round2(qty),
+            total: round2(intra + inter)
+        };
+    }, [bills, caMonth, caCompanyId]);
+
+    const dlFile = (name, text, type = 'text/csv;charset=utf-8') => {
+        const blob = new Blob([text], { type });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    };
+
+    const exportCaCsv = () => {
+        const sMonth = caMonth || 'all';
+        const lines = ['Section,Month,Company,Company GSTIN,Customer,Customer GSTIN,Invoice No,Invoice Date,Units (KWH),Invoice Value (Rs),State Type,Status'];
+        caData.rows.forEach(r => {
+            lines.push([
+                'GSTR1-T8',
+                r.b.month,
+                `"${r.c?.name || ''}"`,
+                r.c?.gstin || '',
+                `"${r.b.customer_name || ''}"`,
+                r.b.customer_gstin || '',
+                r.b.invoice_no,
+                r.b.invoice_date,
+                r.units,
+                r.value,
+                r.isIntra ? 'INTRA-STATE' : 'INTER-STATE',
+                r.b.status
+            ].join(','));
+        });
+        lines.push('');
+        lines.push('HSN,Description,UQC,Total Qty,Total Value');
+        lines.push(`2716,Electrical energy,KWH,${caData.qty},${caData.total}`);
+        dlFile(`SolarFlow-CA-Report-${sMonth}.csv`, lines.join('\n'));
+    };
+
+    const exportCaJson = () => {
+        const sMonth = caMonth || 'all';
+        const jsonContent = JSON.stringify({
+            month: sMonth,
+            gstr1_table8: {
+                intra_state: Math.round(caData.intra),
+                inter_state: Math.round(caData.inter),
+                total: Math.round(caData.total)
+            },
+            hsn_summary: {
+                hsn: '2716',
+                description: 'Electrical energy',
+                uqc: 'KWH',
+                qty: caData.qty,
+                value: Math.round(caData.total)
+            },
+            bills: caData.rows.map(r => ({
+                invoice_no: r.b.invoice_no,
+                date: r.b.invoice_date,
+                company: r.c?.name,
+                units: r.units,
+                value: r.value,
+                intra: r.isIntra,
+                status: r.b.status
+            }))
+        }, null, 2);
+        dlFile(`SolarFlow-CA-Report-${sMonth}.json`, jsonContent, 'application/json');
+    };
+
     return (
         <div className="solar-billing-module">
             {/* Top Navigation Tabs */}
@@ -427,6 +551,14 @@ export default function BillingPage({ currentUser }) {
                 >
                     <FolderClock size={17} />
                     <span>{lang === 'en' ? 'Records & Ledger' : 'બિલ રેકોર્ડ & લેજર'}</span>
+                </button>
+                <button
+                    type="button"
+                    className={`nav-pill-btn ${activeTab === 'ca' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('ca')}
+                >
+                    <BarChart3 size={17} />
+                    <span>{lang === 'en' ? 'CA Report' : '📊 CA રિપોર્ટ'}</span>
                 </button>
                 <button
                     type="button"
@@ -1340,6 +1472,202 @@ export default function BillingPage({ currentUser }) {
                                 );
                             })
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* TAB: CA REPORT (GST & SALES REGISTER) */}
+            {activeTab === 'ca' && (
+                <div className="billing-ca-container">
+                    {/* Header & Filter Card */}
+                    <div className="billing-card">
+                        <div className="card-header-flex">
+                            <h3 className="card-title">
+                                {lang === 'en' ? '📊 CA Report — GST & Outward Supply' : '📊 CA રિપોર્ટ — GST & સેલ્સ રજીસ્ટર'}
+                            </h3>
+                            <span className="accordion-badge live">ઓટોમેટિક ગણતરી</span>
+                        </div>
+                        <p className="form-hint" style={{ marginTop: '2px', marginBottom: '14px' }}>
+                            {lang === 'en'
+                                ? 'Automatic GST summary generated directly from saved bills. Ready to share with your Chartered Accountant.'
+                                : 'સેવ થયેલા બિલમાંથી આપોઆપ તૈયાર થયેલ જીએસટી રિપોર્ટ. તમારા CA ને મોકલવા માટે સંપૂર્ણ તૈયાર.'}
+                        </p>
+
+                        <div className="form-row-2">
+                            <div className="form-group">
+                                <label>{lang === 'en' ? 'Filter by Month' : 'મહિનો પસંદ કરો'}</label>
+                                <select
+                                    className="form-control"
+                                    value={caMonth}
+                                    onChange={(e) => setCaMonth(e.target.value)}
+                                >
+                                    <option value="">{lang === 'en' ? 'All Months' : 'બધા મહિના'}</option>
+                                    {caMonths.map(m => (
+                                        <option key={m} value={m}>{m}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label>{lang === 'en' ? 'Filter by Company' : 'કંપની પસંદ કરો'}</label>
+                                <select
+                                    className="form-control"
+                                    value={caCompanyId}
+                                    onChange={(e) => setCaCompanyId(e.target.value)}
+                                >
+                                    <option value="">{lang === 'en' ? 'All Companies' : 'બધી કંપનીઓ'}</option>
+                                    {companies.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* GSTR-1 Table 8 Summary */}
+                    <div className="billing-card">
+                        <h3 className="card-title">
+                            {lang === 'en' ? 'GSTR-1 Table 8 — Nil / Exempt Supply' : 'GSTR-1 Table 8 — Nil / Exempt આઉટવર્ડ સપ્લાય'}
+                        </h3>
+                        <div className="ca-krow">
+                            <span>Intra-state Outward (ગુજરાત અંદર):</span>
+                            <b>₹{inr(caData.intra)}</b>
+                        </div>
+                        <div className="ca-krow">
+                            <span>Inter-state Outward (ગુજરાત બહાર):</span>
+                            <b>₹{inr(caData.inter)}</b>
+                        </div>
+                        <div className="ca-krow total">
+                            <span><b>કુલ મુક્ત સપ્લાય (Total Exempt Outward):</b></span>
+                            <b style={{ color: '#059669', fontSize: '16px' }}>₹{inr(caData.total)}</b>
+                        </div>
+                        <p className="form-hint" style={{ marginTop: '10px' }}>
+                            💡 <b>GST કાયદો:</b> સૌર વીજળી (HSN 2716) જીએસટી મુક્ત (Exempt) હોવાથી ટેક્સ ઇનવોઇસ નહીં, પરંતુ <b>Bill of Supply</b> જ બને. આ રકમ તમારા CA સીધી GSTR-1 Table 8 માં ભરશે.
+                        </p>
+                    </div>
+
+                    {/* HSN Summary */}
+                    <div className="billing-card">
+                        <h3 className="card-title">HSN Summary — 2716 (Electrical Energy)</h3>
+                        <div className="ca-krow">
+                            <span>HSN Code:</span>
+                            <b>2716 — Electrical energy</b>
+                        </div>
+                        <div className="ca-krow">
+                            <span>UQC (Unit of Quantity):</span>
+                            <b>KWH</b>
+                        </div>
+                        <div className="ca-krow">
+                            <span>Total Credited Units:</span>
+                            <b>{inr(caData.qty)} KWH</b>
+                        </div>
+                        <div className="ca-krow total">
+                            <span>Total Invoice Value:</span>
+                            <b>₹{inr(caData.total)}</b>
+                        </div>
+                    </div>
+
+                    {/* Sales Register */}
+                    <div className="billing-card">
+                        <div className="card-header-flex">
+                            <h3 className="card-title">
+                                {lang === 'en' ? 'Sales Register' : 'સેલ્સ રજીસ્ટર (તારીખ વાઈઝ બિલ લિસ્ટ)'}
+                                <span className="accordion-badge" style={{ marginLeft: '8px' }}>{caData.rows.length} બિલ્સ</span>
+                            </h3>
+                        </div>
+
+                        <div style={{ overflowX: 'auto' }}>
+                            <table className="ca-table">
+                                <thead>
+                                    <tr>
+                                        <th>તારીખ</th>
+                                        <th>ઇનવોઇસ નં.</th>
+                                        <th>કંપની</th>
+                                        <th>યુનિટ્સ (KWH)</th>
+                                        <th>બિલ રકમ (₹)</th>
+                                        <th>રાજ્ય પ્રકાર</th>
+                                        <th>સ્ટેટસ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {caData.rows.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="7" style={{ textAlign: 'center', color: '#64748b', padding: '16px' }}>
+                                                પસંદ કરેલા ફિલ્ટરમાં કોઈ બિલ નથી.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        caData.rows.map((r, i) => (
+                                            <tr key={i}>
+                                                <td>{r.b.invoice_date}</td>
+                                                <td><b>{r.b.invoice_no}</b></td>
+                                                <td>{r.c?.name}</td>
+                                                <td>{inr(r.units)}</td>
+                                                <td><b>₹{inr(r.value)}</b></td>
+                                                <td>
+                                                    <span className={`status-pill ${r.isIntra ? 'paid' : 'pending'}`} style={{ fontSize: '10px' }}>
+                                                        {r.isIntra ? 'Intra (GUJ)' : 'Inter-State'}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span className={`status-pill ${r.b.status}`} style={{ fontSize: '10px' }}>
+                                                        {r.b.status === 'paid' ? 'PAID' : 'PENDING'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Export Buttons */}
+                        <div className="wizard-btn-row" style={{ marginTop: '14px' }}>
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={exportCaCsv}
+                            >
+                                <Download size={16} />
+                                <span>{lang === 'en' ? '⬇ Export CSV (For CA)' : '⬇ CSV ડાઉનલોડ (CA માટે)'}</span>
+                            </button>
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={exportCaJson}
+                            >
+                                <Download size={16} />
+                                <span>{lang === 'en' ? '⬇ Export JSON' : '⬇ JSON ડાઉનલોડ'}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* CA Checklist & Statutory Notes */}
+                    <div className="billing-card ca-checklist-card">
+                        <h3 className="card-title">
+                            {lang === 'en' ? 'CA Checklist & Compliance Notes' : 'CA ચેકલિસ્ટ & કાનૂની માર્ગદર્શન'}
+                        </h3>
+                        <div className="check-item pass" style={{ marginBottom: '8px' }}>
+                            <CheckCircle2 size={16} />
+                            <span>GSTR-1 Table 8 (Nil/Exempt Supply) — ઓટોમેટિક તૈયાર</span>
+                        </div>
+                        <div className="check-item pass" style={{ marginBottom: '8px' }}>
+                            <CheckCircle2 size={16} />
+                            <span>HSN Summary (2716 Electrical Energy - KWH) — ઓટોમેટિક તૈયાર</span>
+                        </div>
+                        <div className="check-item pass" style={{ marginBottom: '8px' }}>
+                            <CheckCircle2 size={16} />
+                            <span>Sales Register & Outward Invoices — ઓટોમેટિક તૈયાર</span>
+                        </div>
+
+                        <div className="ca-note-item">
+                            <b>• E-invoice:</b> જો વાર્ષિક ટર્નઓવર ₹૫ કરોડથી વધુ હોય તો CA ની સલાહ લેવી (વીજળી એક્ઝેમ્પ હોવાથી સામાન્ય રીતે ફરજિયાત નથી, પણ નિયમ ધ્યાન પર રાખવો).
+                        </div>
+                        <div className="ca-note-item">
+                            <b>• E-way bill:</b> પાવર ગ્રીડ મારફત થતા વીજળી ટ્રાન્સમિશન પર ઇ-વે બિલ લાગુ પડતું નથી.
+                        </div>
+                        <div className="ca-note-item">
+                            <b>• TDS (Income Tax):</b> બિલિંગ/ઇનવોઇસ બનાવતી વખતે કાપવાનું હોતું નથી; સામેવાળી ખરીદનાર કંપની પેમેન્ટ વખતે TDS કાપતી હોય તો CA સાથે તાલમેલ સાધવો.
+                        </div>
                     </div>
                 </div>
             )}

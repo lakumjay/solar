@@ -13180,3 +13180,72 @@ h1, h2, h3, h4, strong {
     border: none;
   }
 }
+
+/* CA Report Styles */
+.billing-ca-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ca-krow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 13.5px;
+  color: #334155;
+}
+
+.ca-krow:last-child {
+  border-bottom: none;
+}
+
+.ca-krow b {
+  font-size: 14.5px;
+  color: #0f172a;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ca-krow.total {
+  border-top: 1.5px solid #1e293b;
+  border-bottom: 1.5px solid #1e293b;
+  padding: 10px 0;
+  margin-top: 4px;
+}
+
+.ca-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  margin-top: 8px;
+}
+
+.ca-table th,
+.ca-table td {
+  border: 1px solid #e2e8f0;
+  padding: 8px 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ca-table th {
+  background: #f0fdf4;
+  color: #065f46;
+  font-weight: 750;
+}
+
+.ca-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.ca-note-item {
+  font-size: 12px;
+  color: #475569;
+  padding: 6px 0;
+  line-height: 1.4;
+  border-top: 1px dashed #e2e8f0;
+}
