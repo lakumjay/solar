@@ -12,8 +12,8 @@ if ($secret !== 'solarflow_auto_deploy_2026') {
 $baseDir = dirname(__DIR__);
 $output = [];
 
-exec("cd " . escapeshellarg($baseDir) . " && git fetch origin main 2>&1", $output);
-exec("cd " . escapeshellarg($baseDir) . " && git reset --hard FETCH_HEAD 2>&1", $output);
+exec("cd " . escapeshellarg($baseDir) . " && git fetch origin main:refs/remotes/origin/main 2>&1", $output);
+exec("cd " . escapeshellarg($baseDir) . " && git reset --hard origin/main 2>&1", $output);
 exec("cd " . escapeshellarg($baseDir) . " && php artisan migrate --force 2>&1", $output);
 exec("cd " . escapeshellarg($baseDir) . " && php artisan optimize:clear 2>&1", $output);
 exec("cd " . escapeshellarg($baseDir) . " && git log -1 --oneline 2>&1", $output);

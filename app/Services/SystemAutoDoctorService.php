@@ -351,7 +351,7 @@ class SystemAutoDoctorService
             @shell_exec("cd ".escapeshellarg($basePath)." && git remote set-url origin ".escapeshellarg($authUrl)." 2>&1");
         }
 
-        $fetchOut = trim((string) @shell_exec("cd ".escapeshellarg($basePath)." && git fetch origin main 2>&1 && git reset --hard FETCH_HEAD 2>&1"));
+        $fetchOut = trim((string) @shell_exec("cd ".escapeshellarg($basePath)." && git fetch origin main:refs/remotes/origin/main 2>&1 && git reset --hard origin/main 2>&1"));
         $logs[] = $fetchOut ?: 'Git reset to origin/main completed.';
 
         // Restore clean remote URL
