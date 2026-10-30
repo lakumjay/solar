@@ -483,9 +483,9 @@ class SystemAutoDoctorService
         $fetchOut = trim((string) @shell_exec("cd ".escapeshellarg($basePath)." && git fetch origin main 2>&1 && git reset --hard FETCH_HEAD 2>&1"));
         if (str_contains($fetchOut, 'Could not write new index file')) {
             @unlink($basePath . '/.git/index');
-            $fetchOut = trim((string) @shell_exec("cd ".escapeshellarg($basePath)." && git reset --hard FETCH_HEAD 2>&1"));
+            $fetchOut = trim((string) @shell_exec("cd ".escapeshellarg($basePath)." && git reset --hard origin/main 2>&1"));
         }
-        $logs[] = $fetchOut ?: 'Git reset to FETCH_HEAD completed.';
+        $logs[] = $fetchOut ?: 'Git reset to origin/main completed.';
 
         // Restore clean remote URL
         @shell_exec("cd ".escapeshellarg($basePath)." && git remote set-url origin https://github.com/".self::REPO_FULL_NAME.".git 2>&1");
