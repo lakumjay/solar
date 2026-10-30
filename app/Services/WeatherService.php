@@ -15,7 +15,7 @@ class WeatherService
      */
     public function getWeather(float $latitude = 22.201360, float $longitude = 71.494960, string $locationName = 'Sarva, Botad'): array
     {
-        $cacheKey = "solar_weather_{$latitude}_{$longitude}_v5";
+        $cacheKey = "solar_weather_{$latitude}_{$longitude}_v7";
 
         return Cache::remember($cacheKey, 300, function () use ($latitude, $longitude, $locationName) {
             try {
@@ -43,16 +43,12 @@ class WeatherService
                 $windKmh = round((float) ($current['wind_speed_10m'] ?? 10.0), 1);
                 $windGustKmh = round((float) ($current['wind_gusts_10m'] ?? ($windKmh * 1.3)), 1);
                 $precipMm = (float) ($current['precipitation'] ?? 0.0);
-                $conditionInfo = $this->interpretWeatherCode($weatherCode);
 
                 $now = Carbon::now();
                 $currentHourInt = (int) $now->format('H');
                 $currentMinInt = (int) $now->format('i');
                 $currentHourFloat = (float) $currentHourInt + ($currentMinInt / 60.0);
-                $isCurrentlyRaining = $precipMm > 0.1 || in_array($weatherCode, [51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99]);
 
-                // 1. Rain Analysis (Live & Advance)
-                $rainAlert = null;
                 $precipProbList = $hourly['precipitation_probability'] ?? [];
                 $precipMmList = $hourly['precipitation'] ?? [];
                 $hourlyCodes = $hourly['weather_code'] ?? [];
@@ -60,6 +56,56 @@ class WeatherService
                 $hourlyTemps = $hourly['temperature_2m'] ?? [];
                 $hourlyWinds = $hourly['wind_speed_10m'] ?? [];
 
+                // Accurate Live Solar Irradiance
+                $currentRadRaw = $current['shortwave_radiation_instant'] ?? null;
+                if ($currentRadRaw !== null && is_numeric($currentRadRaw) && (float) $currentRadRaw > 0) {
+                    $radiationNow = (float) $currentRadRaw;
+                } elseif (isset($hourlyRadiation[$currentHourInt]) && (float) $hourlyRadiation[$currentHourInt] > 0) {
+                    $radiationNow = (float) $hourlyRadiation[$currentHourInt];
+                } elseif ($currentHourFloat >= 6.0 && $currentHourFloat <= 18.5) {
+                    $sunFactor = sin(deg2rad(max(0, min(180, ($currentHourFloat - 6.0) / 12.5 * 180))));
+                    $radiationNow = round($sunFactor * 890.0, 1);
+                } else {
+                    $radiationNow = 0.0;
+                }
+
+                // Next hour radiation estimate
+                $nextHourInt = $currentHourInt + 1;
+                if (isset($hourlyRadiation[$nextHourInt]) && (float) $hourlyRadiation[$nextHourInt] > 0) {
+                    $radiationNext = (float) $hourlyRadiation[$nextHourInt];
+                } elseif ($nextHourInt >= 6 && $nextHourInt <= 18) {
+                    $sunFactor = sin(deg2rad(max(0, min(180, ($nextHourInt - 6.0) / 12.5 * 180))));
+                    $radiationNext = round($sunFactor * 840.0, 1);
+                } else {
+                    $radiationNext = 0.0;
+                }
+
+                // 1. Rain Analysis (Live & Advance) with Physical Ground Validation
+                $currentHourProb = (int) ($precipProbList[$currentHourInt] ?? 0);
+                $isSevereStormCode = in_array($weatherCode, [95, 96, 99]);
+                $isRealRainCode = in_array($weatherCode, [61, 63, 65, 80, 81, 82]);
+                $isDrizzleCode = in_array($weatherCode, [51, 53, 55]);
+
+                // Physical Atmosphere Check:
+                // If daytime with strong solar irradiance (> 200 W/m²) or dry air (humidity < 60%),
+                // it is impossible for active rain to be falling on the plant panels in Botad.
+                $isDirectSunlight = ($currentHourFloat >= 7.5 && $currentHourFloat <= 17.5 && $radiationNow >= 200.0);
+                $isAirDry = ($humidity < 60.0 && !$isSevereStormCode);
+
+                $isCurrentlyRaining = false;
+                if (!$isDirectSunlight && !$isAirDry) {
+                    if ($isSevereStormCode && ($precipMm > 0.2 || $currentHourProb >= 35)) {
+                        $isCurrentlyRaining = true;
+                    } elseif ($isRealRainCode && ($precipMm >= 0.3 || $currentHourProb >= 50)) {
+                        $isCurrentlyRaining = true;
+                    } elseif ($isDrizzleCode && $precipMm >= 0.5 && $humidity >= 75 && $currentHourProb >= 60) {
+                        $isCurrentlyRaining = true;
+                    }
+                }
+
+                $conditionInfo = $this->interpretWeatherCode($weatherCode, $isCurrentlyRaining, $radiationNow, $humidity);
+
+                $rainAlert = null;
                 if ($isCurrentlyRaining) {
                     $stopHourOffset = null;
                     $maxLook = min(24, count($precipMmList) - $currentHourInt);
@@ -83,18 +129,20 @@ class WeatherService
                         'title' => '🌧️ લાઈવ વરસાદ ચાલુ છે (Rain Ongoing)',
                         'start_time' => 'અત્યારે ચાલુ છે',
                         'stop_time' => $stopTimeStr,
-                        'probability' => 100,
+                        'probability' => $currentHourProb > 0 ? max(65, min(100, $currentHourProb)) : 75,
                         'message' => "તમારા પ્લાન્ટ પર અત્યારે વરસાદ ચાલુ છે. અંદાજે {$stopTimeStr} વાગ્યા સુધીમાં વરસાદ રોકાવાની સંભાવના છે.",
                     ];
                 } else {
                     $maxLook = min(12, count($precipProbList) - $currentHourInt);
                     for ($i = 1; $i < $maxLook; $i++) {
                         $idx = $currentHourInt + $i;
-                        $prob = $precipProbList[$idx] ?? 0;
-                        $code = $hourlyCodes[$idx] ?? 0;
-                        $isRainCode = in_array($code, [51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99]);
+                        $prob = (int) ($precipProbList[$idx] ?? 0);
+                        $code = (int) ($hourlyCodes[$idx] ?? 0);
+                        $pMm = (float) ($precipMmList[$idx] ?? 0.0);
+                        $isRain = in_array($code, [61, 63, 65, 80, 81, 82, 95, 96, 99]);
 
-                        if ($prob >= 35 || $isRainCode) {
+                        // Only alert on real forecast rain with meaningful probability
+                        if ($prob >= 50 || ($isRain && $prob >= 40 && $pMm >= 0.3)) {
                             $startTime = $now->copy()->addHours($i)->format('h:i A');
                             $stopTime = $now->copy()->addHours($i + 2)->format('h:i A');
 
@@ -173,31 +221,7 @@ class WeatherService
                     ];
                 }
 
-                // 4. Solar Irradiance & Temperature Heat Loss Analysis
-                // Check live current shortwave radiation first
-                $currentRadRaw = $current['shortwave_radiation_instant'] ?? null;
-                if ($currentRadRaw !== null && is_numeric($currentRadRaw) && (float) $currentRadRaw > 0) {
-                    $radiationNow = (float) $currentRadRaw;
-                } elseif (isset($hourlyRadiation[$currentHourInt]) && (float) $hourlyRadiation[$currentHourInt] > 0) {
-                    $radiationNow = (float) $hourlyRadiation[$currentHourInt];
-                } elseif ($currentHourFloat >= 6.0 && $currentHourFloat <= 18.5) {
-                    // Accurate solar elevation bell-curve calculation
-                    $sunFactor = sin(deg2rad(max(0, min(180, ($currentHourFloat - 6.0) / 12.5 * 180))));
-                    $radiationNow = round($sunFactor * 890.0, 1);
-                } else {
-                    $radiationNow = 0.0;
-                }
-
-                // Next hour radiation estimate
-                $nextHourInt = $currentHourInt + 1;
-                if (isset($hourlyRadiation[$nextHourInt]) && (float) $hourlyRadiation[$nextHourInt] > 0) {
-                    $radiationNext = (float) $hourlyRadiation[$nextHourInt];
-                } elseif ($nextHourInt >= 6 && $nextHourInt <= 18) {
-                    $sunFactor = sin(deg2rad(max(0, min(180, ($nextHourInt - 6.0) / 12.5 * 180))));
-                    $radiationNext = round($sunFactor * 840.0, 1);
-                } else {
-                    $radiationNext = 0.0;
-                }
+                // 4. Temperature Heat Loss Analysis
 
                 // Wind-Cooled Cell Temperature Estimate (IEC 61853-2 / Faiman open-rack model):
                 // T_cell = T_amb + Irradiance / (U0 + U1 * wind_m_s), where U0 = 25.0, U1 = 3.8
@@ -269,8 +293,15 @@ class WeatherService
         });
     }
 
-    private function interpretWeatherCode(int $code): array
+    private function interpretWeatherCode(int $code, bool $isCurrentlyRaining = false, float $radiationNow = 0.0, float $humidity = 50.0): array
     {
+        if ($isCurrentlyRaining) {
+            if (in_array($code, [95, 96, 99])) {
+                return ['label' => 'Thunderstorm', 'type' => 'storm', 'icon' => 'cloud-lightning'];
+            }
+            return ['label' => 'Rainy', 'type' => 'rain', 'icon' => 'cloud-rain'];
+        }
+
         if ($code === 0) {
             return ['label' => 'Sunny', 'type' => 'sunny', 'icon' => 'sun'];
         }
@@ -283,11 +314,12 @@ class WeatherService
         if (in_array($code, [45, 48])) {
             return ['label' => 'Foggy', 'type' => 'cloudy', 'icon' => 'cloud-fog'];
         }
-        if (in_array($code, [51, 53, 55, 61, 63, 65, 80, 81, 82])) {
-            return ['label' => 'Rainy', 'type' => 'rain', 'icon' => 'cloud-rain'];
-        }
-        if (in_array($code, [95, 96, 99])) {
-            return ['label' => 'Thunderstorm', 'type' => 'storm', 'icon' => 'cloud-lightning'];
+        // If code was drizzle or rain but verified NOT raining on the plant:
+        if (in_array($code, [51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99])) {
+            if ($radiationNow >= 250.0 || $humidity < 55.0) {
+                return ['label' => 'Partly Sunny', 'type' => 'sunny', 'icon' => 'sun-medium'];
+            }
+            return ['label' => 'Cloudy', 'type' => 'cloudy', 'icon' => 'cloud'];
         }
 
         return ['label' => 'Clear', 'type' => 'sunny', 'icon' => 'sun'];

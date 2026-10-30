@@ -45,10 +45,39 @@ export default function AttendancePage({canCorrect, canRecord}) {
     const [mapMode, setMapMode] = useState('satellite'); // 'satellite' | 'roadmap'
     const [zoomLevel, setZoomLevel] = useState(20); // 20 is ultra close-up satellite level
     const [allLeaves, setAllLeaves] = useState([]);
-    const [leaveFilter, setLeaveFilter] = useState('all');
+    const [leaveFilter, setLeaveFilter] = useState('active'); // 'active' (Today/Tomorrow/Pending/Upcoming) | 'pending' | 'approved' | 'history' | 'all'
     const [reviewingLeaveId, setReviewingLeaveId] = useState(null);
 
+    const todayStr = useMemo(() => localDate(), []);
+    const yesterdayStr = useMemo(() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 1);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }, []);
+
+    // Check if leave is active for today/tomorrow/upcoming, pending, or recently requested
+    const isLeaveActiveOrRecent = useMemo(() => {
+        return (leave) => {
+            if (!leave) return false;
+            // 1. All pending leaves MUST be shown so admin can approve or reject
+            if (leave.status === 'pending') return true;
+
+            // 2. Active today or upcoming in future (date_to >= today)
+            const endDate = leave.date_to || leave.date_from;
+            if (endDate && endDate >= todayStr) return true;
+
+            // 3. Requested / created today or yesterday
+            const createdDate = leave.created_at ? leave.created_at.slice(0, 10) : null;
+            if (createdDate && createdDate >= yesterdayStr) return true;
+
+            // Past accepted/rejected leaves that ended before today are considered old history
+            return false;
+        };
+    }, [todayStr, yesterdayStr]);
+
     const pendingLeaves = useMemo(() => allLeaves.filter(l => l.status === 'pending'), [allLeaves]);
+    const activeLeaves = useMemo(() => allLeaves.filter(isLeaveActiveOrRecent), [allLeaves, isLeaveActiveOrRecent]);
+    const pastLeaves = useMemo(() => allLeaves.filter(l => !isLeaveActiveOrRecent(l)), [allLeaves, isLeaveActiveOrRecent]);
 
     const loadLiveLocations = async () => {
         try {
@@ -957,18 +986,21 @@ export default function AttendancePage({canCorrect, canRecord}) {
                                     {currentLang === 'en' ? 'Employee Leaves Records' : 'કર્મચારીઓની રજાઓ (Employee Leaves)'}
                                 </b>
                                 <span style={{display: 'block', fontSize: '11.5px', color: '#64748b'}}>
-                                    {currentLang === 'en' ? `Total ${allLeaves.length} records recorded` : `કુલ ${allLeaves.length} રજાઓ નોંધાયેલ છે`}
+                                    {currentLang === 'en'
+                                        ? `${activeLeaves.length} active/upcoming · ${pastLeaves.length} past records`
+                                        : `${activeLeaves.length} ચાલુ/નવી રજાઓ · ${pastLeaves.length} જૂનો ઇતિહાસ`}
                                 </span>
                             </div>
                         </div>
 
-                        {/* Filter Tabs: All, Pending, Approved, Rejected */}
+                        {/* Filter Tabs: Active (Today/Tomorrow/Pending), Pending, Approved, History (Past), All */}
                         <div style={{display: 'flex', gap: '4px', background: '#f1f5f9', padding: '3px', borderRadius: '8px', flexWrap: 'wrap'}}>
                             {[
-                                { key: 'all', label: currentLang === 'en' ? 'All' : 'બધી', count: allLeaves.length },
+                                { key: 'active', label: currentLang === 'en' ? 'Today & Upcoming' : 'ચાલુ / નવી', count: activeLeaves.length, color: '#059669' },
                                 { key: 'pending', label: currentLang === 'en' ? 'Pending' : 'પેન્ડિંગ', count: allLeaves.filter(l => l.status === 'pending').length, color: '#d97706' },
-                                { key: 'approved', label: currentLang === 'en' ? 'Approved' : 'મંજૂર', count: allLeaves.filter(l => l.status === 'approved').length, color: '#16a34a' },
-                                { key: 'rejected', label: currentLang === 'en' ? 'Rejected' : 'નામંજૂર', count: allLeaves.filter(l => l.status === 'rejected').length, color: '#dc2626' },
+                                { key: 'approved', label: currentLang === 'en' ? 'Approved (Active)' : 'મંજૂર', count: activeLeaves.filter(l => l.status === 'approved').length, color: '#16a34a' },
+                                { key: 'history', label: currentLang === 'en' ? 'Past Records' : 'જૂનો ઇતિહાસ', count: pastLeaves.length, color: '#64748b' },
+                                { key: 'all', label: currentLang === 'en' ? 'All' : 'બધી', count: allLeaves.length, color: '#0f172a' },
                             ].map(tab => (
                                 <button
                                     key={tab.key}
@@ -1005,8 +1037,54 @@ export default function AttendancePage({canCorrect, canRecord}) {
 
                     {/* Filtered Leaves Grid */}
                     {(() => {
-                        const filtered = allLeaves.filter(l => leaveFilter === 'all' || l.status === leaveFilter);
+                        const filtered = (() => {
+                            if (leaveFilter === 'active') return activeLeaves;
+                            if (leaveFilter === 'pending') return allLeaves.filter(l => l.status === 'pending');
+                            if (leaveFilter === 'approved') return activeLeaves.filter(l => l.status === 'approved');
+                            if (leaveFilter === 'history') return pastLeaves;
+                            if (leaveFilter === 'all') return allLeaves;
+                            return activeLeaves;
+                        })();
+
                         if (filtered.length === 0) {
+                            if (leaveFilter === 'active') {
+                                return (
+                                    <div style={{
+                                        textAlign: 'center',
+                                        padding: '16px 20px',
+                                        color: '#64748b',
+                                        fontSize: '12.5px',
+                                        background: '#f8fafc',
+                                        borderRadius: '10px',
+                                        border: '1px dashed #cbd5e1',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        flexWrap: 'wrap',
+                                        gap: '10px'
+                                    }}>
+                                        <span>🌴 {currentLang === 'en' ? 'No pending or active leaves for today or tomorrow (All staff on duty).' : 'આજે કે આવતીકાલ માટે કોઈ પેન્ડિંગ કે નવી રજા નથી (બધા કર્મચારીઓ હાજર).'}</span>
+                                        {pastLeaves.length > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setLeaveFilter('history')}
+                                                style={{
+                                                    border: 'none',
+                                                    background: '#e2e8f0',
+                                                    color: '#1e293b',
+                                                    padding: '5px 12px',
+                                                    borderRadius: '6px',
+                                                    fontSize: '11.5px',
+                                                    fontWeight: 600,
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                {currentLang === 'en' ? `View Past Records (${pastLeaves.length})` : `જૂનો ઇતિહાસ જુઓ (${pastLeaves.length})`}
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            }
                             return (
                                 <div style={{textAlign: 'center', padding: '20px', color: '#94a3b8', fontSize: '12.5px'}}>
                                     {currentLang === 'en' ? 'No leaves found for this filter.' : 'આ ફિલ્ટરમાં કોઈ રજા મળી નથી.'}
