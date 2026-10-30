@@ -12287,6 +12287,10 @@ h1, h2, h3, h4, strong {
   overflow-x: auto;
   padding: 4px 2px 14px;
   -webkit-overflow-scrolling: touch;
+  /* UI-BUG-04 FIX: Scroll affordance with fade */
+  mask-image: linear-gradient(to right, black 95%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black 95%, transparent 100%);
+  scrollbar-width: thin;
 }
 
 .nav-pill-btn {
@@ -13837,6 +13841,10 @@ h1, h2, h3, h4, strong {
   color: #1e293b !important;
   font-weight: 700 !important;
   font-size: 12.5px !important;
+  /* UI-BUG-06 FIX: Sticky headers */
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 2 !important;
 }
 
 .billing-table tbody tr:hover {
@@ -14142,6 +14150,7 @@ h1, h2, h3, h4, strong {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   font-size: 12px;
   font-weight: 700;
   color: #334155;

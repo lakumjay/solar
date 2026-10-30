@@ -338,6 +338,11 @@ export default function BillingPage({ currentUser }) {
     const [step1Error, setStep1Error] = useState('');
     const [step2Error, setStep2Error] = useState('');
 
+    // BUG-005 FIX: Clear Step 2 error banner when user fixes the input
+    React.useEffect(() => {
+        if (step2Error && wUnits.credited) setStep2Error('');
+    }, [wUnits.credited]);
+
     // Step 2 Units
     const [wUnits, setWUnits] = useState({ credited: '', peak: '', banking: '', generated: '' });
     const [wTwoCo, setWTwoCo] = useState(false);
@@ -997,6 +1002,24 @@ export default function BillingPage({ currentUser }) {
     // Print Invoice Handler (Single or Combined)
     const handlePrintInvoice = (billOrBills) => {
         const billsArr = Array.isArray(billOrBills) ? billOrBills : [billOrBills];
+        // Set document title so the saved PDF filename includes company + month + invoice no
+        // e.g. "Rajeshwari Solar Aug-26 RS-26-27-01"
+        const originalTitle = document.title;
+        if (billsArr.length === 1) {
+            const b = billsArr[0];
+            const compName = (b.company?.name || b.company_name || 'Bill').replace(/[^\w\s-]/g, '').trim();
+            const month = (b.month || '').replace(/[^\w-]/g, '');
+            const inv = (b.invNo || b.invoice_no || '').replace(/[\/\\]/g, '-');
+            document.title = `${compName} ${month} ${inv}`.trim();
+        } else {
+            document.title = `${billsArr.length} Bills Combined`;
+        }
+        // Restore original title after print dialog closes
+        const restoreTitle = () => {
+            document.title = originalTitle;
+            window.removeEventListener('afterprint', restoreTitle);
+        };
+        window.addEventListener('afterprint', restoreTitle);
         setViewingBills(billsArr);
         setViewingBill(null);
         setTimeout(() => {
@@ -1661,7 +1684,7 @@ export default function BillingPage({ currentUser }) {
                                         <div className="form-group">
                                             <label>Credited Unit (CR UNIT)</label>
                                             <input autoComplete="off"
-                                                type="number"
+                                                type="number" min="0"
                                                 step="any"
                                                 className="form-control"
                                                 value={wUnits.credited}
@@ -1672,7 +1695,7 @@ export default function BillingPage({ currentUser }) {
                                         <div className="form-group">
                                             <label>Peak Unit (Time of Use)</label>
                                             <input autoComplete="off"
-                                                type="number"
+                                                type="number" min="0"
                                                 step="any"
                                                 className="form-control"
                                                 value={wUnits.peak}
@@ -1685,7 +1708,7 @@ export default function BillingPage({ currentUser }) {
                                         <div className="form-group">
                                             <label>Banking Unit (RA. BANK)</label>
                                             <input autoComplete="off"
-                                                type="number"
+                                                type="number" min="0"
                                                 step="any"
                                                 className="form-control"
                                                 value={wUnits.banking}
@@ -1696,7 +1719,7 @@ export default function BillingPage({ currentUser }) {
                                         <div className="form-group">
                                             <label>Generated Unit (ખાલી હોય તો ઓટો 6.5%)</label>
                                             <input autoComplete="off"
-                                                type="number"
+                                                type="number" min="0"
                                                 step="any"
                                                 className="form-control"
                                                 value={wUnits.generated}
@@ -1833,7 +1856,7 @@ export default function BillingPage({ currentUser }) {
                                                 <div className="form-group">
                                                     <label>Credited Unit</label>
                                                     <input autoComplete="off"
-                                                        type="number"
+                                                        type="number" min="0"
                                                         step="any"
                                                         className="form-control"
                                                         value={wUnits2.credited}
@@ -1844,7 +1867,7 @@ export default function BillingPage({ currentUser }) {
                                                 <div className="form-group">
                                                     <label>Peak Unit</label>
                                                     <input autoComplete="off"
-                                                        type="number"
+                                                        type="number" min="0"
                                                         step="any"
                                                         className="form-control"
                                                         value={wUnits2.peak}
@@ -1857,7 +1880,7 @@ export default function BillingPage({ currentUser }) {
                                                 <div className="form-group">
                                                     <label>Banking Unit</label>
                                                     <input autoComplete="off"
-                                                        type="number"
+                                                        type="number" min="0"
                                                         step="any"
                                                         className="form-control"
                                                         value={wUnits2.banking}
@@ -1868,7 +1891,7 @@ export default function BillingPage({ currentUser }) {
                                                 <div className="form-group">
                                                     <label>Generated Unit (ખાલી=ઓટો)</label>
                                                     <input autoComplete="off"
-                                                        type="number"
+                                                        type="number" min="0"
                                                         step="any"
                                                         className="form-control"
                                                         value={wUnits2.generated}
@@ -1893,7 +1916,7 @@ export default function BillingPage({ currentUser }) {
                                         <div className="form-group">
                                             <label>Total Unit (Statement)</label>
                                             <input autoComplete="off"
-                                                type="number"
+                                                type="number" min="0"
                                                 step="any"
                                                 className="form-control"
                                                 value={wStmt.unit}
@@ -1904,7 +1927,7 @@ export default function BillingPage({ currentUser }) {
                                         <div className="form-group">
                                             <label>Energy Charge (₹)</label>
                                             <input autoComplete="off"
-                                                type="number"
+                                                type="number" min="0"
                                                 step="any"
                                                 className="form-control"
                                                 value={wStmt.energyAmt}
@@ -1918,7 +1941,7 @@ export default function BillingPage({ currentUser }) {
                                         <div className="form-group">
                                             <label>FCA Charge (₹)</label>
                                             <input autoComplete="off"
-                                                type="number"
+                                                type="number" min="0"
                                                 step="any"
                                                 className="form-control"
                                                 value={wStmt.fcaAmt}
@@ -1929,7 +1952,7 @@ export default function BillingPage({ currentUser }) {
                                         <div className="form-group">
                                             <label>P.F. Rebate (₹)</label>
                                             <input autoComplete="off"
-                                                type="number"
+                                                type="number" min="0"
                                                 step="any"
                                                 className="form-control"
                                                 value={wStmt.pfAmt}
@@ -1943,7 +1966,7 @@ export default function BillingPage({ currentUser }) {
                                         <div className="form-group">
                                             <label>EHV Rebate (₹)</label>
                                             <input autoComplete="off"
-                                                type="number"
+                                                type="number" min="0"
                                                 step="any"
                                                 className="form-control"
                                                 value={wStmt.ehvAmt}
@@ -1954,7 +1977,7 @@ export default function BillingPage({ currentUser }) {
                                         <div className="form-group">
                                             <label>Time of Use (₹)</label>
                                             <input autoComplete="off"
-                                                type="number"
+                                                type="number" min="0"
                                                 step="any"
                                                 className="form-control"
                                                 value={wStmt.touAmt}
@@ -1968,7 +1991,7 @@ export default function BillingPage({ currentUser }) {
                                         <div className="form-group">
                                             <label>Total Peak Units (Statement)</label>
                                             <input autoComplete="off"
-                                                type="number"
+                                                type="number" min="0"
                                                 step="any"
                                                 className="form-control"
                                                 value={wStmt.totalPeak}
@@ -1979,7 +2002,7 @@ export default function BillingPage({ currentUser }) {
                                         <div className="form-group">
                                             <label>Variable FPPAS (₹)</label>
                                             <input autoComplete="off"
-                                                type="number"
+                                                type="number" min="0"
                                                 step="any"
                                                 className="form-control"
                                                 value={wStmt.varAmt}
@@ -1993,7 +2016,7 @@ export default function BillingPage({ currentUser }) {
                                         <div className="form-group">
                                             <label>Board Charge (Subtotal ₹)</label>
                                             <input autoComplete="off"
-                                                type="number"
+                                                type="number" min="0"
                                                 step="any"
                                                 className="form-control"
                                                 value={wStmt.boardAmt}
@@ -2004,7 +2027,7 @@ export default function BillingPage({ currentUser }) {
                                         <div className="form-group">
                                             <label>Electricity Duty (₹)</label>
                                             <input autoComplete="off"
-                                                type="number"
+                                                type="number" min="0"
                                                 step="any"
                                                 className="form-control"
                                                 value={wStmt.dutyAmt}
@@ -2032,7 +2055,7 @@ export default function BillingPage({ currentUser }) {
                                         <div className="form-group">
                                             <label>Wheeling Loss %</label>
                                             <input autoComplete="off"
-                                                type="number"
+                                                type="number" min="0"
                                                 step="any"
                                                 className="form-control"
                                                 value={wExtra.lossPct}
@@ -2042,7 +2065,7 @@ export default function BillingPage({ currentUser }) {
                                         <div className="form-group">
                                             <label>Cross Subsidy %</label>
                                             <input autoComplete="off"
-                                                type="number"
+                                                type="number" min="0"
                                                 step="any"
                                                 className="form-control"
                                                 value={wExtra.crossPct}
@@ -2054,7 +2077,7 @@ export default function BillingPage({ currentUser }) {
                                         <div className="form-group">
                                             <label>Wheeling Rate (₹/KWH)</label>
                                             <input autoComplete="off"
-                                                type="number"
+                                                type="number" min="0"
                                                 step="any"
                                                 className="form-control"
                                                 value={wExtra.wheelRate}
@@ -2064,7 +2087,7 @@ export default function BillingPage({ currentUser }) {
                                         <div className="form-group">
                                             <label>Banking Rate (₹/Unit)</label>
                                             <input autoComplete="off"
-                                                type="number"
+                                                type="number" min="0"
                                                 step="any"
                                                 className="form-control"
                                                 value={wExtra.bankRate}
@@ -2140,7 +2163,7 @@ export default function BillingPage({ currentUser }) {
                                                             માફ કરવાની રકમ (₹):
                                                         </label>
                                                         <input autoComplete="off"
-                                                            type="number"
+                                                            type="number" min="0"
                                                             step="any"
                                                             max={pendingInfo?.interest_amt}
                                                             className="form-control"
@@ -2228,7 +2251,7 @@ export default function BillingPage({ currentUser }) {
                                                             માફ કરવાની રકમ (₹):
                                                         </label>
                                                         <input autoComplete="off"
-                                                            type="number"
+                                                            type="number" min="0"
                                                             step="any"
                                                             max={pendingInfo2?.interest_amt}
                                                             className="form-control"
@@ -2284,9 +2307,19 @@ export default function BillingPage({ currentUser }) {
                             {computedBills.map((b, idx) => (
                                 <div key={idx} className="preview-bill-wrapper">
                                     {computedBills.length > 1 && (
-                                        <h4 className="bill-subheading">
-                                            {idx + 1}. {b.company.name} (Invoice: {b.invNo})
-                                        </h4>
+                                        <div className="bill-subheading-row no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '8px' }}>
+                                            <h4 className="bill-subheading" style={{ margin: 0 }}>
+                                                {idx + 1}. {b.company.name} (Invoice: {b.invNo})
+                                            </h4>
+                                            <button
+                                                type="button"
+                                                className="btn-action-print"
+                                                style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 800, background: '#059669', color: '#ffffff', border: 'none', borderRadius: '8px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                                onClick={() => handlePrintInvoice([b])}
+                                            >
+                                                🖨️ {lang === 'en' ? 'Print this bill / PDF' : 'આ બિલ પ્રિન્ટ / PDF'}
+                                            </button>
+                                        </div>
                                     )}
 
                                     {/* 2 Checks: Bill-Rate & Ratio */}
@@ -3464,7 +3497,7 @@ export default function BillingPage({ currentUser }) {
                                         <th style={{ padding: '12px 14px' }}>કંપની સ્કોપ</th>
                                         <th style={{ padding: '12px 14px' }}>સમયગાળો (Effective)</th>
                                         <th style={{ padding: '12px 14px' }}>સ્ટેટસ</th>
-                                        <th style={{ padding: '12px 14px', textAlign: 'right' }}>ક્રિયા</th>
+                                        <th style={{ padding: '12px 14px', textAlign: 'right', position: 'sticky', right: 0, background: '#f8fafc', zIndex: 1 }}>ક્રિયા</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -3551,7 +3584,7 @@ export default function BillingPage({ currentUser }) {
                                                             {c.is_active ? 'ON' : 'OFF'}
                                                         </button>
                                                     </td>
-                                                    <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                                                    <td style={{ padding: '12px 14px', textAlign: 'right', position: 'sticky', right: 0, background: 'white', zIndex: 1 }}>
                                                         <button
                                                             type="button"
                                                             className="btn-edit-link"
@@ -3632,7 +3665,7 @@ export default function BillingPage({ currentUser }) {
                             <div className="form-group">
                                 <label>Default PPA Discount (₹/unit)</label>
                                 <input autoComplete="off"
-                                    type="number"
+                                    type="number" min="0"
                                     step="0.01"
                                     className="form-control"
                                     value={settings.default_discount || '1.25'}
@@ -3642,7 +3675,7 @@ export default function BillingPage({ currentUser }) {
                             <div className="form-group">
                                 <label>Annual Interest % (બાકી રકમ પર p.a.)</label>
                                 <input autoComplete="off"
-                                    type="number"
+                                    type="number" min="0"
                                     step="0.1"
                                     className="form-control"
                                     value={settings.interest_pct || '18.0'}
@@ -3655,7 +3688,7 @@ export default function BillingPage({ currentUser }) {
                             <div className="form-group">
                                 <label>Wheeling Loss %</label>
                                 <input autoComplete="off"
-                                    type="number"
+                                    type="number" min="0"
                                     step="0.01"
                                     className="form-control"
                                     value={settings.loss_pct || '6.5'}
@@ -3665,7 +3698,7 @@ export default function BillingPage({ currentUser }) {
                             <div className="form-group">
                                 <label>Payment Due Days (ઇનવોઇસ તારીખથી)</label>
                                 <input autoComplete="off"
-                                    type="number"
+                                    type="number" min="0"
                                     step="1"
                                     className="form-control"
                                     value={settings.due_days || '15'}
@@ -3678,7 +3711,7 @@ export default function BillingPage({ currentUser }) {
                             <div className="form-group">
                                 <label>Cross Subsidy %</label>
                                 <input autoComplete="off"
-                                    type="number"
+                                    type="number" min="0"
                                     step="0.01"
                                     className="form-control"
                                     value={settings.cross_pct || '15.0'}
@@ -3688,7 +3721,7 @@ export default function BillingPage({ currentUser }) {
                             <div className="form-group">
                                 <label>Wheeling Rate (₹/KWH)</label>
                                 <input autoComplete="off"
-                                    type="number"
+                                    type="number" min="0"
                                     step="0.0001"
                                     className="form-control"
                                     value={settings.wheel_rate || '0.2352'}
@@ -3701,7 +3734,7 @@ export default function BillingPage({ currentUser }) {
                             <div className="form-group">
                                 <label>{lang === 'en' ? 'Min Bill Rate Sanity (₹/unit)' : 'ન્યૂનતમ બિલ રેટ (₹/unit - ચેતવણી)'}</label>
                                 <input autoComplete="off"
-                                    type="number"
+                                    type="number" min="0"
                                     step="0.01"
                                     className="form-control"
                                     placeholder="6.00"
@@ -3712,7 +3745,7 @@ export default function BillingPage({ currentUser }) {
                             <div className="form-group">
                                 <label>{lang === 'en' ? 'Max Bill Rate Sanity (₹/unit)' : 'મહત્તમ બિલ રેટ (₹/unit - ચેતવણી)'}</label>
                                 <input autoComplete="off"
-                                    type="number"
+                                    type="number" min="0"
                                     step="0.01"
                                     className="form-control"
                                     placeholder="7.20"
@@ -4040,7 +4073,7 @@ export default function BillingPage({ currentUser }) {
                             <div className="form-group">
                                 <label>{lang === 'en' ? 'PPA Discount (₹/unit)' : 'PPA ડિસ્કાઉન્ટ (₹/unit)'}</label>
                                 <input autoComplete="off"
-                                    type="number"
+                                    type="number" min="0"
                                     step="0.01"
                                     className="form-control"
                                     value={editingCompany.discount ?? '1.25'}
@@ -4052,7 +4085,7 @@ export default function BillingPage({ currentUser }) {
                             <div className="form-group">
                                 <label>{lang === 'en' ? 'Payment Due Days' : 'ચૂકવણી મુદત (દિવસો)'}</label>
                                 <input autoComplete="off"
-                                    type="number"
+                                    type="number" min="0"
                                     step="1"
                                     className="form-control"
                                     value={editingCompany.due_days ?? '15'}
@@ -4067,7 +4100,7 @@ export default function BillingPage({ currentUser }) {
                             <div className="form-group">
                                 <label>{lang === 'en' ? 'Annual Overdue Interest (% p.a.)' : 'બાકી રકમ પર વ્યાજ (% p.a.)'}</label>
                                 <input autoComplete="off"
-                                    type="number"
+                                    type="number" min="0"
                                     step="0.1"
                                     className="form-control"
                                     value={editingCompany.interest_pct ?? '18.0'}
@@ -4079,7 +4112,7 @@ export default function BillingPage({ currentUser }) {
                             <div className="form-group">
                                 <label>{lang === 'en' ? 'Wheeling Loss %' : 'વ્હીલિંગ લોસ %'}</label>
                                 <input autoComplete="off"
-                                    type="number"
+                                    type="number" min="0"
                                     step="0.01"
                                     className="form-control"
                                     value={editingCompany.loss_pct ?? '6.5'}
@@ -4093,7 +4126,7 @@ export default function BillingPage({ currentUser }) {
                             <div className="form-group">
                                 <label>{lang === 'en' ? 'Wheeling Charge (₹/KWH)' : 'વ્હીલિંગ ચાર્જ (₹/KWH)'}</label>
                                 <input autoComplete="off"
-                                    type="number"
+                                    type="number" min="0"
                                     step="0.0001"
                                     className="form-control"
                                     value={editingCompany.wheel_rate ?? '0.2352'}
@@ -4104,7 +4137,7 @@ export default function BillingPage({ currentUser }) {
                             <div className="form-group">
                                 <label>{lang === 'en' ? 'Banking Rate (₹/unit)' : 'બેંકિંગ ચાર્જ દર (₹/unit)'}</label>
                                 <input autoComplete="off"
-                                    type="number"
+                                    type="number" min="0"
                                     step="0.01"
                                     className="form-control"
                                     value={editingCompany.bank_rate ?? '1.50'}
@@ -4117,7 +4150,7 @@ export default function BillingPage({ currentUser }) {
                         <div className="form-group">
                             <label>{lang === 'en' ? 'Cross Subsidy %' : 'ક્રોસ સબસિડી %'}</label>
                             <input autoComplete="off"
-                                type="number"
+                                type="number" min="0"
                                 step="0.01"
                                 className="form-control"
                                 value={editingCompany.cross_pct ?? '15.0'}
@@ -4393,6 +4426,16 @@ export default function BillingPage({ currentUser }) {
                                             ? `billing/companies/${editingCompany.id}`
                                             : 'billing/companies';
 
+                                        // BUG-002 FIX: Validate required fields before save
+                                        const missingFields = [];
+                                        if (!editingCompany.name?.trim()) missingFields.push(lang === 'en' ? 'Company Name' : 'કંપનીનું નામ');
+                                        if (!editingCompany.gstin?.trim()) missingFields.push('GSTIN');
+                                        if (!editingCompany.inv_prefix?.trim()) missingFields.push(lang === 'en' ? 'Invoice Prefix' : 'ઇન્વોઇસ પ્રિફિક્સ');
+                                        if (missingFields.length > 0) {
+                                            alert((lang === 'en' ? 'Please fill required fields: ' : 'કૃપા કરીને જરૂરી ફીલ્ડ ભરો: ') + missingFields.join(', '));
+                                            return;
+                                        }
+
                                         await api(endpoint, {
                                             method: 'POST',
                                             body: formData
@@ -4514,7 +4557,7 @@ export default function BillingPage({ currentUser }) {
                         <div className="form-group">
                             <label>માફ કરવાની રકમ (Waive Amount ₹):</label>
                             <input autoComplete="off"
-                                type="number"
+                                type="number" min="0"
                                 step="any"
                                 className="form-control"
                                 value={waiveModal.waiveAmount}
@@ -4657,7 +4700,7 @@ export default function BillingPage({ currentUser }) {
                             <div className="form-group">
                                 <label>વેલ્યુ / રેટ (Value / %):</label>
                                 <input autoComplete="off"
-                                    type="number"
+                                    type="number" min="0"
                                     step="any"
                                     className="form-control"
                                     placeholder="દા.ત. 1.50 અથવા 15"
