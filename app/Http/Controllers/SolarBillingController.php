@@ -944,14 +944,20 @@ class SolarBillingController extends Controller
         $lineLossPct = 6.50;
         $creditFactor = 1.0 - ($lineLossPct / 100.0); // 0.935
 
-        // Dynamic base unit price (~ ₹4.965/unit net)
-        $defaultRate = 4.965;
-
         $companiesQuery = Company::where('active', 1)->orderBy('id');
         if ($filterCompanyId && $filterCompanyId !== 'all') {
             $companiesQuery->where('id', $filterCompanyId);
         }
         $companies = $companiesQuery->get(['id', 'name', 'plant_export_multiplier', 'sub_export_multiplier']);
+
+        // All active companies (needed for 66kV substation tally regardless of filter)
+        $allCompanies = Company::where('active', 1)->orderBy('id')->get(['id', 'name']);
+
+        // Precompute dynamic unit rates for each company for the selectedMonth
+        $companyRates = [];
+        foreach ($allCompanies as $ac) {
+            $companyRates[$ac->id] = $this->deriveDynamicCompanyRates($ac, $selectedMonth, $creditFactor);
+        }
 
         // Fetch readings for the specific selectedDate
         $dayReadings = DailyReading::with(['outputs.inverter:id,name,serial_number', 'company:id,name'])
@@ -967,8 +973,7 @@ class SolarBillingController extends Controller
         $day66kCreditTotal = 0;
         $dayEstimatedAmountTotal = 0;
 
-        // Also calculate ALL 3 companies combined for 66kV Substation tally (regardless of filter)
-        $allCompanies = Company::where('active', 1)->orderBy('id')->get(['id', 'name']);
+        // Calculate ALL 3 companies combined for 66kV Substation tally (regardless of filter)
         $allCompaniesDayCreditTotal = 0;
         foreach ($allCompanies as $ac) {
             $ar = $dayReadings->firstWhere('company_id', $ac->id);
@@ -991,8 +996,12 @@ class SolarBillingController extends Controller
             $loss66k = round($plantExport * ($lineLossPct / 100.0), 2);
             $credit66k = round($plantExport * $creditFactor, 2);
 
-            $compRate = $defaultRate;
-            $estAmount = round($credit66k * $compRate, 2);
+            $rateInfo = $companyRates[$comp->id] ?? $this->deriveDynamicCompanyRates($comp, $selectedMonth, $creditFactor);
+            $compCreditedRate = $rateInfo['credited_rate'];
+            $compPlantRate = $rateInfo['plant_rate'];
+
+            // Estimated bill: Credited units * Credited rate (or Plant export * Plant rate)
+            $estAmount = round($credit66k * $compCreditedRate, 2);
 
             $dayInvTotal += $invGen;
             $dayPlantTotal += $plantExport;
@@ -1010,7 +1019,10 @@ class SolarBillingController extends Controller
                 'internal_loss_pct' => $intLossPct,
                 'line_loss_66k_units' => $loss66k,
                 'credited_66k_units' => $credit66k,
-                'effective_rate' => $compRate,
+                'effective_rate' => $compCreditedRate,
+                'effective_rate_credited' => $compCreditedRate,
+                'effective_rate_plant' => $compPlantRate,
+                'rate_basis' => $rateInfo['basis'],
                 'estimated_amount' => $estAmount,
                 'outputs' => $r ? $r->outputs->map(fn($o) => [
                     'inverter_id' => $o->inverter_id,
@@ -1070,7 +1082,9 @@ class SolarBillingController extends Controller
                 $cIntLoss = max(0.0, round($cInv - $cPlant, 2));
                 $c66kLoss = round($cPlant * ($lineLossPct / 100.0), 2);
                 $c66kCred = round($cPlant * $creditFactor, 2);
-                $cEst = round($c66kCred * $defaultRate, 2);
+
+                $rInfo = $companyRates[$comp->id] ?? $this->deriveDynamicCompanyRates($comp, $selectedMonth, $creditFactor);
+                $cEst = round($c66kCred * $rInfo['credited_rate'], 2);
 
                 $dInv += $cInv;
                 $dPlant += $cPlant;
@@ -1081,6 +1095,8 @@ class SolarBillingController extends Controller
                     'internal_loss' => $cIntLoss,
                     'line_loss_66k' => $c66kLoss,
                     'credit_66k' => $c66kCred,
+                    'effective_rate_credited' => $rInfo['credited_rate'],
+                    'effective_rate_plant' => $rInfo['plant_rate'],
                     'amount' => $cEst
                 ];
             }
@@ -1089,7 +1105,7 @@ class SolarBillingController extends Controller
             $dIntLossPct = $dInv > 0 ? round(($dIntLoss / $dInv) * 100, 2) : 0.0;
             $d66kLoss = round($dPlant * ($lineLossPct / 100.0), 2);
             $d66kCred = round($dPlant * $creditFactor, 2);
-            $dAmount = round($d66kCred * $defaultRate, 2);
+            $dAmount = round(array_sum(array_column($dCompData, 'amount')), 2);
             $dKast = max(0.0, round($dSub - $dAll3Cred, 2));
 
             $monthInvTotal += $dInv;
@@ -1126,11 +1142,18 @@ class SolarBillingController extends Controller
                 ];
             });
 
+        $dayEffectiveRateCredited = $day66kCreditTotal > 0 ? round($dayEstimatedAmountTotal / $day66kCreditTotal, 4) : 5.31;
+        $dayEffectiveRatePlant = $dayPlantTotal > 0 ? round($dayEstimatedAmountTotal / $dayPlantTotal, 4) : 4.965;
+        $monthEffectiveRateCredited = $month66kCreditTotal > 0 ? round($monthEstimatedAmountTotal / $month66kCreditTotal, 4) : 5.31;
+        $monthEffectiveRatePlant = $monthPlantTotal > 0 ? round($monthEstimatedAmountTotal / $monthPlantTotal, 4) : 4.965;
+
         return response()->json([
             'selected_date' => $selectedDate,
             'selected_month' => $selectedMonth,
             'line_loss_pct' => $lineLossPct,
-            'effective_rate' => $defaultRate,
+            'effective_rate' => $monthEffectiveRateCredited,
+            'effective_rate_credited' => $monthEffectiveRateCredited,
+            'effective_rate_plant' => $monthEffectiveRatePlant,
             'day_summary' => [
                 'inverter_total' => round($dayInvTotal, 2),
                 'plant_total' => round($dayPlantTotal, 2),
@@ -1139,6 +1162,8 @@ class SolarBillingController extends Controller
                 'line_loss_66k' => round($day66kLossTotal, 2),
                 'credited_66k' => round($day66kCreditTotal, 2),
                 'all_companies_credited_66k' => round($allCompaniesDayCreditTotal, 2),
+                'effective_rate_credited' => $dayEffectiveRateCredited,
+                'effective_rate_plant' => $dayEffectiveRatePlant,
                 'estimated_amount' => round($dayEstimatedAmountTotal, 2),
                 'sub_recorded' => round($daySubTotalRecorded, 2),
                 'kastbhanjan_derived' => $kastbhanjanDayCredit,
@@ -1156,6 +1181,8 @@ class SolarBillingController extends Controller
                 'line_loss_66k' => round($month66kLossTotal, 2),
                 'credited_66k' => round($month66kCreditTotal, 2),
                 'all_companies_credited_66k' => round($monthAll3CreditTotal, 2),
+                'effective_rate_credited' => $monthEffectiveRateCredited,
+                'effective_rate_plant' => $monthEffectiveRatePlant,
                 'estimated_amount' => round($monthEstimatedAmountTotal, 2),
                 'sub_recorded' => round($monthSubRecordedTotal, 2),
                 'kastbhanjan_derived' => max(0.0, round($monthSubRecordedTotal - $monthAll3CreditTotal, 2)),
@@ -1164,6 +1191,86 @@ class SolarBillingController extends Controller
             'available_months' => $availableMonths,
             'companies' => $companies
         ]);
+    }
+
+    /**
+     * Derive dynamic unit rates (per credited unit & per plant unit) for a company in a given month.
+     */
+    protected function deriveDynamicCompanyRates(Company $comp, string $selectedMonth, float $creditFactor = 0.935): array
+    {
+        $monthCode = Carbon::parse($selectedMonth . '-01')->format('M-y'); // e.g. Aug-26, Sep-26
+        $firstWord = explode(' ', trim($comp->name))[0];
+
+        // Find corresponding SolarBillingCompany
+        $billingComp = SolarBillingCompany::where('name', 'LIKE', '%' . $firstWord . '%')->first();
+        $billingCompId = $billingComp ? $billingComp->id : $comp->id;
+
+        // 1. Check if saved bill exists in solar_bills
+        $savedBill = SolarBill::where('company_id', $billingCompId)
+            ->where('month', $monthCode)
+            ->where('status', '!=', 'void')
+            ->latest()
+            ->first();
+
+        if (!$savedBill) {
+            $savedBill = SolarBill::where('company_id', $billingCompId)
+                ->where('month', $monthCode)
+                ->latest()
+                ->first();
+        }
+
+        if ($savedBill && (float) $savedBill->units_credited > 0) {
+            $creditedRate = round((float) $savedBill->current_grand_total / (float) $savedBill->units_credited, 4);
+            $plantRate = (float) $savedBill->units_generated > 0 
+                ? round((float) $savedBill->current_grand_total / (float) $savedBill->units_generated, 4) 
+                : round($creditedRate * $creditFactor, 4);
+            return [
+                'credited_rate' => $creditedRate,
+                'plant_rate' => $plantRate,
+                'basis' => 'bill_record',
+                'bill_id' => $savedBill->id,
+                'month' => $monthCode,
+            ];
+        }
+
+        // 2. Exact benchmark statement rates from PGVCL Open Access statements
+        $benchmarks = [
+            'Aug-26' => [
+                'Rajeshwari' => ['credited' => 5.31407, 'plant' => 4.96866],
+                'Sunrise'    => ['credited' => 5.30761, 'plant' => 4.96220],
+                'Nilkanth'   => ['credited' => 5.31000, 'plant' => 4.96500],
+            ],
+            'Sep-26' => [
+                'Rajeshwari' => ['credited' => 5.31106, 'plant' => 4.96580],
+                'Sunrise'    => ['credited' => 5.30874, 'plant' => 4.96360],
+                'Nilkanth'   => ['credited' => 5.31000, 'plant' => 4.96500],
+            ],
+        ];
+
+        if (isset($benchmarks[$monthCode][$firstWord])) {
+            $b = $benchmarks[$monthCode][$firstWord];
+            return [
+                'credited_rate' => $b['credited'],
+                'plant_rate' => $b['plant'],
+                'basis' => 'statement_benchmark',
+                'bill_id' => null,
+                'month' => $monthCode,
+            ];
+        }
+
+        // 3. Dynamic tariff fallback: standard PGVCL open access net credited rate
+        $discount = $billingComp && is_numeric($billingComp->discount) ? (float) $billingComp->discount : 1.25;
+        $grossRate = 6.560; // Standard HT Solar Open Access base rate
+        $creditedRate = round($grossRate - $discount, 4);
+        $plantRate = round($creditedRate * $creditFactor, 4);
+
+        return [
+            'credited_rate' => $creditedRate,
+            'plant_rate' => $plantRate,
+            'basis' => 'tariff_derived',
+            'bill_id' => null,
+            'month' => $monthCode,
+        ];
     }
 }
 

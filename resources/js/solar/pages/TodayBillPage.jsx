@@ -354,10 +354,19 @@ export default function TodayBillPage({ currentUser, companies = [], onNavigateB
                             fontWeight: 600,
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '6px'
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: '8px'
                         }}>
-                            <ShieldCheck size={16} style={{ color: '#059669', flexShrink: 0 }} />
-                            <span>PGVCL ટેરિફ લોસ: <strong>૬.૫૦%</strong> (ક્રેડિટ ફેક્ટર: 0.935)</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <ShieldCheck size={16} style={{ color: '#059669', flexShrink: 0 }} />
+                                <span>PGVCL લોસ: <strong>૬.૫૦%</strong> (ક્રેડિટ: 0.935)</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span style={{ padding: '2px 7px', background: '#d1fae5', borderRadius: '5px', fontSize: '11px', color: '#047857', fontWeight: 700 }}>
+                                    યુનિટ દર: ₹{formatNum(viewMode === 'daily' ? (daySummary.effective_rate_credited || reportData?.effective_rate_credited) : (monthSummary.effective_rate_credited || reportData?.effective_rate_credited), 3)}/જમા (~₹{formatNum(viewMode === 'daily' ? (daySummary.effective_rate_plant || reportData?.effective_rate_plant) : (monthSummary.effective_rate_plant || reportData?.effective_rate_plant), 3)}/પ્લાન્ટ)
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -465,13 +474,16 @@ export default function TodayBillPage({ currentUser, companies = [], onNavigateB
                 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', fontWeight: 600, marginBottom: '6px', opacity: 0.9 }}>
                         <span>{viewMode === 'daily' ? 'આજનું અંદાજિત બિલ' : 'માસિક અંદાજિત બિલ'}</span>
-                        <span style={{ padding: '2px 6px', background: 'rgba(255,255,255,0.2)', borderRadius: '6px', fontSize: '10px' }}>~₹4.965/Unit</span>
+                        <span style={{ padding: '3px 8px', background: 'rgba(255,255,255,0.22)', borderRadius: '6px', fontSize: '10.5px', fontWeight: 700 }}>
+                            ₹{formatNum(viewMode === 'daily' ? (daySummary.effective_rate_credited || reportData?.effective_rate_credited || 5.31) : (monthSummary.effective_rate_credited || reportData?.effective_rate_credited || 5.31), 3)}/જમા
+                        </span>
                     </div>
                     <div style={{ fontSize: '24px', fontWeight: 900, letterSpacing: '-0.5px' }}>
                         {formatINR(viewMode === 'daily' ? daySummary.estimated_amount : monthSummary.estimated_amount)}
                     </div>
-                    <div style={{ fontSize: '11.5px', opacity: 0.85, marginTop: '4px' }}>
-                        {viewMode === 'daily' ? 'આજના ઉત્પાદનનું બિલ મૂલ્ય' : 'આ મહિનાનું પાકું સંચિત બિલ'}
+                    <div style={{ fontSize: '11px', opacity: 0.85, marginTop: '4px', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>{viewMode === 'daily' ? 'આજના ઉત્પાદનનું બિલ મૂલ્ય' : 'આ મહિનાનું પાકું સંચિત બિલ'}</span>
+                        <span>~₹{formatNum(viewMode === 'daily' ? (daySummary.effective_rate_plant || reportData?.effective_rate_plant || 4.965) : (monthSummary.effective_rate_plant || reportData?.effective_rate_plant || 4.965), 3)}/પ્લાન્ટ</span>
                     </div>
                 </div>
             </div>
@@ -510,9 +522,9 @@ export default function TodayBillPage({ currentUser, companies = [], onNavigateB
                                         <div style={{ fontSize: '17px', fontWeight: 800, color: '#059669' }}>
                                             {formatINR(comp.estimated_amount)}
                                         </div>
-                                        <span style={{ fontSize: '11px', color: '#64748b' }}>
-                                            આજની કમાણી
-                                        </span>
+                                        <div style={{ fontSize: '11px', color: '#047857', fontWeight: 600 }}>
+                                            ₹{formatNum(comp.effective_rate_credited, 3)}/જમા (~₹{formatNum(comp.effective_rate_plant, 3)}/પ્લાન્ટ)
+                                        </div>
                                     </div>
                                 </div>
 
