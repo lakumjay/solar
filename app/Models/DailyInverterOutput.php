@@ -14,4 +14,9 @@ class DailyInverterOutput extends Model
     {
         return $this->belongsTo(DailyReading::class);
     }
+
+    public function inverter()
+    {
+        return $this->belongsTo(Inverter::class);
+    }
 }

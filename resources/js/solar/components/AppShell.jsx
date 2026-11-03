@@ -316,6 +316,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         ['reels', t('reels'), Film],
         (isAdminOrOwner || can('view_expenses')) && ['expenses', t('expenses'), IndianRupee],
         (isAdminOrOwner || can('view_expenses')) && ['rnsk-expenses', t('rnskExpenses', 'RNSK ખર્ચા'), Split],
+        (isAdminOrOwner || can('view_expenses') || can('view_reports')) && ['today-bill', t('todayBill', 'દૈનિક બિલ & લોસ'), Zap],
         (isAdminOrOwner || can('view_expenses')) && ['billing', t('solarBilling', 'સોલાર બિલિંગ'), Receipt],
         user.role === 'super_admin' && ['companies', t('companies'), Building2],
         /* Hidden as requested: user.role === 'super_admin' && ['isolarcloud', 'iSolarCloud', CloudSun], */
@@ -340,6 +341,7 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         reels: ['Plant Solar Reels', 'Cinematic video hub with auto slow-mo, trending beats & Instagram share'],
         expenses: ['Shared expenses', 'Company-wise balances and settlements'],
         'rnsk-expenses': ['RNSK Expenses & Allocations', 'Dynamic partner company % splits, ledger and settlements'],
+        'today-bill': ['દૈનિક બિલ અને ૬૬KV લોસ મોનિટરિંગ', 'ઇન્વર્ટર $\rightarrow$ મીટર આંતરિક લોસ, ૬૬ kV લાઇન લોસ (૬.૫%) અને રોજનું અંદાજિત બિલ'],
         billing: ['Solar Power Billing & Open Access Ledger', 'PGVCL Open Access bill generator, ledger & interest tracker'],
         companies: ['Company configuration', 'Multipliers and inverters'],
         isolarcloud: ['iSolarCloud Live Integration', 'Sungrow OAuth 2.0 Connection & Real-Time Sync'],

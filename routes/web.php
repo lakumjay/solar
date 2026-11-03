@@ -206,6 +206,7 @@ Route::prefix('api')->group(function () {
         Route::post('billing/charges/{id}', [\App\Http\Controllers\SolarBillingController::class, 'saveCharge']);
         Route::post('billing/charges/{id}/toggle', [\App\Http\Controllers\SolarBillingController::class, 'toggleCharge']);
         Route::delete('billing/charges/{id}', [\App\Http\Controllers\SolarBillingController::class, 'destroyCharge']);
+        Route::get('billing/today-loss-report', [\App\Http\Controllers\SolarBillingController::class, 'todayLossReport']);
         Route::get('billing/companies/{id}/signature', [\App\Http\Controllers\SolarBillingController::class, 'companySignature']);
         Route::get('billing/settings/signature', [\App\Http\Controllers\SolarBillingController::class, 'globalSignature']);
     });

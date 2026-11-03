@@ -6,6 +6,8 @@ use App\Models\SolarBill;
 use App\Models\SolarBillingCompany;
 use App\Models\SolarBillingSetting;
 use App\Models\SolarBillingCharge;
+use App\Models\Company;
+use App\Models\DailyReading;
 use App\Services\SolarBillingEngineService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -915,6 +917,231 @@ class SolarBillingController extends Controller
             'Content-Type' => 'image/png',
             'Content-Length' => strlen($pixel),
             'Cache-Control' => 'public, max-age=3600',
+        ]);
+    }
+
+    /**
+     * Today & Month-wise Generation, Inverter-to-Meter Loss, 66 kV Line Loss, and Bill Report
+     */
+    public function todayLossReport(Request $request): JsonResponse
+    {
+        $selectedDate = $request->input('date') ? Carbon::parse($request->input('date'))->format('Y-m-d') : null;
+        $selectedMonth = $request->input('month');
+        $filterCompanyId = $request->input('company_id');
+
+        // If date is not provided, pick latest reading date from database
+        if (!$selectedDate) {
+            $latestReading = DailyReading::orderByDesc('reading_date')->first();
+            $selectedDate = $latestReading ? Carbon::parse($latestReading->reading_date)->format('Y-m-d') : Carbon::today()->format('Y-m-d');
+        }
+
+        // If month is not provided, derive from selectedDate (e.g., "2026-11")
+        if (!$selectedMonth || $selectedMonth === 'all') {
+            $selectedMonth = Carbon::parse($selectedDate)->format('Y-m');
+        }
+
+        // Standard GERC/PGVCL 66kV transmission & wheeling loss factor (6.5%)
+        $lineLossPct = 6.50;
+        $creditFactor = 1.0 - ($lineLossPct / 100.0); // 0.935
+
+        // Dynamic base unit price (~ ₹4.965/unit net)
+        $defaultRate = 4.965;
+
+        $companiesQuery = Company::where('active', 1)->orderBy('id');
+        if ($filterCompanyId && $filterCompanyId !== 'all') {
+            $companiesQuery->where('id', $filterCompanyId);
+        }
+        $companies = $companiesQuery->get(['id', 'name', 'plant_export_multiplier', 'sub_export_multiplier']);
+
+        // Fetch readings for the specific selectedDate
+        $dayReadings = DailyReading::with(['outputs.inverter:id,name,serial_number', 'company:id,name'])
+            ->whereDate('reading_date', $selectedDate)
+            ->get();
+
+        $companyDayStats = [];
+        $daySubTotalRecorded = 0;
+        $dayInvTotal = 0;
+        $dayPlantTotal = 0;
+        $dayIntLossTotal = 0;
+        $day66kLossTotal = 0;
+        $day66kCreditTotal = 0;
+        $dayEstimatedAmountTotal = 0;
+
+        foreach ($companies as $comp) {
+            $r = $dayReadings->firstWhere('company_id', $comp->id);
+            $invGen = $r ? (float) $r->outputs->sum('generation') : 0.0;
+            $plantExport = $r ? (float) ($r->plant_export_unit ?? 0.0) : 0.0;
+            $subRecorded = $r ? (float) ($r->sub_import_unit ?? $r->sub_export_unit ?? 0.0) : 0.0;
+            if ($subRecorded > $daySubTotalRecorded) {
+                $daySubTotalRecorded = $subRecorded;
+            }
+
+            $intLoss = max(0.0, round($invGen - $plantExport, 2));
+            $intLossPct = $invGen > 0 ? round(($intLoss / $invGen) * 100, 2) : 0.0;
+
+            $loss66k = round($plantExport * ($lineLossPct / 100.0), 2);
+            $credit66k = round($plantExport * $creditFactor, 2);
+
+            $compRate = $defaultRate;
+            $estAmount = round($credit66k * $compRate, 2);
+
+            $dayInvTotal += $invGen;
+            $dayPlantTotal += $plantExport;
+            $dayIntLossTotal += $intLoss;
+            $day66kLossTotal += $loss66k;
+            $day66kCreditTotal += $credit66k;
+            $dayEstimatedAmountTotal += $estAmount;
+
+            $companyDayStats[] = [
+                'company_id' => $comp->id,
+                'company_name' => $comp->name,
+                'inverter_kwh' => $invGen,
+                'plant_export_units' => $plantExport,
+                'internal_loss_units' => $intLoss,
+                'internal_loss_pct' => $intLossPct,
+                'line_loss_66k_units' => $loss66k,
+                'credited_66k_units' => $credit66k,
+                'effective_rate' => $compRate,
+                'estimated_amount' => $estAmount,
+                'outputs' => $r ? $r->outputs->map(fn($o) => [
+                    'inverter_id' => $o->inverter_id,
+                    'inverter_name' => $o->inverter?->name,
+                    'generation' => (float) $o->generation
+                ]) : []
+            ];
+        }
+
+        // Kastbhanjan derived from 66kV substation meter
+        $kastbhanjanDayCredit = max(0.0, round($daySubTotalRecorded - $day66kCreditTotal, 2));
+        $tallyDifference = round($daySubTotalRecorded - ($day66kCreditTotal + $kastbhanjanDayCredit), 2);
+
+        // Fetch monthly data for the selectedMonth
+        $monthStart = Carbon::parse($selectedMonth . '-01')->startOfMonth();
+        $monthEnd = Carbon::parse($selectedMonth . '-01')->endOfMonth();
+
+        $monthReadings = DailyReading::with(['outputs', 'company:id,name'])
+            ->whereBetween('reading_date', [$monthStart->format('Y-m-d'), $monthEnd->format('Y-m-d')])
+            ->orderBy('reading_date', 'asc')
+            ->get();
+
+        $dailyHistory = [];
+        $groupedByDate = $monthReadings->groupBy(fn($r) => Carbon::parse($r->reading_date)->format('Y-m-d'));
+
+        $monthInvTotal = 0;
+        $monthPlantTotal = 0;
+        $monthIntLossTotal = 0;
+        $month66kLossTotal = 0;
+        $month66kCreditTotal = 0;
+        $monthEstimatedAmountTotal = 0;
+        $monthSubRecordedTotal = 0;
+
+        foreach ($groupedByDate as $dStr => $rList) {
+            $dInv = 0;
+            $dPlant = 0;
+            $dSub = 0;
+            $dCompData = [];
+
+            foreach ($companies as $comp) {
+                $r = $rList->firstWhere('company_id', $comp->id);
+                $cInv = $r ? (float) $r->outputs->sum('generation') : 0.0;
+                $cPlant = $r ? (float) ($r->plant_export_unit ?? 0.0) : 0.0;
+                $cSub = $r ? (float) ($r->sub_import_unit ?? $r->sub_export_unit ?? 0.0) : 0.0;
+                if ($cSub > $dSub) $dSub = $cSub;
+
+                $cIntLoss = max(0.0, round($cInv - $cPlant, 2));
+                $c66kLoss = round($cPlant * ($lineLossPct / 100.0), 2);
+                $c66kCred = round($cPlant * $creditFactor, 2);
+                $cEst = round($c66kCred * $defaultRate, 2);
+
+                $dInv += $cInv;
+                $dPlant += $cPlant;
+
+                $dCompData[$comp->id] = [
+                    'inverter' => $cInv,
+                    'plant' => $cPlant,
+                    'internal_loss' => $cIntLoss,
+                    'line_loss_66k' => $c66kLoss,
+                    'credit_66k' => $c66kCred,
+                    'amount' => $cEst
+                ];
+            }
+
+            $dIntLoss = max(0.0, round($dInv - $dPlant, 2));
+            $dIntLossPct = $dInv > 0 ? round(($dIntLoss / $dInv) * 100, 2) : 0.0;
+            $d66kLoss = round($dPlant * ($lineLossPct / 100.0), 2);
+            $d66kCred = round($dPlant * $creditFactor, 2);
+            $dAmount = round($d66kCred * $defaultRate, 2);
+            $dKast = max(0.0, round($dSub - $d66kCred, 2));
+
+            $monthInvTotal += $dInv;
+            $monthPlantTotal += $dPlant;
+            $monthIntLossTotal += $dIntLoss;
+            $month66kLossTotal += $d66kLoss;
+            $month66kCreditTotal += $d66kCred;
+            $monthEstimatedAmountTotal += $dAmount;
+            $monthSubRecordedTotal += $dSub;
+
+            $dailyHistory[] = [
+                'date' => $dStr,
+                'inverter_total' => round($dInv, 2),
+                'plant_total' => round($dPlant, 2),
+                'internal_loss' => round($dIntLoss, 2),
+                'internal_loss_pct' => $dIntLossPct,
+                'line_loss_66k' => round($d66kLoss, 2),
+                'credit_66k' => round($d66kCred, 2),
+                'amount' => round($dAmount, 2),
+                'sub_recorded' => round($dSub, 2),
+                'kastbhanjan_derived' => round($dKast, 2),
+                'companies' => $dCompData
+            ];
+        }
+
+        // Available months list for dropdown
+        $availableMonths = DailyReading::select(DB::raw("DISTINCT DATE_FORMAT(reading_date, '%Y-%m') as ym"))
+            ->orderBy('ym', 'desc')
+            ->pluck('ym')
+            ->map(function ($ym) {
+                return [
+                    'key' => $ym,
+                    'label' => Carbon::parse($ym . '-01')->format('M-Y') . ' (' . Carbon::parse($ym . '-01')->format('F Y') . ')'
+                ];
+            });
+
+        return response()->json([
+            'selected_date' => $selectedDate,
+            'selected_month' => $selectedMonth,
+            'line_loss_pct' => $lineLossPct,
+            'effective_rate' => $defaultRate,
+            'day_summary' => [
+                'inverter_total' => round($dayInvTotal, 2),
+                'plant_total' => round($dayPlantTotal, 2),
+                'internal_loss' => round($dayIntLossTotal, 2),
+                'internal_loss_pct' => $dayInvTotal > 0 ? round(($dayIntLossTotal / $dayInvTotal) * 100, 2) : 0.0,
+                'line_loss_66k' => round($day66kLossTotal, 2),
+                'credited_66k' => round($day66kCreditTotal, 2),
+                'estimated_amount' => round($dayEstimatedAmountTotal, 2),
+                'sub_recorded' => round($daySubTotalRecorded, 2),
+                'kastbhanjan_derived' => $kastbhanjanDayCredit,
+                'tally_difference' => $tallyDifference,
+            ],
+            'companies_day' => $companyDayStats,
+            'month_summary' => [
+                'month' => $selectedMonth,
+                'month_label' => Carbon::parse($selectedMonth . '-01')->format('F Y'),
+                'days_count' => count($dailyHistory),
+                'inverter_total' => round($monthInvTotal, 2),
+                'plant_total' => round($monthPlantTotal, 2),
+                'internal_loss' => round($monthIntLossTotal, 2),
+                'internal_loss_pct' => $monthInvTotal > 0 ? round(($monthIntLossTotal / $monthInvTotal) * 100, 2) : 0.0,
+                'line_loss_66k' => round($month66kLossTotal, 2),
+                'credited_66k' => round($month66kCreditTotal, 2),
+                'estimated_amount' => round($monthEstimatedAmountTotal, 2),
+                'sub_recorded' => round($monthSubRecordedTotal, 2),
+                'kastbhanjan_derived' => max(0.0, round($monthSubRecordedTotal - $month66kCreditTotal, 2)),
+            ],
+            'daily_history' => $dailyHistory,
+            'available_months' => $availableMonths,
+            'companies' => $companies
         ]);
     }
 }

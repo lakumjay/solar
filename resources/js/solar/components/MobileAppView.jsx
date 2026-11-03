@@ -2888,6 +2888,29 @@ export default function MobileAppView({
                                 </button>
                             )}
 
+                            {/* 3bb. Today Bill & 66kV Loss */}
+                            {(isSuperAdmin || user.role === 'company_admin' || can('view_expenses') || can('view_reports')) && (
+                                <button
+                                    type="button"
+                                    data-page="today-bill"
+                                    className="dmenu-card"
+                                    onClick={() => { setPage('today-bill'); setMoreMenuOpen(false); }}
+                                >
+                                    <div className="dmenu-card-top">
+                                        <div className="dmenu-bubble" style={{background: '#ecfdf5', color: '#059669'}}>
+                                            <Zap size={19}/>
+                                        </div>
+                                        <ChevronRight size={14} className="dmenu-chevron"/>
+                                    </div>
+                                    <div className="dmenu-card-title">
+                                        {currentLang === 'en' ? 'Today Bill & Loss' : 'દૈનિક બિલ & લોસ'}
+                                    </div>
+                                    <div className="dmenu-card-sub">
+                                        {currentLang === 'en' ? 'Inverter & 66kV Loss' : 'ઇન્વર્ટર, ૬૬KV & આજનું બિલ'}
+                                    </div>
+                                </button>
+                            )}
+
                             {/* 3c. Solar Billing & Open Access Ledger */}
                             {(isSuperAdmin || user.role === 'company_admin' || can('view_expenses')) && (
                                 <button
