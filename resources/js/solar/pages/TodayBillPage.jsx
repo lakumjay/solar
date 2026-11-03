@@ -850,30 +850,6 @@ export default function TodayBillPage({ currentUser, companies = [], onNavigateB
                             <Download size={15} />
                             <span>Excel / CSV ડાઉનલોડ</span>
                         </button>
-
-                        {onNavigateBilling && (
-                            <button
-                                type="button"
-                                onClick={() => onNavigateBilling(selectedMonth)}
-                                style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    padding: '8px 16px',
-                                    background: 'linear-gradient(135deg, #059669, #047857)',
-                                    color: '#ffffff',
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    fontSize: '12px',
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    boxShadow: '0 2px 6px rgba(5,150,105,0.2)'
-                                }}
-                            >
-                                <Receipt size={15} />
-                                <span>PGVCL પાકું બિલ બનાવો</span>
-                            </button>
-                        )}
                     </div>
                 </div>
 

@@ -317,7 +317,6 @@ export default function AppShell({user, page, setPage, companies, companyId, set
         (isAdminOrOwner || can('view_expenses')) && ['expenses', t('expenses'), IndianRupee],
         (isAdminOrOwner || can('view_expenses')) && ['rnsk-expenses', t('rnskExpenses', 'RNSK ખર્ચા'), Split],
         (isAdminOrOwner || can('view_expenses') || can('view_reports')) && ['today-bill', t('todayBill', 'દૈનિક બિલ & લોસ'), Zap],
-        (isAdminOrOwner || can('view_expenses')) && ['billing', t('solarBilling', 'સોલાર બિલિંગ'), Receipt],
         user.role === 'super_admin' && ['companies', t('companies'), Building2],
         /* Hidden as requested: user.role === 'super_admin' && ['isolarcloud', 'iSolarCloud', CloudSun], */
         (user.role === 'super_admin' || can('manage_company_users')) && ['users', t('users'), Users],

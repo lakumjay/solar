@@ -2911,28 +2911,6 @@ export default function MobileAppView({
                                 </button>
                             )}
 
-                            {/* 3c. Solar Billing & Open Access Ledger */}
-                            {(isSuperAdmin || user.role === 'company_admin' || can('view_expenses')) && (
-                                <button
-                                    type="button"
-                                    data-page="billing"
-                                    className="dmenu-card"
-                                    onClick={() => { setPage('billing'); setMoreMenuOpen(false); }}
-                                >
-                                    <div className="dmenu-card-top">
-                                        <div className="dmenu-bubble" style={{background: '#fef3c7', color: '#b45309'}}>
-                                            <Receipt size={19}/>
-                                        </div>
-                                        <ChevronRight size={14} className="dmenu-chevron"/>
-                                    </div>
-                                    <div className="dmenu-card-title">
-                                        {currentLang === 'en' ? 'Solar Billing' : 'સોલાર બિલિંગ'}
-                                    </div>
-                                    <div className="dmenu-card-sub">
-                                        {currentLang === 'en' ? 'PGVCL Open Access & Ledger' : 'PGVCL ઓપન એક્સેસ & લેજર'}
-                                    </div>
-                                </button>
-                            )}
 
                             {/* 4. Salaries & Payroll */}
                             {(isSuperAdmin || user.role === 'company_admin' || user.role === 'employee') && (
