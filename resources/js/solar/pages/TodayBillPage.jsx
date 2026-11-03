@@ -362,7 +362,6 @@ export default function TodayBillPage({ currentUser, companies = [], onNavigateB
                             }}
                         >
                             <option value="all">બધી કંપનીઓ (All 3 Plants Combined)</option>
-                            <option value="blueart">બ્લુઆર્ટ પ્લાન્ટ્સ (Rajeshwari + Sunrise)</option>
                             {companies.map((c) => (
                                 <option key={c.id} value={c.id}>{c.name}</option>
                             ))}
@@ -715,7 +714,7 @@ export default function TodayBillPage({ currentUser, companies = [], onNavigateB
                                     </span>
                                 </div>
                                 <p style={{ margin: '3px 0 0', fontSize: '12.5px', color: '#047857' }}>
-                                    ગ્રાહક: <strong>{officialBill.customer_name}</strong> | PGVCL ક્રેડિટ ઓફ ઓપન એક્સેસ સ્ટેટમેન્ટ
+                                    PGVCL ક્રેડિટ ઓફ ઓપન એક્સેસ સ્ટેટમેન્ટ હિસાબ
                                 </p>
                             </div>
                         </div>

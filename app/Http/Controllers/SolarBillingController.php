@@ -945,9 +945,7 @@ class SolarBillingController extends Controller
         $creditFactor = 1.0 - ($lineLossPct / 100.0); // 0.935
 
         $companiesQuery = Company::where('active', 1)->orderBy('id');
-        if ($filterCompanyId === 'blueart') {
-            $companiesQuery->whereIn('name', ['Sunrise Green Energy', 'Rajeshwari Solar']);
-        } elseif ($filterCompanyId && $filterCompanyId !== 'all') {
+        if ($filterCompanyId && $filterCompanyId !== 'all') {
             $companiesQuery->where('id', $filterCompanyId);
         }
         $companies = $companiesQuery->get(['id', 'name', 'plant_export_multiplier', 'sub_export_multiplier']);
