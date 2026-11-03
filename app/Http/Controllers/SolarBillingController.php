@@ -945,7 +945,9 @@ class SolarBillingController extends Controller
         $creditFactor = 1.0 - ($lineLossPct / 100.0); // 0.935
 
         $companiesQuery = Company::where('active', 1)->orderBy('id');
-        if ($filterCompanyId && $filterCompanyId !== 'all') {
+        if ($filterCompanyId === 'blueart') {
+            $companiesQuery->whereIn('name', ['Sunrise Green Energy', 'Rajeshwari Solar']);
+        } elseif ($filterCompanyId && $filterCompanyId !== 'all') {
             $companiesQuery->where('id', $filterCompanyId);
         }
         $companies = $companiesQuery->get(['id', 'name', 'plant_export_multiplier', 'sub_export_multiplier']);
@@ -1186,11 +1188,111 @@ class SolarBillingController extends Controller
                 'estimated_amount' => round($monthEstimatedAmountTotal, 2),
                 'sub_recorded' => round($monthSubRecordedTotal, 2),
                 'kastbhanjan_derived' => max(0.0, round($monthSubRecordedTotal - $monthAll3CreditTotal, 2)),
+                'official_bill' => $this->deriveOfficialMonthlyBill($selectedMonth, $filterCompanyId, $creditFactor),
             ],
             'daily_history' => $dailyHistory,
             'available_months' => $availableMonths,
             'companies' => $companies
         ]);
+    }
+
+    /**
+     * Retrieve official settled PGVCL bill figures for the month (matching Blueart PGVCL statement & friend's Excel).
+     */
+    protected function deriveOfficialMonthlyBill(string $selectedMonth, ?string $filterCompanyId, float $creditFactor = 0.935): ?array
+    {
+        $monthCode = Carbon::parse($selectedMonth . '-01')->format('M-y'); // e.g. Aug-26, Sep-26
+
+        // Verified Official PGVCL Statements (from Blueart Granito PGVCL statements & friend's verified sheet)
+        $officialStatements = [
+            'Aug-26' => [
+                'customer_name' => 'Blueart Granito Pvt. Ltd.',
+                'statement_date' => '2026-08-31',
+                'statement_units' => 166107,
+                'companies' => [
+                    1 => [ // Sunrise Green Energy
+                        'name' => 'Sunrise Green Energy',
+                        'credited_units' => 60392,
+                        'plant_scheduled' => 64590,
+                        'peak_units' => 17699,
+                        'banking_units' => 11497,
+                        'rate_credited' => 5.30761,
+                        'rate_plant' => 4.96220,
+                        'amount' => 320510.00,
+                    ],
+                    2 => [ // Rajeshwari Solar
+                        'name' => 'Rajeshwari Solar',
+                        'credited_units' => 105715,
+                        'plant_scheduled' => 113064,
+                        'peak_units' => 31708,
+                        'banking_units' => 20113,
+                        'rate_credited' => 5.31407,
+                        'rate_plant' => 4.96866,
+                        'amount' => 561777.00,
+                    ],
+                ]
+            ],
+            'Sep-26' => [
+                'customer_name' => 'Blueart Granito Pvt. Ltd.',
+                'statement_date' => '2026-09-30',
+                'statement_units' => 219895,
+                'companies' => [
+                    1 => [ // Sunrise Green Energy
+                        'name' => 'Sunrise Green Energy',
+                        'credited_units' => 79789,
+                        'plant_scheduled' => 85336,
+                        'peak_units' => 23271,
+                        'banking_units' => 21397,
+                        'rate_credited' => 5.30874,
+                        'rate_plant' => 4.96360,
+                        'amount' => 423577.00,
+                    ],
+                    2 => [ // Rajeshwari Solar
+                        'name' => 'Rajeshwari Solar',
+                        'credited_units' => 140106,
+                        'plant_scheduled' => 149846,
+                        'peak_units' => 41040,
+                        'banking_units' => 37420,
+                        'rate_credited' => 5.31106,
+                        'rate_plant' => 4.96580,
+                        'amount' => 744107.00,
+                    ],
+                ]
+            ],
+        ];
+
+        if (!isset($officialStatements[$monthCode])) {
+            return null;
+        }
+
+        $stmt = $officialStatements[$monthCode];
+        $targetCompanies = [];
+
+        if ($filterCompanyId === 'blueart' || $filterCompanyId === 'all' || empty($filterCompanyId)) {
+            $targetCompanies = $stmt['companies'];
+        } elseif (isset($stmt['companies'][(int)$filterCompanyId])) {
+            $targetCompanies = [(int)$filterCompanyId => $stmt['companies'][(int)$filterCompanyId]];
+        } else {
+            return null; // Company not part of this statement (e.g. Nilkanth)
+        }
+
+        $totalCredited = array_sum(array_column($targetCompanies, 'credited_units'));
+        $totalPlant = array_sum(array_column($targetCompanies, 'plant_scheduled'));
+        $totalAmount = array_sum(array_column($targetCompanies, 'amount'));
+        $rateCredited = $totalCredited > 0 ? round($totalAmount / $totalCredited, 4) : 5.31;
+        $ratePlant = $totalPlant > 0 ? round($totalAmount / $totalPlant, 4) : 4.965;
+
+        return [
+            'has_official' => true,
+            'customer_name' => $stmt['customer_name'],
+            'statement_month' => $monthCode,
+            'total_credited_units' => $totalCredited,
+            'total_plant_units' => $totalPlant,
+            'total_amount' => $totalAmount,
+            'rate_credited' => $rateCredited,
+            'rate_plant' => $ratePlant,
+            'companies' => $targetCompanies
+        ];
     }
 
     /**
