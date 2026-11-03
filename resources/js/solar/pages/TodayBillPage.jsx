@@ -131,18 +131,24 @@ export default function TodayBillPage({ currentUser, companies = [], onNavigateB
 
     const handleExportCSV = () => {
         if (!dailyHistory.length) return;
-        const headers = ['તારીખ', 'ઇન્વર્ટર જનરેશન (kWh)', 'પ્લાન્ટ મીટર (Units)', 'આંતરિક લોસ %', '૬૬KV લાઇન લોસ', '૬૬KV ક્રેડિટ યુનિટ', 'અંદાજિત રકમ (₹)', '૬૬KV સબસ્ટેશન મીટર', 'કષ્ટભંજન અંદાજિત યુનિટ'];
-        const rows = dailyHistory.map(row => [
-            row.date,
-            row.inverter_total,
-            row.plant_total,
-            `${row.internal_loss_pct}%`,
-            row.line_loss_66k,
-            row.credit_66k,
-            row.amount,
-            row.sub_recorded,
-            row.kastbhanjan_derived
-        ]);
+        const headers = ['તારીખ', 'ઇન્વર્ટર જનરેશન (kWh)', 'પ્લાન્ટ મીટર (Units)', 'આંતરિક લોસ', '૬૬KV લાઇન લોસ', 'કુલ લોસ (મીટર + ૬૬kV)', 'કુલ લોસ %', '૬૬KV ક્રેડિટ યુનિટ', 'અંદાજિત રકમ (₹)', '૬૬KV સબસ્ટેશન મીટર', 'કષ્ટભંજન અંદાજિત યુનિટ'];
+        const rows = dailyHistory.map(row => {
+            const totLoss = row.total_loss ?? ((row.internal_loss || 0) + (row.line_loss_66k || 0));
+            const totLossPct = row.total_loss_pct ?? (row.inverter_total > 0 ? (totLoss / row.inverter_total) * 100 : 0);
+            return [
+                row.date,
+                row.inverter_total,
+                row.plant_total,
+                `${row.internal_loss} (${row.internal_loss_pct}%)`,
+                row.line_loss_66k,
+                totLoss,
+                `${totLossPct.toFixed(2)}%`,
+                row.credit_66k,
+                row.amount,
+                row.sub_recorded,
+                row.kastbhanjan_derived
+            ];
+        });
 
         const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
         const encodedUri = encodeURI(csvContent);
@@ -479,6 +485,26 @@ export default function TodayBillPage({ currentUser, companies = [], onNavigateB
                     </div>
                 </div>
 
+                {/* 5. Total Loss (Meter + 66kV) */}
+                <div style={{ background: '#ffffff', borderRadius: '14px', padding: '16px', border: '1.5px solid #fed7aa', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#9a3412', fontSize: '12px', fontWeight: 700, marginBottom: '6px' }}>
+                        <span>કુલ લોસ (મીટર + ૬૬k)</span>
+                        <span style={{ padding: '2px 6px', background: '#ffedd5', color: '#c2410c', borderRadius: '6px', fontSize: '10px', fontWeight: 700 }}>
+                            {formatNum(viewMode === 'daily'
+                                ? (daySummary.total_loss_pct ?? (daySummary.inverter_total > 0 ? (((daySummary.internal_loss || 0) + (daySummary.line_loss_66k || 0)) / daySummary.inverter_total) * 100 : 0))
+                                : (monthSummary.total_loss_pct ?? (monthSummary.inverter_total > 0 ? (((monthSummary.internal_loss || 0) + (monthSummary.line_loss_66k || 0)) / monthSummary.inverter_total) * 100 : 0)), 2)}%
+                        </span>
+                    </div>
+                    <div style={{ fontSize: '22px', fontWeight: 800, color: '#c2410c' }}>
+                        {formatNum(viewMode === 'daily'
+                            ? (daySummary.total_loss ?? ((daySummary.internal_loss || 0) + (daySummary.line_loss_66k || 0)))
+                            : (monthSummary.total_loss ?? ((monthSummary.internal_loss || 0) + (monthSummary.line_loss_66k || 0))), 1)} <span style={{ fontSize: '13px', fontWeight: 500, color: '#64748b' }}>Units</span>
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#9a3412', marginTop: '4px' }}>
+                        આંતરિક મીટર લોસ + ૬૬ kV લાઇન લોસ
+                    </div>
+                </div>
+
                 {/* 5. 66 kV Credited Units */}
                 <div style={{ background: '#ffffff', borderRadius: '14px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
@@ -562,7 +588,7 @@ export default function TodayBillPage({ currentUser, companies = [], onNavigateB
                                 {/* Metrics Grid inside Company Card */}
                                 <div style={{
                                     display: 'grid',
-                                    gridTemplateColumns: 'repeat(2, 1fr)',
+                                    gridTemplateColumns: 'repeat(3, 1fr)',
                                     gap: '10px',
                                     background: '#f8fafc',
                                     padding: '12px',
@@ -582,15 +608,27 @@ export default function TodayBillPage({ currentUser, companies = [], onNavigateB
                                         </div>
                                     </div>
                                     <div>
-                                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>આંતરિક લોસ</div>
-                                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#dc2626' }}>
-                                            {formatNum(comp.internal_loss_units, 1)} U ({formatNum(comp.internal_loss_pct, 2)}%)
+                                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>૬૬ kV જમા યુનિટ</div>
+                                        <div style={{ fontSize: '15px', fontWeight: 700, color: '#059669' }}>
+                                            {formatNum(comp.credited_66k_units, 1)} Units
                                         </div>
                                     </div>
                                     <div>
-                                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>૬૬ kV જમા યુનિટ</div>
-                                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#059669' }}>
-                                            {formatNum(comp.credited_66k_units, 1)} Units
+                                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>આંતરિક લોસ</div>
+                                        <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#dc2626' }}>
+                                            {formatNum(comp.internal_loss_units, 1)} U ({formatNum(comp.internal_loss_pct, 1)}%)
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>૬૬ kV લાઇન લોસ</div>
+                                        <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#ea580c' }}>
+                                            {formatNum(comp.line_loss_66k_units, 1)} U (6.5%)
+                                        </div>
+                                    </div>
+                                    <div style={{ background: '#ffedd5', padding: '4px 8px', borderRadius: '8px' }}>
+                                        <div style={{ fontSize: '11px', color: '#9a3412', fontWeight: 700 }}>કુલ લોસ (મીટર+૬૬k)</div>
+                                        <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#c2410c' }}>
+                                            {formatNum(comp.total_loss_units ?? ((comp.internal_loss_units || 0) + (comp.line_loss_66k_units || 0)), 1)} U ({formatNum(comp.total_loss_pct ?? (comp.inverter_kwh > 0 ? (((comp.internal_loss_units || 0) + (comp.line_loss_66k_units || 0)) / comp.inverter_kwh) * 100 : 0), 1)}%)
                                         </div>
                                     </div>
                                 </div>
@@ -848,6 +886,7 @@ export default function TodayBillPage({ currentUser, companies = [], onNavigateB
                                 <th style={{ padding: '10px 12px', fontWeight: 700 }}>પ્લાન્ટ મીટર</th>
                                 <th style={{ padding: '10px 12px', fontWeight: 700 }}>આંતરિક લોસ</th>
                                 <th style={{ padding: '10px 12px', fontWeight: 700 }}>૬૬ kV લોસ (૬.૫%)</th>
+                                <th style={{ padding: '10px 12px', fontWeight: 800, color: '#b91c1c', background: '#fef2f2' }}>કુલ લોસ (મીટર + ૬૬k)</th>
                                 <th style={{ padding: '10px 12px', fontWeight: 700, color: '#059669' }}>૬૬ kV ક્રેડિટ</th>
                                 <th style={{ padding: '10px 12px', fontWeight: 700, color: '#047857' }}>આજનું બિલ (₹)</th>
                                 <th style={{ padding: '10px 12px', fontWeight: 700 }}>૬૬ kV સબસ્ટેશન</th>
@@ -857,7 +896,7 @@ export default function TodayBillPage({ currentUser, companies = [], onNavigateB
                         <tbody>
                             {dailyHistory.length === 0 ? (
                                 <tr>
-                                    <td colSpan={9} style={{ textAlign: 'center', padding: '30px', color: '#94a3b8' }}>
+                                    <td colSpan={10} style={{ textAlign: 'center', padding: '30px', color: '#94a3b8' }}>
                                         આ મહિના માટે કોઈ રીડિંગ ઉપલબ્ધ નથી.
                                     </td>
                                 </tr>
@@ -894,6 +933,10 @@ export default function TodayBillPage({ currentUser, companies = [], onNavigateB
                                             <td style={{ padding: '10px 12px', fontFamily: 'monospace', color: '#ea580c' }}>
                                                 {formatNum(row.line_loss_66k, 1)}
                                             </td>
+                                            <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontWeight: 700, color: '#b91c1c', background: isSelected ? '#fee2e2' : '#fff7ed' }}>
+                                                {formatNum(row.total_loss ?? ((row.internal_loss || 0) + (row.line_loss_66k || 0)), 1)}{' '}
+                                                <span style={{ fontSize: '10px', fontWeight: 600 }}>({formatNum(row.total_loss_pct ?? (row.inverter_total > 0 ? (((row.internal_loss || 0) + (row.line_loss_66k || 0)) / row.inverter_total) * 100 : 0), 1)}%)</span>
+                                            </td>
                                             <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontWeight: 700, color: '#059669' }}>
                                                 {formatNum(row.credit_66k, 1)}
                                             </td>
@@ -919,6 +962,10 @@ export default function TodayBillPage({ currentUser, companies = [], onNavigateB
                                     <td style={{ padding: '12px', fontFamily: 'monospace' }}>{formatNum(monthSummary.plant_total, 0)}</td>
                                     <td style={{ padding: '12px', fontFamily: 'monospace', color: '#dc2626' }}>{formatNum(monthSummary.internal_loss, 1)} ({formatNum(monthSummary.internal_loss_pct, 2)}%)</td>
                                     <td style={{ padding: '12px', fontFamily: 'monospace', color: '#ea580c' }}>{formatNum(monthSummary.line_loss_66k, 1)}</td>
+                                    <td style={{ padding: '12px', fontFamily: 'monospace', fontWeight: 800, color: '#b91c1c', background: '#fee2e2' }}>
+                                        {formatNum(monthSummary.total_loss ?? ((monthSummary.internal_loss || 0) + (monthSummary.line_loss_66k || 0)), 1)}{' '}
+                                        <span style={{ fontSize: '10.5px' }}>({formatNum(monthSummary.total_loss_pct ?? (monthSummary.inverter_total > 0 ? (((monthSummary.internal_loss || 0) + (monthSummary.line_loss_66k || 0)) / monthSummary.inverter_total) * 100 : 0), 2)}%)</span>
+                                    </td>
                                     <td style={{ padding: '12px', fontFamily: 'monospace', color: '#059669' }}>{formatNum(monthSummary.credited_66k, 1)}</td>
                                     <td style={{ padding: '12px', color: '#047857' }}>{formatINR(monthSummary.estimated_amount)}</td>
                                     <td style={{ padding: '12px', fontFamily: 'monospace' }}>{formatNum(monthSummary.sub_recorded, 0)}</td>

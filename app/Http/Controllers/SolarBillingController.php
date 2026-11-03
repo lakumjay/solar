@@ -995,6 +995,8 @@ class SolarBillingController extends Controller
 
             $loss66k = round($plantExport * ($lineLossPct / 100.0), 2);
             $credit66k = round($plantExport * $creditFactor, 2);
+            $totalLoss = round($intLoss + $loss66k, 2);
+            $totalLossPct = $invGen > 0 ? round(($totalLoss / $invGen) * 100, 2) : 0.0;
 
             $rateInfo = $companyRates[$comp->id] ?? $this->deriveDynamicCompanyRates($comp, $selectedMonth, $creditFactor);
             $compCreditedRate = $rateInfo['credited_rate'];
@@ -1018,6 +1020,8 @@ class SolarBillingController extends Controller
                 'internal_loss_units' => $intLoss,
                 'internal_loss_pct' => $intLossPct,
                 'line_loss_66k_units' => $loss66k,
+                'total_loss_units' => $totalLoss,
+                'total_loss_pct' => $totalLossPct,
                 'credited_66k_units' => $credit66k,
                 'effective_rate' => $compCreditedRate,
                 'effective_rate_credited' => $compCreditedRate,
@@ -1105,6 +1109,8 @@ class SolarBillingController extends Controller
             $dIntLossPct = $dInv > 0 ? round(($dIntLoss / $dInv) * 100, 2) : 0.0;
             $d66kLoss = round($dPlant * ($lineLossPct / 100.0), 2);
             $d66kCred = round($dPlant * $creditFactor, 2);
+            $dTotalLoss = round($dIntLoss + $d66kLoss, 2);
+            $dTotalLossPct = $dInv > 0 ? round(($dTotalLoss / $dInv) * 100, 2) : 0.0;
             $dAmount = round(array_sum(array_column($dCompData, 'amount')), 2);
             $dKast = max(0.0, round($dSub - $dAll3Cred, 2));
 
@@ -1123,6 +1129,8 @@ class SolarBillingController extends Controller
                 'internal_loss' => round($dIntLoss, 2),
                 'internal_loss_pct' => $dIntLossPct,
                 'line_loss_66k' => round($d66kLoss, 2),
+                'total_loss' => $dTotalLoss,
+                'total_loss_pct' => $dTotalLossPct,
                 'credit_66k' => round($d66kCred, 2),
                 'amount' => round($dAmount, 2),
                 'sub_recorded' => round($dSub, 2),
@@ -1160,6 +1168,8 @@ class SolarBillingController extends Controller
                 'internal_loss' => round($dayIntLossTotal, 2),
                 'internal_loss_pct' => $dayInvTotal > 0 ? round(($dayIntLossTotal / $dayInvTotal) * 100, 2) : 0.0,
                 'line_loss_66k' => round($day66kLossTotal, 2),
+                'total_loss' => round($dayIntLossTotal + $day66kLossTotal, 2),
+                'total_loss_pct' => $dayInvTotal > 0 ? round((($dayIntLossTotal + $day66kLossTotal) / $dayInvTotal) * 100, 2) : 0.0,
                 'credited_66k' => round($day66kCreditTotal, 2),
                 'all_companies_credited_66k' => round($allCompaniesDayCreditTotal, 2),
                 'effective_rate_credited' => $dayEffectiveRateCredited,
@@ -1179,6 +1189,8 @@ class SolarBillingController extends Controller
                 'internal_loss' => round($monthIntLossTotal, 2),
                 'internal_loss_pct' => $monthInvTotal > 0 ? round(($monthIntLossTotal / $monthInvTotal) * 100, 2) : 0.0,
                 'line_loss_66k' => round($month66kLossTotal, 2),
+                'total_loss' => round($monthIntLossTotal + $month66kLossTotal, 2),
+                'total_loss_pct' => $monthInvTotal > 0 ? round((($monthIntLossTotal + $month66kLossTotal) / $monthInvTotal) * 100, 2) : 0.0,
                 'credited_66k' => round($month66kCreditTotal, 2),
                 'all_companies_credited_66k' => round($monthAll3CreditTotal, 2),
                 'effective_rate_credited' => $monthEffectiveRateCredited,
