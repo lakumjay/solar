@@ -159,7 +159,7 @@ export default function TodayBillPage({ currentUser, companies = [], onNavigateB
                                     દૈનિક બિલ અને ૬૬KV લોસ મોનિટરિંગ
                                 </h1>
                                 <p style={{ margin: '2px 0 0', fontSize: '13px', color: '#64748b' }}>
-                                    ઇન્વર્ટર $\rightarrow$ મીટર આંતરિક લોસ, ૬૬ kV લાઇન લોસ (૬.૫%) અને રોજનું અંદાજિત બિલ
+                                    ઇન્વર્ટર → મીટર આંતરિક લોસ, ૬૬ kV લાઇન લોસ (૬.૫%) અને રોજનું અંદાજિત બિલ
                                 </p>
                             </div>
                         </div>
@@ -407,7 +407,7 @@ export default function TodayBillPage({ currentUser, companies = [], onNavigateB
                 {/* 3. Internal Loss (Inv -> Meter) */}
                 <div style={{ background: '#ffffff', borderRadius: '14px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
-                        <span>આંતરિક લોસ (Inv $\rightarrow$ Mtr)</span>
+                        <span>આંતરિક લોસ (Inv → Mtr)</span>
                         <span style={{
                             padding: '2px 6px',
                             background: (viewMode === 'daily' ? daySummary.internal_loss_pct : monthSummary.internal_loss_pct) <= 1.5 ? '#ecfdf5' : '#fef2f2',
@@ -631,7 +631,7 @@ export default function TodayBillPage({ currentUser, companies = [], onNavigateB
                     <div style={{ padding: '12px 16px', background: '#f0fdf4', borderRadius: '12px', border: '1px solid #bbf7d0' }}>
                         <div style={{ fontSize: '12px', color: '#166534', fontWeight: 600 }}>આપણી ૩ કંપનીઓનો ૬૬kV પાવર</div>
                         <div style={{ fontSize: '20px', fontWeight: 800, color: '#15803d', marginTop: '2px' }}>
-                            {formatNum(viewMode === 'daily' ? daySummary.credited_66k : monthSummary.credited_66k, 1)} Units
+                            {formatNum(viewMode === 'daily' ? (daySummary.all_companies_credited_66k ?? daySummary.credited_66k) : (monthSummary.all_companies_credited_66k ?? monthSummary.credited_66k), 1)} Units
                         </div>
                         <div style={{ fontSize: '11px', color: '#166534' }}>રાજેશ્વરી + નીલકંઠ + સનરાઈઝ</div>
                     </div>

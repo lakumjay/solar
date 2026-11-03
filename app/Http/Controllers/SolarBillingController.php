@@ -967,14 +967,23 @@ class SolarBillingController extends Controller
         $day66kCreditTotal = 0;
         $dayEstimatedAmountTotal = 0;
 
+        // Also calculate ALL 3 companies combined for 66kV Substation tally (regardless of filter)
+        $allCompanies = Company::where('active', 1)->orderBy('id')->get(['id', 'name']);
+        $allCompaniesDayCreditTotal = 0;
+        foreach ($allCompanies as $ac) {
+            $ar = $dayReadings->firstWhere('company_id', $ac->id);
+            $aPlant = $ar ? (float) ($ar->plant_export_unit ?? 0.0) : 0.0;
+            $allCompaniesDayCreditTotal += round($aPlant * $creditFactor, 2);
+            $aSub = $ar ? (float) ($ar->sub_import_unit ?? $ar->sub_export_unit ?? 0.0) : 0.0;
+            if ($aSub > $daySubTotalRecorded) {
+                $daySubTotalRecorded = $aSub;
+            }
+        }
+
         foreach ($companies as $comp) {
             $r = $dayReadings->firstWhere('company_id', $comp->id);
             $invGen = $r ? (float) $r->outputs->sum('generation') : 0.0;
             $plantExport = $r ? (float) ($r->plant_export_unit ?? 0.0) : 0.0;
-            $subRecorded = $r ? (float) ($r->sub_import_unit ?? $r->sub_export_unit ?? 0.0) : 0.0;
-            if ($subRecorded > $daySubTotalRecorded) {
-                $daySubTotalRecorded = $subRecorded;
-            }
 
             $intLoss = max(0.0, round($invGen - $plantExport, 2));
             $intLossPct = $invGen > 0 ? round(($intLoss / $invGen) * 100, 2) : 0.0;
@@ -1011,9 +1020,9 @@ class SolarBillingController extends Controller
             ];
         }
 
-        // Kastbhanjan derived from 66kV substation meter
-        $kastbhanjanDayCredit = max(0.0, round($daySubTotalRecorded - $day66kCreditTotal, 2));
-        $tallyDifference = round($daySubTotalRecorded - ($day66kCreditTotal + $kastbhanjanDayCredit), 2);
+        // Kastbhanjan derived from 66kV substation meter using ALL 3 companies combined
+        $kastbhanjanDayCredit = max(0.0, round($daySubTotalRecorded - $allCompaniesDayCreditTotal, 2));
+        $tallyDifference = round($daySubTotalRecorded - ($allCompaniesDayCreditTotal + $kastbhanjanDayCredit), 2);
 
         // Fetch monthly data for the selectedMonth
         $monthStart = Carbon::parse($selectedMonth . '-01')->startOfMonth();
@@ -1034,19 +1043,29 @@ class SolarBillingController extends Controller
         $month66kCreditTotal = 0;
         $monthEstimatedAmountTotal = 0;
         $monthSubRecordedTotal = 0;
+        $monthAll3CreditTotal = 0;
 
         foreach ($groupedByDate as $dStr => $rList) {
             $dInv = 0;
             $dPlant = 0;
             $dSub = 0;
             $dCompData = [];
+            $dAll3Plant = 0;
+
+            foreach ($allCompanies as $ac) {
+                $ar = $rList->firstWhere('company_id', $ac->id);
+                $aPlant = $ar ? (float) ($ar->plant_export_unit ?? 0.0) : 0.0;
+                $dAll3Plant += $aPlant;
+                $aSub = $ar ? (float) ($ar->sub_import_unit ?? $ar->sub_export_unit ?? 0.0) : 0.0;
+                if ($aSub > $dSub) $dSub = $aSub;
+            }
+            $dAll3Cred = round($dAll3Plant * $creditFactor, 2);
+            $monthAll3CreditTotal += $dAll3Cred;
 
             foreach ($companies as $comp) {
                 $r = $rList->firstWhere('company_id', $comp->id);
                 $cInv = $r ? (float) $r->outputs->sum('generation') : 0.0;
                 $cPlant = $r ? (float) ($r->plant_export_unit ?? 0.0) : 0.0;
-                $cSub = $r ? (float) ($r->sub_import_unit ?? $r->sub_export_unit ?? 0.0) : 0.0;
-                if ($cSub > $dSub) $dSub = $cSub;
 
                 $cIntLoss = max(0.0, round($cInv - $cPlant, 2));
                 $c66kLoss = round($cPlant * ($lineLossPct / 100.0), 2);
@@ -1071,7 +1090,7 @@ class SolarBillingController extends Controller
             $d66kLoss = round($dPlant * ($lineLossPct / 100.0), 2);
             $d66kCred = round($dPlant * $creditFactor, 2);
             $dAmount = round($d66kCred * $defaultRate, 2);
-            $dKast = max(0.0, round($dSub - $d66kCred, 2));
+            $dKast = max(0.0, round($dSub - $dAll3Cred, 2));
 
             $monthInvTotal += $dInv;
             $monthPlantTotal += $dPlant;
@@ -1119,6 +1138,7 @@ class SolarBillingController extends Controller
                 'internal_loss_pct' => $dayInvTotal > 0 ? round(($dayIntLossTotal / $dayInvTotal) * 100, 2) : 0.0,
                 'line_loss_66k' => round($day66kLossTotal, 2),
                 'credited_66k' => round($day66kCreditTotal, 2),
+                'all_companies_credited_66k' => round($allCompaniesDayCreditTotal, 2),
                 'estimated_amount' => round($dayEstimatedAmountTotal, 2),
                 'sub_recorded' => round($daySubTotalRecorded, 2),
                 'kastbhanjan_derived' => $kastbhanjanDayCredit,
@@ -1135,9 +1155,10 @@ class SolarBillingController extends Controller
                 'internal_loss_pct' => $monthInvTotal > 0 ? round(($monthIntLossTotal / $monthInvTotal) * 100, 2) : 0.0,
                 'line_loss_66k' => round($month66kLossTotal, 2),
                 'credited_66k' => round($month66kCreditTotal, 2),
+                'all_companies_credited_66k' => round($monthAll3CreditTotal, 2),
                 'estimated_amount' => round($monthEstimatedAmountTotal, 2),
                 'sub_recorded' => round($monthSubRecordedTotal, 2),
-                'kastbhanjan_derived' => max(0.0, round($monthSubRecordedTotal - $month66kCreditTotal, 2)),
+                'kastbhanjan_derived' => max(0.0, round($monthSubRecordedTotal - $monthAll3CreditTotal, 2)),
             ],
             'daily_history' => $dailyHistory,
             'available_months' => $availableMonths,
