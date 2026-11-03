@@ -161,120 +161,245 @@ export default function TodayBillPage({ currentUser, companies = [], onNavigateB
     };
 
     return (
-        <div className="today-bill-page-container" style={{ padding: '16px 20px', maxWidth: '1280px', margin: '0 auto', color: '#1e293b' }}>
-            {/* Header / Filter Toolbar */}
-            <div style={{
-                background: '#ffffff',
-                borderRadius: '16px',
-                padding: '20px',
-                boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
-                border: '1px solid #e2e8f0',
-                marginBottom: '20px'
-            }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
-                    <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <div style={{
-                                width: '40px',
-                                height: '40px',
-                                borderRadius: '12px',
-                                background: 'linear-gradient(135deg, #059669, #047857)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: '#ffffff',
-                                boxShadow: '0 4px 12px rgba(5,150,105,0.25)'
-                            }}>
-                                <Zap size={22} />
-                            </div>
-                            <div>
-                                <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>
-                                    દૈનિક બિલ અને ૬૬KV લોસ મોનિટરિંગ
-                                </h1>
-                                <p style={{ margin: '2px 0 0', fontSize: '13px', color: '#64748b' }}>
-                                    ઇન્વર્ટર → મીટર આંતરિક લોસ, ૬૬ kV લાઇન લોસ (૬.૫%) અને રોજનું અંદાજિત બિલ
-                                </p>
-                            </div>
+        <div className="today-bill-page-container">
+            {/* Embedded Responsive Styles for Mobile Perfection */}
+            <style>{`
+                .today-bill-page-container {
+                    padding: 16px 20px;
+                    max-width: 1280px;
+                    margin: 0 auto;
+                    color: #1e293b;
+                }
+                .tb-card {
+                    background: #ffffff;
+                    border-radius: 16px;
+                    padding: 20px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+                    border: 1px solid #e2e8f0;
+                    margin-bottom: 20px;
+                }
+                .tb-header-top {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 12px;
+                    margin-bottom: 14px;
+                }
+                .tb-title-box {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    min-width: 0;
+                    flex: 1;
+                }
+                .tb-title-icon {
+                    width: 40px;
+                    height: 40px;
+                    border-radius: 12px;
+                    background: linear-gradient(135deg, #059669, #047857);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: #ffffff;
+                    box-shadow: 0 4px 12px rgba(5,150,105,0.25);
+                    flex-shrink: 0;
+                }
+                .tb-title-text {
+                    min-width: 0;
+                }
+                .tb-title-h1 {
+                    margin: 0;
+                    font-size: 19px;
+                    font-weight: 800;
+                    color: #0f172a;
+                    line-height: 1.25;
+                }
+                .tb-title-sub {
+                    margin: 2px 0 0;
+                    font-size: 12.5px;
+                    color: #64748b;
+                    line-height: 1.35;
+                }
+                .tb-refresh-btn {
+                    padding: 9px;
+                    border-radius: 10px;
+                    border: 1px solid #cbd5e1;
+                    background: #ffffff;
+                    color: #475569;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    flex-shrink: 0;
+                    width: 40px;
+                    height: 40px;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+                    transition: all 0.15s ease;
+                }
+                .tb-refresh-btn:hover {
+                    background: #f8fafc;
+                    border-color: #94a3b8;
+                }
+                .tb-switcher-row {
+                    margin-bottom: 16px;
+                    width: 100%;
+                }
+                .tb-segmented-box {
+                    display: flex;
+                    width: 100%;
+                    background: #f1f5f9;
+                    padding: 4px;
+                    border-radius: 12px;
+                    border: 1px solid #e2e8f0;
+                    box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
+                    gap: 4px;
+                }
+                .tb-segment-btn {
+                    flex: 1;
+                    padding: 10px 12px;
+                    border-radius: 8px;
+                    border: none;
+                    font-size: 13px;
+                    font-weight: 700;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 6px;
+                    white-space: nowrap;
+                    text-align: center;
+                    transition: all 0.18s ease;
+                }
+                .tb-segment-btn.active {
+                    background: #059669;
+                    color: #ffffff;
+                    box-shadow: 0 2px 6px rgba(5,150,105,0.3);
+                }
+                .tb-segment-btn.inactive {
+                    background: transparent;
+                    color: #64748b;
+                }
+                .tb-segment-btn.inactive:hover {
+                    color: #0f172a;
+                    background: rgba(255,255,255,0.6);
+                }
+                .tb-filters-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                    gap: 12px;
+                    padding-top: 14px;
+                    border-top: 1px solid #f1f5f9;
+                }
+                .tb-metrics-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                    gap: 14px;
+                    margin-bottom: 20px;
+                }
+                .tb-card-bill-highlight {
+                    grid-column: auto;
+                }
+
+                @media (max-width: 640px) {
+                    .today-bill-page-container {
+                        padding: 10px 10px 80px 10px;
+                    }
+                    .tb-card {
+                        padding: 14px 12px;
+                        border-radius: 14px;
+                        margin-bottom: 12px;
+                    }
+                    .tb-title-h1 {
+                        font-size: 15px;
+                    }
+                    .tb-title-sub {
+                        font-size: 11px;
+                        line-height: 1.3;
+                    }
+                    .tb-title-icon {
+                        width: 34px;
+                        height: 34px;
+                        border-radius: 10px;
+                    }
+                    .tb-refresh-btn {
+                        width: 36px;
+                        height: 36px;
+                        padding: 8px;
+                    }
+                    .tb-segment-btn {
+                        padding: 9px 6px;
+                        font-size: 12px;
+                        gap: 4px;
+                    }
+                    .tb-filters-grid {
+                        grid-template-columns: 1fr;
+                        gap: 10px;
+                        padding-top: 12px;
+                    }
+                    .tb-metrics-grid {
+                        grid-template-columns: repeat(2, 1fr);
+                        gap: 10px;
+                        margin-bottom: 14px;
+                    }
+                    .tb-card-bill-highlight {
+                        grid-column: span 2;
+                    }
+                }
+            `}</style>
+
+            {/* Header / Filter Toolbar Card */}
+            <div className="tb-card">
+                {/* 1. Header Top Row (Title + Refresh Button) */}
+                <div className="tb-header-top">
+                    <div className="tb-title-box">
+                        <div className="tb-title-icon">
+                            <Zap size={22} />
+                        </div>
+                        <div className="tb-title-text">
+                            <h1 className="tb-title-h1">
+                                દૈનિક બિલ અને ૬૬KV લોસ મોનિટરિંગ
+                            </h1>
+                            <p className="tb-title-sub">
+                                ઇન્વર્ટર → મીટર આંતરિક લોસ, ૬૬ kV લાઇન લોસ (૬.૫%) અને રોજનું અંદાજિત બિલ
+                            </p>
                         </div>
                     </div>
 
-                    {/* View Switcher: Daily vs Monthly */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{
-                            display: 'inline-flex',
-                            background: '#f1f5f9',
-                            padding: '4px',
-                            borderRadius: '12px',
-                            border: '1px solid #e2e8f0'
-                        }}>
-                            <button
-                                type="button"
-                                onClick={() => setViewMode('daily')}
-                                style={{
-                                    padding: '8px 16px',
-                                    borderRadius: '8px',
-                                    border: 'none',
-                                    fontSize: '13px',
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    background: viewMode === 'daily' ? '#059669' : 'transparent',
-                                    color: viewMode === 'daily' ? '#ffffff' : '#64748b',
-                                    boxShadow: viewMode === 'daily' ? '0 2px 6px rgba(5,150,105,0.3)' : 'none',
-                                    transition: 'all 0.15s ease'
-                                }}
-                            >
-                                📅 દૈનિક રિપોર્ટ (Daily)
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setViewMode('monthly')}
-                                style={{
-                                    padding: '8px 16px',
-                                    borderRadius: '8px',
-                                    border: 'none',
-                                    fontSize: '13px',
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    background: viewMode === 'monthly' ? '#059669' : 'transparent',
-                                    color: viewMode === 'monthly' ? '#ffffff' : '#64748b',
-                                    boxShadow: viewMode === 'monthly' ? '0 2px 6px rgba(5,150,105,0.3)' : 'none',
-                                    transition: 'all 0.15s ease'
-                                }}
-                            >
-                                📊 માસિક હિસાબ (Monthly)
-                            </button>
-                        </div>
+                    <button
+                        type="button"
+                        onClick={() => loadReport(selectedDate, selectedMonth, selectedCompanyId)}
+                        disabled={refreshing}
+                        className="tb-refresh-btn"
+                        title="તાજું કરો (Refresh)"
+                    >
+                        <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+                    </button>
+                </div>
 
+                {/* 2. Full-Width Segmented Switcher: Daily vs Monthly */}
+                <div className="tb-switcher-row">
+                    <div className="tb-segmented-box">
                         <button
                             type="button"
-                            onClick={() => loadReport(selectedDate, selectedMonth, selectedCompanyId)}
-                            disabled={refreshing}
-                            style={{
-                                padding: '10px',
-                                borderRadius: '10px',
-                                border: '1px solid #cbd5e1',
-                                background: '#ffffff',
-                                color: '#475569',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                            }}
-                            title="તાજું કરો (Refresh)"
+                            onClick={() => setViewMode('daily')}
+                            className={`tb-segment-btn ${viewMode === 'daily' ? 'active' : 'inactive'}`}
                         >
-                            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+                            <span>📅</span>
+                            <span>દૈનિક રિપોર્ટ (Daily)</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('monthly')}
+                            className={`tb-segment-btn ${viewMode === 'monthly' ? 'active' : 'inactive'}`}
+                        >
+                            <span>📊</span>
+                            <span>માસિક હિસાબ (Monthly)</span>
                         </button>
                     </div>
                 </div>
 
-                {/* Filter Controls Row */}
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                    gap: '12px',
-                    paddingTop: '16px',
-                    borderTop: '1px solid #f1f5f9'
-                }}>
+                {/* 3. Filter Controls Row */}
+                <div className="tb-filters-grid">
                     {/* Date Picker (with Prev / Next) */}
                     <div>
                         <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '4px', textTransform: 'uppercase' }}>
@@ -412,12 +537,7 @@ export default function TodayBillPage({ currentUser, companies = [], onNavigateB
             )}
 
             {/* TOP METRIC SUMMARY CARDS */}
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                gap: '14px',
-                marginBottom: '20px'
-            }}>
+            <div className="tb-metrics-grid">
                 {/* 1. Inverter Total */}
                 <div style={{ background: '#ffffff', borderRadius: '14px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
@@ -522,7 +642,7 @@ export default function TodayBillPage({ currentUser, companies = [], onNavigateB
                 </div>
 
                 {/* 6. Today's Bill / Estimated Revenue */}
-                <div style={{
+                <div className="tb-card-bill-highlight" style={{
                     background: 'linear-gradient(135deg, #064e3b, #047857)',
                     borderRadius: '14px',
                     padding: '16px',
