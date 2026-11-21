@@ -27,6 +27,7 @@ class SolarAccessService
         'issue_stock',
         'return_stock',
         'view_expenses',
+        'view_today_bill',
     ];
 
     public function requirePermission(Request $request, string $permission): void

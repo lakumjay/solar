@@ -2889,7 +2889,7 @@ export default function MobileAppView({
                             )}
 
                             {/* 3bb. Today Bill & 66kV Loss */}
-                            {(isSuperAdmin || user.role === 'company_admin' || can('view_expenses') || can('view_reports')) && (
+                            {(isSuperAdmin || user.role === 'company_admin' || can('view_today_bill')) && (
                                 <button
                                     type="button"
                                     data-page="today-bill"

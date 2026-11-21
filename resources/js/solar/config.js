@@ -16,6 +16,7 @@ export const PERMISSIONS = [
     ['issue_stock', 'Give stock to borrowers'],
     ['return_stock', 'Receive returned stock'],
     ['view_expenses', 'View company expenses and balances'],
+    ['view_today_bill', 'View Today Bill & 66kV Loss (દૈનિક બિલ અને લોસ)'],
 ];
 
 export const METERS = [

@@ -271,7 +271,7 @@ function AppContent() {
                     {page === 'employees' && <EmployeesPage can={can} currentUser={user}/>}
                     {page === 'expenses' && <ExpensesPage currentUser={user}/>}
                     {page === 'rnsk-expenses' && <RnskExpensesPage currentUser={user}/>}
-                    {page === 'today-bill' && <TodayBillPage currentUser={user} companies={companies} onNavigateBilling={() => setPage('billing')}/>}
+                    {page === 'today-bill' && (user.role === 'super_admin' || user.role === 'company_admin' || can('view_today_bill')) && <TodayBillPage currentUser={user} companies={companies} onNavigateBilling={() => setPage('billing')}/>}
                     {page === 'billing' && <BillingPage currentUser={user}/>}
                     {page === 'attendance' && <AttendancePage canCorrect={['super_admin', 'company_admin'].includes(user.role)} canRecord={can('record_employee_attendance')}/>}
                     {page === 'leave-holidays' && <LeaveHolidayPage can={can}/>}

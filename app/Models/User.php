@@ -53,7 +53,7 @@ class User extends Authenticatable
             return true;
         }
         $defaults = [
-            'company_admin' => ['view_dashboard', 'enter_readings', 'edit_readings', 'view_reports', 'manage_company_users', 'view_employees', 'manage_employees', 'view_attendance', 'approve_leaves', 'manage_attendance_settings', 'view_attendance_reports', 'record_employee_attendance', 'view_stock', 'manage_stock', 'issue_stock', 'return_stock', 'view_expenses'],
+            'company_admin' => ['view_dashboard', 'enter_readings', 'edit_readings', 'view_reports', 'manage_company_users', 'view_employees', 'manage_employees', 'view_attendance', 'approve_leaves', 'manage_attendance_settings', 'view_attendance_reports', 'record_employee_attendance', 'view_stock', 'manage_stock', 'issue_stock', 'return_stock', 'view_expenses', 'view_today_bill'],
             'manager' => ['view_dashboard', 'view_employees', 'view_attendance', 'approve_leaves', 'view_attendance_reports', 'record_employee_attendance', 'view_stock', 'manage_stock', 'issue_stock', 'return_stock', 'view_expenses'],
             'employee' => ['view_dashboard', 'clock_attendance', 'enter_readings', 'edit_readings', 'view_reports', 'view_stock', 'manage_stock', 'issue_stock', 'return_stock'],
             'data_entry' => ['view_dashboard', 'enter_readings', 'edit_readings', 'view_reports', 'view_expenses'],

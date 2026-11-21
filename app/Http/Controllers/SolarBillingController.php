@@ -925,6 +925,9 @@ class SolarBillingController extends Controller
      */
     public function todayLossReport(Request $request): JsonResponse
     {
+        $user = $request->user();
+        abort_unless($user && ($user->role === 'super_admin' || $user->role === 'company_admin' || $user->hasPermission('view_today_bill')), 403, 'Unauthorized access to today bill and loss.');
+
         $selectedDate = $request->input('date') ? Carbon::parse($request->input('date'))->format('Y-m-d') : null;
         $selectedMonth = $request->input('month');
         $filterCompanyId = $request->input('company_id');
